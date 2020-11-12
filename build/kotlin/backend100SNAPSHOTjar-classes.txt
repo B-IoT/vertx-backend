@@ -1,0 +1,1 @@
+/home/andreav/vertx-backend/build/classes/kotlin/main/ch/biot/backend/MainVerticle$start$1.class:/home/andreav/vertx-backend/build/classes/kotlin/main/ch/biot/backend/MainVerticle$start$2.class:/home/andreav/vertx-backend/build/classes/kotlin/main/ch/biot/backend/MainVerticle.class
