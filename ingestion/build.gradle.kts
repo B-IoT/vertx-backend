@@ -30,12 +30,14 @@ application {
 }
 
 dependencies {
+  implementation("io.vertx:vertx-rx-java2:$vertxVersion")
+  implementation("io.reactivex.rxjava2:rxkotlin:2.4.0")
   implementation("io.vertx:vertx-web:$vertxVersion")
   implementation("io.vertx:vertx-hazelcast:$vertxVersion")
-  implementation("io.vertx:vertx-lang-kotlin-coroutines:$vertxVersion")
   implementation("io.vertx:vertx-kafka-client:$vertxVersion")
   implementation("io.vertx:vertx-lang-kotlin:$vertxVersion")
   implementation("io.vertx:vertx-mqtt:$vertxVersion")
+  implementation("ch.qos.logback:logback-classic:1.2.3")
   implementation(kotlin("stdlib-jdk8"))
   testImplementation("io.vertx:vertx-junit5:$vertxVersion")
   testImplementation("org.junit.jupiter:junit-jupiter:$junitJupiterVersion")
@@ -63,4 +65,5 @@ tasks.withType<Test> {
 
 tasks.withType<JavaExec> {
   args = listOf("run", mainVerticleName, "--redeploy=$watchForChange", "--launcher-class=$launcherClassName", "--on-redeploy=$doOnChange")
+  systemProperties["vertx.logger-delegate-factory-class-name"] = "io.vertx.core.logging.SLF4JLogDelegateFactory"
 }
