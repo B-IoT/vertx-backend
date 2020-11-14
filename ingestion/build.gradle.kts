@@ -20,7 +20,7 @@ val kotlinVersion = "1.3.72"
 val vertxVersion = "4.0.0.CR1"
 val junitJupiterVersion = "5.6.0"
 
-val mainVerticleName = "ch.biot.backend.ingestion.MainVerticle"
+val mainVerticleName = "ch.biot.backend.ingestion.IngestionVerticle"
 val watchForChange = "src/**/*"
 val doOnChange = "./gradlew classes"
 val launcherClassName = "io.vertx.core.Launcher"
