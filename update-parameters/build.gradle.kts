@@ -20,7 +20,7 @@ val kotlinVersion = "1.3.72"
 val vertxVersion = "4.0.0.CR1"
 val junitJupiterVersion = "5.6.0"
 
-val mainVerticleName = "ch.biot.backend.update-parameters.UpdateParametersVerticle"
+val mainVerticleName = "ch.biot.backend.updateparameters.UpdateParametersVerticle"
 val watchForChange = "src/**/*"
 val doOnChange = "./gradlew classes"
 val launcherClassName = "io.vertx.core.Launcher"

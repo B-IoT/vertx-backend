@@ -1,1 +1,1 @@
-rootProject.name = "update-parameters"
+rootProject.name = "updateparameters"
