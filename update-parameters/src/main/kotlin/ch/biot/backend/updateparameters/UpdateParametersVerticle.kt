@@ -8,21 +8,48 @@ import io.vertx.kotlin.core.json.json
 import io.vertx.kotlin.core.json.obj
 import io.vertx.reactivex.core.RxHelper
 import io.vertx.reactivex.core.buffer.Buffer
+import io.vertx.reactivex.ext.web.Router
+import io.vertx.reactivex.ext.web.RoutingContext
+import io.vertx.reactivex.ext.web.handler.BodyHandler
 import io.vertx.reactivex.mqtt.MqttEndpoint
 import io.vertx.reactivex.mqtt.MqttServer
 import org.slf4j.LoggerFactory
 import java.util.concurrent.TimeUnit
 
-
+// TODO long-term, update multiple clients at once, the route takes a JSON array
 class UpdateParametersVerticle : io.vertx.reactivex.core.AbstractVerticle() {
 
   private val logger = LoggerFactory.getLogger(UpdateParametersVerticle::class.java)
   private val clients = mutableSetOf<MqttEndpoint>() // set of subscribed clients
 
-  override fun rxStart(): Completable {
-    // TODO add route for publishing a specific message with Vertx Web
+  // TODO connect to MongoDB
 
-    return MqttServer.create(vertx).endpointHandler(::handleClient).rxListen(8883).ignoreElement()
+  override fun rxStart(): Completable {
+    val router = Router.router(vertx)
+    val bodyHandler = BodyHandler.create()
+    router.put().handler(bodyHandler)
+    router.put("/relays/update").handler(::validateBody).handler(::updateRelays)
+
+    MqttServer.create(vertx).endpointHandler(::handleClient).rxListen(8883).subscribe()
+
+    return vertx.createHttpServer().requestHandler(router).rxListen(3000).ignoreElement()
+  }
+
+  private fun validateBody(ctx: RoutingContext) = if (ctx.body.length() == 0) {
+    logger.warn("Bad request with empty body")
+    ctx.fail(400)
+  } else if (!validateJson(ctx.bodyAsJson)) {
+    logger.warn("Bad request with body ${ctx.bodyAsJson}")
+    ctx.fail(400)
+  } else {
+    ctx.next()
+  }
+
+  private fun updateRelays(ctx: RoutingContext) {
+    val json = ctx.bodyAsJson
+    json?.let {
+      publishMessageToClients(it, ctx)
+    } ?: ctx.fail(400)
   }
 
   private fun handleClient(client: MqttEndpoint) {
@@ -57,20 +84,7 @@ class UpdateParametersVerticle : io.vertx.reactivex.core.AbstractVerticle() {
       // ack the subscriptions request
       client.subscribeAcknowledge(subscribe.messageId(), grantedQosLevels)
       clients.add(client)
-      val json = buildMessage(
-        mapOf(
-          "targetId" to "1223",
-          "ledStatus" to true,
-          "ssid" to "456",
-          "password" to "pass",
-          "mac" to "06-00-00-00-00-00",
-          "txPower" to 4
-        )
-      )
-
-      vertx.setPeriodic(5000) {
-        publishMessageToClients(json) // TODO remove from here, publish when asked to do so with a HTTP request
-      }
+      // TODO send last configuration to client
     }.unsubscribeHandler { unsubscribe ->
       unsubscribe.topics().forEach { topic ->
         logger.info("Unsubscription for [$topic] by client [$clientIdentifier]")
@@ -79,22 +93,36 @@ class UpdateParametersVerticle : io.vertx.reactivex.core.AbstractVerticle() {
     }
   }
 
-  private fun publishMessageToClients(message: JsonObject) {
-    clients.forEach { client ->
-      client.publishAcknowledgeHandler { messageId ->
-        logger.info("Received ack for message $messageId")
-      }.rxPublish("update.parameters", Buffer.newInstance(message.toBuffer()), MqttQoS.AT_LEAST_ONCE, false, false)
-        .retryWhen {
-          it.delay(1, TimeUnit.SECONDS, RxHelper.scheduler(vertx))
-        }
-        .subscribeBy(
-          onSuccess = { messageId ->
-            logger.info("Published message $message with id $messageId to all clients")
-          },
-          onError = { error ->
-            logger.error("Could not send message $message", error)
+  private fun publishMessageToClients(message: JsonObject, ctx: RoutingContext) {
+    if (clients.isEmpty()) {
+      logger.warn("Trying to publish message but no client subscribed")
+      ctx.response().end()
+    } else {
+      clients.forEach { client ->
+        client.publishAcknowledgeHandler { messageId ->
+          logger.info("Received ack for message $messageId")
+        }.rxPublish("update.parameters", Buffer.newInstance(message.toBuffer()), MqttQoS.AT_LEAST_ONCE, false, false)
+          .retryWhen {
+            it.delay(1, TimeUnit.SECONDS, RxHelper.scheduler(vertx))
           }
-        )
+          .subscribeBy(
+            onSuccess = { messageId ->
+              logger.info("Published message $message with id $messageId to all clients")
+              ctx.response().end()
+            },
+            onError = { error ->
+              logger.error("Could not send message $message", error)
+              ctx.fail(500)
+            }
+          )
+      }
+    }
+  }
+
+  private fun validateJson(json: JsonObject): Boolean {
+    val keysToContain = listOf("targetID", "ledStatus", "ssid", "password", "mac", "txPower")
+    return keysToContain.fold(true) { acc, curr ->
+      acc && json.containsKey(curr)
     }
   }
 
