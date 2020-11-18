@@ -1,6 +1,15 @@
 version: '2'
 services:
 
+  mongo:
+    image: mongo:bionic
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_DATABASE=clients
+    volumes:
+      - ./init/mongo:/docker-entrypoint-initdb.d
+
   zookeeper:
     image: strimzi/zookeeper:0.11.4-kafka-2.1.0
     command: [
