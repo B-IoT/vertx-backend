@@ -48,7 +48,7 @@ class TestIngestionVerticle {
 
     vertx
       .rxDeployVerticle(IngestionVerticle())
-      .delay(2000, TimeUnit.MILLISECONDS, RxHelper.scheduler(vertx))
+      .delay(500, TimeUnit.MILLISECONDS, RxHelper.scheduler(vertx))
       .flatMapCompletable { kafkaAdminClient.rxDeleteTopics(listOf("incoming.update")) }
       .onErrorComplete()
       .subscribe(testContext::completeNow, testContext::failNow)
