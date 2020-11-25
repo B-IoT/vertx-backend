@@ -38,6 +38,7 @@ dependencies {
   implementation("io.vertx:vertx-lang-kotlin:$vertxVersion")
   implementation("io.vertx:vertx-mqtt:$vertxVersion")
   implementation("io.vertx:vertx-mongo-client:$vertxVersion")
+  implementation("io.vertx:vertx-auth-mongo:$vertxVersion")
   implementation("ch.qos.logback:logback-classic:1.2.3")
   implementation(kotlin("stdlib-jdk8"))
   testImplementation("io.vertx:vertx-junit5:$vertxVersion")

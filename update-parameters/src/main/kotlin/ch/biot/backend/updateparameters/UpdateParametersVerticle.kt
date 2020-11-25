@@ -1,5 +1,6 @@
 package ch.biot.backend.updateparameters
 
+import io.netty.handler.codec.mqtt.MqttConnectReturnCode
 import io.netty.handler.codec.mqtt.MqttQoS
 import io.reactivex.Completable
 import io.reactivex.rxkotlin.subscribeBy
@@ -8,9 +9,11 @@ import io.vertx.kotlin.core.json.get
 import io.vertx.kotlin.core.json.json
 import io.vertx.kotlin.core.json.jsonObjectOf
 import io.vertx.kotlin.core.json.obj
+import io.vertx.kotlin.ext.auth.mongo.mongoAuthenticationOptionsOf
 import io.vertx.kotlin.ext.mongo.findOptionsOf
 import io.vertx.kotlin.ext.mongo.updateOptionsOf
 import io.vertx.reactivex.core.buffer.Buffer
+import io.vertx.reactivex.ext.auth.mongo.MongoAuthentication
 import io.vertx.reactivex.ext.mongo.MongoClient
 import io.vertx.reactivex.ext.web.Router
 import io.vertx.reactivex.ext.web.RoutingContext
@@ -30,11 +33,24 @@ class UpdateParametersVerticle : io.vertx.reactivex.core.AbstractVerticle() {
   private val clients = mutableMapOf<String, MqttEndpoint>() // map of subscribed clientIdentifier to client
 
   private lateinit var mongoClient: MongoClient
+  private lateinit var mongoAuth: MongoAuthentication
 
   override fun rxStart(): Completable {
     // TODO update with real configuration
     mongoClient =
       MongoClient.createShared(vertx, jsonObjectOf("host" to "localhost", "port" to 27017, "db_name" to "clients"))
+
+    val usernameField = "mqttUsername"
+    val passwordField = "mqttPassword"
+    mongoAuth = MongoAuthentication.create(
+      mongoClient, mongoAuthenticationOptionsOf(
+        collectionName = RELAYS_COLLECTION,
+        passwordCredentialField = passwordField,
+        passwordField = passwordField,
+        usernameCredentialField = usernameField,
+        usernameField = usernameField
+      )
+    )
 
     val router = Router.router(vertx)
     val bodyHandler = BodyHandler.create()
@@ -101,36 +117,49 @@ class UpdateParametersVerticle : io.vertx.reactivex.core.AbstractVerticle() {
     val isCleanSession = client.isCleanSession
     logger.info("Client [$clientIdentifier] request to connect, clean session = $isCleanSession")
 
-    // TODO MQTT auth
     val mqttAuth = client.auth()
-    val username = mqttAuth.username
-    val password = mqttAuth.password
-
-    // Accept connection from the remote client
-    logger.info("Client [$clientIdentifier] connected")
-
-    val sessionPresent = !client.isCleanSession
-    client.accept(sessionPresent).disconnectHandler {
-      logger.info("Client [$clientIdentifier] disconnected")
-      clients.remove(clientIdentifier)
-    }.subscribeHandler { subscribe ->
-      val grantedQosLevels = subscribe.topicSubscriptions().map { s ->
-        logger.info("Subscription for [${s.topicName()}] with QoS [${s.qualityOfService()}] by client [$clientIdentifier]")
-        s.qualityOfService()
-      }
-
-      // Ack the subscriptions request
-      client.subscribeAcknowledge(subscribe.messageId(), grantedQosLevels)
-      clients[clientIdentifier] = client
-
-      // Send last configuration to client
-      sendLastConfiguration(client)
-    }.unsubscribeHandler { unsubscribe ->
-      unsubscribe.topics().forEach { topic ->
-        logger.info("Unsubscription for [$topic] by client [$clientIdentifier]")
-      }
-      clients.remove(clientIdentifier)
+    if (mqttAuth == null) {
+      // No auth information, reject
+      logger.info("Client [$clientIdentifier] rejected")
+      client.reject(MqttConnectReturnCode.CONNECTION_REFUSED_NOT_AUTHORIZED)
+      return
     }
+
+    val credentialsJson = jsonObjectOf("mqttUsername" to mqttAuth.username, "mqttPassword" to mqttAuth.password)
+    mongoAuth.rxAuthenticate(credentialsJson).subscribeBy(
+      onSuccess = {
+        // Accept connection from the remote client
+        logger.info("Client [$clientIdentifier] connected")
+
+        val sessionPresent = !client.isCleanSession
+        client.accept(sessionPresent).disconnectHandler {
+          logger.info("Client [$clientIdentifier] disconnected")
+          clients.remove(clientIdentifier)
+        }.subscribeHandler { subscribe ->
+          val grantedQosLevels = subscribe.topicSubscriptions().map { s ->
+            logger.info("Subscription for [${s.topicName()}] with QoS [${s.qualityOfService()}] by client [$clientIdentifier]")
+            s.qualityOfService()
+          }
+
+          // Ack the subscriptions request
+          client.subscribeAcknowledge(subscribe.messageId(), grantedQosLevels)
+          clients[clientIdentifier] = client
+
+          // Send last configuration to client
+          sendLastConfiguration(client)
+        }.unsubscribeHandler { unsubscribe ->
+          unsubscribe.topics().forEach { topic ->
+            logger.info("Unsubscription for [$topic] by client [$clientIdentifier]")
+          }
+          clients.remove(clientIdentifier)
+        }
+      },
+      onError = {
+        // Wrong username or password, reject
+        logger.info("Client [$clientIdentifier] rejected")
+        client.reject(MqttConnectReturnCode.CONNECTION_REFUSED_BAD_USER_NAME_OR_PASSWORD)
+      }
+    )
   }
 
   private fun JsonObject.cleanForSending(): JsonObject = this.copy().apply {
