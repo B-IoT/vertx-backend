@@ -82,14 +82,14 @@ class UpdateParametersVerticle : io.vertx.reactivex.core.AbstractVerticle() {
         updateOptionsOf(returningNewDocument = true)
       ).subscribeBy(
         onSuccess = { result ->
-          logger.info("Successfully updated MongoDB collection 'relays' with update JSON $update")
+          logger.info("Successfully updated MongoDB collection $RELAYS_COLLECTION with update JSON $update")
           // Send update to the right client subscribed via MQTT
           val mqttID: String = result["mqttID"]
-          val cleanEntry = cleanMongoEntryForSending(result)
+          val cleanEntry = result.cleanForSending()
           clients[mqttID]?.let { client -> sendMessageTo(client, cleanEntry, "update.parameters", ctx) }
         },
         onError = { error ->
-          logger.error("Could not update MongoDB collection 'relays' with update JSON $update", error)
+          logger.error("Could not update MongoDB collection $RELAYS_COLLECTION with update JSON $update", error)
           ctx.fail(500)
         }
       )
@@ -102,6 +102,9 @@ class UpdateParametersVerticle : io.vertx.reactivex.core.AbstractVerticle() {
     logger.info("Client [$clientIdentifier] request to connect, clean session = $isCleanSession")
 
     // TODO MQTT auth
+    val mqttAuth = client.auth()
+    val username = mqttAuth.username
+    val password = mqttAuth.password
 
     // Accept connection from the remote client
     logger.info("Client [$clientIdentifier] connected")
@@ -130,10 +133,15 @@ class UpdateParametersVerticle : io.vertx.reactivex.core.AbstractVerticle() {
     }
   }
 
-  private fun cleanMongoEntryForSending(entry: JsonObject): JsonObject = entry.copy().apply {
+  private fun JsonObject.cleanForSending(): JsonObject = this.copy().apply {
     remove("_id")
-    val lastModifiedObject: JsonObject = this["lastModified"]
-    put("lastModified", lastModifiedObject["\$date"])
+    remove("mqttID")
+    remove("mqttUsername")
+    remove("mqttPassword")
+    if (containsKey("lastModified")) {
+      val lastModifiedObject: JsonObject = this["lastModified"]
+      put("lastModified", lastModifiedObject["\$date"])
+    }
   }
 
   private fun sendLastConfiguration(client: MqttEndpoint) {
@@ -142,7 +150,7 @@ class UpdateParametersVerticle : io.vertx.reactivex.core.AbstractVerticle() {
       onSuccess = { config ->
         if (config != null && !config.isEmpty) {
           // Remove useless id field and clean lastModified
-          val cleanConfig = cleanMongoEntryForSending(config)
+          val cleanConfig = config.cleanForSending()
           sendMessageTo(client, cleanConfig, "last.configuration")
         }
       },
