@@ -4,8 +4,12 @@ import io.netty.handler.codec.mqtt.MqttQoS
 import io.reactivex.Completable
 import io.reactivex.rxkotlin.subscribeBy
 import io.vertx.core.json.JsonObject
-import io.vertx.kotlin.core.json.*
-import io.vertx.reactivex.core.RxHelper
+import io.vertx.kotlin.core.json.get
+import io.vertx.kotlin.core.json.json
+import io.vertx.kotlin.core.json.jsonObjectOf
+import io.vertx.kotlin.core.json.obj
+import io.vertx.kotlin.ext.mongo.findOptionsOf
+import io.vertx.kotlin.ext.mongo.updateOptionsOf
 import io.vertx.reactivex.core.buffer.Buffer
 import io.vertx.reactivex.ext.mongo.MongoClient
 import io.vertx.reactivex.ext.web.Router
@@ -14,7 +18,6 @@ import io.vertx.reactivex.ext.web.handler.BodyHandler
 import io.vertx.reactivex.mqtt.MqttEndpoint
 import io.vertx.reactivex.mqtt.MqttServer
 import org.slf4j.LoggerFactory
-import java.util.concurrent.TimeUnit
 
 // TODO long-term, update multiple clients at once, the HTTP route takes a JSON array too
 class UpdateParametersVerticle : io.vertx.reactivex.core.AbstractVerticle() {
@@ -24,7 +27,7 @@ class UpdateParametersVerticle : io.vertx.reactivex.core.AbstractVerticle() {
   }
 
   private val logger = LoggerFactory.getLogger(UpdateParametersVerticle::class.java)
-  private val clients = mutableSetOf<MqttEndpoint>() // set of subscribed clients
+  private val clients = mutableMapOf<String, MqttEndpoint>() // map of subscribed clientIdentifier to client
 
   private lateinit var mongoClient: MongoClient
 
@@ -36,7 +39,7 @@ class UpdateParametersVerticle : io.vertx.reactivex.core.AbstractVerticle() {
     val router = Router.router(vertx)
     val bodyHandler = BodyHandler.create()
     router.put().handler(bodyHandler)
-    router.put("/relays/update").handler(::validateBody).handler(::updateRelays)
+    router.put("/relays/update").handler(::validateBody).handler(::updateRelay)
 
     // TODO MQTT on TLS
     MqttServer.create(vertx).endpointHandler(::handleClient).rxListen(8883).subscribe()
@@ -54,7 +57,7 @@ class UpdateParametersVerticle : io.vertx.reactivex.core.AbstractVerticle() {
     ctx.next()
   }
 
-  private fun updateRelays(ctx: RoutingContext) {
+  private fun updateRelay(ctx: RoutingContext) {
     val json = ctx.bodyAsJson
     json?.let {
       // Update MongoDB
@@ -71,12 +74,19 @@ class UpdateParametersVerticle : io.vertx.reactivex.core.AbstractVerticle() {
           "\$currentDate" to obj("lastModified" to true)
         )
       }
-      mongoClient.rxUpdateCollection(RELAYS_COLLECTION, query, update).subscribeBy(
-        onSuccess = {
+      mongoClient.rxFindOneAndUpdateWithOptions(
+        RELAYS_COLLECTION,
+        query,
+        update,
+        findOptionsOf(),
+        updateOptionsOf(returningNewDocument = true)
+      ).subscribeBy(
+        onSuccess = { result ->
           logger.info("Successfully updated MongoDB collection 'relays' with update JSON $update")
-
-          // Send update to clients subscribed via MQTT
-          publishMessageToClients(json, ctx)
+          // Send update to the right client subscribed via MQTT
+          val mqttID: String = result["mqttID"]
+          val cleanEntry = cleanMongoEntryForSending(result)
+          clients[mqttID]?.let { client -> sendMessageTo(client, cleanEntry, "update.parameters", ctx) }
         },
         onError = { error ->
           logger.error("Could not update MongoDB collection 'relays' with update JSON $update", error)
@@ -99,7 +109,7 @@ class UpdateParametersVerticle : io.vertx.reactivex.core.AbstractVerticle() {
     val sessionPresent = !client.isCleanSession
     client.accept(sessionPresent).disconnectHandler {
       logger.info("Client [$clientIdentifier] disconnected")
-      clients.remove(client)
+      clients.remove(clientIdentifier)
     }.subscribeHandler { subscribe ->
       val grantedQosLevels = subscribe.topicSubscriptions().map { s ->
         logger.info("Subscription for [${s.topicName()}] with QoS [${s.qualityOfService()}] by client [$clientIdentifier]")
@@ -108,7 +118,7 @@ class UpdateParametersVerticle : io.vertx.reactivex.core.AbstractVerticle() {
 
       // Ack the subscriptions request
       client.subscribeAcknowledge(subscribe.messageId(), grantedQosLevels)
-      clients.add(client)
+      clients[clientIdentifier] = client
 
       // Send last configuration to client
       sendLastConfiguration(client)
@@ -116,35 +126,24 @@ class UpdateParametersVerticle : io.vertx.reactivex.core.AbstractVerticle() {
       unsubscribe.topics().forEach { topic ->
         logger.info("Unsubscription for [$topic] by client [$clientIdentifier]")
       }
-      clients.remove(client)
+      clients.remove(clientIdentifier)
     }
   }
 
-  private fun publishMessageToClients(message: JsonObject, ctx: RoutingContext) {
-    if (clients.isEmpty()) {
-      logger.warn("Trying to publish message but no client subscribed")
-      ctx.response().end()
-    } else {
-      clients.forEach { client ->
-        sendMessageTo(client, message, "update.parameters", ctx)
-      }
-    }
+  private fun cleanMongoEntryForSending(entry: JsonObject): JsonObject = entry.copy().apply {
+    remove("_id")
+    val lastModifiedObject: JsonObject = this["lastModified"]
+    put("lastModified", lastModifiedObject["\$date"])
   }
 
   private fun sendLastConfiguration(client: MqttEndpoint) {
-    val query = jsonObjectOf() // match any element
-    mongoClient.rxFind(RELAYS_COLLECTION, query).subscribeBy(
-      onSuccess = { configs ->
-        if (configs != null && configs.isNotEmpty()) {
+    val query = jsonObjectOf("mqttID" to client.clientIdentifier())
+    mongoClient.rxFindOne(RELAYS_COLLECTION, query, jsonObjectOf()).subscribeBy(
+      onSuccess = { config ->
+        if (config != null && !config.isEmpty) {
           // Remove useless id field and clean lastModified
-          val cleanConfigs = configs.map { config ->
-            config.remove("_id")
-            val lastModifiedObject: JsonObject = config["lastModified"]
-            config.put("lastModified", lastModifiedObject["\$date"])
-            config
-          }
-          val message = jsonObjectOf("configs" to cleanConfigs)
-          sendMessageTo(client, message, "last.configuration")
+          val cleanConfig = cleanMongoEntryForSending(config)
+          sendMessageTo(client, cleanConfig, "last.configuration")
         }
       },
       onError = { error ->
@@ -157,9 +156,6 @@ class UpdateParametersVerticle : io.vertx.reactivex.core.AbstractVerticle() {
     client.publishAcknowledgeHandler { messageId ->
       logger.info("Received ack for message $messageId")
     }.rxPublish(topic, Buffer.newInstance(message.toBuffer()), MqttQoS.AT_LEAST_ONCE, false, false)
-      .retryWhen {
-        it.delay(2, TimeUnit.SECONDS, RxHelper.scheduler(vertx))
-      }
       .subscribeBy(
         onSuccess = { messageId ->
           logger.info("Published message $message with id $messageId to client ${client.clientIdentifier()} on topic $topic")

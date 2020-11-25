@@ -17,7 +17,7 @@ repositories {
 }
 
 val kotlinVersion = "1.3.72"
-val vertxVersion = "4.0.0.CR1"
+val vertxVersion = "4.0.0.CR2"
 val junitJupiterVersion = "5.6.0"
 
 val mainVerticleName = "ch.biot.backend.updateparameters.UpdateParametersVerticle"
