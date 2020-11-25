@@ -19,6 +19,7 @@ import org.testcontainers.junit.jupiter.Testcontainers
 import strikt.api.expect
 import strikt.api.expectThat
 import strikt.assertions.isEqualTo
+import strikt.assertions.isNotNull
 import java.io.File
 import java.util.concurrent.TimeUnit
 
@@ -60,7 +61,6 @@ class TestIngestionVerticle {
     val message = json {
       obj(
         "relayID" to "abc",
-        "timestamp" to "time",
         "battery" to 10,
         "rssi" to -60.0,
         "mac" to "mac",
@@ -93,7 +93,7 @@ class TestIngestionVerticle {
             val json = record.value()
             expect {
               that(json.getString("relayID")).isEqualTo("abc")
-              that(json.getString("timestamp")).isEqualTo("time")
+              that(json.getString("timestamp")).isNotNull()
               that(json.getInteger("battery")).isEqualTo(10)
               that(json.getDouble("rssi")).isEqualTo(-60.0)
               that(json.getString("mac")).isEqualTo("mac")

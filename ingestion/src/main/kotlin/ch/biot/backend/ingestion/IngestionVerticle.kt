@@ -12,6 +12,7 @@ import io.vertx.reactivex.mqtt.MqttEndpoint
 import io.vertx.reactivex.mqtt.MqttServer
 import io.vertx.reactivex.mqtt.messages.MqttPublishMessage
 import org.slf4j.LoggerFactory
+import java.time.Instant
 
 
 class IngestionVerticle : io.vertx.reactivex.core.AbstractVerticle() {
@@ -62,15 +63,17 @@ class IngestionVerticle : io.vertx.reactivex.core.AbstractVerticle() {
 
       if (m.topicName() == INGESTION_TOPIC && validateJson(message)) {
         val beaconMacAddress: String = message["mac"]
-
-        val record = KafkaProducerRecord.create(INGESTION_TOPIC, beaconMacAddress, message)
+        val kafkaMessage = message.copy().apply {
+          this.put("timestamp", Instant.now())
+        }
+        val record = KafkaProducerRecord.create(INGESTION_TOPIC, beaconMacAddress, kafkaMessage)
         kafkaProducer.rxSend(record).subscribeBy(
           onSuccess = {
-            logger.info("Sent message $message with key '$beaconMacAddress' on topic '$INGESTION_TOPIC'")
+            logger.info("Sent message $kafkaMessage with key '$beaconMacAddress' on topic '$INGESTION_TOPIC'")
           },
           onError = { error ->
             logger.error(
-              "Could not send message $message with key '$beaconMacAddress' on topic '$INGESTION_TOPIC'",
+              "Could not send message $kafkaMessage with key '$beaconMacAddress' on topic '$INGESTION_TOPIC'",
               error
             )
           }
@@ -82,7 +85,7 @@ class IngestionVerticle : io.vertx.reactivex.core.AbstractVerticle() {
   }
 
   private fun validateJson(json: JsonObject): Boolean {
-    val keysToContain = listOf("relayID", "timestamp", "battery", "rssi", "mac", "isPushed")
+    val keysToContain = listOf("relayID", "battery", "rssi", "mac", "isPushed")
     return keysToContain.fold(true) { acc, curr ->
       acc && json.containsKey(curr)
     }
