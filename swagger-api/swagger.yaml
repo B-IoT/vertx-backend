@@ -146,9 +146,6 @@ components:
     RelayUpdateInfo:
       type: object
       properties:
-        relayID:
-          type: string
-          format: uuid
         ledStatus:
           type: boolean
         latitude:
