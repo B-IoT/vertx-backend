@@ -25,7 +25,6 @@ class RelaysVerticle : AbstractVerticle() {
         routerBuilder.operation("registerRelay").handler(::registerHandler)
         routerBuilder.operation("getRelays").handler(::getRelaysHandler)
         routerBuilder.operation("getRelay").handler(::getRelayHandler)
-        routerBuilder.operation("updateRelay").handler(::updateHandler)
 
         val router: Router = routerBuilder.createRouter()
         vertx.createHttpServer().requestHandler(router).listen(PORT)
@@ -51,12 +50,6 @@ class RelaysVerticle : AbstractVerticle() {
 
   private fun getRelayHandler(ctx: RoutingContext) {
     logger.info("New getRelay request")
-    // TODO MongoDBs
-    ctx.end()
-  }
-
-  private fun updateHandler(ctx: RoutingContext) {
-    logger.info("New update request")
     // TODO MongoDBs
     ctx.end()
   }
