@@ -1,0 +1,180 @@
+openapi: 3.0.0
+info:
+  title: Vert.x API
+  version: "1"
+servers:
+- url: https://virtserver.swaggerhub.com/b-iot/Vert.x/1
+  description: SwaggerHub API Auto Mocking
+paths:
+  /relays:
+    get:
+      tags:
+      - Relay
+      description: returns all relays
+      operationId: getRelays
+      parameters:
+      - name: offset
+        in: query
+        description: number of records to skip
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: integer
+          format: int32
+      - name: limit
+        in: query
+        description: max number of records to return
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: integer
+          format: int32
+      responses:
+        "200":
+          description: All the relays
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Relay'
+    post:
+      tags:
+      - Relay
+      operationId: registerRelay
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RelayRegisterInfo'
+      responses:
+        "200":
+          description: successfully registered relay
+  /relays/{id}:
+    get:
+      tags:
+      - Relay
+      description: returns a specific relay
+      operationId: getRelay
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: a relay
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Relay'
+    put:
+      tags:
+      - Relay
+      description: updates a specific relay
+      operationId: updateRelay
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RelayUpdateInfo'
+      responses:
+        "200":
+          description: successfully updated relay
+components:
+  schemas:
+    Relay:
+      type: object
+      properties:
+        mqttID:
+          type: string
+          format: uuid
+        mqttUsername:
+          type: string
+        relayID:
+          type: string
+          format: uuid
+        ledStatus:
+          type: boolean
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+        lastModified:
+          type: string
+          format: date-time
+        wifi:
+          $ref: '#/components/schemas/Relay_wifi'
+      description: A relay
+    RelayRegisterInfo:
+      type: object
+      properties:
+        mqttID:
+          type: string
+          format: uuid
+        mqttUsername:
+          type: string
+        relayID:
+          type: string
+          format: uuid
+        ledStatus:
+          type: boolean
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+        wifi:
+          $ref: '#/components/schemas/Relay_wifi'
+      description: A relay to register
+    RelayUpdateInfo:
+      type: object
+      properties:
+        relayID:
+          type: string
+          format: uuid
+        ledStatus:
+          type: boolean
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+        wifi:
+          $ref: '#/components/schemas/Relay_wifi'
+        beacon:
+          $ref: '#/components/schemas/RelayUpdateInfo_beacon'
+      description: Update information for a relay
+    Relay_wifi:
+      type: object
+      properties:
+        ssid:
+          type: string
+        password:
+          type: string
+          format: password
+    RelayUpdateInfo_beacon:
+      type: object
+      properties:
+        mac:
+          type: string
+        txPower:
+          type: integer
+          format: int32
