@@ -4,6 +4,7 @@ import io.vertx.core.AbstractVerticle
 import io.vertx.core.Promise
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
+import io.vertx.ext.auth.mongo.MongoAuthentication
 import io.vertx.ext.auth.mongo.MongoUserUtil
 import io.vertx.ext.mongo.MongoClient
 import io.vertx.ext.web.Router
@@ -25,7 +26,8 @@ class RelaysVerticle : AbstractVerticle() {
 
   private val logger = LoggerFactory.getLogger(RelaysVerticle::class.java)
   private lateinit var mongoClient: MongoClient
-  private lateinit var mongoAuthUtil: MongoUserUtil
+  private lateinit var mongoUserUtil: MongoUserUtil
+  private lateinit var mongoAuth: MongoAuthentication
 
   override fun start(startPromise: Promise<Void>?) {
     mongoClient =
@@ -33,15 +35,18 @@ class RelaysVerticle : AbstractVerticle() {
 
     val usernameField = "mqttUsername"
     val passwordField = "mqttPassword"
-    mongoAuthUtil = MongoUserUtil.create(
-      mongoClient, mongoAuthenticationOptionsOf(
-        collectionName = RELAYS_COLLECTION,
-        passwordCredentialField = passwordField,
-        passwordField = passwordField,
-        usernameCredentialField = usernameField,
-        usernameField = usernameField
-      ), mongoAuthorizationOptionsOf()
+    val mongoAuthOptions = mongoAuthenticationOptionsOf(
+      collectionName = RELAYS_COLLECTION,
+      passwordCredentialField = passwordField,
+      passwordField = passwordField,
+      usernameCredentialField = usernameField,
+      usernameField = usernameField
     )
+
+    mongoUserUtil = MongoUserUtil.create(
+      mongoClient, mongoAuthOptions, mongoAuthorizationOptionsOf()
+    )
+    mongoAuth = MongoAuthentication.create(mongoClient, mongoAuthOptions)
 
     RouterBuilder.create(vertx, "../swagger-api/swagger.yaml").onComplete { ar ->
       if (ar.succeeded()) {
@@ -67,21 +72,25 @@ class RelaysVerticle : AbstractVerticle() {
     val json = ctx.bodyAsJson
     json?.let {
       // Create the user
-      mongoAuthUtil.createUser(it["mqttUsername"], it["mqttPassword"]).onSuccess { docID ->
+      val password: String = it["mqttPassword"]
+      val hashedPassword = mongoAuth.hash("pbkdf2", "A009C1A485912C6AE630D3E744240B04", password)
+      mongoUserUtil.createHashedUser(it["mqttUsername"], hashedPassword).onSuccess { docID ->
         // Update the user with the data specified in the HTTP request
         val query = jsonObjectOf("_id" to docID)
         val extraInfo = jsonObjectOf(
-          "\$set" to json
+          "\$set" to json.copy().apply {
+            remove("mqttPassword")
+          }
         )
         mongoClient.findOneAndUpdate(RELAYS_COLLECTION, query, extraInfo).onSuccess {
-          logger.info("New relay $json registered")
+          logger.info("New relay registered")
           ctx.end()
         }.onFailure { error ->
-          logger.error("Could not register relay with data $json", error)
+          logger.error("Could not register relay", error)
           ctx.fail(400, error)
         }
       }.onFailure { error ->
-        logger.error("Could not register relay with data $json", error)
+        logger.error("Could not register relay", error)
         ctx.fail(400, error)
       }
     } ?: ctx.fail(400)

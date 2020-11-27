@@ -1,29 +1,29 @@
 package ch.biot.backend.relays
 
-import io.reactivex.rxkotlin.subscribeBy
-import io.vertx.core.json.JsonObject
-import io.vertx.junit5.VertxExtension
-import io.vertx.junit5.VertxTestContext
-import io.vertx.kotlin.core.json.json
-import io.vertx.kotlin.core.json.obj
-import io.vertx.reactivex.core.RxHelper
-import io.vertx.reactivex.core.buffer.Buffer
-import io.vertx.reactivex.kafka.admin.KafkaAdminClient
-import io.vertx.reactivex.kafka.client.consumer.KafkaConsumer
-import io.vertx.reactivex.mqtt.MqttClient
-import org.junit.jupiter.api.*
-import org.junit.jupiter.api.extension.ExtendWith
-import org.testcontainers.containers.DockerComposeContainer
-import org.testcontainers.junit.jupiter.Testcontainers
-import strikt.api.expect
-import strikt.api.expectThat
-import strikt.assertions.isEqualTo
-import java.io.File
-import java.util.concurrent.TimeUnit
+//import io.reactivex.rxkotlin.subscribeBy
+//import io.vertx.core.json.JsonObject
+//import io.vertx.junit5.VertxExtension
+//import io.vertx.junit5.VertxTestContext
+//import io.vertx.kotlin.core.json.json
+//import io.vertx.kotlin.core.json.obj
+//import io.vertx.reactivex.core.RxHelper
+//import io.vertx.reactivex.core.buffer.Buffer
+//import io.vertx.reactivex.kafka.admin.KafkaAdminClient
+//import io.vertx.reactivex.kafka.client.consumer.KafkaConsumer
+//import io.vertx.reactivex.mqtt.MqttClient
+//import org.junit.jupiter.api.*
+//import org.junit.jupiter.api.extension.ExtendWith
+//import org.testcontainers.containers.DockerComposeContainer
+//import org.testcontainers.junit.jupiter.Testcontainers
+//import strikt.api.expect
+//import strikt.api.expectThat
+//import strikt.assertions.isEqualTo
+//import java.io.File
+//import java.util.concurrent.TimeUnit
 
 
-@ExtendWith(VertxExtension::class)
-@Testcontainers
+//@ExtendWith(VertxExtension::class)
+//@Testcontainers
 class TestRelaysVerticle {
 //
 //  private lateinit var kafkaConsumer: KafkaConsumer<String, JsonObject>
