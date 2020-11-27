@@ -101,12 +101,10 @@ components:
       properties:
         mqttID:
           type: string
-          format: uuid
         mqttUsername:
           type: string
         relayID:
           type: string
-          format: uuid
         ledStatus:
           type: boolean
         latitude:
@@ -126,12 +124,13 @@ components:
       properties:
         mqttID:
           type: string
-          format: uuid
         mqttUsername:
           type: string
+        mqttPassword:
+          type: string
+          format: password
         relayID:
           type: string
-          format: uuid
         ledStatus:
           type: boolean
         latitude:
