@@ -22,11 +22,11 @@ import io.vertx.reactivex.mqtt.MqttEndpoint
 import io.vertx.reactivex.mqtt.MqttServer
 import org.slf4j.LoggerFactory
 
-// TODO long-term, update multiple clients at once, the HTTP route takes a JSON array too
 class UpdateParametersVerticle : io.vertx.reactivex.core.AbstractVerticle() {
 
   companion object {
     private const val RELAYS_COLLECTION = "relays"
+    private const val PORT = 3001
   }
 
   private val logger = LoggerFactory.getLogger(UpdateParametersVerticle::class.java)
@@ -55,12 +55,12 @@ class UpdateParametersVerticle : io.vertx.reactivex.core.AbstractVerticle() {
     val router = Router.router(vertx)
     val bodyHandler = BodyHandler.create()
     router.put().handler(bodyHandler)
-    router.put("/relays/update").handler(::validateBody).handler(::updateRelay)
+    router.put("/relays/:id").handler(::validateBody).handler(::updateHandler)
 
     // TODO MQTT on TLS
     MqttServer.create(vertx).endpointHandler(::handleClient).rxListen(8883).subscribe()
 
-    return vertx.createHttpServer().requestHandler(router).rxListen(3000).ignoreElement()
+    return vertx.createHttpServer().requestHandler(router).rxListen(PORT).ignoreElement()
   }
 
   private fun validateBody(ctx: RoutingContext) = if (ctx.body.length() == 0) {
@@ -73,20 +73,16 @@ class UpdateParametersVerticle : io.vertx.reactivex.core.AbstractVerticle() {
     ctx.next()
   }
 
-  private fun updateRelay(ctx: RoutingContext) {
+  private fun updateHandler(ctx: RoutingContext) {
     val json = ctx.bodyAsJson
     json?.let {
       // Update MongoDB
-      val query = jsonObjectOf("relayID" to it["targetID"])
+      val query = jsonObjectOf("relayID" to ctx.pathParam("id"))
       val update = json {
         obj(
-          "\$set" to obj(
-            "ledStatus" to it["ledStatus"],
-            "wifi" to obj(
-              "ssid" to it["ssid"],
-              "password" to it["password"]
-            )
-          ),
+          "\$set" to json.copy().apply {
+            remove("beacon")
+          },
           "\$currentDate" to obj("lastModified" to true)
         )
       }
@@ -125,7 +121,10 @@ class UpdateParametersVerticle : io.vertx.reactivex.core.AbstractVerticle() {
       return
     }
 
-    val credentialsJson = jsonObjectOf("mqttUsername" to mqttAuth.username, "mqttPassword" to mqttAuth.password)
+    val credentialsJson = jsonObjectOf(
+      "username" to mqttAuth.username,
+      "password" to mqttAuth.password
+    )
     mongoAuth.rxAuthenticate(credentialsJson).subscribeBy(
       onSuccess = {
         // Accept connection from the remote client
@@ -156,7 +155,7 @@ class UpdateParametersVerticle : io.vertx.reactivex.core.AbstractVerticle() {
       },
       onError = {
         // Wrong username or password, reject
-        logger.info("Client [$clientIdentifier] rejected")
+        logger.info("Client [$clientIdentifier] rejected", it)
         client.reject(MqttConnectReturnCode.CONNECTION_REFUSED_BAD_USER_NAME_OR_PASSWORD)
       }
     )
@@ -206,9 +205,7 @@ class UpdateParametersVerticle : io.vertx.reactivex.core.AbstractVerticle() {
   }
 
   private fun validateJson(json: JsonObject): Boolean {
-    val keysToContain = listOf("targetID", "ledStatus", "ssid", "password", "mac", "txPower")
-    return keysToContain.fold(true) { acc, curr ->
-      acc && json.containsKey(curr)
-    }
+    val keysToContain = setOf("ledStatus", "latitude", "longitude", "wifi", "beacon")
+    return (json.fieldNames() - keysToContain).isEmpty()
   }
 }

@@ -33,6 +33,7 @@ dependencies {
   implementation("io.vertx:vertx-rx-java2:$vertxVersion")
   implementation("io.reactivex.rxjava2:rxkotlin:2.4.0")
   implementation("io.vertx:vertx-web:$vertxVersion")
+  implementation("io.vertx:vertx-web-openapi:$vertxVersion")
   implementation("io.vertx:vertx-hazelcast:$vertxVersion")
   implementation("io.vertx:vertx-kafka-client:$vertxVersion")
   implementation("io.vertx:vertx-lang-kotlin:$vertxVersion")
