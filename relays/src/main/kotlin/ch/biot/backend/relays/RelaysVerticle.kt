@@ -15,6 +15,7 @@ import io.vertx.kotlin.core.json.jsonObjectOf
 import io.vertx.kotlin.ext.auth.mongo.mongoAuthenticationOptionsOf
 import io.vertx.kotlin.ext.auth.mongo.mongoAuthorizationOptionsOf
 import org.slf4j.LoggerFactory
+import java.security.SecureRandom
 
 
 class RelaysVerticle : AbstractVerticle() {
@@ -73,7 +74,9 @@ class RelaysVerticle : AbstractVerticle() {
     json?.let {
       // Create the user
       val password: String = it["mqttPassword"]
-      val hashedPassword = mongoAuth.hash("pbkdf2", "A009C1A485912C6AE630D3E744240B04", password)
+      val salt = ByteArray(16)
+      SecureRandom().nextBytes(salt)
+      val hashedPassword = mongoAuth.hash("pbkdf2", salt.toString(Charsets.UTF_8), password)
       mongoUserUtil.createHashedUser(it["mqttUsername"], hashedPassword).onSuccess { docID ->
         // Update the user with the data specified in the HTTP request
         val query = jsonObjectOf("_id" to docID)
