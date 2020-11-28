@@ -43,6 +43,6 @@ digraph architecture {
       user_ms -> {mongo_db};
       items_ms -> {timescale_db};
       spark -> {timescale_db};
-      analytics_ms -> {timescale_db, kafka};
+      analytics_ms -> {timescale_db};
   }
 }
