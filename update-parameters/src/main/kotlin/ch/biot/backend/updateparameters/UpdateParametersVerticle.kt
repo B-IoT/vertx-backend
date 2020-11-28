@@ -97,7 +97,7 @@ class UpdateParametersVerticle : io.vertx.reactivex.core.AbstractVerticle() {
           logger.info("Successfully updated MongoDB collection $RELAYS_COLLECTION with update JSON $update")
           // Send update to the right client subscribed via MQTT
           val mqttID: String = result["mqttID"]
-          val cleanEntry = result.cleanForSending()
+          val cleanEntry = result.clean()
           clients[mqttID]?.let { client -> sendMessageTo(client, cleanEntry, "update.parameters", ctx) }
         },
         onError = { error ->
@@ -161,11 +161,13 @@ class UpdateParametersVerticle : io.vertx.reactivex.core.AbstractVerticle() {
     )
   }
 
-  private fun JsonObject.cleanForSending(): JsonObject = this.copy().apply {
+  private fun JsonObject.clean(): JsonObject = this.copy().apply {
     remove("_id")
     remove("mqttID")
     remove("mqttUsername")
     remove("mqttPassword")
+    remove("latitude")
+    remove("longitude")
     if (containsKey("lastModified")) {
       val lastModifiedObject: JsonObject = this["lastModified"]
       put("lastModified", lastModifiedObject["\$date"])
@@ -178,7 +180,7 @@ class UpdateParametersVerticle : io.vertx.reactivex.core.AbstractVerticle() {
       onSuccess = { config ->
         if (config != null && !config.isEmpty) {
           // Remove useless id field and clean lastModified
-          val cleanConfig = config.cleanForSending()
+          val cleanConfig = config.clean()
           sendMessageTo(client, cleanConfig, "last.configuration")
         }
       },
