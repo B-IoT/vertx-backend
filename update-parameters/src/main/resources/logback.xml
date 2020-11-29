@@ -9,6 +9,7 @@
   <logger name="io.netty" level="warn"/>
   <logger name="io.vertx" level="info"/>
   <logger name="org.apache.kafka" level="info"/>
+  <logger name="com.hazelcast.level" level="info"/>
 
   <root level="debug">
     <appender-ref ref="STDOUT"/>

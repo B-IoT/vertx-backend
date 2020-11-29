@@ -4,32 +4,49 @@ import io.netty.handler.codec.mqtt.MqttConnectReturnCode
 import io.netty.handler.codec.mqtt.MqttQoS
 import io.reactivex.Completable
 import io.reactivex.rxkotlin.subscribeBy
+import io.vertx.core.Vertx
 import io.vertx.core.json.JsonObject
+import io.vertx.kotlin.core.eventbus.eventBusOptionsOf
 import io.vertx.kotlin.core.json.get
-import io.vertx.kotlin.core.json.json
 import io.vertx.kotlin.core.json.jsonObjectOf
-import io.vertx.kotlin.core.json.obj
+import io.vertx.kotlin.core.vertxOptionsOf
 import io.vertx.kotlin.ext.auth.mongo.mongoAuthenticationOptionsOf
-import io.vertx.kotlin.ext.mongo.findOptionsOf
-import io.vertx.kotlin.ext.mongo.updateOptionsOf
 import io.vertx.reactivex.core.buffer.Buffer
 import io.vertx.reactivex.ext.auth.mongo.MongoAuthentication
 import io.vertx.reactivex.ext.mongo.MongoClient
-import io.vertx.reactivex.ext.web.Router
-import io.vertx.reactivex.ext.web.RoutingContext
-import io.vertx.reactivex.ext.web.handler.BodyHandler
 import io.vertx.reactivex.mqtt.MqttEndpoint
 import io.vertx.reactivex.mqtt.MqttServer
+import io.vertx.spi.cluster.hazelcast.HazelcastClusterManager
 import org.slf4j.LoggerFactory
+import java.net.InetAddress
+import java.net.UnknownHostException
+
 
 class UpdateParametersVerticle : io.vertx.reactivex.core.AbstractVerticle() {
 
   companion object {
     private const val RELAYS_COLLECTION = "relays"
-    private const val PORT = 3001
+    private const val RELAYS_UPDATE_ADDRESS = "relays.update"
+
+    private val logger = LoggerFactory.getLogger(UpdateParametersVerticle::class.java)
+
+    @Throws(UnknownHostException::class)
+    @JvmStatic
+    fun main(args: Array<String>) {
+      val ipv4 = InetAddress.getLocalHost().hostAddress
+      val options = vertxOptionsOf(
+        clusterManager = HazelcastClusterManager(),
+        eventBusOptions = eventBusOptionsOf(host = ipv4, clusterPublicHost = ipv4)
+      )
+
+      Vertx.clusteredVertx(options).onSuccess {
+        it.deployVerticle(UpdateParametersVerticle())
+      }.onFailure { error ->
+        logger.error("Could not start", error)
+      }
+    }
   }
 
-  private val logger = LoggerFactory.getLogger(UpdateParametersVerticle::class.java)
   private val clients = mutableMapOf<String, MqttEndpoint>() // map of subscribed clientIdentifier to client
 
   private lateinit var mongoClient: MongoClient
@@ -52,60 +69,18 @@ class UpdateParametersVerticle : io.vertx.reactivex.core.AbstractVerticle() {
       )
     )
 
-    val router = Router.router(vertx)
-    val bodyHandler = BodyHandler.create()
-    router.put().handler(bodyHandler)
-    router.put("/relays/:id").handler(::validateBody).handler(::updateHandler)
+    vertx.eventBus().consumer<JsonObject>(RELAYS_UPDATE_ADDRESS) { message ->
+      val json = message.body()
+      logger.info("Received relay update $json on event bus address $RELAYS_UPDATE_ADDRESS, sending it to client...")
+      val mqttID: String = json["mqttID"]
+      val jsonWithoutMqttID = json.copy().apply {
+        remove("mqttID")
+      }
+      clients[mqttID]?.let { client -> sendMessageTo(client, jsonWithoutMqttID, "update.parameters") }
+    }
 
     // TODO MQTT on TLS
-    MqttServer.create(vertx).endpointHandler(::handleClient).rxListen(8883).subscribe()
-
-    return vertx.createHttpServer().requestHandler(router).rxListen(PORT).ignoreElement()
-  }
-
-  private fun validateBody(ctx: RoutingContext) = if (ctx.body.length() == 0) {
-    logger.warn("Bad request with empty body")
-    ctx.fail(400)
-  } else if (!validateJson(ctx.bodyAsJson)) {
-    logger.warn("Bad request with body ${ctx.bodyAsJson}")
-    ctx.fail(400)
-  } else {
-    ctx.next()
-  }
-
-  private fun updateHandler(ctx: RoutingContext) {
-    val json = ctx.bodyAsJson
-    json?.let {
-      // Update MongoDB
-      val query = jsonObjectOf("relayID" to ctx.pathParam("id"))
-      val update = json {
-        obj(
-          "\$set" to json.copy().apply {
-            remove("beacon")
-          },
-          "\$currentDate" to obj("lastModified" to true)
-        )
-      }
-      mongoClient.rxFindOneAndUpdateWithOptions(
-        RELAYS_COLLECTION,
-        query,
-        update,
-        findOptionsOf(),
-        updateOptionsOf(returningNewDocument = true)
-      ).subscribeBy(
-        onSuccess = { result ->
-          logger.info("Successfully updated MongoDB collection $RELAYS_COLLECTION with update JSON $update")
-          // Send update to the right client subscribed via MQTT
-          val mqttID: String = result["mqttID"]
-          val cleanEntry = result.clean()
-          clients[mqttID]?.let { client -> sendMessageTo(client, cleanEntry, "update.parameters", ctx) }
-        },
-        onError = { error ->
-          logger.error("Could not update MongoDB collection $RELAYS_COLLECTION with update JSON $update", error)
-          ctx.fail(500)
-        }
-      )
-    } ?: ctx.fail(400)
+    return MqttServer.create(vertx).endpointHandler(::handleClient).rxListen(8883).ignoreElement()
   }
 
   private fun handleClient(client: MqttEndpoint) {
@@ -179,7 +154,7 @@ class UpdateParametersVerticle : io.vertx.reactivex.core.AbstractVerticle() {
     mongoClient.rxFindOne(RELAYS_COLLECTION, query, jsonObjectOf()).subscribeBy(
       onSuccess = { config ->
         if (config != null && !config.isEmpty) {
-          // Remove useless id field and clean lastModified
+          // Remove useless fields and clean lastModified
           val cleanConfig = config.clean()
           sendMessageTo(client, cleanConfig, "last.configuration")
         }
@@ -190,24 +165,17 @@ class UpdateParametersVerticle : io.vertx.reactivex.core.AbstractVerticle() {
     )
   }
 
-  private fun sendMessageTo(client: MqttEndpoint, message: JsonObject, topic: String, ctx: RoutingContext? = null) {
+  private fun sendMessageTo(client: MqttEndpoint, message: JsonObject, topic: String) {
     client.publishAcknowledgeHandler { messageId ->
       logger.info("Received ack for message $messageId")
     }.rxPublish(topic, Buffer.newInstance(message.toBuffer()), MqttQoS.AT_LEAST_ONCE, false, false)
       .subscribeBy(
         onSuccess = { messageId ->
           logger.info("Published message $message with id $messageId to client ${client.clientIdentifier()} on topic $topic")
-          ctx?.response()?.end()
         },
         onError = { error ->
           logger.error("Could not send message $message on topic $topic", error)
-          ctx?.fail(500)
         }
       )
-  }
-
-  private fun validateJson(json: JsonObject): Boolean {
-    val keysToContain = setOf("ledStatus", "latitude", "longitude", "wifi", "beacon")
-    return (json.fieldNames() - keysToContain).isEmpty()
   }
 }

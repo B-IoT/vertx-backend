@@ -2,6 +2,7 @@ package ch.biot.backend.relays
 
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.Promise
+import io.vertx.core.Vertx
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.auth.mongo.MongoAuthentication
@@ -10,11 +11,20 @@ import io.vertx.ext.mongo.MongoClient
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.openapi.RouterBuilder
+import io.vertx.kotlin.core.eventbus.eventBusOptionsOf
 import io.vertx.kotlin.core.json.get
+import io.vertx.kotlin.core.json.json
 import io.vertx.kotlin.core.json.jsonObjectOf
+import io.vertx.kotlin.core.json.obj
+import io.vertx.kotlin.core.vertxOptionsOf
 import io.vertx.kotlin.ext.auth.mongo.mongoAuthenticationOptionsOf
 import io.vertx.kotlin.ext.auth.mongo.mongoAuthorizationOptionsOf
+import io.vertx.kotlin.ext.mongo.findOptionsOf
+import io.vertx.kotlin.ext.mongo.updateOptionsOf
+import io.vertx.spi.cluster.hazelcast.HazelcastClusterManager
 import org.slf4j.LoggerFactory
+import java.net.InetAddress
+import java.net.UnknownHostException
 import java.security.SecureRandom
 
 
@@ -22,10 +32,28 @@ class RelaysVerticle : AbstractVerticle() {
 
   companion object {
     private const val RELAYS_COLLECTION = "relays"
+    private const val RELAYS_UPDATE_ADDRESS = "relays.update"
     private const val PORT = 3000
+
+    private val logger = LoggerFactory.getLogger(RelaysVerticle::class.java)
+
+    @Throws(UnknownHostException::class)
+    @JvmStatic
+    fun main(args: Array<String>) {
+      val ipv4 = InetAddress.getLocalHost().hostAddress
+      val options = vertxOptionsOf(
+        clusterManager = HazelcastClusterManager(),
+        eventBusOptions = eventBusOptionsOf(host = ipv4, clusterPublicHost = ipv4)
+      )
+
+      Vertx.clusteredVertx(options).onSuccess {
+        it.deployVerticle(RelaysVerticle())
+      }.onFailure { error ->
+        logger.error("Could not start", error)
+      }
+    }
   }
 
-  private val logger = LoggerFactory.getLogger(RelaysVerticle::class.java)
   private lateinit var mongoClient: MongoClient
   private lateinit var mongoUserUtil: MongoUserUtil
   private lateinit var mongoAuth: MongoAuthentication
@@ -57,6 +85,7 @@ class RelaysVerticle : AbstractVerticle() {
         routerBuilder.operation("registerRelay").handler(::registerHandler)
         routerBuilder.operation("getRelays").handler(::getRelaysHandler)
         routerBuilder.operation("getRelay").handler(::getRelayHandler)
+        routerBuilder.operation("updateRelay").handler(::updateHandler)
 
         val router: Router = routerBuilder.createRouter()
         vertx.createHttpServer().requestHandler(router).listen(PORT)
@@ -71,13 +100,13 @@ class RelaysVerticle : AbstractVerticle() {
   private fun registerHandler(ctx: RoutingContext) {
     logger.info("New register request")
     val json = ctx.bodyAsJson
-    json?.let {
+    json.validateAndThen(ctx) {
       // Create the user
-      val password: String = it["mqttPassword"]
+      val password: String = json["mqttPassword"]
       val salt = ByteArray(16)
       SecureRandom().nextBytes(salt)
       val hashedPassword = mongoAuth.hash("pbkdf2", salt.toString(Charsets.UTF_8), password)
-      mongoUserUtil.createHashedUser(it["mqttUsername"], hashedPassword).onSuccess { docID ->
+      mongoUserUtil.createHashedUser(json["mqttUsername"], hashedPassword).onSuccess { docID ->
         // Update the user with the data specified in the HTTP request
         val query = jsonObjectOf("_id" to docID)
         val extraInfo = jsonObjectOf(
@@ -96,7 +125,7 @@ class RelaysVerticle : AbstractVerticle() {
         logger.error("Could not register relay", error)
         ctx.fail(400, error)
       }
-    } ?: ctx.fail(400)
+    }
   }
 
   private fun getRelaysHandler(ctx: RoutingContext) {
@@ -118,8 +147,71 @@ class RelaysVerticle : AbstractVerticle() {
     ctx.end()
   }
 
+  private fun updateHandler(ctx: RoutingContext) {
+    logger.info("New updateRelay request")
+    val json = ctx.bodyAsJson
+    json.validateAndThen(ctx) {
+      // Update MongoDB
+      val query = jsonObjectOf("relayID" to ctx.pathParam("id"))
+      val update = json {
+        obj(
+          "\$set" to json.copy().apply {
+            remove("beacon")
+          },
+          "\$currentDate" to obj("lastModified" to true)
+        )
+      }
+      mongoClient.findOneAndUpdateWithOptions(
+        RELAYS_COLLECTION,
+        query,
+        update,
+        findOptionsOf(),
+        updateOptionsOf(returningNewDocument = true)
+      ).onSuccess { result ->
+        logger.info("Successfully updated MongoDB collection $RELAYS_COLLECTION with update JSON $update")
+        val cleanEntry = result.cleanForRelay().apply {
+          put("beacon", json["beacon"])
+        }
+        // Send to the RelaysCommunicationVerticle the entry to update the relay
+        vertx.eventBus().send(RELAYS_UPDATE_ADDRESS, cleanEntry)
+        logger.info("Update sent to the event bus address $RELAYS_UPDATE_ADDRESS")
+        ctx.end()
+      }.onFailure { error ->
+        logger.error("Could not update MongoDB collection $RELAYS_COLLECTION with update JSON $update", error)
+        ctx.fail(500)
+      }
+    }
+  }
+
+  private fun JsonObject?.validateAndThen(ctx: RoutingContext, block: (JsonObject) -> Unit) {
+    when {
+      this == null -> {
+        logger.warn("Bad request with null body")
+        ctx.fail(400)
+      }
+      this.isEmpty -> {
+        logger.warn("Bad request with empty body")
+        ctx.fail(400)
+      }
+      else -> block(this)
+    }
+  }
+
   private fun JsonObject.clean(): JsonObject = this.copy().apply {
     remove("_id")
+    cleanLastModified()
+  }
+
+  private fun JsonObject.cleanForRelay(): JsonObject = this.copy().apply {
+    remove("_id")
+    remove("mqttUsername")
+    remove("mqttPassword")
+    remove("latitude")
+    remove("longitude")
+    cleanLastModified()
+  }
+
+  private fun JsonObject.cleanLastModified() {
     if (containsKey("lastModified")) {
       val lastModifiedObject: JsonObject = this["lastModified"]
       put("lastModified", lastModifiedObject["\$date"])
