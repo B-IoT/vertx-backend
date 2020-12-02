@@ -42,8 +42,12 @@ dependencies {
   implementation("io.vertx:vertx-auth-mongo:$vertxVersion")
   implementation("ch.qos.logback:logback-classic:1.2.3")
   implementation(kotlin("stdlib-jdk8"))
+  testImplementation("org.testcontainers:junit-jupiter:1.15.0")
   testImplementation("io.vertx:vertx-junit5:$vertxVersion")
+  testImplementation("io.vertx:vertx-junit5-rx-java2:$vertxVersion")
   testImplementation("org.junit.jupiter:junit-jupiter:$junitJupiterVersion")
+  testImplementation("io.strikt:strikt-gradle:0.28.0")
+  testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:$junitJupiterVersion")
 }
 
 val compileKotlin: KotlinCompile by tasks
