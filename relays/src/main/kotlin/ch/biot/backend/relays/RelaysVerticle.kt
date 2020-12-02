@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory
 import java.net.InetAddress
 import java.net.UnknownHostException
 import java.security.SecureRandom
+import java.util.*
 
 
 class RelaysVerticle : AbstractVerticle() {
@@ -101,11 +102,9 @@ class RelaysVerticle : AbstractVerticle() {
     logger.info("New register request")
     val json = ctx.bodyAsJson
     json.validateAndThen(ctx) {
-      // Create the user
+      // Create the users
       val password: String = json["mqttPassword"]
-      val salt = ByteArray(16)
-      SecureRandom().nextBytes(salt)
-      val hashedPassword = mongoAuth.hash("pbkdf2", salt.toString(Charsets.UTF_8), password)
+      val hashedPassword = password.saltAndHash()
       mongoUserUtil.createHashedUser(json["mqttUsername"], hashedPassword).onSuccess { docID ->
         // Update the user with the data specified in the HTTP request
         val query = jsonObjectOf("_id" to docID)
@@ -216,5 +215,11 @@ class RelaysVerticle : AbstractVerticle() {
       val lastModifiedObject: JsonObject = this["lastModified"]
       put("lastModified", lastModifiedObject["\$date"])
     }
+  }
+
+  private fun String.saltAndHash(): String {
+    val salt = ByteArray(16)
+    SecureRandom().nextBytes(salt)
+    return mongoAuth.hash("pbkdf2", String(Base64.getEncoder().encode(salt)), this)
   }
 }
