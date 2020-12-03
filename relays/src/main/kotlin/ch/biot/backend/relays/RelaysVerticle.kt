@@ -105,7 +105,7 @@ class RelaysVerticle : AbstractVerticle() {
       // Create the users
       val password: String = json["mqttPassword"]
       val hashedPassword = password.saltAndHash()
-      mongoUserUtil.createHashedUser(json["mqttUsername"], hashedPassword).onSuccess { docID ->
+      mongoUserUtil.createHashedUser(json["mqttUsername"], hashedPassword).compose { docID ->
         // Update the user with the data specified in the HTTP request
         val query = jsonObjectOf("_id" to docID)
         val extraInfo = jsonObjectOf(
@@ -113,16 +113,13 @@ class RelaysVerticle : AbstractVerticle() {
             remove("mqttPassword")
           }
         )
-        mongoClient.findOneAndUpdate(RELAYS_COLLECTION, query, extraInfo).onSuccess {
-          logger.info("New relay registered")
-          ctx.end()
-        }.onFailure { error ->
-          logger.error("Could not register relay", error)
-          ctx.fail(400, error)
-        }
+        mongoClient.findOneAndUpdate(RELAYS_COLLECTION, query, extraInfo)
+      }.onSuccess {
+        logger.info("New relay registered")
+        ctx.end()
       }.onFailure { error ->
         logger.error("Could not register relay", error)
-        ctx.fail(400, error)
+        ctx.fail(500, error)
       }
     }
   }
@@ -136,14 +133,22 @@ class RelaysVerticle : AbstractVerticle() {
         .end(JsonArray(relays.map { it.clean() }).encode())
     }.onFailure { error ->
       logger.error("Could not get relays", error)
-      ctx.fail(400, error)
+      ctx.fail(500, error)
     }
   }
 
   private fun getRelayHandler(ctx: RoutingContext) {
-    logger.info("New getRelay request")
-    // TODO MongoDBs
-    ctx.end()
+    val relayID = ctx.pathParam("id")
+    logger.info("New getRelay request for relay $relayID")
+    val query = jsonObjectOf("relayID" to relayID)
+    mongoClient.findOne(RELAYS_COLLECTION, query, jsonObjectOf()).onSuccess { relay ->
+      ctx.response()
+        .putHeader("Content-Type", "application/json")
+        .end(relay.clean().encode())
+    }.onFailure { error ->
+      logger.error("Could not get relay", error)
+      ctx.fail(500, error)
+    }
   }
 
   private fun updateHandler(ctx: RoutingContext) {
