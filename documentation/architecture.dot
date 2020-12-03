@@ -11,7 +11,7 @@ digraph architecture {
   
   // Microservices - #C8E6C9 (light green)
   node[fillcolor="#C8E6C9" style="filled" fontcolor="black"];
-  relays_communication_ms[label="Relays communication MS"]; relays_ms[label="Relays MS"]; user_ms[label="User MS"]; items_ms[label="Items MS"]; analytics_ms[label="Analytics MS"]; triangulation_ms[label="Triangulation MS"];
+  relays_communication_ms[label="Relays communication MS"]; crud_ms[label="CRUD MS"]; analytics_ms[label="Analytics MS"];
   
   // API Gateways - #FFCCBC (light orange)
   node[fillcolor="#FFCCBC" style="filled" fontcolor="black"];
@@ -30,18 +30,15 @@ digraph architecture {
   }
   
   subgraph api_gateways {
-      public_api -> {relays_ms, user_ms, items_ms, analytics_ms} [label="Event bus"];
+      public_api -> {crud_ms, analytics_ms} [label="HTTP"];
   }
   
   subgraph microservices {
       relays_communication_ms -> {relay} [label="MQTT"];
       relays_communication_ms -> {kafka};
-      triangulation_ms -> {kafka};
-      kafka -> {relays_communication_ms, triangulation_ms, spark, items_ms, analytics_ms};
-      relays_ms -> {mongo_db};
-      relays_ms -> {relays_communication_ms} [label="Event bus"];
-      user_ms -> {mongo_db};
-      items_ms -> {timescale_db};
+      kafka -> {relays_communication_ms, spark, analytics_ms};
+      crud_ms -> {mongo_db, timescale_db};
+      crud_ms -> {relays_communication_ms} [label="Event bus"];
       spark -> {timescale_db};
       analytics_ms -> {timescale_db};
   }
