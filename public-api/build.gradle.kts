@@ -17,7 +17,7 @@ repositories {
 }
 
 val kotlinVersion = "1.3.72"
-val vertxVersion = "4.0.0.CR1"
+val vertxVersion = "4.0.0.CR2"
 val junitJupiterVersion = "5.6.0"
 
 val mainVerticleName = "ch.biot.backend.publicapi.PublicApiVerticle"
@@ -30,8 +30,6 @@ application {
 }
 
 dependencies {
-  implementation("io.vertx:vertx-rx-java2:$vertxVersion")
-  implementation("io.reactivex.rxjava2:rxkotlin:2.4.0")
   implementation("io.vertx:vertx-web:$vertxVersion")
   implementation("io.vertx:vertx-web-client:$vertxVersion")
   implementation("io.vertx:vertx-auth-jwt:$vertxVersion")
@@ -41,7 +39,6 @@ dependencies {
   implementation(kotlin("stdlib-jdk8"))
   testImplementation("org.testcontainers:junit-jupiter:1.15.0")
   testImplementation("io.vertx:vertx-junit5:$vertxVersion")
-  testImplementation("io.vertx:vertx-junit5-rx-java2:$vertxVersion")
   testImplementation("org.junit.jupiter:junit-jupiter:$junitJupiterVersion")
   testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:$junitJupiterVersion")
   testImplementation("io.strikt:strikt-gradle:0.28.0")
