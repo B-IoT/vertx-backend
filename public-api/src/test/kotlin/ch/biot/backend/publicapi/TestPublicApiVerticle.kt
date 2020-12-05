@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) 2020 BIoT. All rights reserved.
+ */
+
 package ch.biot.backend.ingestion
 
 import io.netty.handler.codec.mqtt.MqttQoS
