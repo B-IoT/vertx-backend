@@ -1,4 +1,4 @@
-package ch.biot.backend.relays
+package ch.biot.backend.crud
 
 import io.restassured.builder.RequestSpecBuilder
 import io.restassured.filter.log.RequestLoggingFilter
@@ -40,7 +40,7 @@ import java.util.*
 
 @ExtendWith(VertxExtension::class)
 @Testcontainers
-class TestRelaysVerticle {
+class TestCRUDVerticle {
 
   private lateinit var mongoClient: MongoClient
   private lateinit var mongoUserUtil: MongoUserUtil
@@ -103,7 +103,7 @@ class TestRelaysVerticle {
       }.compose {
         insertRelay()
       }.onSuccess {
-        vertx.deployVerticle(RelaysVerticle(), testContext.succeedingThenComplete())
+        vertx.deployVerticle(CRUDVerticle(), testContext.succeedingThenComplete())
       }.onFailure(testContext::failNow)
   }
 

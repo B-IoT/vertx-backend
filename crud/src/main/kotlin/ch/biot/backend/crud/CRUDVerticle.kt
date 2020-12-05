@@ -1,4 +1,4 @@
-package ch.biot.backend.relays
+package ch.biot.backend.crud
 
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.Promise
@@ -29,14 +29,14 @@ import java.security.SecureRandom
 import java.util.*
 
 
-class RelaysVerticle : AbstractVerticle() {
+class CRUDVerticle : AbstractVerticle() {
 
   companion object {
     private const val RELAYS_COLLECTION = "relays"
     private const val RELAYS_UPDATE_ADDRESS = "relays.update"
     private const val PORT = 3000
 
-    private val logger = LoggerFactory.getLogger(RelaysVerticle::class.java)
+    private val logger = LoggerFactory.getLogger(CRUDVerticle::class.java)
 
     @Throws(UnknownHostException::class)
     @JvmStatic
@@ -48,7 +48,7 @@ class RelaysVerticle : AbstractVerticle() {
       )
 
       Vertx.clusteredVertx(options).onSuccess {
-        it.deployVerticle(RelaysVerticle())
+        it.deployVerticle(CRUDVerticle())
       }.onFailure { error ->
         logger.error("Could not start", error)
       }

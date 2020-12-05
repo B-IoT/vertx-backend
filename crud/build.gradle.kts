@@ -20,7 +20,7 @@ val kotlinVersion = "1.3.72"
 val vertxVersion = "4.0.0.CR2"
 val junitJupiterVersion = "5.6.0"
 
-val mainVerticleName = "ch.biot.backend.relays.RelaysVerticle"
+val mainVerticleName = "ch.biot.backend.crud.CRUDVerticle"
 val watchForChange = "src/**/*"
 val doOnChange = "./gradlew classes"
 val launcherClassName = "io.vertx.core.Launcher"
