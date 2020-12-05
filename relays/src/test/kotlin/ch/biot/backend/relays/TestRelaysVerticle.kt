@@ -27,10 +27,12 @@ import org.junit.jupiter.api.*
 import org.junit.jupiter.api.extension.ExtendWith
 import org.testcontainers.containers.DockerComposeContainer
 import org.testcontainers.junit.jupiter.Testcontainers
+import strikt.api.expect
 import strikt.api.expectThat
 import strikt.assertions.isEmpty
 import strikt.assertions.isEqualTo
 import strikt.assertions.isNotNull
+import strikt.assertions.isTrue
 import java.io.File
 import java.security.SecureRandom
 import java.util.*
@@ -196,6 +198,74 @@ class TestRelaysVerticle {
       expectThat(password).isNotNull()
       testContext.completeNow()
     }
+  }
+
+  @Test
+  @DisplayName("updateRelay correctly updates the desired relay")
+  fun updateRelayIsCorrect(vertx: Vertx, testContext: VertxTestContext) {
+    val updateJson = jsonObjectOf(
+      "ledStatus" to true,
+      "latitude" to 1.0,
+      "longitude" to -32.42332,
+      "wifi" to jsonObjectOf(
+        "ssid" to "test",
+        "password" to "test"
+      ),
+      "beacon" to jsonObjectOf(
+        "mac" to "macAddress",
+        "txPower" to 5
+      )
+    )
+
+    vertx.eventBus().consumer<JsonObject>("relays.update") { message ->
+      val json = message.body()
+      testContext.verify {
+        expectThat(json).isNotNull()
+        expect {
+          that(json.getBoolean("ledStatus")).isEqualTo(updateJson.getBoolean("ledStatus"))
+          that(json.getJsonObject("wifi")).isEqualTo(updateJson.getJsonObject("wifi"))
+          that(json.getJsonObject("beacon")).isEqualTo(updateJson.getJsonObject("beacon"))
+          that(json.getString("mqttID")).isEqualTo(existingRelay.getString("mqttID"))
+          that(json.getString("relayID")).isEqualTo(existingRelay.getString("relayID"))
+          that(json.containsKey("lastModified")).isTrue()
+        }
+        testContext.completeNow()
+      }
+    }
+
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      body(updateJson.encode())
+    } When {
+      put("/relays/testRelay")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEmpty()
+    }
+
+    mongoClient.findOne("relays", jsonObjectOf("relayID" to "testRelay"), jsonObjectOf())
+      .onSuccess { json ->
+        expectThat(json).isNotNull()
+        expect {
+          that(json.getBoolean("ledStatus")).isEqualTo(updateJson.getBoolean("ledStatus"))
+          that(json.getJsonObject("wifi")).isEqualTo(updateJson.getJsonObject("wifi"))
+          that(json.getJsonObject("beacon")).isEqualTo(updateJson.getJsonObject("beacon"))
+          that(json.getDouble("latitude")).isEqualTo(updateJson.getDouble("latitude"))
+          that(json.getDouble("longitude")).isEqualTo(updateJson.getDouble("longitude"))
+          that(json.getString("mqttID")).isEqualTo(existingRelay.getString("mqttID"))
+          that(json.getString("relayID")).isEqualTo(existingRelay.getString("relayID"))
+          that(json.containsKey("lastModified")).isTrue()
+        }
+        testContext.completeNow()
+      }
+      .onFailure(testContext::failNow)
   }
 
   companion object {
