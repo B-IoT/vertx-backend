@@ -37,7 +37,10 @@ class CRUDVerticle : AbstractVerticle() {
 
   companion object {
     private const val RELAYS_COLLECTION = "relays"
+    private const val USERS_COLLECTION = "users"
+
     private const val RELAYS_UPDATE_ADDRESS = "relays.update"
+
     private const val PORT = 3000
 
     private val logger = LoggerFactory.getLogger(CRUDVerticle::class.java)
@@ -60,37 +63,61 @@ class CRUDVerticle : AbstractVerticle() {
   }
 
   private lateinit var mongoClient: MongoClient
-  private lateinit var mongoUserUtil: MongoUserUtil
-  private lateinit var mongoAuth: MongoAuthentication
+  private lateinit var mongoUserUtilRelays: MongoUserUtil
+  private lateinit var mongoAuthRelays: MongoAuthentication
+  private lateinit var mongoUserUtilUsers: MongoUserUtil
+  private lateinit var mongoAuthUsers: MongoAuthentication
 
   override fun start(startPromise: Promise<Void>?) {
     mongoClient =
       MongoClient.createShared(vertx, jsonObjectOf("host" to "localhost", "port" to 27017, "db_name" to "clients"))
 
-    val usernameField = "mqttUsername"
-    val passwordField = "mqttPassword"
-    val mongoAuthOptions = mongoAuthenticationOptionsOf(
+    val usernameFieldRelays = "mqttUsername"
+    val passwordFieldRelays = "mqttPassword"
+    val mongoAuthRelaysOptions = mongoAuthenticationOptionsOf(
       collectionName = RELAYS_COLLECTION,
-      passwordCredentialField = passwordField,
-      passwordField = passwordField,
-      usernameCredentialField = usernameField,
-      usernameField = usernameField
+      passwordCredentialField = passwordFieldRelays,
+      passwordField = passwordFieldRelays,
+      usernameCredentialField = usernameFieldRelays,
+      usernameField = usernameFieldRelays
     )
 
-    mongoUserUtil = MongoUserUtil.create(
-      mongoClient, mongoAuthOptions, mongoAuthorizationOptionsOf()
+    mongoUserUtilRelays = MongoUserUtil.create(
+      mongoClient, mongoAuthRelaysOptions, mongoAuthorizationOptionsOf()
     )
-    mongoAuth = MongoAuthentication.create(mongoClient, mongoAuthOptions)
+    mongoAuthRelays = MongoAuthentication.create(mongoClient, mongoAuthRelaysOptions)
+
+    val usernameFieldUsers = "username"
+    val passwordFieldUsers = "password"
+    val mongoAuthUsersOptions = mongoAuthenticationOptionsOf(
+      collectionName = USERS_COLLECTION,
+      passwordCredentialField = passwordFieldUsers,
+      passwordField = passwordFieldUsers,
+      usernameCredentialField = usernameFieldUsers,
+      usernameField = usernameFieldUsers
+    )
+
+    mongoUserUtilUsers = MongoUserUtil.create(
+      mongoClient, mongoAuthUsersOptions, mongoAuthorizationOptionsOf()
+    )
+    mongoAuthUsers = MongoAuthentication.create(mongoClient, mongoAuthUsersOptions)
 
     RouterBuilder.create(vertx, "../swagger-api/swagger.yaml").onComplete { ar ->
       if (ar.succeeded()) {
         // Spec loaded with success
         val routerBuilder = ar.result()
 
+        // Relays
         routerBuilder.operation("registerRelay").handler(::registerRelayHandler)
         routerBuilder.operation("getRelays").handler(::getRelaysHandler)
         routerBuilder.operation("getRelay").handler(::getRelayHandler)
         routerBuilder.operation("updateRelay").handler(::updateRelayHandler)
+
+        // Users
+        routerBuilder.operation("registerUser").handler(::registerUserHandler)
+        routerBuilder.operation("getUsers").handler(::getUsersHandler)
+        routerBuilder.operation("getUser").handler(::getUserHandler)
+        routerBuilder.operation("updateUser").handler(::updateUserHandler)
 
         val router: Router = routerBuilder.createRouter()
         vertx.createHttpServer().requestHandler(router).listen(PORT)
@@ -102,15 +129,17 @@ class CRUDVerticle : AbstractVerticle() {
     }
   }
 
+  // Relays handlers
+
   private fun registerRelayHandler(ctx: RoutingContext) {
     logger.info("New register request")
     val json = ctx.bodyAsJson
     json.validateAndThen(ctx) {
-      // Create the users
+      // Create the relay
       val password: String = json["mqttPassword"]
       val hashedPassword = password.saltAndHash()
-      mongoUserUtil.createHashedUser(json["mqttUsername"], hashedPassword).compose { docID ->
-        // Update the user with the data specified in the HTTP request
+      mongoUserUtilRelays.createHashedUser(json["mqttUsername"], hashedPassword).compose { docID ->
+        // Update the relay with the data specified in the HTTP request
         val query = jsonObjectOf("_id" to docID)
         val extraInfo = jsonObjectOf(
           "\$set" to json.copy().apply {
@@ -191,6 +220,87 @@ class CRUDVerticle : AbstractVerticle() {
     }
   }
 
+  // Users handlers
+
+  private fun registerUserHandler(ctx: RoutingContext) {
+    logger.info("New user request")
+    val json = ctx.bodyAsJson
+    json.validateAndThen(ctx) {
+      // Create the user
+      val password: String = json["password"]
+      val hashedPassword = password.saltAndHash()
+      mongoUserUtilUsers.createHashedUser(json["username"], hashedPassword).compose { docID ->
+        // Update the user with the data specified in the HTTP request
+        val query = jsonObjectOf("_id" to docID)
+        val extraInfo = jsonObjectOf(
+          "\$set" to json.copy().apply {
+            remove("password")
+          }
+        )
+        mongoClient.findOneAndUpdate(USERS_COLLECTION, query, extraInfo)
+      }.onSuccess {
+        logger.info("New user registered")
+        ctx.end()
+      }.onFailure { error ->
+        logger.error("Could not register user", error)
+        ctx.fail(500, error)
+      }
+    }
+  }
+
+  private fun getUsersHandler(ctx: RoutingContext) {
+    logger.info("New getUser request")
+    // TODO use offset and limit parameters
+    mongoClient.find(USERS_COLLECTION, jsonObjectOf()).onSuccess { users ->
+      ctx.response()
+        .putHeader("Content-Type", "application/json")
+        .end(JsonArray(users.map { it.clean() }).encode())
+    }.onFailure { error ->
+      logger.error("Could not get users", error)
+      ctx.fail(500, error)
+    }
+  }
+
+  private fun getUserHandler(ctx: RoutingContext) {
+    val userID = ctx.pathParam("id")
+    logger.info("New getUser request for relay $userID")
+    val query = jsonObjectOf("userID" to userID)
+    mongoClient.findOne(USERS_COLLECTION, query, jsonObjectOf()).onSuccess { user ->
+      ctx.response()
+        .putHeader("Content-Type", "application/json")
+        .end(user.clean().encode())
+    }.onFailure { error ->
+      logger.error("Could not get user", error)
+      ctx.fail(500, error)
+    }
+  }
+
+  private fun updateUserHandler(ctx: RoutingContext) {
+    logger.info("New updateUser request")
+    val json = ctx.bodyAsJson
+    json.validateAndThen(ctx) {
+      // Update MongoDB
+      val query = jsonObjectOf("userID" to ctx.pathParam("id"))
+      val update = json {
+        obj(
+          "\$set" to json,
+          "\$currentDate" to obj("lastModified" to true)
+        )
+      }
+      mongoClient.findOneAndUpdate(
+        USERS_COLLECTION,
+        query,
+        update
+      ).onSuccess {
+        logger.info("Successfully updated MongoDB collection $USERS_COLLECTION with update JSON $update")
+        ctx.end()
+      }.onFailure { error ->
+        logger.error("Could not update MongoDB collection $USERS_COLLECTION with update JSON $update", error)
+        ctx.fail(500)
+      }
+    }
+  }
+
   private fun JsonObject?.validateAndThen(ctx: RoutingContext, block: (JsonObject) -> Unit) {
     when {
       this == null -> {
@@ -228,6 +338,6 @@ class CRUDVerticle : AbstractVerticle() {
   private fun String.saltAndHash(): String {
     val salt = ByteArray(16)
     SecureRandom().nextBytes(salt)
-    return mongoAuth.hash("pbkdf2", String(Base64.getEncoder().encode(salt)), this)
+    return mongoAuthRelays.hash("pbkdf2", String(Base64.getEncoder().encode(salt)), this)
   }
 }
