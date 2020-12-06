@@ -87,10 +87,10 @@ class CRUDVerticle : AbstractVerticle() {
         // Spec loaded with success
         val routerBuilder = ar.result()
 
-        routerBuilder.operation("registerRelay").handler(::registerHandler)
+        routerBuilder.operation("registerRelay").handler(::registerRelayHandler)
         routerBuilder.operation("getRelays").handler(::getRelaysHandler)
         routerBuilder.operation("getRelay").handler(::getRelayHandler)
-        routerBuilder.operation("updateRelay").handler(::updateHandler)
+        routerBuilder.operation("updateRelay").handler(::updateRelayHandler)
 
         val router: Router = routerBuilder.createRouter()
         vertx.createHttpServer().requestHandler(router).listen(PORT)
@@ -102,7 +102,7 @@ class CRUDVerticle : AbstractVerticle() {
     }
   }
 
-  private fun registerHandler(ctx: RoutingContext) {
+  private fun registerRelayHandler(ctx: RoutingContext) {
     logger.info("New register request")
     val json = ctx.bodyAsJson
     json.validateAndThen(ctx) {
@@ -155,7 +155,7 @@ class CRUDVerticle : AbstractVerticle() {
     }
   }
 
-  private fun updateHandler(ctx: RoutingContext) {
+  private fun updateRelayHandler(ctx: RoutingContext) {
     logger.info("New updateRelay request")
     val json = ctx.bodyAsJson
     json.validateAndThen(ctx) {
@@ -211,12 +211,11 @@ class CRUDVerticle : AbstractVerticle() {
   }
 
   private fun JsonObject.cleanForRelay(): JsonObject = this.copy().apply {
-    remove("_id")
+    clean()
     remove("mqttUsername")
     remove("mqttPassword")
     remove("latitude")
     remove("longitude")
-    cleanLastModified()
   }
 
   private fun JsonObject.cleanLastModified() {
