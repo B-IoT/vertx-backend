@@ -44,7 +44,7 @@ import java.util.*
 
 @ExtendWith(VertxExtension::class)
 @Testcontainers
-class TestCRUDVerticle {
+class TestCRUDVerticleRelays {
 
   private lateinit var mongoClient: MongoClient
   private lateinit var mongoUserUtil: MongoUserUtil
