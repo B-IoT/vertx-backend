@@ -29,6 +29,7 @@ class PublicApiVerticle : AbstractVerticle() {
     private const val API_PREFIX = "/api"
     private const val OAUTH_PREFIX = "/oauth"
     private const val PORT = 4000
+    private const val CRUD_PORT = 3000
 
     private val logger = LoggerFactory.getLogger(PublicApiVerticle::class.java)
   }
@@ -72,14 +73,14 @@ class PublicApiVerticle : AbstractVerticle() {
     }
 
     // Users
-    router.post("$OAUTH_PREFIX/register").handler(this::registerHandler)
-    router.post("$OAUTH_PREFIX/token").handler(this::tokenHandler)
+    router.post("$OAUTH_PREFIX/register").handler(::registerHandler)
+    router.post("$OAUTH_PREFIX/token").handler(::tokenHandler)
 
     // TODO Relays
-    router.post("$API_PREFIX/relays").handler(jwtAuthHandler)
-    router.put("$API_PREFIX/relays/:id").handler(jwtAuthHandler)
-    router.get("$API_PREFIX/relays").handler(jwtAuthHandler)
-    router.get("$API_PREFIX/relays/:id").handler(jwtAuthHandler)
+    router.post("$API_PREFIX/relays").handler(jwtAuthHandler).handler(::checkUser)
+    router.put("$API_PREFIX/relays/:id").handler(jwtAuthHandler).handler(::checkUser)
+    router.get("$API_PREFIX/relays").handler(jwtAuthHandler).handler(::checkUser)
+    router.get("$API_PREFIX/relays/:id").handler(jwtAuthHandler).handler(::checkUser)
 
     // TODO Items
 
@@ -92,11 +93,20 @@ class PublicApiVerticle : AbstractVerticle() {
     }
   }
 
+  private fun checkUser(ctx: RoutingContext) {
+    val subject = ctx.user().principal().getString("sub")
+    if (ctx.pathParam("username") != subject) {
+      sendStatusCode(ctx, 403)
+    } else {
+      ctx.next()
+    }
+  }
+
   private fun registerHandler(ctx: RoutingContext) {
     webClient
-      .post(3001, "localhost", "/register")
+      .post(CRUD_PORT, "localhost", "/users")
       .putHeader("Content-Type", "application/json")
-      .sendJson(ctx.bodyAsJson)
+      .sendJsonObject(ctx.bodyAsJson)
       .onSuccess { response ->
         sendStatusCode(ctx, response.statusCode())
       }
@@ -110,23 +120,25 @@ class PublicApiVerticle : AbstractVerticle() {
     val username: String = payload["username"]
 
     webClient
-      .post(3001, "localhost", "/authenticate")
+      .post(CRUD_PORT, "localhost", "users/authenticate")
       .expect(ResponsePredicate.SC_SUCCESS)
-      .sendJson(payload)
-      .onSuccess {
-        val token = makeJwtToken(username)
+      .sendJsonObject(payload)
+      .onSuccess { response ->
+        val company = response.bodyAsString()
+        val token = makeJwtToken(username, company)
         ctx.response().putHeader("Content-Type", "application/jwt").end(token)
       }
       .onFailure { error ->
         logger.error("Authentication error", error)
-        ctx.fail(401);
+        ctx.fail(401)
       }
   }
 
-  private fun makeJwtToken(username: String): String {
+  private fun makeJwtToken(username: String, company: String): String {
     // Expires in 7 days
+    val claims = jsonObjectOf("company" to company)
     val jwtOptions = jwtOptionsOf(algorithm = "RS256", expiresInMinutes = 10080, issuer = "BIoT", subject = username)
-    return jwtAuth.generateToken(jsonObjectOf(), jwtOptions)
+    return jwtAuth.generateToken(claims, jwtOptions)
   }
 
   private fun sendStatusCode(ctx: RoutingContext, code: Int) {
