@@ -140,6 +140,19 @@ paths:
       responses:
         "200":
           description: successfully registered user
+  /users/authenticate:
+    post:
+      tags:
+      - User
+      operationId: authenticate
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserAuthenticateInfo'
+      responses:
+        "200":
+          description: successfully authenticated user
   /users/{id}:
     get:
       tags:
@@ -275,6 +288,15 @@ components:
         company:
           type: string
       description: Update information for a user
+    UserAuthenticateInfo:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+          format: password
+      description: Authenticate information for a user
     Relay_wifi:
       type: object
       properties:
