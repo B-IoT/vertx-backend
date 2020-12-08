@@ -152,7 +152,14 @@ paths:
               $ref: '#/components/schemas/UserAuthenticateInfo'
       responses:
         "200":
-          description: successfully authenticated user
+          description: The company of the authenticated user as a string
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: biot
+        "401":
+          description: Authentication error
   /users/{id}:
     get:
       tags:
