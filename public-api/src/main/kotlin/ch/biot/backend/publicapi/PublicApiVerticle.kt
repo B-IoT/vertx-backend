@@ -7,11 +7,15 @@ package ch.biot.backend.publicapi
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.Promise
 import io.vertx.core.http.HttpMethod
+import io.vertx.core.json.JsonArray
+import io.vertx.core.json.JsonObject
 import io.vertx.ext.auth.jwt.JWTAuth
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.client.HttpResponse
 import io.vertx.ext.web.client.WebClient
 import io.vertx.ext.web.client.predicate.ResponsePredicate
+import io.vertx.ext.web.codec.BodyCodec
 import io.vertx.ext.web.handler.BodyHandler
 import io.vertx.ext.web.handler.CorsHandler
 import io.vertx.ext.web.handler.JWTAuthHandler
@@ -73,14 +77,17 @@ class PublicApiVerticle : AbstractVerticle() {
     }
 
     // Users
-    router.post("$OAUTH_PREFIX/register").handler(::registerHandler)
+    router.post("$OAUTH_PREFIX/register").handler(::registerUserHandler)
     router.post("$OAUTH_PREFIX/token").handler(::tokenHandler)
+    router.put("$API_PREFIX/users/:id").handler(jwtAuthHandler).handler(::updateUserHandler)
+    router.get("$API_PREFIX/users").handler(jwtAuthHandler).handler(::getUsersHandler)
+    router.get("$API_PREFIX/users/:id").handler(jwtAuthHandler).handler(::getUserHandler)
 
-    // TODO Relays
-    router.post("$API_PREFIX/relays").handler(jwtAuthHandler).handler(::checkUser)
-    router.put("$API_PREFIX/relays/:id").handler(jwtAuthHandler).handler(::checkUser)
-    router.get("$API_PREFIX/relays").handler(jwtAuthHandler).handler(::checkUser)
-    router.get("$API_PREFIX/relays/:id").handler(jwtAuthHandler).handler(::checkUser)
+    // Relays
+    router.post("$API_PREFIX/relays").handler(jwtAuthHandler).handler(::registerRelayHandler)
+    router.put("$API_PREFIX/relays/:id").handler(jwtAuthHandler).handler(::updateRelayHandler)
+    router.get("$API_PREFIX/relays").handler(jwtAuthHandler).handler(::getRelaysHandler)
+    router.get("$API_PREFIX/relays/:id").handler(jwtAuthHandler).handler(::getRelayHandler)
 
     // TODO Items
 
@@ -93,34 +100,28 @@ class PublicApiVerticle : AbstractVerticle() {
     }
   }
 
-  private fun checkUser(ctx: RoutingContext) {
-    val subject = ctx.user().principal().getString("sub")
-    if (ctx.pathParam("username") != subject) {
-      sendStatusCode(ctx, 403)
-    } else {
-      ctx.next()
-    }
-  }
+  // Users
 
-  private fun registerHandler(ctx: RoutingContext) {
-    webClient
-      .post(CRUD_PORT, "localhost", "/users")
-      .putHeader("Content-Type", "application/json")
-      .sendJsonObject(ctx.bodyAsJson)
-      .onSuccess { response ->
-        sendStatusCode(ctx, response.statusCode())
-      }
-      .onFailure { error ->
-        sendBadGateway(ctx, error)
-      }
-  }
+  private fun registerUserHandler(ctx: RoutingContext) = registerHandler(ctx, "users")
+  private fun updateUserHandler(ctx: RoutingContext) = updateHandler(ctx, "users")
+  private fun getUsersHandler(ctx: RoutingContext) = getManyHandler(ctx, "users")
+  private fun getUserHandler(ctx: RoutingContext) = getOneHandler(ctx, "users")
 
   private fun tokenHandler(ctx: RoutingContext) {
+    fun makeJwtToken(username: String, company: String): String {
+      // Expires in 7 days
+      val claims = jsonObjectOf("company" to company)
+      val jwtOptions = jwtOptionsOf(algorithm = "RS256", expiresInMinutes = 10080, issuer = "BIoT", subject = username)
+      return jwtAuth.generateToken(claims, jwtOptions)
+    }
+
+    logger.info("New token request")
+
     val payload = ctx.bodyAsJson
     val username: String = payload["username"]
 
     webClient
-      .post(CRUD_PORT, "localhost", "users/authenticate")
+      .post(CRUD_PORT, "localhost", "/users/authenticate")
       .expect(ResponsePredicate.SC_SUCCESS)
       .sendJsonObject(payload)
       .onSuccess { response ->
@@ -134,19 +135,103 @@ class PublicApiVerticle : AbstractVerticle() {
       }
   }
 
-  private fun makeJwtToken(username: String, company: String): String {
-    // Expires in 7 days
-    val claims = jsonObjectOf("company" to company)
-    val jwtOptions = jwtOptionsOf(algorithm = "RS256", expiresInMinutes = 10080, issuer = "BIoT", subject = username)
-    return jwtAuth.generateToken(claims, jwtOptions)
+  // Relays
+
+  private fun registerRelayHandler(ctx: RoutingContext) = registerHandler(ctx, "relays")
+  private fun updateRelayHandler(ctx: RoutingContext) = updateHandler(ctx, "relays")
+  private fun getRelaysHandler(ctx: RoutingContext) = getManyHandler(ctx, "relays")
+  private fun getRelayHandler(ctx: RoutingContext) = getOneHandler(ctx, "relays")
+
+  // Helpers
+
+  private fun registerHandler(ctx: RoutingContext, endpoint: String) {
+    logger.info("New register request on /$endpoint endpoint")
+
+    webClient
+      .post(CRUD_PORT, "localhost", "/$endpoint")
+      .putHeader("Content-Type", "application/json")
+      .expect(ResponsePredicate.SC_OK)
+      .sendBuffer(ctx.body)
+      .onSuccess { response ->
+        sendStatusCode(ctx, response.statusCode())
+      }
+      .onFailure { error ->
+        sendBadGateway(ctx, error)
+      }
+  }
+
+  private fun updateHandler(ctx: RoutingContext, endpoint: String) {
+    logger.info("New update request on /$endpoint endpoint")
+
+    webClient
+      .put(CRUD_PORT, "localhost", "/$endpoint/${ctx.pathParam("id")}")
+      .putHeader("Content-Type", "application/json")
+      .expect(ResponsePredicate.SC_OK)
+      .sendBuffer(ctx.body)
+      .onSuccess {
+        ctx.end()
+      }
+      .onFailure { error ->
+        sendBadGateway(ctx, error)
+      }
+  }
+
+  private fun getManyHandler(ctx: RoutingContext, endpoint: String) {
+    logger.info("New getMany request on /$endpoint endpoint")
+
+    webClient
+      .get(CRUD_PORT, "localhost", "/$endpoint")
+      .`as`(BodyCodec.jsonArray())
+      .send()
+      .onSuccess { resp ->
+        forwardJsonArrayOrStatusCode(ctx, resp)
+      }
+      .onFailure { error ->
+        sendBadGateway(ctx, error)
+      }
+  }
+
+  private fun getOneHandler(ctx: RoutingContext, endpoint: String) {
+    logger.info("New getOne request on /$endpoint endpoint")
+
+    webClient
+      .get(CRUD_PORT, "localhost", "/$endpoint/${ctx.pathParam("id")}")
+      .`as`(BodyCodec.jsonObject())
+      .send()
+      .onSuccess { resp ->
+        forwardJsonObjectOrStatusCode(ctx, resp)
+      }
+      .onFailure { error ->
+        sendBadGateway(ctx, error)
+      }
   }
 
   private fun sendStatusCode(ctx: RoutingContext, code: Int) {
     ctx.response().setStatusCode(code).end()
   }
 
+  private fun forwardJsonObjectOrStatusCode(ctx: RoutingContext, resp: HttpResponse<JsonObject>) {
+    if (resp.statusCode() != 200) {
+      sendStatusCode(ctx, resp.statusCode())
+    } else {
+      ctx.response()
+        .putHeader("Content-Type", "application/json")
+        .end(resp.body().encode())
+    }
+  }
+
+  private fun forwardJsonArrayOrStatusCode(ctx: RoutingContext, resp: HttpResponse<JsonArray>) {
+    if (resp.statusCode() != 200) {
+      sendStatusCode(ctx, resp.statusCode())
+    } else {
+      ctx.response()
+        .putHeader("Content-Type", "application/json")
+        .end(resp.body().encode())
+    }
+  }
+
   private fun sendBadGateway(ctx: RoutingContext, error: Throwable) {
-    logger.error("An error occurred while handling /register request", error)
+    logger.error("Oops... an error occurred!", error)
     ctx.fail(502)
   }
 }
