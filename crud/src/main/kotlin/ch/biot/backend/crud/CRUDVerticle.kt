@@ -118,10 +118,12 @@ class CRUDVerticle : AbstractVerticle() {
         routerBuilder.operation("getUsers").handler(::getUsersHandler)
         routerBuilder.operation("getUser").handler(::getUserHandler)
         routerBuilder.operation("updateUser").handler(::updateUserHandler)
+        routerBuilder.operation("authenticate").handler(::authenticateHandler)
 
         val router: Router = routerBuilder.createRouter()
-        vertx.createHttpServer().requestHandler(router).listen(PORT)
-        startPromise?.complete()
+        vertx.createHttpServer().requestHandler(router).listen(PORT).onComplete {
+          startPromise?.complete()
+        }
       } else {
         // Something went wrong during router builder initialization
         logger.error("Could not initialize router builder", ar.cause())
@@ -298,6 +300,23 @@ class CRUDVerticle : AbstractVerticle() {
         logger.error("Could not update MongoDB collection $USERS_COLLECTION with update JSON $update", error)
         ctx.fail(500)
       }
+    }
+  }
+
+  private fun authenticateHandler(ctx: RoutingContext) {
+    logger.info("New authenticate request")
+    val body = if (ctx.body.length() == 0) {
+      jsonObjectOf()
+    } else {
+      ctx.bodyAsJson
+    }
+
+    mongoAuthUsers.authenticate(body).onSuccess { user ->
+      val company: String = user["company"]
+      ctx.end(company)
+    }.onFailure { error ->
+      logger.error("Authentication error: ", error)
+      ctx.fail(401, error)
     }
   }
 
