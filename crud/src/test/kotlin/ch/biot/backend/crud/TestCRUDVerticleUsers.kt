@@ -22,6 +22,7 @@ import io.vertx.ext.auth.mongo.MongoUserUtil
 import io.vertx.ext.mongo.MongoClient
 import io.vertx.junit5.VertxExtension
 import io.vertx.junit5.VertxTestContext
+import io.vertx.kotlin.core.json.get
 import io.vertx.kotlin.core.json.jsonArrayOf
 import io.vertx.kotlin.core.json.jsonObjectOf
 import io.vertx.kotlin.ext.auth.mongo.mongoAuthenticationOptionsOf
@@ -226,6 +227,42 @@ class TestCRUDVerticleUsers {
         testContext.completeNow()
       }
       .onFailure(testContext::failNow)
+  }
+
+  @Test
+  @DisplayName("authenticate correctly authenticates and returns the user's company")
+  fun authenticateIsCorrect(vertx: Vertx, testContext: VertxTestContext) {
+    val userJson = jsonObjectOf(
+      "username" to "username",
+      "password" to "password",
+      "company" to "test"
+    )
+
+    Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      body(userJson.encode())
+    } When {
+      post("/users")
+    }
+
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      body(userJson.encode())
+    } When {
+      post("/users/authenticate")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo(userJson["company"])
+      testContext.completeNow()
+    }
   }
 
   companion object {
