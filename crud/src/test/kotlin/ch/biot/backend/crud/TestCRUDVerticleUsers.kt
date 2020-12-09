@@ -34,10 +34,7 @@ import org.testcontainers.containers.DockerComposeContainer
 import org.testcontainers.junit.jupiter.Testcontainers
 import strikt.api.expect
 import strikt.api.expectThat
-import strikt.assertions.isEmpty
-import strikt.assertions.isEqualTo
-import strikt.assertions.isNotNull
-import strikt.assertions.isTrue
+import strikt.assertions.*
 import java.io.File
 import java.security.SecureRandom
 import java.util.*
@@ -159,6 +156,9 @@ class TestCRUDVerticleUsers {
     }).toJsonArray()
 
     testContext.verify {
+      expectThat(response).isNotNull()
+      expectThat(response.isEmpty).isFalse()
+
       val password = response.getJsonObject(0).remove("password")
       expectThat(response).isEqualTo(expected)
       expectThat(password).isNotNull()
