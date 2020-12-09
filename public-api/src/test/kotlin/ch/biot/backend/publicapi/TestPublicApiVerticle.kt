@@ -46,6 +46,20 @@ class TestPublicApiVerticle {
     "company" to "biot"
   )
 
+  private val relay = jsonObjectOf(
+    "mqttID" to "testRelay2",
+    "mqttUsername" to "testRelay2",
+    "relayID" to "testRelay2",
+    "mqttPassword" to "testRelay2",
+    "ledStatus" to false,
+    "latitude" to 0.1,
+    "longitude" to 0.3,
+    "wifi" to jsonObjectOf(
+      "ssid" to "ssid",
+      "password" to "pass"
+    )
+  )
+
   private lateinit var token: String
 
   @BeforeEach
@@ -221,7 +235,122 @@ class TestPublicApiVerticle {
     }
   }
 
-  // TODO add tests for relays
+  @Test
+  @Order(7)
+  @DisplayName("Registering a relay succeeds")
+  fun registerRelaySucceeds(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      header("Authorization", "Bearer $token")
+      body(relay.encode())
+    } When {
+      post("/api/relays")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEmpty()
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @Order(8)
+  @DisplayName("Getting the relays succeeds")
+  fun getRelaysSucceeds(testContext: VertxTestContext) {
+    val expected = jsonArrayOf(relay.copy().apply { remove("mqttPassword") })
+
+    val response = Buffer.buffer(Given {
+      spec(requestSpecification)
+      accept(ContentType.JSON)
+      header("Authorization", "Bearer $token")
+    } When {
+      get("/api/relays")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }).toJsonArray()
+
+    testContext.verify {
+      expectThat(response).isNotNull()
+      expectThat(response.isEmpty).isFalse()
+
+      val password = response.getJsonObject(0).remove("mqttPassword")
+      expectThat(response).isEqualTo(expected)
+      expectThat(password).isNotNull()
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @Order(9)
+  @DisplayName("Getting a relay succeeds")
+  fun getRelaySucceeds(testContext: VertxTestContext) {
+    val expected = relay.copy().apply { remove("mqttPassword") }
+
+    val response = Buffer.buffer(Given {
+      spec(requestSpecification)
+      accept(ContentType.JSON)
+      header("Authorization", "Bearer $token")
+    } When {
+      get("/api/relays/${relay.getString("relayID")}")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }).toJsonObject()
+
+    testContext.verify {
+      expectThat(response).isNotNull()
+      val password = response.remove("mqttPassword")
+      expectThat(response).isEqualTo(expected)
+      expectThat(password).isNotNull()
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @Order(10)
+  @DisplayName("Updating a relay succeeds")
+  fun updateRelaySucceeds(testContext: VertxTestContext) {
+    val updateJson = jsonObjectOf(
+      "ledStatus" to true,
+      "latitude" to 1.0,
+      "longitude" to -32.42332,
+      "wifi" to jsonObjectOf(
+        "ssid" to "test",
+        "password" to "test"
+      ),
+      "beacon" to jsonObjectOf(
+        "mac" to "macAddress",
+        "txPower" to 5
+      )
+    )
+
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      header("Authorization", "Bearer $token")
+      body(updateJson.encode())
+    } When {
+      put("/api/relays/${relay.getString("relayID")}")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEmpty()
+      testContext.completeNow()
+    }
+  }
 
   companion object {
 
