@@ -6,23 +6,7 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import org.gradle.api.tasks.testing.logging.TestLogEvent.*
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
-plugins {
-  kotlin("jvm") version "1.3.72"
-  application
-  id("com.github.johnrengelman.shadow") version "5.2.0"
-}
-
-group = "ch.biot.backend"
 version = "1.0.0-SNAPSHOT"
-
-repositories {
-  mavenCentral()
-  jcenter()
-}
-
-val kotlinVersion = "1.3.72"
-val vertxVersion = "4.0.0.CR2"
-val junitJupiterVersion = "5.6.0"
 
 val mainVerticleName = "ch.biot.backend.relayscommunication.RelaysCommunicationVerticle"
 val watchForChange = "src/**/*"
@@ -34,8 +18,16 @@ application {
 }
 
 dependencies {
+  val vertxVersion = project.extra["vertxVersion"]
+  val junitJupiterVersion = project.extra["junitJupiterVersion"]
+  val logbackClassicVersion = project.extra["logbackClassicVersion"]
+  val restAssuredVersion = project.extra["restAssuredVersion"]
+  val striktVersion = project.extra["striktVersion"]
+  val testContainersVersion = project.extra["testContainersVersion"]
+  val rxKotlinVersion = project.extra["rxKotlinVersion"]
+
   implementation("io.vertx:vertx-rx-java2:$vertxVersion")
-  implementation("io.reactivex.rxjava2:rxkotlin:2.4.0")
+  implementation("io.reactivex.rxjava2:rxkotlin:$rxKotlinVersion")
   implementation("io.vertx:vertx-web:$vertxVersion")
   implementation("io.vertx:vertx-web-openapi:$vertxVersion")
   implementation("io.vertx:vertx-hazelcast:$vertxVersion")
@@ -44,21 +36,14 @@ dependencies {
   implementation("io.vertx:vertx-mqtt:$vertxVersion")
   implementation("io.vertx:vertx-mongo-client:$vertxVersion")
   implementation("io.vertx:vertx-auth-mongo:$vertxVersion")
-  implementation("ch.qos.logback:logback-classic:1.2.3")
-  implementation(kotlin("stdlib-jdk8"))
-  testImplementation("org.testcontainers:junit-jupiter:1.15.0")
+  implementation("ch.qos.logback:logback-classic:$logbackClassicVersion")
+  testImplementation("org.testcontainers:junit-jupiter:$testContainersVersion")
   testImplementation("io.vertx:vertx-junit5:$vertxVersion")
   testImplementation("io.vertx:vertx-junit5-rx-java2:$vertxVersion")
   testImplementation("org.junit.jupiter:junit-jupiter:$junitJupiterVersion")
-  testImplementation("io.strikt:strikt-gradle:0.28.0")
+  testImplementation("io.strikt:strikt-gradle:$striktVersion")
   testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:$junitJupiterVersion")
 }
-
-val compileKotlin: KotlinCompile by tasks
-compileKotlin.kotlinOptions.jvmTarget = "11"
-
-val compileTestKotlin: KotlinCompile by tasks
-compileTestKotlin.kotlinOptions.jvmTarget = "11"
 
 tasks.withType<ShadowJar> {
   archiveClassifier.set("fat")
