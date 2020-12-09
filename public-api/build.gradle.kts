@@ -4,7 +4,6 @@
 
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import org.gradle.api.tasks.testing.logging.TestLogEvent.*
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 version = "1.0.0-SNAPSHOT"
 
@@ -31,6 +30,7 @@ dependencies {
   implementation("io.vertx:vertx-hazelcast:$vertxVersion")
   implementation("io.vertx:vertx-lang-kotlin:$vertxVersion")
   implementation("ch.qos.logback:logback-classic:$logbackClassicVersion")
+  testImplementation(project(":crud"))
   testImplementation("org.testcontainers:junit-jupiter:$testContainersVersion")
   testImplementation("io.rest-assured:kotlin-extensions:$restAssuredVersion")
   testImplementation("io.vertx:vertx-junit5:$vertxVersion")
