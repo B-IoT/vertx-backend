@@ -29,6 +29,8 @@ import io.vertx.kotlin.pgclient.pgConnectOptionsOf
 import io.vertx.kotlin.sqlclient.poolOptionsOf
 import io.vertx.pgclient.PgPool
 import io.vertx.spi.cluster.hazelcast.HazelcastClusterManager
+import io.vertx.sqlclient.Row
+import io.vertx.sqlclient.Tuple
 import org.slf4j.LoggerFactory
 import java.net.InetAddress
 import java.security.SecureRandom
@@ -106,7 +108,14 @@ class CRUDVerticle : AbstractVerticle() {
     mongoAuthUsers = MongoAuthentication.create(mongoClient, mongoAuthUsersOptions)
 
     val pgConnectOptions =
-      pgConnectOptionsOf(port = 5432, host = "localhost", database = "postgres", user = "postgres", password = "biot")
+      pgConnectOptionsOf(
+        port = 5432,
+        host = "localhost",
+        database = "postgres",
+        user = "postgres",
+        password = "biot",
+        cachePreparedStatements = true
+      )
     pgPool = PgPool.pool(vertx, pgConnectOptions, poolOptionsOf())
 
     RouterBuilder.create(vertx, "../swagger-api/swagger.yaml").onComplete { ar ->
@@ -264,16 +273,17 @@ class CRUDVerticle : AbstractVerticle() {
   }
 
   private fun getUsersHandler(ctx: RoutingContext) {
-    logger.info("New getUser request")
+    logger.info("New getUsers request")
     // TODO use offset and limit parameters
-    mongoClient.find(USERS_COLLECTION, jsonObjectOf()).onSuccess { users ->
-      ctx.response()
-        .putHeader("Content-Type", "application/json")
-        .end(JsonArray(users.map { it.clean() }).encode())
-    }.onFailure { error ->
-      logger.error("Could not get users", error)
-      ctx.fail(500, error)
-    }
+    mongoClient.find(USERS_COLLECTION, jsonObjectOf())
+      .onSuccess { users ->
+        ctx.response()
+          .putHeader("Content-Type", "application/json")
+          .end(JsonArray(users.map { it.clean() }).encode())
+      }.onFailure { error ->
+        logger.error("Could not get users", error)
+        ctx.fail(500, error)
+      }
   }
 
   private fun getUserHandler(ctx: RoutingContext) {
@@ -333,8 +343,85 @@ class CRUDVerticle : AbstractVerticle() {
     }
   }
 
-  // TODO Items
+  // Items
 
+  private fun registerItemHandler(ctx: RoutingContext) {
+    logger.info("New registerItem request")
+
+    val json = ctx.bodyAsJson
+    json.validateAndThen(ctx) {
+      val beacon: String = json["beacon"]
+      val category: String = json["category"]
+      val service: String = json["service"]
+      pgPool.preparedQuery("INSERT INTO items (beacon, category, service) VALUES ($1, $2, $3) RETURNING id")
+        .execute(Tuple.of(beacon, category, service))
+        .onSuccess {
+          logger.info("New item registered")
+          val row = it.iterator().next()
+          logger.info("Row: $row")
+          ctx.end(row.getInteger("id").toString())
+        }.onFailure { error ->
+          logger.error("Could not register item", error)
+          ctx.fail(500, error)
+        }
+    }
+  }
+
+  private fun getItemsHandler(ctx: RoutingContext) {
+    logger.info("New getItems request")
+    pgPool.query("SELECT * FROM items I LEFT JOIN beacon_data D ON I.beacon = D.mac").execute()
+      .onSuccess { res ->
+        val result = res.map { it.buildItemJson() }
+
+        ctx.response()
+          .putHeader("Content-Type", "application/json")
+          .end(JsonArray(result).encode())
+      }.onFailure { error ->
+        logger.error("Could not get items", error)
+        ctx.fail(500, error)
+      }
+  }
+
+  private fun getItemHandler(ctx: RoutingContext) {
+    val itemID = ctx.pathParam("id")
+    logger.info("New getItem request for item $itemID")
+
+    pgPool.preparedQuery("SELECT * FROM items I LEFT JOIN beacon_data D ON I.beacon = D.mac WHERE I.id=$1 LIMIT 1")
+      .execute(Tuple.of(itemID.toInt()))
+      .onSuccess { res ->
+        val result = res.iterator().next()?.buildItemJson() ?: jsonObjectOf()
+
+        ctx.response()
+          .putHeader("Content-Type", "application/json")
+          .end(result.encode())
+      }.onFailure { error ->
+        logger.error("Could not get item", error)
+        ctx.fail(500, error)
+      }
+  }
+
+  private fun updateItemHandler(ctx: RoutingContext) {
+    val itemID = ctx.pathParam("id")
+    logger.info("New updateItem request for item $itemID")
+
+    val json = ctx.bodyAsJson
+    json.validateAndThen(ctx) {
+      val beacon: String = json["beacon"]
+      val category: String = json["category"]
+      val service: String = json["service"]
+      pgPool.preparedQuery("UPDATE items SET beacon = $1, category = $2, service = $3 WHERE id=$4")
+        .execute(Tuple.of(beacon, category, service, itemID))
+        .onSuccess {
+          logger.info("Successfully updated item $itemID")
+          ctx.end()
+        }
+        .onFailure { error ->
+          logger.error("Could not update item $itemID", error)
+          ctx.fail(500)
+        }
+    }
+
+  }
 
   private fun JsonObject?.validateAndThen(ctx: RoutingContext, block: (JsonObject) -> Unit) {
     when {
@@ -375,4 +462,15 @@ class CRUDVerticle : AbstractVerticle() {
     SecureRandom().nextBytes(salt)
     return mongoAuthRelays.hash("pbkdf2", String(Base64.getEncoder().encode(salt)), this)
   }
+
+  private fun Row.buildItemJson(): JsonObject = jsonObjectOf(
+    "id" to getInteger("id"),
+    "beacon" to getString("beacon"),
+    "category" to getString("category"),
+    "service" to getString("service"),
+    "timestamp" to getOffsetDateTime("time")?.toString(),
+    "status" to getString("status"),
+    "latitude" to getDouble("latitude"),
+    "longitude" to getDouble("longitude")
+  )
 }
