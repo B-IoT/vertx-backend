@@ -90,6 +90,10 @@ class PublicApiVerticle : AbstractVerticle() {
     router.get("$API_PREFIX/relays/:id").handler(jwtAuthHandler).handler(::getRelayHandler)
 
     // TODO Items
+    router.post("$API_PREFIX/items").handler(jwtAuthHandler).handler(::registerItemHandler)
+    router.put("$API_PREFIX/items/:id").handler(jwtAuthHandler).handler(::updateItemHandler)
+    router.get("$API_PREFIX/items").handler(jwtAuthHandler).handler(::getItemsHandler)
+    router.get("$API_PREFIX/items/:id").handler(jwtAuthHandler).handler(::getItemHandler)
 
     // TODO Analytics
 
@@ -141,6 +145,13 @@ class PublicApiVerticle : AbstractVerticle() {
   private fun updateRelayHandler(ctx: RoutingContext) = updateHandler(ctx, "relays")
   private fun getRelaysHandler(ctx: RoutingContext) = getManyHandler(ctx, "relays")
   private fun getRelayHandler(ctx: RoutingContext) = getOneHandler(ctx, "relays")
+
+  // Items
+
+  private fun registerItemHandler(ctx: RoutingContext) = registerHandler(ctx, "items")
+  private fun updateItemHandler(ctx: RoutingContext) = updateHandler(ctx, "items")
+  private fun getItemsHandler(ctx: RoutingContext) = getManyHandler(ctx, "items")
+  private fun getItemHandler(ctx: RoutingContext) = getOneHandler(ctx, "items")
 
   // Helpers
 
