@@ -260,7 +260,6 @@ class TestCRUDVerticleRelays {
         expect {
           that(json.getBoolean("ledStatus")).isEqualTo(updateJson.getBoolean("ledStatus"))
           that(json.getJsonObject("wifi")).isEqualTo(updateJson.getJsonObject("wifi"))
-          that(json.getJsonObject("beacon")).isEqualTo(updateJson.getJsonObject("beacon"))
           that(json.getDouble("latitude")).isEqualTo(updateJson.getDouble("latitude"))
           that(json.getDouble("longitude")).isEqualTo(updateJson.getDouble("longitude"))
           that(json.getString("mqttID")).isEqualTo(existingRelay.getString("mqttID"))
