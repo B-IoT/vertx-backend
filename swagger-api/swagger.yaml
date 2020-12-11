@@ -248,6 +248,11 @@ paths:
       responses:
         "200":
           description: successfully registered item
+          content:
+            text/plain:
+              schema:
+                type: integer
+                description: the id of the registered item
   /items/{id}:
     get:
       tags:
