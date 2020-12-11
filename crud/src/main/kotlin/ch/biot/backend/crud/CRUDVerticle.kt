@@ -25,10 +25,12 @@ import io.vertx.kotlin.ext.auth.mongo.mongoAuthenticationOptionsOf
 import io.vertx.kotlin.ext.auth.mongo.mongoAuthorizationOptionsOf
 import io.vertx.kotlin.ext.mongo.findOptionsOf
 import io.vertx.kotlin.ext.mongo.updateOptionsOf
+import io.vertx.kotlin.pgclient.pgConnectOptionsOf
+import io.vertx.kotlin.sqlclient.poolOptionsOf
+import io.vertx.pgclient.PgPool
 import io.vertx.spi.cluster.hazelcast.HazelcastClusterManager
 import org.slf4j.LoggerFactory
 import java.net.InetAddress
-import java.net.UnknownHostException
 import java.security.SecureRandom
 import java.util.*
 
@@ -45,7 +47,6 @@ class CRUDVerticle : AbstractVerticle() {
 
     private val logger = LoggerFactory.getLogger(CRUDVerticle::class.java)
 
-    @Throws(UnknownHostException::class)
     @JvmStatic
     fun main(args: Array<String>) {
       val ipv4 = InetAddress.getLocalHost().hostAddress
@@ -67,6 +68,8 @@ class CRUDVerticle : AbstractVerticle() {
   private lateinit var mongoAuthRelays: MongoAuthentication
   private lateinit var mongoUserUtilUsers: MongoUserUtil
   private lateinit var mongoAuthUsers: MongoAuthentication
+
+  private lateinit var pgPool: PgPool
 
   override fun start(startPromise: Promise<Void>?) {
     mongoClient =
@@ -102,6 +105,10 @@ class CRUDVerticle : AbstractVerticle() {
     )
     mongoAuthUsers = MongoAuthentication.create(mongoClient, mongoAuthUsersOptions)
 
+    val pgConnectOptions =
+      pgConnectOptionsOf(port = 5432, host = "localhost", database = "postgres", user = "postgres", password = "biot")
+    pgPool = PgPool.pool(vertx, pgConnectOptions, poolOptionsOf())
+
     RouterBuilder.create(vertx, "../swagger-api/swagger.yaml").onComplete { ar ->
       if (ar.succeeded()) {
         // Spec loaded with success
@@ -119,6 +126,12 @@ class CRUDVerticle : AbstractVerticle() {
         routerBuilder.operation("getUser").handler(::getUserHandler)
         routerBuilder.operation("updateUser").handler(::updateUserHandler)
         routerBuilder.operation("authenticate").handler(::authenticateHandler)
+
+        // Items
+        routerBuilder.operation("registerItem").handler(::registerItemHandler)
+        routerBuilder.operation("getItems").handler(::getItemsHandler)
+        routerBuilder.operation("getItem").handler(::getItemHandler)
+        routerBuilder.operation("updateItem").handler(::updateItemHandler)
 
         val router: Router = routerBuilder.createRouter()
         vertx.createHttpServer().requestHandler(router).listen(PORT).onComplete {
@@ -319,6 +332,9 @@ class CRUDVerticle : AbstractVerticle() {
       ctx.fail(401, error)
     }
   }
+
+  // TODO Items
+
 
   private fun JsonObject?.validateAndThen(ctx: RoutingContext, block: (JsonObject) -> Unit) {
     when {

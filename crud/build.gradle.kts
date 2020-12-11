@@ -24,6 +24,7 @@ dependencies {
   val striktVersion = project.extra["striktVersion"]
   val testContainersVersion = project.extra["testContainersVersion"]
 
+  implementation("io.vertx:vertx-pg-client:$vertxVersion")
   implementation("io.vertx:vertx-mongo-client:$vertxVersion")
   implementation("io.vertx:vertx-auth-mongo:$vertxVersion")
   implementation("io.vertx:vertx-web:$vertxVersion")
