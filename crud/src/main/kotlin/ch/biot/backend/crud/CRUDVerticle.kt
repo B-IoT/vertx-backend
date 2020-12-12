@@ -369,7 +369,8 @@ class CRUDVerticle : AbstractVerticle() {
 
   private fun getItemsHandler(ctx: RoutingContext) {
     logger.info("New getItems request")
-    pgPool.query("SELECT * FROM items I LEFT JOIN beacon_data D ON I.beacon = D.mac").execute()
+    pgPool.preparedQuery("SELECT DISTINCT ON (I.id) * FROM items I LEFT JOIN beacon_data D ON I.beacon = D.mac ORDER BY I.id, D.time DESC")
+      .execute()
       .onSuccess { res ->
         val result = res.map { it.buildItemJson() }
 
@@ -386,7 +387,7 @@ class CRUDVerticle : AbstractVerticle() {
     val itemID = ctx.pathParam("id")
     logger.info("New getItem request for item $itemID")
 
-    pgPool.preparedQuery("SELECT * FROM items I LEFT JOIN beacon_data D ON I.beacon = D.mac WHERE I.id=$1 LIMIT 1")
+    pgPool.preparedQuery("SELECT * FROM items I LEFT JOIN beacon_data D ON I.beacon = D.mac WHERE I.id=$1 ORDER BY D.time DESC LIMIT 1")
       .execute(Tuple.of(itemID.toInt()))
       .onSuccess { res ->
         val result = res.iterator().next()?.buildItemJson() ?: jsonObjectOf()
@@ -410,7 +411,7 @@ class CRUDVerticle : AbstractVerticle() {
       val category: String = json["category"]
       val service: String = json["service"]
       pgPool.preparedQuery("UPDATE items SET beacon = $1, category = $2, service = $3 WHERE id=$4")
-        .execute(Tuple.of(beacon, category, service, itemID))
+        .execute(Tuple.of(beacon, category, service, itemID.toInt()))
         .onSuccess {
           logger.info("Successfully updated item $itemID")
           ctx.end()
@@ -469,6 +470,7 @@ class CRUDVerticle : AbstractVerticle() {
     "category" to getString("category"),
     "service" to getString("service"),
     "timestamp" to getOffsetDateTime("time")?.toString(),
+    "battery" to getInteger("battery"),
     "status" to getString("status"),
     "latitude" to getDouble("latitude"),
     "longitude" to getDouble("longitude")
