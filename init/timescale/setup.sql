@@ -15,8 +15,11 @@ CREATE TABLE IF NOT EXISTS beacon_data
     battery INTEGER,
     status VARCHAR(50),
     latitude DECIMAL(9, 6),
-    longitude DECIMAL(9, 6),
-    FOREIGN KEY (mac) REFERENCES items(beacon)
+    longitude DECIMAL(9, 6)
 );
 
 SELECT create_hypertable('beacon_data', 'time');
+
+CREATE INDEX IF NOT EXISTS ON items(beacon);
+
+CREATE INDEX IF NOT EXISTS ON beacon_data(mac, time DESC);
