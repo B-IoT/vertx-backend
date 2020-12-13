@@ -114,9 +114,7 @@ class TestCRUDVerticleRelays {
   private fun dropAllRelays() = mongoClient.removeDocuments("relays", jsonObjectOf())
 
   private fun insertRelay(): Future<JsonObject> {
-    val salt = ByteArray(16)
-    SecureRandom().nextBytes(salt)
-    val hashedPassword = mongoAuth.hash("pbkdf2", String(Base64.getEncoder().encode(salt)), mqttPassword)
+    val hashedPassword = mqttPassword.saltAndHash(mongoAuth)
     return mongoUserUtil.createHashedUser("test", hashedPassword).compose { docID ->
       val query = jsonObjectOf("_id" to docID)
       val extraInfo = jsonObjectOf(

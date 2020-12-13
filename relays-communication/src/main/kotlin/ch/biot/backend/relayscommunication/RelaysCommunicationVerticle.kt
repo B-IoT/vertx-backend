@@ -197,19 +197,6 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
     }
   }
 
-  private fun JsonObject.clean(): JsonObject = this.copy().apply {
-    remove("_id")
-    remove("mqttID")
-    remove("mqttUsername")
-    remove("mqttPassword")
-    remove("latitude")
-    remove("longitude")
-    if (containsKey("lastModified")) {
-      val lastModifiedObject: JsonObject = this["lastModified"]
-      put("lastModified", lastModifiedObject["\$date"])
-    }
-  }
-
   private fun sendLastConfiguration(client: MqttEndpoint) {
     val query = jsonObjectOf("mqttID" to client.clientIdentifier())
     mongoClient.rxFindOne(RELAYS_COLLECTION, query, jsonObjectOf()).subscribeBy(

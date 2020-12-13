@@ -7,12 +7,9 @@ package ch.biot.backend.publicapi
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.Promise
 import io.vertx.core.http.HttpMethod
-import io.vertx.core.json.JsonArray
-import io.vertx.core.json.JsonObject
 import io.vertx.ext.auth.jwt.JWTAuth
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.RoutingContext
-import io.vertx.ext.web.client.HttpResponse
 import io.vertx.ext.web.client.WebClient
 import io.vertx.ext.web.client.predicate.ResponsePredicate
 import io.vertx.ext.web.codec.BodyCodec
@@ -35,7 +32,7 @@ class PublicApiVerticle : AbstractVerticle() {
     private const val PORT = 4000
     private const val CRUD_PORT = 3000
 
-    private val logger = LoggerFactory.getLogger(PublicApiVerticle::class.java)
+    internal val logger = LoggerFactory.getLogger(PublicApiVerticle::class.java)
   }
 
   private lateinit var webClient: WebClient
@@ -89,7 +86,7 @@ class PublicApiVerticle : AbstractVerticle() {
     router.get("$API_PREFIX/relays").handler(jwtAuthHandler).handler(::getRelaysHandler)
     router.get("$API_PREFIX/relays/:id").handler(jwtAuthHandler).handler(::getRelayHandler)
 
-    // TODO Items
+    // Items
     router.post("$API_PREFIX/items").handler(jwtAuthHandler).handler(::registerItemHandler)
     router.put("$API_PREFIX/items/:id").handler(jwtAuthHandler).handler(::updateItemHandler)
     router.get("$API_PREFIX/items").handler(jwtAuthHandler).handler(::getItemsHandler)
@@ -215,34 +212,5 @@ class PublicApiVerticle : AbstractVerticle() {
       .onFailure { error ->
         sendBadGateway(ctx, error)
       }
-  }
-
-  private fun sendStatusCode(ctx: RoutingContext, code: Int) {
-    ctx.response().setStatusCode(code).end()
-  }
-
-  private fun forwardJsonObjectOrStatusCode(ctx: RoutingContext, resp: HttpResponse<JsonObject>) {
-    if (resp.statusCode() != 200) {
-      sendStatusCode(ctx, resp.statusCode())
-    } else {
-      ctx.response()
-        .putHeader("Content-Type", "application/json")
-        .end(resp.body().encode())
-    }
-  }
-
-  private fun forwardJsonArrayOrStatusCode(ctx: RoutingContext, resp: HttpResponse<JsonArray>) {
-    if (resp.statusCode() != 200) {
-      sendStatusCode(ctx, resp.statusCode())
-    } else {
-      ctx.response()
-        .putHeader("Content-Type", "application/json")
-        .end(resp.body().encode())
-    }
-  }
-
-  private fun sendBadGateway(ctx: RoutingContext, error: Throwable) {
-    logger.error("Oops... an error occurred!", error)
-    ctx.fail(502)
   }
 }

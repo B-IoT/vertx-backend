@@ -29,11 +29,9 @@ import io.vertx.kotlin.pgclient.pgConnectOptionsOf
 import io.vertx.kotlin.sqlclient.poolOptionsOf
 import io.vertx.pgclient.PgPool
 import io.vertx.spi.cluster.hazelcast.HazelcastClusterManager
-import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.Tuple
 import org.slf4j.LoggerFactory
 import java.net.InetAddress
-import java.security.SecureRandom
 import java.util.*
 
 
@@ -47,7 +45,7 @@ class CRUDVerticle : AbstractVerticle() {
 
     private const val PORT = 3000
 
-    private val logger = LoggerFactory.getLogger(CRUDVerticle::class.java)
+    internal val logger = LoggerFactory.getLogger(CRUDVerticle::class.java)
 
     @JvmStatic
     fun main(args: Array<String>) {
@@ -74,6 +72,7 @@ class CRUDVerticle : AbstractVerticle() {
   private lateinit var pgPool: PgPool
 
   override fun start(startPromise: Promise<Void>?) {
+    // Initialize MongoDB
     mongoClient =
       MongoClient.createShared(vertx, jsonObjectOf("host" to "localhost", "port" to 27017, "db_name" to "clients"))
 
@@ -107,6 +106,7 @@ class CRUDVerticle : AbstractVerticle() {
     )
     mongoAuthUsers = MongoAuthentication.create(mongoClient, mongoAuthUsersOptions)
 
+    // Initialize TimescaleDB
     val pgConnectOptions =
       pgConnectOptionsOf(
         port = 5432,
@@ -118,6 +118,7 @@ class CRUDVerticle : AbstractVerticle() {
       )
     pgPool = PgPool.pool(vertx, pgConnectOptions, poolOptionsOf())
 
+    // Initialize OpenAPI router
     RouterBuilder.create(vertx, "../swagger-api/swagger.yaml").onComplete { ar ->
       if (ar.succeeded()) {
         // Spec loaded with success
@@ -161,7 +162,7 @@ class CRUDVerticle : AbstractVerticle() {
     json.validateAndThen(ctx) {
       // Create the relay
       val password: String = json["mqttPassword"]
-      val hashedPassword = password.saltAndHash()
+      val hashedPassword = password.saltAndHash(mongoAuthRelays)
       mongoUserUtilRelays.createHashedUser(json["mqttUsername"], hashedPassword).compose { docID ->
         // Update the relay with the data specified in the HTTP request
         val query = jsonObjectOf("_id" to docID)
@@ -252,7 +253,7 @@ class CRUDVerticle : AbstractVerticle() {
     json.validateAndThen(ctx) {
       // Create the user
       val password: String = json["password"]
-      val hashedPassword = password.saltAndHash()
+      val hashedPassword = password.saltAndHash(mongoAuthUsers)
       mongoUserUtilUsers.createHashedUser(json["username"], hashedPassword).compose { docID ->
         // Update the user with the data specified in the HTTP request
         val query = jsonObjectOf("_id" to docID)
@@ -358,7 +359,6 @@ class CRUDVerticle : AbstractVerticle() {
         .onSuccess {
           logger.info("New item registered")
           val row = it.iterator().next()
-          logger.info("Row: $row")
           ctx.end(row.getInteger("id").toString())
         }.onFailure { error ->
           logger.error("Could not register item", error)
@@ -372,7 +372,7 @@ class CRUDVerticle : AbstractVerticle() {
     pgPool.preparedQuery("SELECT DISTINCT ON (I.id) * FROM items I LEFT JOIN beacon_data D ON I.beacon = D.mac ORDER BY I.id, D.time DESC")
       .execute()
       .onSuccess { res ->
-        val result = res.map { it.buildItemJson() }
+        val result = if (res.size() == 0) listOf() else res.map { it.buildItemJson() }
 
         ctx.response()
           .putHeader("Content-Type", "application/json")
@@ -390,7 +390,12 @@ class CRUDVerticle : AbstractVerticle() {
     pgPool.preparedQuery("SELECT * FROM items I LEFT JOIN beacon_data D ON I.beacon = D.mac WHERE I.id=$1 ORDER BY D.time DESC LIMIT 1")
       .execute(Tuple.of(itemID.toInt()))
       .onSuccess { res ->
-        val result = res.iterator().next()?.buildItemJson() ?: jsonObjectOf()
+        if (res.size() == 0) {
+          ctx.fail(404)
+          return@onSuccess
+        }
+
+        val result: JsonObject = res.iterator().next().buildItemJson()
 
         ctx.response()
           .putHeader("Content-Type", "application/json")
@@ -421,58 +426,5 @@ class CRUDVerticle : AbstractVerticle() {
           ctx.fail(500)
         }
     }
-
   }
-
-  private fun JsonObject?.validateAndThen(ctx: RoutingContext, block: (JsonObject) -> Unit) {
-    when {
-      this == null -> {
-        logger.warn("Bad request with null body")
-        ctx.fail(400)
-      }
-      this.isEmpty -> {
-        logger.warn("Bad request with empty body")
-        ctx.fail(400)
-      }
-      else -> block(this)
-    }
-  }
-
-  private fun JsonObject.clean(): JsonObject = this.copy().apply {
-    remove("_id")
-    cleanLastModified()
-  }
-
-  private fun JsonObject.cleanForRelay(): JsonObject = this.copy().apply {
-    clean()
-    remove("mqttUsername")
-    remove("mqttPassword")
-    remove("latitude")
-    remove("longitude")
-  }
-
-  private fun JsonObject.cleanLastModified() {
-    if (containsKey("lastModified")) {
-      val lastModifiedObject: JsonObject = this["lastModified"]
-      put("lastModified", lastModifiedObject["\$date"])
-    }
-  }
-
-  private fun String.saltAndHash(): String {
-    val salt = ByteArray(16)
-    SecureRandom().nextBytes(salt)
-    return mongoAuthRelays.hash("pbkdf2", String(Base64.getEncoder().encode(salt)), this)
-  }
-
-  private fun Row.buildItemJson(): JsonObject = jsonObjectOf(
-    "id" to getInteger("id"),
-    "beacon" to getString("beacon"),
-    "category" to getString("category"),
-    "service" to getString("service"),
-    "timestamp" to getOffsetDateTime("time")?.toString(),
-    "battery" to getInteger("battery"),
-    "status" to getString("status"),
-    "latitude" to getDouble("latitude"),
-    "longitude" to getDouble("longitude")
-  )
 }

@@ -36,8 +36,6 @@ import strikt.api.expect
 import strikt.api.expectThat
 import strikt.assertions.*
 import java.io.File
-import java.security.SecureRandom
-import java.util.*
 
 
 @ExtendWith(VertxExtension::class)
@@ -97,9 +95,7 @@ class TestCRUDVerticleUsers {
   private fun dropAllUsers() = mongoClient.removeDocuments("users", jsonObjectOf())
 
   private fun insertUser(): Future<JsonObject> {
-    val salt = ByteArray(16)
-    SecureRandom().nextBytes(salt)
-    val hashedPassword = mongoAuth.hash("pbkdf2", String(Base64.getEncoder().encode(salt)), password)
+    val hashedPassword = password.saltAndHash(mongoAuth)
     return mongoUserUtil.createHashedUser("test", hashedPassword).compose { docID ->
       val query = jsonObjectOf("_id" to docID)
       val extraInfo = jsonObjectOf(
