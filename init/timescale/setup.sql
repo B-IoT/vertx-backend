@@ -20,6 +20,6 @@ CREATE TABLE IF NOT EXISTS beacon_data
 
 SELECT create_hypertable('beacon_data', 'time');
 
-CREATE INDEX IF NOT EXISTS ON items(beacon);
+CREATE INDEX ON items(beacon);
 
-CREATE INDEX IF NOT EXISTS ON beacon_data(mac, time DESC);
+CREATE INDEX ON beacon_data(mac, time DESC);
