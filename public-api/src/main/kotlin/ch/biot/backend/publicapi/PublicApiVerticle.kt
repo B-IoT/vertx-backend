@@ -145,14 +145,14 @@ class PublicApiVerticle : AbstractVerticle() {
 
   // Items
 
-  private fun registerItemHandler(ctx: RoutingContext) = registerHandler(ctx, "items")
+  private fun registerItemHandler(ctx: RoutingContext) = registerHandler(ctx, "items", forwardResponse = true)
   private fun updateItemHandler(ctx: RoutingContext) = updateHandler(ctx, "items")
   private fun getItemsHandler(ctx: RoutingContext) = getManyHandler(ctx, "items")
   private fun getItemHandler(ctx: RoutingContext) = getOneHandler(ctx, "items")
 
   // Helpers
 
-  private fun registerHandler(ctx: RoutingContext, endpoint: String) {
+  private fun registerHandler(ctx: RoutingContext, endpoint: String, forwardResponse: Boolean = false) {
     logger.info("New register request on /$endpoint endpoint")
 
     webClient
@@ -161,7 +161,8 @@ class PublicApiVerticle : AbstractVerticle() {
       .expect(ResponsePredicate.SC_OK)
       .sendBuffer(ctx.body)
       .onSuccess { response ->
-        sendStatusCode(ctx, response.statusCode())
+        if (forwardResponse) ctx.end(response.body())
+        else sendStatusCode(ctx, response.statusCode())
       }
       .onFailure { error ->
         sendBadGateway(ctx, error)
