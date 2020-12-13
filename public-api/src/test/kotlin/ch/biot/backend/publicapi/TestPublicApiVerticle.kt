@@ -25,6 +25,7 @@ import org.junit.jupiter.api.*
 import org.junit.jupiter.api.extension.ExtendWith
 import org.testcontainers.containers.DockerComposeContainer
 import org.testcontainers.junit.jupiter.Testcontainers
+import strikt.api.expect
 import strikt.api.expectThat
 import strikt.assertions.*
 import java.io.File
@@ -59,6 +60,14 @@ class TestPublicApiVerticle {
       "password" to "pass"
     )
   )
+
+  private val item = jsonObjectOf(
+    "beacon" to "ab:ab:ab:ab:ab:ab",
+    "category" to "ECG",
+    "service" to "Bloc 2"
+  )
+
+  private var itemID: Int = 1
 
   private lateinit var token: String
 
@@ -352,6 +361,136 @@ class TestPublicApiVerticle {
     }
   }
 
+  @Test
+  @Order(11)
+  @DisplayName("Registering an item succeeds")
+  fun registerItemSucceeds(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      header("Authorization", "Bearer $token")
+      body(item.encode())
+    } When {
+      post("/api/items")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isNotEmpty() // it returns the id of the registered item
+      itemID = response.toInt()
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @Order(12)
+  @DisplayName("Getting the items succeeds")
+  fun getItemsSucceeds(testContext: VertxTestContext) {
+    val expected = item.copy()
+
+    val response = Buffer.buffer(Given {
+      spec(requestSpecification)
+      accept(ContentType.JSON)
+      header("Authorization", "Bearer $token")
+    } When {
+      get("/api/items")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }).toJsonArray()
+
+    testContext.verify {
+      expectThat(response).isNotNull()
+      expectThat(response.isEmpty).isFalse()
+
+      val obj = response.getJsonObject(0)
+      val id = obj.remove("id")
+      expectThat(id).isEqualTo(itemID)
+      expect {
+        that(obj.getString("beacon")).isEqualTo(expected.getString("beacon"))
+        that(obj.getString("category")).isEqualTo(expected.getString("category"))
+        that(obj.getString("service")).isEqualTo(expected.getString("service"))
+        that(obj.containsKey("timestamp")).isTrue()
+        that(obj.containsKey("battery")).isTrue()
+        that(obj.containsKey("status")).isTrue()
+        that(obj.containsKey("latitude")).isTrue()
+        that(obj.containsKey("longitude")).isTrue()
+      }
+
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @Order(13)
+  @DisplayName("Getting an item succeeds")
+  fun getItemSucceeds(testContext: VertxTestContext) {
+    val expected = item.copy()
+
+    val response = Buffer.buffer(Given {
+      spec(requestSpecification)
+      accept(ContentType.JSON)
+      header("Authorization", "Bearer $token")
+    } When {
+      get("/api/items/$itemID")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }).toJsonObject()
+
+    testContext.verify {
+      expectThat(response).isNotNull()
+      val id = response.remove("id")
+      expectThat(id).isEqualTo(itemID)
+      expect {
+        that(response.getString("beacon")).isEqualTo(expected.getString("beacon"))
+        that(response.getString("category")).isEqualTo(expected.getString("category"))
+        that(response.getString("service")).isEqualTo(expected.getString("service"))
+        that(response.containsKey("timestamp")).isTrue()
+        that(response.containsKey("battery")).isTrue()
+        that(response.containsKey("status")).isTrue()
+        that(response.containsKey("latitude")).isTrue()
+        that(response.containsKey("longitude")).isTrue()
+      }
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @Order(14)
+  @DisplayName("Updating an item succeeds")
+  fun updateItemSucceeds(testContext: VertxTestContext) {
+    val updateJson = jsonObjectOf(
+      "beacon" to "ad:ab:ab:ab:ab:ab",
+      "category" to "Lit",
+      "service" to "Bloc 42"
+    )
+
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      header("Authorization", "Bearer $token")
+      body(updateJson.encode())
+    } When {
+      put("/api/items/$itemID")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEmpty()
+      testContext.completeNow()
+    }
+  }
+
   companion object {
 
     private val requestSpecification: RequestSpecification = RequestSpecBuilder()
@@ -367,6 +506,9 @@ class TestPublicApiVerticle {
     private fun defineDockerCompose() = KDockerComposeContainer(File("../docker-compose.yml")).withExposedService(
       "mongo_1",
       27017
+    ).withExposedService(
+      "timescale_1",
+      5432
     )
 
     @BeforeAll
