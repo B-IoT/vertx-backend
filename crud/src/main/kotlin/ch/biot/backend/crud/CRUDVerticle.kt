@@ -156,6 +156,9 @@ class CRUDVerticle : AbstractVerticle() {
 
   // Relays handlers
 
+  /**
+   * Handles a registerRelay request.
+   */
   private fun registerRelayHandler(ctx: RoutingContext) {
     logger.info("New register request")
     val json = ctx.bodyAsJson
@@ -182,6 +185,9 @@ class CRUDVerticle : AbstractVerticle() {
     }
   }
 
+  /**
+   * Handles a getRelays request.
+   */
   private fun getRelaysHandler(ctx: RoutingContext) {
     logger.info("New getRelays request")
     // TODO use offset and limit parameters
@@ -195,6 +201,9 @@ class CRUDVerticle : AbstractVerticle() {
     }
   }
 
+  /**
+   * Handles a getRelay request.
+   */
   private fun getRelayHandler(ctx: RoutingContext) {
     val relayID = ctx.pathParam("id")
     logger.info("New getRelay request for relay $relayID")
@@ -209,6 +218,9 @@ class CRUDVerticle : AbstractVerticle() {
     }
   }
 
+  /**
+   * Handles an updateRelay request.
+   */
   private fun updateRelayHandler(ctx: RoutingContext) {
     logger.info("New updateRelay request")
     val json = ctx.bodyAsJson
@@ -231,6 +243,7 @@ class CRUDVerticle : AbstractVerticle() {
         updateOptionsOf(returningNewDocument = true)
       ).onSuccess { result ->
         logger.info("Successfully updated MongoDB collection $RELAYS_COLLECTION with update JSON $update")
+        // Put the beacon information in the JSON to send to the relay
         val cleanEntry = result.cleanForRelay().apply {
           put("beacon", json["beacon"])
         }
@@ -247,6 +260,9 @@ class CRUDVerticle : AbstractVerticle() {
 
   // Users handlers
 
+  /**
+   * Handles a registerUser request.
+   */
   private fun registerUserHandler(ctx: RoutingContext) {
     logger.info("New user request")
     val json = ctx.bodyAsJson
@@ -273,6 +289,9 @@ class CRUDVerticle : AbstractVerticle() {
     }
   }
 
+  /**
+   * Handles a getUsers request.
+   */
   private fun getUsersHandler(ctx: RoutingContext) {
     logger.info("New getUsers request")
     // TODO use offset and limit parameters
@@ -287,6 +306,9 @@ class CRUDVerticle : AbstractVerticle() {
       }
   }
 
+  /**
+   * Handles a getUser request.
+   */
   private fun getUserHandler(ctx: RoutingContext) {
     val userID = ctx.pathParam("id")
     logger.info("New getUser request for relay $userID")
@@ -301,6 +323,9 @@ class CRUDVerticle : AbstractVerticle() {
     }
   }
 
+  /**
+   * Handles an updateUser request.
+   */
   private fun updateUserHandler(ctx: RoutingContext) {
     logger.info("New updateUser request")
     val json = ctx.bodyAsJson
@@ -327,6 +352,9 @@ class CRUDVerticle : AbstractVerticle() {
     }
   }
 
+  /**
+   * Handles an authenticate request.
+   */
   private fun authenticateHandler(ctx: RoutingContext) {
     logger.info("New authenticate request")
     val body = if (ctx.body.length() == 0) {
@@ -346,11 +374,15 @@ class CRUDVerticle : AbstractVerticle() {
 
   // Items
 
+  /**
+   * Handles a registerItem request.
+   */
   private fun registerItemHandler(ctx: RoutingContext) {
     logger.info("New registerItem request")
 
     val json = ctx.bodyAsJson
     json.validateAndThen(ctx) {
+      // Extract the information from the payload and insert the item in TimescaleDB
       val beacon: String = json["beacon"]
       val category: String = json["category"]
       val service: String = json["service"]
@@ -367,12 +399,15 @@ class CRUDVerticle : AbstractVerticle() {
     }
   }
 
+  /**
+   * Handles a getItems request.
+   */
   private fun getItemsHandler(ctx: RoutingContext) {
     logger.info("New getItems request")
     pgPool.preparedQuery(GET_ITEMS)
       .execute()
       .onSuccess { res ->
-        val result = if (res.size() == 0) listOf() else res.map { it.buildItemJson() }
+        val result = if (res.size() == 0) listOf() else res.map { it.toItemJson() }
 
         ctx.response()
           .putHeader("Content-Type", "application/json")
@@ -383,19 +418,23 @@ class CRUDVerticle : AbstractVerticle() {
       }
   }
 
+  /**
+   * Handles a getItem request.
+   */
   private fun getItemHandler(ctx: RoutingContext) {
     val itemID = ctx.pathParam("id")
     logger.info("New getItem request for item $itemID")
 
     pgPool.preparedQuery(GET_ITEM)
-      .execute(Tuple.of(itemID.toInt()))
+      .execute(Tuple.of(itemID.toInt())) // the id needs to be converted to Int, as the DB stores it as an integer
       .onSuccess { res ->
         if (res.size() == 0) {
+          // No item found, fail
           ctx.fail(404)
           return@onSuccess
         }
 
-        val result: JsonObject = res.iterator().next().buildItemJson()
+        val result: JsonObject = res.iterator().next().toItemJson()
 
         ctx.response()
           .putHeader("Content-Type", "application/json")
@@ -406,12 +445,16 @@ class CRUDVerticle : AbstractVerticle() {
       }
   }
 
+  /**
+   * Handles an updateItem request.
+   */
   private fun updateItemHandler(ctx: RoutingContext) {
     val itemID = ctx.pathParam("id")
     logger.info("New updateItem request for item $itemID")
 
     val json = ctx.bodyAsJson
     json.validateAndThen(ctx) {
+      // Extract the information from the payload and update the item in TimescaleDB
       val beacon: String = json["beacon"]
       val category: String = json["category"]
       val service: String = json["service"]

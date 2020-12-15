@@ -4,6 +4,11 @@
 
 package ch.biot.backend.relayscommunication
 
+import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.INGESTION_TOPIC
+import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.LAST_CONFIGURATION_TOPIC
+import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.RELAYS_COLLECTION
+import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.RELAYS_UPDATE_ADDRESS
+import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.UPDATE_PARAMETERS_TOPIC
 import io.netty.handler.codec.mqtt.MqttQoS
 import io.reactivex.Maybe
 import io.reactivex.rxkotlin.subscribeBy
@@ -104,13 +109,17 @@ class TestRelaysCommunicationVerticle {
     )
     mongoAuth = MongoAuthentication.create(mongoClient, mongoAuthOptions)
 
-    mongoClient.rxCreateIndexWithOptions("relays", jsonObjectOf("relayID" to 1), indexOptionsOf().unique(true))
+    mongoClient.rxCreateIndexWithOptions(RELAYS_COLLECTION, jsonObjectOf("relayID" to 1), indexOptionsOf().unique(true))
       .andThen(
-        mongoClient.rxCreateIndexWithOptions("relays", jsonObjectOf("mqttID" to 1), indexOptionsOf().unique(true))
+        mongoClient.rxCreateIndexWithOptions(
+          RELAYS_COLLECTION,
+          jsonObjectOf("mqttID" to 1),
+          indexOptionsOf().unique(true)
+        )
       )
       .andThen(
         mongoClient.rxCreateIndexWithOptions(
-          "relays", jsonObjectOf("mqttUsername" to 1), indexOptionsOf().unique(
+          RELAYS_COLLECTION, jsonObjectOf("mqttUsername" to 1), indexOptionsOf().unique(
             true
           )
         )
@@ -119,12 +128,12 @@ class TestRelaysCommunicationVerticle {
       .flatMap { insertRelay() }
       .flatMapSingle { vertx.rxDeployVerticle(RelaysCommunicationVerticle()) }
       .delay(500, TimeUnit.MILLISECONDS, RxHelper.scheduler(vertx))
-      .flatMapCompletable { kafkaAdminClient.rxDeleteTopics(listOf("incoming.update")) }
+      .flatMapCompletable { kafkaAdminClient.rxDeleteTopics(listOf(INGESTION_TOPIC)) }
       .onErrorComplete()
       .subscribe(testContext::completeNow, testContext::failNow)
   }
 
-  private fun dropAllRelays() = mongoClient.rxRemoveDocuments("relays", jsonObjectOf())
+  private fun dropAllRelays() = mongoClient.rxRemoveDocuments(RELAYS_COLLECTION, jsonObjectOf())
 
   private fun insertRelay(): Maybe<JsonObject> {
     val salt = ByteArray(16)
@@ -155,7 +164,7 @@ class TestRelaysCommunicationVerticle {
     mqttClient.rxConnect(8883, "localhost")
       .flatMap {
         mqttClient.publishHandler { msg ->
-          if (msg.topicName() == "last.configuration") {
+          if (msg.topicName() == LAST_CONFIGURATION_TOPIC) {
             testContext.verify {
               val expected = configuration.copy().apply {
                 remove("mqttID")
@@ -167,7 +176,7 @@ class TestRelaysCommunicationVerticle {
               testContext.completeNow()
             }
           }
-        }.rxSubscribe("last.configuration", MqttQoS.AT_LEAST_ONCE.value())
+        }.rxSubscribe(LAST_CONFIGURATION_TOPIC, MqttQoS.AT_LEAST_ONCE.value())
       }.subscribeBy(
         onError = testContext::failNow
       )
@@ -180,17 +189,17 @@ class TestRelaysCommunicationVerticle {
     mqttClient.rxConnect(8883, "localhost")
       .flatMap {
         mqttClient.publishHandler { msg ->
-          if (msg.topicName() == "update.parameters") {
+          if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
             testContext.verify {
               val messageWithoutMqttID = message.copy().apply { remove("mqttID") }
               expectThat(msg.payload().toJsonObject()).isEqualTo(messageWithoutMqttID)
               testContext.completeNow()
             }
           }
-        }.rxSubscribe("update.parameters", MqttQoS.AT_LEAST_ONCE.value())
+        }.rxSubscribe(UPDATE_PARAMETERS_TOPIC, MqttQoS.AT_LEAST_ONCE.value())
       }.subscribeBy(
         onSuccess = {
-          vertx.eventBus().send("relays.update", message)
+          vertx.eventBus().send(RELAYS_UPDATE_ADDRESS, message)
         },
         onError = testContext::failNow
       )
@@ -210,7 +219,7 @@ class TestRelaysCommunicationVerticle {
     mqttClient.rxConnect(8883, "localhost")
       .flatMap {
         mqttClient.rxPublish(
-          "incoming.update",
+          INGESTION_TOPIC,
           Buffer.newInstance(message.toBuffer()),
           MqttQoS.AT_LEAST_ONCE,
           false,
@@ -220,7 +229,7 @@ class TestRelaysCommunicationVerticle {
       .subscribeBy(onError = testContext::failNow)
 
     kafkaConsumer
-      .rxSubscribe("incoming.update").subscribe()
+      .rxSubscribe(INGESTION_TOPIC).subscribe()
 
     kafkaConsumer
       .toFlowable()
@@ -246,8 +255,6 @@ class TestRelaysCommunicationVerticle {
   }
 
   companion object {
-
-    private const val RELAYS_COLLECTION = "relays"
 
     private val instance: KDockerComposeContainer by lazy { defineDockerCompose() }
 

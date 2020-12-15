@@ -34,9 +34,11 @@ import java.time.Instant
 class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
 
   companion object {
-    private const val RELAYS_COLLECTION = "relays"
-    private const val RELAYS_UPDATE_ADDRESS = "relays.update"
-    private const val INGESTION_TOPIC = "incoming.update"
+    internal const val RELAYS_COLLECTION = "relays"
+    internal const val UPDATE_PARAMETERS_TOPIC = "update.parameters"
+    internal const val LAST_CONFIGURATION_TOPIC = "last.configuration"
+    internal const val INGESTION_TOPIC = "incoming.update"
+    internal const val RELAYS_UPDATE_ADDRESS = "relays.update"
 
     private val logger = LoggerFactory.getLogger(RelaysCommunicationVerticle::class.java)
 
@@ -67,6 +69,7 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
   override fun rxStart(): Completable {
     // TODO update with real configuration
 
+    // Initialize the Kafka producer
     kafkaProducer = KafkaProducer.create(
       vertx, mapOf(
         "bootstrap.servers" to "localhost:9092",
@@ -76,6 +79,7 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
       )
     )
 
+    // Initialize MongoDB
     mongoClient =
       MongoClient.createShared(vertx, jsonObjectOf("host" to "localhost", "port" to 27017, "db_name" to "clients"))
 
@@ -91,14 +95,20 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
       )
     )
 
+    // Add an event bus consumer to handle the JSON received from CRUDVerticle, which needs to be forwarded to the right
+    // relay
     vertx.eventBus().consumer<JsonObject>(RELAYS_UPDATE_ADDRESS) { message ->
       val json = message.body()
       logger.info("Received relay update $json on event bus address $RELAYS_UPDATE_ADDRESS, sending it to client...")
       val mqttID: String = json["mqttID"]
+
+      // Remove the mqttID, as the relay already knows it
       val jsonWithoutMqttID = json.copy().apply {
         remove("mqttID")
       }
-      clients[mqttID]?.let { client -> sendMessageTo(client, jsonWithoutMqttID, "update.parameters") }
+
+      // Send the message to the right relay on the MQTT topic "update.parameters"
+      clients[mqttID]?.let { client -> sendMessageTo(client, jsonWithoutMqttID, UPDATE_PARAMETERS_TOPIC) }
     }
 
     // TODO MQTT on TLS
@@ -118,6 +128,7 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
       return
     }
 
+    // Authenticate the client
     val credentialsJson = jsonObjectOf(
       "username" to mqttAuth.username,
       "password" to mqttAuth.password
@@ -128,27 +139,31 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
         logger.info("Client [$clientIdentifier] connected")
 
         val sessionPresent = !client.isCleanSession
-        client.accept(sessionPresent).disconnectHandler {
-          logger.info("Client [$clientIdentifier] disconnected")
-          clients.remove(clientIdentifier)
-        }.subscribeHandler { subscribe ->
-          val grantedQosLevels = subscribe.topicSubscriptions().map { s ->
-            logger.info("Subscription for [${s.topicName()}] with QoS [${s.qualityOfService()}] by client [$clientIdentifier]")
-            s.qualityOfService()
-          }
+        client.accept(sessionPresent)
+          .disconnectHandler {
+            logger.info("Client [$clientIdentifier] disconnected")
+            clients.remove(clientIdentifier)
+          }.subscribeHandler { subscribe ->
+            // Extract the QoS levels to be used to acknowledge
+            val grantedQosLevels = subscribe.topicSubscriptions().map { s ->
+              logger.info("Subscription for [${s.topicName()}] with QoS [${s.qualityOfService()}] by client [$clientIdentifier]")
+              s.qualityOfService()
+            }
 
-          // Ack the subscriptions request
-          client.subscribeAcknowledge(subscribe.messageId(), grantedQosLevels)
-          clients[clientIdentifier] = client
+            // Ack the subscriptions request
+            client.subscribeAcknowledge(subscribe.messageId(), grantedQosLevels)
+            clients[clientIdentifier] = client
 
-          // Send last configuration to client
-          sendLastConfiguration(client)
-        }.unsubscribeHandler { unsubscribe ->
-          unsubscribe.topics().forEach { topic ->
-            logger.info("Unsubscription for [$topic] by client [$clientIdentifier]")
+            // Send last configuration to client
+            sendLastConfiguration(client)
+          }.unsubscribeHandler { unsubscribe ->
+            unsubscribe.topics().forEach { topic ->
+              logger.info("Unsubscription for [$topic] by client [$clientIdentifier]")
+            }
+            clients.remove(clientIdentifier)
+          }.publishHandler { m ->
+            handleMessage(m, client)
           }
-          clients.remove(clientIdentifier)
-        }.publishHandler { m -> handleMessage(m, client) }
       },
       onError = {
         // Wrong username or password, reject
@@ -158,7 +173,13 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
     )
   }
 
+  /**
+   * Handles a MQTT message received by the given client.
+   */
   private fun handleMessage(m: MqttPublishMessage, client: MqttEndpoint) {
+    /**
+     * Validates the JSON, returning true iff it contains all required fields.
+     */
     fun validateJson(json: JsonObject): Boolean {
       val keysToContain = listOf("relayID", "battery", "rssi", "mac", "isPushed")
       return keysToContain.fold(true) { acc, curr ->
@@ -171,14 +192,20 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
       logger.info("Received message $message from client ${client.clientIdentifier()}")
 
       if (m.qosLevel() == MqttQoS.AT_LEAST_ONCE) {
+        // Acknowledge the message
         client.publishAcknowledge(m.messageId())
       }
 
       if (m.topicName() == INGESTION_TOPIC && validateJson(message)) {
-        val beaconMacAddress: String = message["mac"]
+        // The message contains data to ingest and is valid
         val kafkaMessage = message.copy().apply {
-          this.put("timestamp", Instant.now())
+          // Add a timestamp to the message to send to Kafka
+          put("timestamp", Instant.now())
         }
+
+        val beaconMacAddress: String = message["mac"]
+
+        // Send the message to Kafka on the "incoming.update" topic
         val record = KafkaProducerRecord.create(INGESTION_TOPIC, beaconMacAddress, kafkaMessage)
         kafkaProducer.rxSend(record).subscribeBy(
           onSuccess = {
@@ -197,14 +224,20 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
     }
   }
 
+  /**
+   * Sends the last relay configuration to the given client.
+   */
   private fun sendLastConfiguration(client: MqttEndpoint) {
     val query = jsonObjectOf("mqttID" to client.clientIdentifier())
+    // Find the last configuration in MongoDB
     mongoClient.rxFindOne(RELAYS_COLLECTION, query, jsonObjectOf()).subscribeBy(
       onSuccess = { config ->
         if (config != null && !config.isEmpty) {
-          // Remove useless fields and clean lastModified
+          // The configuration exists
+
+          // Remove useless fields and clean lastModified, then send
           val cleanConfig = config.clean()
-          sendMessageTo(client, cleanConfig, "last.configuration")
+          sendMessageTo(client, cleanConfig, LAST_CONFIGURATION_TOPIC)
         }
       },
       onError = { error ->
@@ -213,6 +246,9 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
     )
   }
 
+  /**
+   * Sends the given message to the given client on the given MQTT topic.
+   */
   private fun sendMessageTo(client: MqttEndpoint, message: JsonObject, topic: String) {
     client.publishAcknowledgeHandler { messageId ->
       logger.info("Received ack for message $messageId")

@@ -41,6 +41,7 @@ class PublicApiVerticle : AbstractVerticle() {
   override fun start(startPromise: Promise<Void>?) {
     val fs = vertx.fileSystem()
 
+    // Read public and private keys from the file system. They are used for JWT authentication
     val publicKey = fs.readFileBlocking("public_key.pem").toString(Charsets.UTF_8)
     val privateKey = fs.readFileBlocking("private_key.pem").toString(Charsets.UTF_8)
 
@@ -62,6 +63,7 @@ class PublicApiVerticle : AbstractVerticle() {
 
     val router = Router.router(vertx)
 
+    // CORS allowed headers and methods
     val allowedHeaders =
       setOf("x-requested-with", "Access-Control-Allow-Origin", "origin", "Content-Type", "accept", "Authorization")
     val allowedMethods = setOf(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT)
@@ -108,10 +110,14 @@ class PublicApiVerticle : AbstractVerticle() {
   private fun getUsersHandler(ctx: RoutingContext) = getManyHandler(ctx, "users")
   private fun getUserHandler(ctx: RoutingContext) = getOneHandler(ctx, "users")
 
+  /**
+   * Handles the token request.
+   */
   private fun tokenHandler(ctx: RoutingContext) {
     fun makeJwtToken(username: String, company: String): String {
-      // Expires in 7 days
+      // Add the company information to the custom claims of the token
       val claims = jsonObjectOf("company" to company)
+      // The token expires in 7 days
       val jwtOptions = jwtOptionsOf(algorithm = "RS256", expiresInMinutes = 10080, issuer = "BIoT", subject = username)
       return jwtAuth.generateToken(claims, jwtOptions)
     }
@@ -152,6 +158,11 @@ class PublicApiVerticle : AbstractVerticle() {
 
   // Helpers
 
+  /**
+   * Handles a register request for the given endpoint. The forwardResponse parameter is set to true when the response
+   * from the underlying microservice needs to be forwarded to the user. If it is set to false, only the status code is
+   * sent.
+   */
   private fun registerHandler(ctx: RoutingContext, endpoint: String, forwardResponse: Boolean = false) {
     logger.info("New register request on /$endpoint endpoint")
 
@@ -169,6 +180,9 @@ class PublicApiVerticle : AbstractVerticle() {
       }
   }
 
+  /**
+   * Handles an update request for the given endpoint.
+   */
   private fun updateHandler(ctx: RoutingContext, endpoint: String) {
     logger.info("New update request on /$endpoint endpoint")
 
@@ -185,6 +199,9 @@ class PublicApiVerticle : AbstractVerticle() {
       }
   }
 
+  /**
+   * Handles a getMany request for the given endpoint.
+   */
   private fun getManyHandler(ctx: RoutingContext, endpoint: String) {
     logger.info("New getMany request on /$endpoint endpoint")
 
@@ -200,6 +217,9 @@ class PublicApiVerticle : AbstractVerticle() {
       }
   }
 
+  /**
+   * Handles a getOne request for the given endpoint.
+   */
   private fun getOneHandler(ctx: RoutingContext, endpoint: String) {
     logger.info("New getOne request on /$endpoint endpoint")
 

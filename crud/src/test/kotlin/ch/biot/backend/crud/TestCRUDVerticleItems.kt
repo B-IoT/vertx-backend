@@ -246,7 +246,7 @@ class TestCRUDVerticleItems {
 
     pgPool.preparedQuery(GET_ITEM).execute(Tuple.of(existingItemID))
       .onSuccess { res ->
-        val json = res.iterator().next().buildItemJson()
+        val json = res.iterator().next().toJson()
         expect {
           that(json.getString("beacon")).isEqualTo(updateItemJson.getString("beacon"))
           that(json.getString("category")).isEqualTo(updateItemJson.getString("category"))
