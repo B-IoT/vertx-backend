@@ -1,5 +1,4 @@
-version: 2.1
-machine: true 
+version: 2.0
 jobs:
   prepare_and_test:
     machine: true
