@@ -20,7 +20,7 @@ jobs:
           name: Start container and verify it's working
           command: |
             set -x
-            docker-compose up
+            docker-compose up -d
 
       # Download and cache dependencies
       - restore_cache:
@@ -38,3 +38,6 @@ jobs:
 
       # run tests!
       - run: ./gradlew test --info --stacktrace
+
+      - store_test_results:
+          path: test-results
