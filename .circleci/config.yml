@@ -1,9 +1,7 @@
-orbs:
-  gradle: circleci/gradle@2.2.0
 version: 2.1
 machine: true 
 jobs:
-  prepare:
+  prepare_and_test:
     machine: true
     steps:
       - checkout
@@ -11,9 +9,20 @@ jobs:
           name: Start container and verify it's working
           command: |
             set -x
-            docker-compose up -d     
-workflows:
-  checkout-build-test:
-    jobs:
-      - prepare
-      - gradle/test
+            docker-compose up -d   
+      # Download and cache dependencies
+      - restore_cache:
+          keys:
+            - v1-dependencies-{{ checksum "build.gradle" }}
+            # fallback to using the latest cache if no exact match is found
+            - v1-dependencies-
+
+      - run: gradle dependencies
+
+      - save_cache:
+          paths:
+            - ~/.gradle
+          key: v1-dependencies-{{ checksum "build.gradle" }}
+
+      # run tests!
+      - run: gradle test
