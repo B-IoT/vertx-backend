@@ -6,6 +6,7 @@ jobs:
   prepare:
     machine: true
     steps:
+      - checkout
       - run:
           name: Start container and verify it's working
           command: |
