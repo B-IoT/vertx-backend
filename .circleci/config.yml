@@ -17,7 +17,7 @@ jobs:
       - checkout
 
       - run:
-          name: Start container and verify it's working
+          name: Start container
           command: |
             set -x
             docker-compose up -d
@@ -41,3 +41,4 @@ jobs:
 
       - store_test_results:
           path: test-results
+          when: always
