@@ -6,6 +6,7 @@ plugins {
     kotlin("jvm") version "1.4.21"
     id("com.github.johnrengelman.shadow") version "5.2.0" apply false
     id("com.github.ben-manes.versions") version "0.36.0"
+    jacoco
 }
 
 repositories {
@@ -32,9 +33,19 @@ subprojects {
     apply(plugin = "org.jetbrains.kotlin.jvm")
     apply(plugin = "application")
     apply(plugin = "com.github.johnrengelman.shadow")
+    apply(plugin = "jacoco")
 
     dependencies {
         implementation(kotlin("stdlib-jdk8"))
+    }
+
+    tasks.jacocoTestReport {
+        reports {
+            xml.isEnabled = false
+            csv.isEnabled = false
+            html.isEnabled = true
+            html.destination = file("$buildDir/reports/coverage")
+        }
     }
 
     tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
@@ -44,6 +55,35 @@ subprojects {
     }
 
     group = "ch.biot.backend"
+}
+
+tasks.register<JacocoReport>("jacocoRootReport") {
+    subprojects {
+        this@subprojects.plugins.withType<JacocoPlugin>().configureEach {
+            this@subprojects.tasks.matching {
+                it.extensions.findByType<JacocoTaskExtension>() != null }
+                .configureEach {
+                    sourceSets(this@subprojects.the<SourceSetContainer>().named("main").get())
+                    executionData(this)
+                }
+        }
+    }
+
+    reports {
+        xml.isEnabled = false
+        csv.isEnabled = false
+        html.isEnabled = true
+        html.destination = file("$buildDir/reports/coverage")
+    }
+
+    dependsOn(tasks.test)
+}
+
+tasks.test {
+    finalizedBy(tasks.jacocoTestReport) // report is always generated after tests run
+}
+tasks.jacocoTestReport {
+    dependsOn(tasks.test) // tests are required to run before generating the report
 }
 
 tasks.named("dependencyUpdates", com.github.benmanes.gradle.versions.updates.DependencyUpdatesTask::class.java)

@@ -74,6 +74,7 @@ local.properties
 # Gradle:
 .idea/**/gradle.xml
 .idea/**/libraries
+/build/reports
 
 # CMake
 cmake-buildTool-debug/
