@@ -274,6 +274,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Item'
+        "404":
+          description: Item not found
     put:
       tags:
       - Item
