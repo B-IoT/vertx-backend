@@ -1,13 +1,18 @@
 orbs:
   gradle: circleci/gradle@2.2.0
 version: 2.1
-machine: true      
-workflows:
-  checkout-build-test:
-    jobs:
+machine: true 
+jobs:
+  prepare:
+    machine: true
+    steps:
       - run:
           name: Start container and verify it's working
           command: |
             set -x
-            docker-compose up -d
+            docker-compose up -d     
+workflows:
+  checkout-build-test:
+    jobs:
+      - prepare
       - gradle/test
