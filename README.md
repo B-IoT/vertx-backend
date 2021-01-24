@@ -1,6 +1,6 @@
 # vertx-backend
 
-[![CircleCI](https://circleci.com/gh/B-IoT/vertx-backend.svg?style=svg&circle-token=fd177fb3dd3ca232d70bb91cb6a133154a9ad57f)](https://app.circleci.com/pipelines/github/B-IoT)
+[![CircleCI](https://circleci.com/gh/B-IoT/vertx-backend.svg?style=svg&circle-token=fd177fb3dd3ca232d70bb91cb6a133154a9ad57f)](https://app.circleci.com/pipelines/github/B-IoT) [![codecov](https://codecov.io/gh/B-IoT/vertx-backend/branch/main/graph/badge.svg?token=WU4T7FRLTN)](https://codecov.io/gh/B-IoT/vertx-backend)
 
 ## Development and testing
 
