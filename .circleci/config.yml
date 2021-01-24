@@ -2,7 +2,7 @@
 #
 # Check https://circleci.com/docs/2.0/language-java/ for more details
 #
-version: 2
+version: 2.1
 jobs:
   build:
     machine: true
@@ -49,5 +49,6 @@ jobs:
           when: always
       - store_test_results:
           path: ~/test-results
-      - store_artifacts:
-          path: ~/test-results/junit 
+
+      - run: ./gradlew jacocoRootReport
+      - run: bash <(curl -s https://codecov.io/bash) -t $CODECOV_TOKEN
