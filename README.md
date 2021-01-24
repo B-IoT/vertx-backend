@@ -12,7 +12,7 @@ To launch all tests, use `./gradlew test`.
 
 To build all JARs, use `./gradlew build` (it will also run the tests).
 
-To generate aggregated JaCoCo test coverage reports, first run all tests, then use `./gradlew jacocoFullReport`.
+To generate aggregated JaCoCo test coverage reports, first run all tests, then use `./gradlew jacocoRootReport`.
 
 ## Architecture
 
