@@ -38,8 +38,6 @@ import strikt.assertions.isEqualTo
 import strikt.assertions.isNotNull
 import strikt.assertions.isTrue
 import java.io.File
-import java.security.SecureRandom
-import java.util.*
 
 
 @ExtendWith(VertxExtension::class)
@@ -80,7 +78,7 @@ class TestCRUDVerticleRelays {
   @BeforeEach
   fun setup(vertx: Vertx, testContext: VertxTestContext) {
     mongoClient =
-      MongoClient.createShared(vertx, jsonObjectOf("host" to "localhost", "port" to 27017, "db_name" to "clients"))
+      MongoClient.createShared(vertx, jsonObjectOf("host" to "localhost", "port" to CRUDVerticle.MONGO_PORT, "db_name" to "clients"))
 
     val usernameField = "mqttUsername"
     val passwordField = "mqttPassword"
@@ -269,12 +267,58 @@ class TestCRUDVerticleRelays {
       .onFailure(testContext::failNow)
   }
 
+  @Test
+  @DisplayName("deleteRelay correctly deletes a relay")
+  fun deleteIsCorrect(testContext: VertxTestContext) {
+    val relayToRemove = jsonObjectOf(
+      "mqttID" to "testRelay42",
+      "mqttUsername" to "testRelay42",
+      "relayID" to "testRelay42",
+      "mqttPassword" to mqttPassword,
+      "ledStatus" to false,
+      "latitude" to 0.1,
+      "longitude" to 0.3,
+      "wifi" to jsonObjectOf(
+        "ssid" to "ssid",
+        "password" to "pass"
+      )
+    )
+
+    // Register the relay
+    Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      body(relayToRemove.encode())
+    } When {
+      post("/relays")
+    } Then {
+      statusCode(200)
+    }
+
+    // Delete the relay
+    val response = Given {
+      spec(requestSpecification)
+    } When {
+      delete("/relays/${relayToRemove.getString("relayID")}")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEmpty()
+      testContext.completeNow()
+    }
+  }
+
   companion object {
 
     private val requestSpecification: RequestSpecification = RequestSpecBuilder()
       .addFilters(listOf(ResponseLoggingFilter(), RequestLoggingFilter()))
       .setBaseUri("http://localhost")
-      .setPort(3000)
+      .setPort(CRUDVerticle.HTTP_PORT)
       .build()
 
     private val instance: KDockerComposeContainer by lazy { defineDockerCompose() }
@@ -283,7 +327,7 @@ class TestCRUDVerticleRelays {
 
     private fun defineDockerCompose() = KDockerComposeContainer(File("../docker-compose.yml")).withExposedService(
       "mongo_1",
-      27017
+      CRUDVerticle.MONGO_PORT
     )
 
     @BeforeAll

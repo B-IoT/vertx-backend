@@ -43,7 +43,9 @@ class CRUDVerticle : AbstractVerticle() {
 
     private const val RELAYS_UPDATE_ADDRESS = "relays.update"
 
-    private const val PORT = 3000
+    internal const val HTTP_PORT = 3000
+    internal const val MONGO_PORT = 27017
+    internal const val TIMESCALE_PORT = 5432
 
     internal val logger = LoggerFactory.getLogger(CRUDVerticle::class.java)
 
@@ -74,7 +76,7 @@ class CRUDVerticle : AbstractVerticle() {
   override fun start(startPromise: Promise<Void>?) {
     // Initialize MongoDB
     mongoClient =
-      MongoClient.createShared(vertx, jsonObjectOf("host" to "localhost", "port" to 27017, "db_name" to "clients"))
+      MongoClient.createShared(vertx, jsonObjectOf("host" to "localhost", "port" to MONGO_PORT, "db_name" to "clients"))
 
     val usernameFieldRelays = "mqttUsername"
     val passwordFieldRelays = "mqttPassword"
@@ -109,7 +111,7 @@ class CRUDVerticle : AbstractVerticle() {
     // Initialize TimescaleDB
     val pgConnectOptions =
       pgConnectOptionsOf(
-        port = 5432,
+        port = TIMESCALE_PORT,
         host = "localhost",
         database = "postgres",
         user = "postgres",
@@ -129,22 +131,25 @@ class CRUDVerticle : AbstractVerticle() {
         routerBuilder.operation("getRelays").handler(::getRelaysHandler)
         routerBuilder.operation("getRelay").handler(::getRelayHandler)
         routerBuilder.operation("updateRelay").handler(::updateRelayHandler)
+        routerBuilder.operation("deleteRelay").handler(::deleteRelayHandler)
 
         // Users
         routerBuilder.operation("registerUser").handler(::registerUserHandler)
         routerBuilder.operation("getUsers").handler(::getUsersHandler)
         routerBuilder.operation("getUser").handler(::getUserHandler)
         routerBuilder.operation("updateUser").handler(::updateUserHandler)
+        routerBuilder.operation("deleteUser").handler(::deleteUserHandler)
         routerBuilder.operation("authenticate").handler(::authenticateHandler)
 
         // Items
         routerBuilder.operation("registerItem").handler(::registerItemHandler)
         routerBuilder.operation("getItems").handler(::getItemsHandler)
         routerBuilder.operation("getItem").handler(::getItemHandler)
+        routerBuilder.operation("deleteItem").handler(::deleteItemHandler)
         routerBuilder.operation("updateItem").handler(::updateItemHandler)
 
         val router: Router = routerBuilder.createRouter()
-        vertx.createHttpServer().requestHandler(router).listen(PORT).onComplete {
+        vertx.createHttpServer().requestHandler(router).listen(HTTP_PORT).onComplete {
           startPromise?.complete()
         }
       } else {
@@ -258,6 +263,21 @@ class CRUDVerticle : AbstractVerticle() {
     }
   }
 
+  /**
+   * Handles a deleteRelay request.
+   */
+  private fun deleteRelayHandler(ctx: RoutingContext) {
+    val relayID = ctx.pathParam("id")
+    logger.info("New deleteRelay request for relay $relayID")
+    val query = jsonObjectOf("relayID" to relayID)
+    mongoClient.removeDocument(RELAYS_COLLECTION, query).onSuccess {
+      ctx.end()
+    }.onFailure { error ->
+      logger.error("Could not delete relay", error)
+      ctx.fail(500, error)
+    }
+  }
+
   // Users handlers
 
   /**
@@ -349,6 +369,21 @@ class CRUDVerticle : AbstractVerticle() {
         logger.error("Could not update MongoDB collection $USERS_COLLECTION with update JSON $update", error)
         ctx.fail(500)
       }
+    }
+  }
+
+  /**
+   * Handles a deleteUser request.
+   */
+  private fun deleteUserHandler(ctx: RoutingContext) {
+    val userID = ctx.pathParam("id")
+    logger.info("New deleteUser request for user $userID")
+    val query = jsonObjectOf("userID" to userID)
+    mongoClient.removeDocument(USERS_COLLECTION, query).onSuccess {
+      ctx.end()
+    }.onFailure { error ->
+      logger.error("Could not delete user", error)
+      ctx.fail(500, error)
     }
   }
 
@@ -469,5 +504,22 @@ class CRUDVerticle : AbstractVerticle() {
           ctx.fail(500)
         }
     }
+  }
+
+  /**
+   * Handles a deleteItem request.
+   */
+  private fun deleteItemHandler(ctx: RoutingContext) {
+    val itemID = ctx.pathParam("id")
+    logger.info("New deleteItem request for item $itemID")
+
+    pgPool.preparedQuery(DELETE_ITEM)
+      .execute(Tuple.of(itemID.toInt())) // the id needs to be converted to Int, as the DB stores it as an integer
+      .onSuccess {
+        ctx.end()
+      }.onFailure { error ->
+        logger.error("Could not delete item", error)
+        ctx.fail(500, error)
+      }
   }
 }

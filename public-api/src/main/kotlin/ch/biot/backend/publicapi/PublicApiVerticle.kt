@@ -29,8 +29,8 @@ class PublicApiVerticle : AbstractVerticle() {
   companion object {
     private const val API_PREFIX = "/api"
     private const val OAUTH_PREFIX = "/oauth"
-    private const val PORT = 4000
     private const val CRUD_PORT = 3000
+    internal const val PUBLIC_PORT = 4000
 
     internal val logger = LoggerFactory.getLogger(PublicApiVerticle::class.java)
   }
@@ -42,6 +42,7 @@ class PublicApiVerticle : AbstractVerticle() {
     val fs = vertx.fileSystem()
 
     // Read public and private keys from the file system. They are used for JWT authentication
+    // Blocking is not an issue since this action is done only once at startup
     val publicKey = fs.readFileBlocking("public_key.pem").toString(Charsets.UTF_8)
     val privateKey = fs.readFileBlocking("private_key.pem").toString(Charsets.UTF_8)
 
@@ -81,24 +82,27 @@ class PublicApiVerticle : AbstractVerticle() {
     router.put("$API_PREFIX/users/:id").handler(jwtAuthHandler).handler(::updateUserHandler)
     router.get("$API_PREFIX/users").handler(jwtAuthHandler).handler(::getUsersHandler)
     router.get("$API_PREFIX/users/:id").handler(jwtAuthHandler).handler(::getUserHandler)
+    router.delete("$API_PREFIX/users/:id").handler(jwtAuthHandler).handler(::deleteUserHandler)
 
     // Relays
     router.post("$API_PREFIX/relays").handler(jwtAuthHandler).handler(::registerRelayHandler)
     router.put("$API_PREFIX/relays/:id").handler(jwtAuthHandler).handler(::updateRelayHandler)
     router.get("$API_PREFIX/relays").handler(jwtAuthHandler).handler(::getRelaysHandler)
     router.get("$API_PREFIX/relays/:id").handler(jwtAuthHandler).handler(::getRelayHandler)
+    router.delete("$API_PREFIX/relays/:id").handler(jwtAuthHandler).handler(::deleteRelayHandler)
 
     // Items
     router.post("$API_PREFIX/items").handler(jwtAuthHandler).handler(::registerItemHandler)
     router.put("$API_PREFIX/items/:id").handler(jwtAuthHandler).handler(::updateItemHandler)
     router.get("$API_PREFIX/items").handler(jwtAuthHandler).handler(::getItemsHandler)
     router.get("$API_PREFIX/items/:id").handler(jwtAuthHandler).handler(::getItemHandler)
+    router.delete("$API_PREFIX/items/:id").handler(jwtAuthHandler).handler(::deleteItemHandler)
 
     // TODO Analytics
 
     webClient = WebClient.create(vertx)
 
-    vertx.createHttpServer().requestHandler(router).listen(PORT).onComplete {
+    vertx.createHttpServer().requestHandler(router).listen(PUBLIC_PORT).onComplete {
       startPromise?.complete()
     }
   }
@@ -109,6 +113,7 @@ class PublicApiVerticle : AbstractVerticle() {
   private fun updateUserHandler(ctx: RoutingContext) = updateHandler(ctx, "users")
   private fun getUsersHandler(ctx: RoutingContext) = getManyHandler(ctx, "users")
   private fun getUserHandler(ctx: RoutingContext) = getOneHandler(ctx, "users")
+  private fun deleteUserHandler(ctx: RoutingContext) = deleteHandler(ctx, "users")
 
   /**
    * Handles the token request.
@@ -148,6 +153,7 @@ class PublicApiVerticle : AbstractVerticle() {
   private fun updateRelayHandler(ctx: RoutingContext) = updateHandler(ctx, "relays")
   private fun getRelaysHandler(ctx: RoutingContext) = getManyHandler(ctx, "relays")
   private fun getRelayHandler(ctx: RoutingContext) = getOneHandler(ctx, "relays")
+  private fun deleteRelayHandler(ctx: RoutingContext) = deleteHandler(ctx, "relays")
 
   // Items
 
@@ -155,6 +161,7 @@ class PublicApiVerticle : AbstractVerticle() {
   private fun updateItemHandler(ctx: RoutingContext) = updateHandler(ctx, "items")
   private fun getItemsHandler(ctx: RoutingContext) = getManyHandler(ctx, "items")
   private fun getItemHandler(ctx: RoutingContext) = getOneHandler(ctx, "items")
+  private fun deleteItemHandler(ctx: RoutingContext) = deleteHandler(ctx, "items")
 
   // Helpers
 
@@ -229,6 +236,24 @@ class PublicApiVerticle : AbstractVerticle() {
       .send()
       .onSuccess { resp ->
         forwardJsonObjectOrStatusCode(ctx, resp)
+      }
+      .onFailure { error ->
+        sendBadGateway(ctx, error)
+      }
+  }
+
+  /**
+   * Handles a delete request for the given endpoint.
+   */
+  private fun deleteHandler(ctx: RoutingContext, endpoint: String) {
+    logger.info("New delete request on /$endpoint endpoint")
+
+    webClient
+      .delete(CRUD_PORT, "localhost", "/$endpoint/${ctx.pathParam("id")}")
+      .expect(ResponsePredicate.SC_OK)
+      .send()
+      .onSuccess {
+        ctx.end()
       }
       .onFailure { error ->
         sendBadGateway(ctx, error)

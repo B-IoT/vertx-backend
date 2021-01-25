@@ -67,7 +67,7 @@ class TestCRUDVerticleItems {
   fun setup(vertx: Vertx, testContext: VertxTestContext) {
     val pgConnectOptions =
       pgConnectOptionsOf(
-        port = 5432,
+        port = CRUDVerticle.TIMESCALE_PORT,
         host = "localhost",
         database = "postgres",
         user = "postgres",
@@ -261,6 +261,45 @@ class TestCRUDVerticleItems {
       .onFailure(testContext::failNow)
   }
 
+  @Test
+  @DisplayName("deleteItem correctly deletes the item")
+  fun deleteItemIsCorrect(testContext: VertxTestContext) {
+    val newItem = jsonObjectOf(
+      "beacon" to "ab:cd:ef:aa:aa:aa",
+      "category" to "Lit",
+      "service" to "Bloc 42"
+    )
+
+    // Register the item
+    val id = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      body(newItem.encode())
+    } When {
+      post("/items")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    // Delete the item
+    val response = Given {
+      spec(requestSpecification)
+    } When {
+      delete("/items/$id")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEmpty()
+      testContext.completeNow()
+    }
+  }
+
   companion object {
 
     private const val INSERT_BEACON_DATA =
@@ -269,7 +308,7 @@ class TestCRUDVerticleItems {
     private val requestSpecification: RequestSpecification = RequestSpecBuilder()
       .addFilters(listOf(ResponseLoggingFilter(), RequestLoggingFilter()))
       .setBaseUri("http://localhost")
-      .setPort(3000)
+      .setPort(CRUDVerticle.HTTP_PORT)
       .build()
 
     private val instance: KDockerComposeContainer by lazy { defineDockerCompose() }
@@ -278,8 +317,8 @@ class TestCRUDVerticleItems {
 
     private fun defineDockerCompose() = KDockerComposeContainer(File("../docker-compose.yml"))
       .withExposedService(
-        "mongo_1", 27017
-      ).withExposedService("timescale_1", 5432)
+        "mongo_1", CRUDVerticle.MONGO_PORT
+      ).withExposedService("timescale_1", CRUDVerticle.TIMESCALE_PORT)
 
     @BeforeAll
     @JvmStatic
