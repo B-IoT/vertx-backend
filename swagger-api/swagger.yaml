@@ -94,6 +94,22 @@ paths:
       responses:
         "200":
           description: successfully updated relay
+    delete:
+      tags:
+      - Relay
+      description: deletes a specific relay
+      operationId: deleteRelay
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: successfully deleted relay
   /users:
     get:
       tags:
@@ -202,6 +218,22 @@ paths:
       responses:
         "200":
           description: successfully updated user
+    delete:
+      tags:
+      - User
+      description: deletes a specific user
+      operationId: deleteUser
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: successfully deleted user
   /items:
     get:
       tags:
@@ -297,6 +329,22 @@ paths:
       responses:
         "200":
           description: successfully updated item
+    delete:
+      tags:
+      - Item
+      description: deletes a specific item
+      operationId: deleteItem
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: successfully deleted item
 components:
   schemas:
     Relay:
