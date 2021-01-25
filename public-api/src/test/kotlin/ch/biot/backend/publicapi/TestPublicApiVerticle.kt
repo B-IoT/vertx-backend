@@ -246,6 +246,48 @@ class TestPublicApiVerticle {
 
   @Test
   @Order(7)
+  @DisplayName("Deleting a user succeeds")
+  fun deleteUserSucceeds(testContext: VertxTestContext) {
+    val userToRemove = jsonObjectOf(
+      "userID" to "test42",
+      "username" to "test42",
+      "password" to "test42",
+      "company" to "biot"
+    )
+
+    // Register the user
+    Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      body(userToRemove.encode())
+    } When {
+      post("/oauth/register")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    // Delete the user
+    val response = Given {
+      spec(requestSpecification)
+      header("Authorization", "Bearer $token")
+    } When {
+      delete("/api/users/${userToRemove.getString("userID")}")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEmpty()
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @Order(8)
   @DisplayName("Registering a relay succeeds")
   fun registerRelaySucceeds(testContext: VertxTestContext) {
     val response = Given {
@@ -268,7 +310,7 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(8)
+  @Order(9)
   @DisplayName("Getting the relays succeeds")
   fun getRelaysSucceeds(testContext: VertxTestContext) {
     val expected = jsonArrayOf(relay.copy().apply { remove("mqttPassword") })
@@ -297,7 +339,7 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(9)
+  @Order(10)
   @DisplayName("Getting a relay succeeds")
   fun getRelaySucceeds(testContext: VertxTestContext) {
     val expected = relay.copy().apply { remove("mqttPassword") }
@@ -324,7 +366,7 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(10)
+  @Order(11)
   @DisplayName("Updating a relay succeeds")
   fun updateRelaySucceeds(testContext: VertxTestContext) {
     val updateJson = jsonObjectOf(
@@ -362,7 +404,56 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(11)
+  @Order(12)
+  @DisplayName("Deleting a relay succeeds")
+  fun deleteRelaySucceeds(testContext: VertxTestContext) {
+    val relayToRemove = jsonObjectOf(
+      "mqttID" to "testRelay42",
+      "mqttUsername" to "testRelay42",
+      "relayID" to "testRelay42",
+      "mqttPassword" to "password",
+      "ledStatus" to false,
+      "latitude" to 0.1,
+      "longitude" to 0.3,
+      "wifi" to jsonObjectOf(
+        "ssid" to "ssid",
+        "password" to "pass"
+      )
+    )
+
+    // Register the relay
+    Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      header("Authorization", "Bearer $token")
+      body(relayToRemove.encode())
+    } When {
+      post("/api/relays")
+    } Then {
+      statusCode(200)
+    }
+
+    // Delete the relay
+    val response = Given {
+      spec(requestSpecification)
+      header("Authorization", "Bearer $token")
+    } When {
+      delete("/api/relays/${relayToRemove.getString("relayID")}")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEmpty()
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @Order(13)
   @DisplayName("Registering an item succeeds")
   fun registerItemSucceeds(testContext: VertxTestContext) {
     val response = Given {
@@ -386,7 +477,7 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(12)
+  @Order(14)
   @DisplayName("Getting the items succeeds")
   fun getItemsSucceeds(testContext: VertxTestContext) {
     val expected = item.copy()
@@ -426,7 +517,7 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(13)
+  @Order(15)
   @DisplayName("Getting an item succeeds")
   fun getItemSucceeds(testContext: VertxTestContext) {
     val expected = item.copy()
@@ -462,7 +553,7 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(14)
+  @Order(16)
   @DisplayName("Updating an item succeeds")
   fun updateItemSucceeds(testContext: VertxTestContext) {
     val updateJson = jsonObjectOf(
@@ -491,12 +582,54 @@ class TestPublicApiVerticle {
     }
   }
 
+  @Test
+  @Order(17)
+  @DisplayName("Deleting an item succeeds")
+  fun deleteItemSucceeds(testContext: VertxTestContext) {
+    val newItem = jsonObjectOf(
+      "beacon" to "ab:cd:ef:aa:aa:aa",
+      "category" to "Lit",
+      "service" to "Bloc 42"
+    )
+
+    // Register the item
+    val id = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      header("Authorization", "Bearer $token")
+      body(newItem.encode())
+    } When {
+      post("/api/items")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    // Delete the item
+    val response = Given {
+      spec(requestSpecification)
+      header("Authorization", "Bearer $token")
+    } When {
+      delete("/api/items/$id")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEmpty()
+      testContext.completeNow()
+    }
+  }
+
   companion object {
 
     private val requestSpecification: RequestSpecification = RequestSpecBuilder()
       .addFilters(listOf(ResponseLoggingFilter(), RequestLoggingFilter()))
       .setBaseUri("http://localhost")
-      .setPort(4000)
+      .setPort(PublicApiVerticle.PUBLIC_PORT)
       .build()
 
     private val instance: KDockerComposeContainer by lazy { defineDockerCompose() }

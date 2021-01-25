@@ -11,3 +11,5 @@ internal const val GET_ITEM =
   "SELECT * FROM items I LEFT JOIN beacon_data D ON I.beacon = D.mac WHERE I.id=$1 ORDER BY D.time DESC LIMIT 1"
 
 internal const val UPDATE_ITEM = "UPDATE items SET beacon = $1, category = $2, service = $3 WHERE id=$4"
+
+internal const val DELETE_ITEM = "DELETE from items WHERE id=$1"

@@ -63,7 +63,10 @@ class TestCRUDVerticleUsers {
   @BeforeEach
   fun setup(vertx: Vertx, testContext: VertxTestContext) {
     mongoClient =
-      MongoClient.createShared(vertx, jsonObjectOf("host" to "localhost", "port" to 27017, "db_name" to "clients"))
+      MongoClient.createShared(
+        vertx,
+        jsonObjectOf("host" to "localhost", "port" to CRUDVerticle.MONGO_PORT, "db_name" to "clients")
+      )
 
     val usernameField = "username"
     val passwordField = "password"
@@ -261,12 +264,51 @@ class TestCRUDVerticleUsers {
     }
   }
 
+  @Test
+  @DisplayName("deleteUser correctly deletes a user")
+  fun deleteIsCorrect(testContext: VertxTestContext) {
+    val userToRemove = jsonObjectOf(
+      "userID" to "test42",
+      "username" to "test42",
+      "password" to password,
+      "company" to "biot"
+    )
+
+    // Register the user
+    Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      body(userToRemove.encode())
+    } When {
+      post("/users")
+    } Then {
+      statusCode(200)
+    }
+
+    // Delete the user
+    val response = Given {
+      spec(requestSpecification)
+    } When {
+      delete("/users/${userToRemove.getString("userID")}")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEmpty()
+      testContext.completeNow()
+    }
+  }
+
   companion object {
 
     private val requestSpecification: RequestSpecification = RequestSpecBuilder()
       .addFilters(listOf(ResponseLoggingFilter(), RequestLoggingFilter()))
       .setBaseUri("http://localhost")
-      .setPort(3000)
+      .setPort(CRUDVerticle.HTTP_PORT)
       .build()
 
     private val instance: KDockerComposeContainer by lazy { defineDockerCompose() }
@@ -275,7 +317,7 @@ class TestCRUDVerticleUsers {
 
     private fun defineDockerCompose() = KDockerComposeContainer(File("../docker-compose.yml")).withExposedService(
       "mongo_1",
-      27017
+      CRUDVerticle.MONGO_PORT
     )
 
     @BeforeAll
