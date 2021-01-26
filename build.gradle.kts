@@ -5,6 +5,7 @@
 plugins {
     kotlin("jvm") version "1.4.21"
     id("com.github.johnrengelman.shadow") version "5.2.0" apply false
+    id("com.google.cloud.tools.jib") version "2.4.0" apply false
     id("com.github.ben-manes.versions") version "0.36.0"
     jacoco
 }
@@ -22,6 +23,7 @@ allprojects {
     extra["restAssuredVersion"] = "4.3.2"
     extra["striktVersion"] = "0.28.1"
     extra["rxKotlinVersion"] = "2.4.0"
+    extra["hazelcastVersion"] = "2.0.1"
 }
 
 subprojects {
@@ -33,6 +35,7 @@ subprojects {
     apply(plugin = "org.jetbrains.kotlin.jvm")
     apply(plugin = "application")
     apply(plugin = "com.github.johnrengelman.shadow")
+    apply(plugin = "com.google.cloud.tools.jib")
     apply(plugin = "jacoco")
 
     dependencies {
@@ -41,7 +44,7 @@ subprojects {
 
     tasks.jacocoTestReport {
         reports {
-            xml.isEnabled = false
+            xml.isEnabled = true
             csv.isEnabled = false
             html.isEnabled = true
             html.destination = file("$buildDir/reports/coverage")
@@ -61,7 +64,8 @@ tasks.register<JacocoReport>("jacocoRootReport") {
     subprojects {
         this@subprojects.plugins.withType<JacocoPlugin>().configureEach {
             this@subprojects.tasks.matching {
-                it.extensions.findByType<JacocoTaskExtension>() != null }
+                it.extensions.findByType<JacocoTaskExtension>() != null
+            }
                 .configureEach {
                     sourceSets(this@subprojects.the<SourceSetContainer>().named("main").get())
                     executionData(this)

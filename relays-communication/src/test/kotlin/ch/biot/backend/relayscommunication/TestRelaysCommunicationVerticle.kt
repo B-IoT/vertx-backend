@@ -161,7 +161,7 @@ class TestRelaysCommunicationVerticle {
   @Test
   @DisplayName("A MQTT client upon subscription receives the last configuration")
   fun clientSubscribesAndReceivesLastConfig(testContext: VertxTestContext) {
-    mqttClient.rxConnect(8883, "localhost")
+    mqttClient.rxConnect(RelaysCommunicationVerticle.MQTT_PORT, "localhost")
       .flatMap {
         mqttClient.publishHandler { msg ->
           if (msg.topicName() == LAST_CONFIGURATION_TOPIC) {
@@ -186,7 +186,7 @@ class TestRelaysCommunicationVerticle {
   @DisplayName("A MQTT client receives updates")
   fun clientReceivesUpdate(vertx: Vertx, testContext: VertxTestContext) {
     val message = jsonObjectOf("ledStatus" to true, "mqttID" to "mqtt")
-    mqttClient.rxConnect(8883, "localhost")
+    mqttClient.rxConnect(RelaysCommunicationVerticle.MQTT_PORT, "localhost")
       .flatMap {
         mqttClient.publishHandler { msg ->
           if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
@@ -216,7 +216,7 @@ class TestRelaysCommunicationVerticle {
       "isPushed" to false
     )
 
-    mqttClient.rxConnect(8883, "localhost")
+    mqttClient.rxConnect(RelaysCommunicationVerticle.MQTT_PORT, "localhost")
       .flatMap {
         mqttClient.rxPublish(
           INGESTION_TOPIC,

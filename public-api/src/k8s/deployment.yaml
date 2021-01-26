@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: public-api
+  name: public-api
+spec:
+  selector:
+    matchLabels:
+      app: public-api
+  template:
+    metadata:
+      labels:
+        app: public-api
+    spec:
+      containers:
+        - image: vertx-backend/public-api:latest
+          name: public-api
+          env:
+            # TODO
+            - name: GATEWAY_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: sensor-gateway-config
+                  key: gateway_hostname
+            - name: GATEWAY_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: sensor-gateway-config
+                  key: gateway_port

@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: public-api
+  name: public-api
+spec:
+  type: LoadBalancer
+  selector:
+    app: public-api
+  ports:
+    - name: http
+      port: 4000

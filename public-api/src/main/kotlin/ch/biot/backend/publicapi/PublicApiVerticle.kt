@@ -6,6 +6,7 @@ package ch.biot.backend.publicapi
 
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.Promise
+import io.vertx.core.Vertx
 import io.vertx.core.http.HttpMethod
 import io.vertx.ext.auth.jwt.JWTAuth
 import io.vertx.ext.web.Router
@@ -16,12 +17,16 @@ import io.vertx.ext.web.codec.BodyCodec
 import io.vertx.ext.web.handler.BodyHandler
 import io.vertx.ext.web.handler.CorsHandler
 import io.vertx.ext.web.handler.JWTAuthHandler
+import io.vertx.kotlin.core.eventbus.eventBusOptionsOf
 import io.vertx.kotlin.core.json.get
 import io.vertx.kotlin.core.json.jsonObjectOf
+import io.vertx.kotlin.core.vertxOptionsOf
 import io.vertx.kotlin.ext.auth.jwt.jwtAuthOptionsOf
 import io.vertx.kotlin.ext.auth.jwtOptionsOf
 import io.vertx.kotlin.ext.auth.pubSecKeyOptionsOf
+import io.vertx.spi.cluster.hazelcast.HazelcastClusterManager
 import org.slf4j.LoggerFactory
+import java.net.InetAddress
 
 
 class PublicApiVerticle : AbstractVerticle() {
@@ -33,6 +38,21 @@ class PublicApiVerticle : AbstractVerticle() {
     internal const val PUBLIC_PORT = 4000
 
     internal val logger = LoggerFactory.getLogger(PublicApiVerticle::class.java)
+
+    @JvmStatic
+    fun main(args: Array<String>) {
+      val ipv4 = InetAddress.getLocalHost().hostAddress
+      val options = vertxOptionsOf(
+        clusterManager = HazelcastClusterManager(),
+        eventBusOptions = eventBusOptionsOf(host = ipv4, clusterPublicHost = ipv4)
+      )
+
+      Vertx.clusteredVertx(options).onSuccess {
+        it.deployVerticle(PublicApiVerticle())
+      }.onFailure { error ->
+        logger.error("Could not start", error)
+      }
+    }
   }
 
   private lateinit var webClient: WebClient

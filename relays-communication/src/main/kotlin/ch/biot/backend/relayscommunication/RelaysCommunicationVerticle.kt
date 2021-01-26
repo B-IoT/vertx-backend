@@ -40,6 +40,8 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
     internal const val INGESTION_TOPIC = "incoming.update"
     internal const val RELAYS_UPDATE_ADDRESS = "relays.update"
 
+    internal const val MQTT_PORT = 8883
+
     private val logger = LoggerFactory.getLogger(RelaysCommunicationVerticle::class.java)
 
     @Throws(UnknownHostException::class)
@@ -112,7 +114,7 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
     }
 
     // TODO MQTT on TLS
-    return MqttServer.create(vertx).endpointHandler(::handleClient).rxListen(8883).ignoreElement()
+    return MqttServer.create(vertx).endpointHandler(::handleClient).rxListen(MQTT_PORT).ignoreElement()
   }
 
   private fun handleClient(client: MqttEndpoint) {
