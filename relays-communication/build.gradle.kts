@@ -4,7 +4,6 @@
 
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import org.gradle.api.tasks.testing.logging.TestLogEvent.*
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 version = "1.0.0-SNAPSHOT"
 
@@ -21,11 +20,12 @@ dependencies {
   val vertxVersion = project.extra["vertxVersion"]
   val junitJupiterVersion = project.extra["junitJupiterVersion"]
   val logbackClassicVersion = project.extra["logbackClassicVersion"]
-  val restAssuredVersion = project.extra["restAssuredVersion"]
   val striktVersion = project.extra["striktVersion"]
   val testContainersVersion = project.extra["testContainersVersion"]
   val rxKotlinVersion = project.extra["rxKotlinVersion"]
+  val caffeineVersion = project.extra["caffeineVersion"]
 
+  implementation("com.github.ben-manes.caffeine:caffeine:$caffeineVersion")
   implementation("io.vertx:vertx-rx-java2:$vertxVersion")
   implementation("io.reactivex.rxjava2:rxkotlin:$rxKotlinVersion")
   implementation("io.vertx:vertx-web:$vertxVersion")

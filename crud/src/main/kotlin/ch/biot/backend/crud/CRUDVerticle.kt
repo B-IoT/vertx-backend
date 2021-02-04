@@ -149,9 +149,13 @@ class CRUDVerticle : AbstractVerticle() {
         routerBuilder.operation("updateItem").handler(::updateItemHandler)
 
         val router: Router = routerBuilder.createRouter()
-        vertx.createHttpServer().requestHandler(router).listen(HTTP_PORT).onComplete {
-          startPromise?.complete()
-        }
+        vertx.createHttpServer().requestHandler(router).listen(HTTP_PORT)
+          .onSuccess {
+            startPromise?.complete()
+          }.onFailure { error ->
+            // Something went wrong during router builder initialization
+            logger.error("Could not initialize router builder", error)
+          }
       } else {
         // Something went wrong during router builder initialization
         logger.error("Could not initialize router builder", ar.cause())

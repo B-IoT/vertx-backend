@@ -4,6 +4,8 @@
 
 package ch.biot.backend.relayscommunication
 
+import com.github.benmanes.caffeine.cache.Cache
+import com.github.benmanes.caffeine.cache.Caffeine
 import io.netty.handler.codec.mqtt.MqttConnectReturnCode
 import io.netty.handler.codec.mqtt.MqttQoS
 import io.reactivex.Completable
@@ -28,6 +30,7 @@ import io.vertx.spi.cluster.hazelcast.HazelcastClusterManager
 import org.slf4j.LoggerFactory
 import java.net.InetAddress
 import java.net.UnknownHostException
+import java.time.Duration
 import java.time.Instant
 
 
@@ -39,6 +42,9 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
     internal const val LAST_CONFIGURATION_TOPIC = "last.configuration"
     internal const val INGESTION_TOPIC = "incoming.update"
     internal const val RELAYS_UPDATE_ADDRESS = "relays.update"
+
+    internal const val MQTT_PORT = 1883
+    internal const val MONGO_PORT = 27017
 
     private val logger = LoggerFactory.getLogger(RelaysCommunicationVerticle::class.java)
 
@@ -59,7 +65,8 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
     }
   }
 
-  private val clients = mutableMapOf<String, MqttEndpoint>() // map of subscribed clientIdentifier to client
+  // Cache of subscribed clientIdentifier to client; entries expire a day after the last access
+  private lateinit var clients: Cache<String, MqttEndpoint>
 
   private lateinit var kafkaProducer: KafkaProducer<String, JsonObject>
 
@@ -69,7 +76,11 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
   override fun rxStart(): Completable {
     // TODO update with real configuration
 
-    // Initialize the Kafka producer
+    val context = vertx.orCreateContext
+    clients = Caffeine.newBuilder().executor { cmd -> context.runOnContext { cmd.run() } }
+      .expireAfterAccess(Duration.ofDays(1)).build()
+
+    // Initialize the Kafka producers
     kafkaProducer = KafkaProducer.create(
       vertx, mapOf(
         "bootstrap.servers" to "localhost:9092",
@@ -81,7 +92,7 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
 
     // Initialize MongoDB
     mongoClient =
-      MongoClient.createShared(vertx, jsonObjectOf("host" to "localhost", "port" to 27017, "db_name" to "clients"))
+      MongoClient.createShared(vertx, jsonObjectOf("host" to "localhost", "port" to MONGO_PORT, "db_name" to "clients"))
 
     val usernameField = "mqttUsername"
     val passwordField = "mqttPassword"
@@ -102,17 +113,15 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
       logger.info("Received relay update $json on event bus address $RELAYS_UPDATE_ADDRESS, sending it to client...")
       val mqttID: String = json["mqttID"]
 
-      // Remove the mqttID, as the relay already knows it
-      val jsonWithoutMqttID = json.copy().apply {
-        remove("mqttID")
-      }
+      // Clean the json from useless fields
+      val jsonWithoutMqttID = json.clean()
 
       // Send the message to the right relay on the MQTT topic "update.parameters"
-      clients[mqttID]?.let { client -> sendMessageTo(client, jsonWithoutMqttID, UPDATE_PARAMETERS_TOPIC) }
+      clients.getIfPresent(mqttID)?.let { client -> sendMessageTo(client, jsonWithoutMqttID, UPDATE_PARAMETERS_TOPIC) }
     }
 
     // TODO MQTT on TLS
-    return MqttServer.create(vertx).endpointHandler(::handleClient).rxListen(8883).ignoreElement()
+    return MqttServer.create(vertx).endpointHandler(::handleClient).rxListen(MQTT_PORT).ignoreElement()
   }
 
   private fun handleClient(client: MqttEndpoint) {
@@ -142,8 +151,9 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
         client.accept(sessionPresent)
           .disconnectHandler {
             logger.info("Client [$clientIdentifier] disconnected")
-            clients.remove(clientIdentifier)
+            clients.invalidate(clientIdentifier)
           }.subscribeHandler { subscribe ->
+            logger.info(subscribe.toString())
             // Extract the QoS levels to be used to acknowledge
             val grantedQosLevels = subscribe.topicSubscriptions().map { s ->
               logger.info("Subscription for [${s.topicName()}] with QoS [${s.qualityOfService()}] by client [$clientIdentifier]")
@@ -152,7 +162,7 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
 
             // Ack the subscriptions request
             client.subscribeAcknowledge(subscribe.messageId(), grantedQosLevels)
-            clients[clientIdentifier] = client
+            clients.put(clientIdentifier, client)
 
             // Send last configuration to client
             sendLastConfiguration(client)
@@ -160,7 +170,7 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
             unsubscribe.topics().forEach { topic ->
               logger.info("Unsubscription for [$topic] by client [$clientIdentifier]")
             }
-            clients.remove(clientIdentifier)
+            clients.invalidate(clientIdentifier)
           }.publishHandler { m ->
             handleMessage(m, client)
           }

@@ -22,6 +22,7 @@ allprojects {
     extra["restAssuredVersion"] = "4.3.2"
     extra["striktVersion"] = "0.28.1"
     extra["rxKotlinVersion"] = "2.4.0"
+    extra["caffeineVersion"] = "2.8.8"
 }
 
 subprojects {

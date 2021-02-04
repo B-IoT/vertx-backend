@@ -6,6 +6,8 @@ package ch.biot.backend.relayscommunication
 
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.INGESTION_TOPIC
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.LAST_CONFIGURATION_TOPIC
+import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.MONGO_PORT
+import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.MQTT_PORT
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.RELAYS_COLLECTION
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.RELAYS_UPDATE_ADDRESS
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.UPDATE_PARAMETERS_TOPIC
@@ -92,7 +94,7 @@ class TestRelaysCommunicationVerticle {
     )
 
     mongoClient =
-      MongoClient.createShared(vertx, jsonObjectOf("host" to "localhost", "port" to 27017, "db_name" to "clients"))
+      MongoClient.createShared(vertx, jsonObjectOf("host" to "localhost", "port" to MONGO_PORT, "db_name" to "clients"))
 
     val usernameField = "mqttUsername"
     val passwordField = "mqttPassword"
@@ -161,7 +163,7 @@ class TestRelaysCommunicationVerticle {
   @Test
   @DisplayName("A MQTT client upon subscription receives the last configuration")
   fun clientSubscribesAndReceivesLastConfig(testContext: VertxTestContext) {
-    mqttClient.rxConnect(8883, "localhost")
+    mqttClient.rxConnect(MQTT_PORT, "localhost")
       .flatMap {
         mqttClient.publishHandler { msg ->
           if (msg.topicName() == LAST_CONFIGURATION_TOPIC) {
@@ -186,7 +188,7 @@ class TestRelaysCommunicationVerticle {
   @DisplayName("A MQTT client receives updates")
   fun clientReceivesUpdate(vertx: Vertx, testContext: VertxTestContext) {
     val message = jsonObjectOf("ledStatus" to true, "mqttID" to "mqtt")
-    mqttClient.rxConnect(8883, "localhost")
+    mqttClient.rxConnect(MQTT_PORT, "localhost")
       .flatMap {
         mqttClient.publishHandler { msg ->
           if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
@@ -216,7 +218,7 @@ class TestRelaysCommunicationVerticle {
       "isPushed" to false
     )
 
-    mqttClient.rxConnect(8883, "localhost")
+    mqttClient.rxConnect(MQTT_PORT, "localhost")
       .flatMap {
         mqttClient.rxPublish(
           INGESTION_TOPIC,
@@ -261,7 +263,7 @@ class TestRelaysCommunicationVerticle {
     class KDockerComposeContainer(file: File) : DockerComposeContainer<KDockerComposeContainer>(file)
 
     private fun defineDockerCompose() =
-      KDockerComposeContainer(File("../docker-compose.yml")).withExposedService("mongo_1", 27017)
+      KDockerComposeContainer(File("../docker-compose.yml")).withExposedService("mongo_1", MONGO_PORT)
 
     @BeforeAll
     @JvmStatic

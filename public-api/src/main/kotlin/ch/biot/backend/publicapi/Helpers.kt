@@ -1,9 +1,11 @@
 package ch.biot.backend.publicapi
 
+import ch.biot.backend.publicapi.PublicApiVerticle.Companion.logger
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.client.HttpResponse
+
 
 /**
  * Sends the given status code through the given routing context.
@@ -52,6 +54,15 @@ internal fun forwardJsonArrayOrStatusCode(ctx: RoutingContext, resp: HttpRespons
  * @param error the error that occurred
  */
 internal fun sendBadGateway(ctx: RoutingContext, error: Throwable) {
-  PublicApiVerticle.logger.error("Oops... an error occurred!", error)
+  logger.error("Oops... an error occurred!", error)
   ctx.fail(502)
 }
+
+/**
+ * Logs the circuit breaker state update.
+ *
+ * @param state the new state of the circuit breaker
+ * @param breakerName the name of the circuit breaker
+ */
+internal fun logBreakerUpdate(state: String, breakerName: String) =
+  logger.info("Circuit breaker $breakerName is now $state")
