@@ -350,7 +350,7 @@ class CRUDVerticle : AbstractVerticle() {
    */
   private fun getUserHandler(ctx: RoutingContext) {
     val userID = ctx.pathParam("id")
-    logger.info("New getUser request for relay $userID")
+    logger.info("New getUser request for user $userID")
     val query = jsonObjectOf("userID" to userID)
     mongoClient.findOne(USERS_COLLECTION, query, jsonObjectOf()).onSuccess { user ->
       ctx.response()

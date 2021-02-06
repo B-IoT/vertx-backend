@@ -274,6 +274,7 @@ class PublicApiVerticle : AbstractVerticle() {
       itemsCircuitBreaker.executeWithFallback({ promise ->
         webClient
           .get(CRUD_PORT, "localhost", "/$endpoint")
+          .putHeader("Accept", "application/json")
           .timeout(TIMEOUT)
           .`as`(BodyCodec.jsonArray())
           .send()
@@ -298,6 +299,7 @@ class PublicApiVerticle : AbstractVerticle() {
     } else {
       webClient
         .get(CRUD_PORT, "localhost", "/$endpoint")
+        .putHeader("Accept", "application/json")
         .timeout(TIMEOUT)
         .`as`(BodyCodec.jsonArray())
         .send()
@@ -324,6 +326,7 @@ class PublicApiVerticle : AbstractVerticle() {
       itemsCircuitBreaker.executeWithFallback({ promise ->
         webClient
           .get(CRUD_PORT, "localhost", "/$endpoint/$id")
+          .putHeader("Accept", "application/json")
           .timeout(TIMEOUT)
           .`as`(BodyCodec.jsonObject())
           .send()
@@ -345,6 +348,7 @@ class PublicApiVerticle : AbstractVerticle() {
     } else {
       webClient
         .get(CRUD_PORT, "localhost", "/$endpoint/$idString")
+        .putHeader("Accept", "application/json")
         .timeout(TIMEOUT)
         .`as`(BodyCodec.jsonObject())
         .send()
@@ -430,7 +434,7 @@ class PublicApiVerticle : AbstractVerticle() {
    * Caches the given json object from a request to the given endpoint.
    */
   private fun cacheJsonObjectResponse(response: HttpResponse<JsonObject>, endpoint: String) =
-    cacheBuffer(response.bodyAsBuffer(), endpoint)
+    cacheBuffer(response.body().toBuffer(), endpoint)
 
   /**
    * Caches the given json array from a request to the given endpoint.
