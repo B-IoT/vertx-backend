@@ -232,7 +232,7 @@ class TestCRUDVerticleItems {
 
   @Test
   @DisplayName("updateItem correctly updates the desired item")
-  fun updateItemIsCorrect(vertx: Vertx, testContext: VertxTestContext) {
+  fun updateItemIsCorrect(testContext: VertxTestContext) {
     val response = Buffer.buffer(Given {
       spec(requestSpecification)
       contentType(ContentType.JSON)
@@ -270,7 +270,7 @@ class TestCRUDVerticleItems {
     )
 
     // Register the item
-    val id = Given {
+    val id = Buffer.buffer(Given {
       spec(requestSpecification)
       contentType(ContentType.JSON)
       body(newItem.encode())
@@ -280,7 +280,7 @@ class TestCRUDVerticleItems {
       statusCode(200)
     } Extract {
       asString()
-    }
+    }).toJsonObject().getString("id")
 
     // Delete the item
     val response = Given {
