@@ -87,9 +87,12 @@ class TestPublicApiVerticle {
   @Order(1)
   @DisplayName("Registering a user succeeds")
   fun registerUserSucceeds(testContext: VertxTestContext) {
-    val response = Given {
+    val expected = user.copy().apply { remove("password") }
+
+    val response = Buffer.buffer(Given {
       spec(requestSpecification)
       contentType(ContentType.JSON)
+      accept(ContentType.JSON)
       body(user.encode())
     } When {
       post("/oauth/register")
@@ -97,10 +100,12 @@ class TestPublicApiVerticle {
       statusCode(200)
     } Extract {
       asString()
-    }
+    }).toJsonObject()
 
     testContext.verify {
-      expectThat(response).isEmpty()
+      val password = response.remove("password")
+      expectThat(response).isEqualTo(expected)
+      expectThat(password).isNotNull()
       testContext.completeNow()
     }
   }
@@ -224,7 +229,7 @@ class TestPublicApiVerticle {
       "company" to "biot2"
     )
 
-    val response = Given {
+    val response = Buffer.buffer(Given {
       spec(requestSpecification)
       contentType(ContentType.JSON)
       accept(ContentType.JSON)
@@ -236,10 +241,16 @@ class TestPublicApiVerticle {
       statusCode(200)
     } Extract {
       asString()
-    }
+    }).toJsonObject()
 
     testContext.verify {
-      expectThat(response).isEmpty()
+      expectThat(response).isNotNull()
+      expect {
+        that(response.getString("company")).isEqualTo(updateJson.getString("company"))
+        that(response.getString("userID")).isEqualTo(user.getString("userID"))
+        that(response.getString("username")).isEqualTo(user.getString("username"))
+        that(response.containsKey("lastModified")).isTrue()
+      }
       testContext.completeNow()
     }
   }
@@ -290,7 +301,9 @@ class TestPublicApiVerticle {
   @Order(8)
   @DisplayName("Registering a relay succeeds")
   fun registerRelaySucceeds(testContext: VertxTestContext) {
-    val response = Given {
+    val expected = relay.copy().apply { remove("mqttPassword") }
+
+    val response = Buffer.buffer(Given {
       spec(requestSpecification)
       contentType(ContentType.JSON)
       header("Authorization", "Bearer $token")
@@ -301,10 +314,12 @@ class TestPublicApiVerticle {
       statusCode(200)
     } Extract {
       asString()
-    }
+    }).toJsonObject()
 
     testContext.verify {
-      expectThat(response).isEmpty()
+      val password = response.remove("mqttPassword")
+      expectThat(response).isEqualTo(expected)
+      expectThat(password).isNotNull()
       testContext.completeNow()
     }
   }
@@ -383,7 +398,7 @@ class TestPublicApiVerticle {
       )
     )
 
-    val response = Given {
+    val response = Buffer.buffer(Given {
       spec(requestSpecification)
       contentType(ContentType.JSON)
       accept(ContentType.JSON)
@@ -395,10 +410,19 @@ class TestPublicApiVerticle {
       statusCode(200)
     } Extract {
       asString()
-    }
+    }).toJsonObject()
 
     testContext.verify {
-      expectThat(response).isEmpty()
+      expectThat(response).isNotNull()
+      expect {
+        that(response.getBoolean("ledStatus")).isEqualTo(updateJson.getBoolean("ledStatus"))
+        that(response.getJsonObject("wifi")).isEqualTo(updateJson.getJsonObject("wifi"))
+        that(response.getDouble("latitude")).isEqualTo(updateJson.getDouble("latitude"))
+        that(response.getDouble("longitude")).isEqualTo(updateJson.getDouble("longitude"))
+        that(response.getString("mqttID")).isEqualTo(relay.getString("mqttID"))
+        that(response.getString("relayID")).isEqualTo(relay.getString("relayID"))
+        that(response.containsKey("lastModified")).isTrue()
+      }
       testContext.completeNow()
     }
   }
@@ -456,7 +480,7 @@ class TestPublicApiVerticle {
   @Order(13)
   @DisplayName("Registering an item succeeds")
   fun registerItemSucceeds(testContext: VertxTestContext) {
-    val response = Given {
+    val response = Buffer.buffer(Given {
       spec(requestSpecification)
       contentType(ContentType.JSON)
       header("Authorization", "Bearer $token")
@@ -467,11 +491,17 @@ class TestPublicApiVerticle {
       statusCode(200)
     } Extract {
       asString()
-    }
+    }).toJsonObject()
 
     testContext.verify {
-      expectThat(response).isNotEmpty() // it returns the id of the registered item
-      itemID = response.toInt()
+      val id = response.getInteger("id")
+      expect {
+        that(response.getString("beacon")).isEqualTo(item.getString("beacon"))
+        that(response.getString("category")).isEqualTo(item.getString("category"))
+        that(response.getString("service")).isEqualTo(item.getString("service"))
+        that(id).isNotNull()
+      }
+      itemID = id
       testContext.completeNow()
     }
   }
@@ -562,7 +592,7 @@ class TestPublicApiVerticle {
       "service" to "Bloc 42"
     )
 
-    val response = Given {
+    val response = Buffer.buffer(Given {
       spec(requestSpecification)
       contentType(ContentType.JSON)
       accept(ContentType.JSON)
@@ -574,10 +604,22 @@ class TestPublicApiVerticle {
       statusCode(200)
     } Extract {
       asString()
-    }
+    }).toJsonObject()
 
     testContext.verify {
-      expectThat(response).isEmpty()
+      expectThat(response).isNotNull()
+      val id = response.remove("id")
+      expectThat(id).isEqualTo(itemID)
+      expect {
+        that(response.getString("beacon")).isEqualTo(updateJson.getString("beacon"))
+        that(response.getString("category")).isEqualTo(updateJson.getString("category"))
+        that(response.getString("service")).isEqualTo(updateJson.getString("service"))
+        that(response.containsKey("timestamp")).isTrue()
+        that(response.containsKey("battery")).isTrue()
+        that(response.containsKey("status")).isTrue()
+        that(response.containsKey("latitude")).isTrue()
+        that(response.containsKey("longitude")).isTrue()
+      }
       testContext.completeNow()
     }
   }
@@ -593,7 +635,7 @@ class TestPublicApiVerticle {
     )
 
     // Register the item
-    val id = Given {
+    val id = Buffer.buffer(Given {
       spec(requestSpecification)
       contentType(ContentType.JSON)
       header("Authorization", "Bearer $token")
@@ -604,7 +646,7 @@ class TestPublicApiVerticle {
       statusCode(200)
     } Extract {
       asString()
-    }
+    }).toJsonObject().getString("id")
 
     // Delete the item
     val response = Given {

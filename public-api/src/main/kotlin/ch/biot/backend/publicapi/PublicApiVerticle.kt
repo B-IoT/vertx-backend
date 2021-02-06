@@ -9,12 +9,14 @@ import com.github.benmanes.caffeine.cache.Caffeine
 import io.vertx.circuitbreaker.CircuitBreaker
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.Promise
+import io.vertx.core.buffer.Buffer
 import io.vertx.core.http.HttpMethod
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.auth.jwt.JWTAuth
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.client.HttpResponse
 import io.vertx.ext.web.client.WebClient
 import io.vertx.ext.web.client.predicate.ResponsePredicate
 import io.vertx.ext.web.codec.BodyCodec
@@ -28,6 +30,7 @@ import io.vertx.kotlin.ext.auth.jwt.jwtAuthOptionsOf
 import io.vertx.kotlin.ext.auth.jwtOptionsOf
 import io.vertx.kotlin.ext.auth.pubSecKeyOptionsOf
 import org.slf4j.LoggerFactory
+import java.time.Duration
 import kotlin.math.max
 import kotlin.math.pow
 
@@ -45,10 +48,13 @@ class PublicApiVerticle : AbstractVerticle() {
     internal val logger = LoggerFactory.getLogger(PublicApiVerticle::class.java)
   }
 
-  // TODO add caches for fast answers
+  // Caches for fast answers
+  private lateinit var usersCache: Cache<String, JsonObject>
+  private lateinit var relaysCache: Cache<String, JsonObject>
+  private lateinit var itemsCache: Cache<Int, JsonObject>
 
   // Cache used to answer requests when the circuit breaker is closed
-  private lateinit var itemsCache: Cache<Int, JsonObject>
+  private lateinit var itemsRecoveryCache: Cache<Int, JsonObject>
 
   // Circuit breaker for the /items endpoint
   private lateinit var itemsCircuitBreaker: CircuitBreaker
@@ -94,6 +100,9 @@ class PublicApiVerticle : AbstractVerticle() {
       router.put().handler(this)
     }
 
+    val context = vertx.orCreateContext
+    val vertxExecutor: (Runnable) -> Unit = { cmd -> context.runOnContext { cmd.run() } }
+
     // Users
     router.post("$OAUTH_PREFIX/register").handler(::registerUserHandler)
     router.post("$OAUTH_PREFIX/token").handler(::tokenHandler)
@@ -102,12 +111,16 @@ class PublicApiVerticle : AbstractVerticle() {
     router.get("$API_PREFIX/users/:id").handler(jwtAuthHandler).handler(::getUserHandler)
     router.delete("$API_PREFIX/users/:id").handler(jwtAuthHandler).handler(::deleteUserHandler)
 
+    usersCache = Caffeine.newBuilder().executor(vertxExecutor).expireAfterWrite(Duration.ofHours(16)).build()
+
     // Relays
     router.post("$API_PREFIX/relays").handler(jwtAuthHandler).handler(::registerRelayHandler)
     router.put("$API_PREFIX/relays/:id").handler(jwtAuthHandler).handler(::updateRelayHandler)
     router.get("$API_PREFIX/relays").handler(jwtAuthHandler).handler(::getRelaysHandler)
     router.get("$API_PREFIX/relays/:id").handler(jwtAuthHandler).handler(::getRelayHandler)
     router.delete("$API_PREFIX/relays/:id").handler(jwtAuthHandler).handler(::deleteRelayHandler)
+
+    relaysCache = Caffeine.newBuilder().executor(vertxExecutor).expireAfterWrite(Duration.ofHours(16)).build()
 
     // Items
     router.post("$API_PREFIX/items").handler(jwtAuthHandler).handler(::registerItemHandler)
@@ -116,12 +129,13 @@ class PublicApiVerticle : AbstractVerticle() {
     router.get("$API_PREFIX/items/:id").handler(jwtAuthHandler).handler(::getItemHandler)
     router.delete("$API_PREFIX/items/:id").handler(jwtAuthHandler).handler(::deleteItemHandler)
 
-    val context = vertx.orCreateContext
-    itemsCache = Caffeine.newBuilder().executor { cmd -> context.runOnContext { cmd.run() } }.maximumSize(10000).build()
+    itemsCache = Caffeine.newBuilder().executor(vertxExecutor).expireAfterWrite(Duration.ofSeconds(15)).build()
+    itemsRecoveryCache = Caffeine.newBuilder().executor(vertxExecutor).expireAfterWrite(Duration.ofDays(1)).build()
 
     val maxBackoff = 32000.0 // in milliseconds
+    val itemsCircuitBreakerName = "items-circuit-breaker"
     itemsCircuitBreaker = CircuitBreaker.create(
-      "items-circuit-breaker", vertx, circuitBreakerOptionsOf(
+      itemsCircuitBreakerName, vertx, circuitBreakerOptionsOf(
         maxFailures = 5,
         maxRetries = 2,
         timeout = 5000,
@@ -130,6 +144,12 @@ class PublicApiVerticle : AbstractVerticle() {
     ).retryPolicy { retryCount ->
       // Exponential backoff with jitter
       max(2.0.pow(retryCount) * 100L + (0..1000).random(), maxBackoff).toLong()
+    }.openHandler {
+      logBreakerUpdate("open", itemsCircuitBreakerName)
+    }.halfOpenHandler {
+      logBreakerUpdate("half open", itemsCircuitBreakerName)
+    }.closeHandler {
+      logBreakerUpdate("closed", itemsCircuitBreakerName)
     }
 
     // TODO Analytics
@@ -192,7 +212,7 @@ class PublicApiVerticle : AbstractVerticle() {
 
   // Items
 
-  private fun registerItemHandler(ctx: RoutingContext) = registerHandler(ctx, "items", forwardResponse = true)
+  private fun registerItemHandler(ctx: RoutingContext) = registerHandler(ctx, "items")
   private fun updateItemHandler(ctx: RoutingContext) = updateHandler(ctx, "items")
   private fun getItemsHandler(ctx: RoutingContext) = getManyHandler(ctx, "items")
   private fun getItemHandler(ctx: RoutingContext) = getOneHandler(ctx, "items")
@@ -201,11 +221,9 @@ class PublicApiVerticle : AbstractVerticle() {
   // Helpers
 
   /**
-   * Handles a register request for the given endpoint. The forwardResponse parameter is set to true when the response
-   * from the underlying microservice needs to be forwarded to the user. If it is set to false, only the status code is
-   * sent.
+   * Handles a register request for the given endpoint.
    */
-  private fun registerHandler(ctx: RoutingContext, endpoint: String, forwardResponse: Boolean = false) {
+  private fun registerHandler(ctx: RoutingContext, endpoint: String) {
     logger.info("New register request on /$endpoint endpoint")
 
     webClient
@@ -215,8 +233,9 @@ class PublicApiVerticle : AbstractVerticle() {
       .expect(ResponsePredicate.SC_OK)
       .sendBuffer(ctx.body)
       .onSuccess { response ->
-        if (forwardResponse) ctx.end(response.body())
-        else sendStatusCode(ctx, response.statusCode())
+        val element = response.body()
+        cacheBuffer(element, endpoint)
+        ctx.end(element)
       }
       .onFailure { error ->
         sendBadGateway(ctx, error)
@@ -235,8 +254,10 @@ class PublicApiVerticle : AbstractVerticle() {
       .putHeader("Content-Type", "application/json")
       .expect(ResponsePredicate.SC_OK)
       .sendBuffer(ctx.body)
-      .onSuccess {
-        ctx.end()
+      .onSuccess { response ->
+        val element = response.body()
+        cacheBuffer(element, endpoint)
+        ctx.end(element)
       }
       .onFailure { error ->
         sendBadGateway(ctx, error)
@@ -260,7 +281,9 @@ class PublicApiVerticle : AbstractVerticle() {
             // Cache all items
             resp.body().forEach {
               val item = it as JsonObject
-              itemsCache.put(item.getInteger("id"), item)
+              val id = item.getInteger("id")
+              itemsRecoveryCache.put(id, item)
+              itemsCache.put(id, item)
             }
             forwardJsonArrayOrStatusCode(ctx, resp)
             promise.complete()
@@ -279,6 +302,7 @@ class PublicApiVerticle : AbstractVerticle() {
         .`as`(BodyCodec.jsonArray())
         .send()
         .onSuccess { resp ->
+          cacheJsonArrayResponse(resp, endpoint)
           forwardJsonArrayOrStatusCode(ctx, resp)
         }
         .onFailure { error ->
@@ -306,6 +330,7 @@ class PublicApiVerticle : AbstractVerticle() {
           .onSuccess { resp ->
             // Cache the item
             val item = resp.body()
+            itemsRecoveryCache.put(id, item)
             itemsCache.put(id, item)
             forwardJsonObjectOrStatusCode(ctx, resp)
             promise.complete()
@@ -324,6 +349,7 @@ class PublicApiVerticle : AbstractVerticle() {
         .`as`(BodyCodec.jsonObject())
         .send()
         .onSuccess { resp ->
+          cacheJsonObjectResponse(resp, endpoint)
           forwardJsonObjectOrStatusCode(ctx, resp)
         }
         .onFailure { error ->
@@ -338,12 +364,15 @@ class PublicApiVerticle : AbstractVerticle() {
   private fun deleteHandler(ctx: RoutingContext, endpoint: String) {
     logger.info("New delete request on /$endpoint endpoint")
 
+    val id = ctx.pathParam("id")
+
     webClient
-      .delete(CRUD_PORT, "localhost", "/$endpoint/${ctx.pathParam("id")}")
+      .delete(CRUD_PORT, "localhost", "/$endpoint/$id")
       .timeout(TIMEOUT)
       .expect(ResponsePredicate.SC_OK)
       .send()
       .onSuccess {
+        deleteElementFromCache(id, endpoint)
         ctx.end()
       }
       .onFailure { error ->
@@ -355,9 +384,9 @@ class PublicApiVerticle : AbstractVerticle() {
    * Tries to recover by getting the item with the given id from the cache, otherwise it fails.
    */
   private fun tryToRecoverItemFromCache(ctx: RoutingContext, itemID: Int) {
-    val result = itemsCache.getIfPresent(itemID)
+    val result = itemsRecoveryCache.getIfPresent(itemID)
     if (result == null) {
-      logger.error("No cached data for the item $itemID")
+      logger.error("Service not working and no cached data for the item $itemID")
       ctx.fail(502)
     } else {
       ctx.response()
@@ -370,14 +399,61 @@ class PublicApiVerticle : AbstractVerticle() {
    * Tries to recover by getting all items from the cache, otherwise it fails.
    */
   private fun tryToRecoverItemsFromCache(ctx: RoutingContext) {
-    val result = JsonArray(itemsCache.asMap().values.toList())
+    val result = JsonArray(itemsRecoveryCache.asMap().values.toList())
     if (result.isEmpty) {
-      logger.error("No cached data for the items")
+      logger.error("Service not working and no cached data for the items")
       ctx.fail(502)
     } else {
       ctx.response()
         .putHeader("Content-Type", "application/json")
         .end(result.encode())
+    }
+  }
+
+  /**
+   * Caches the given buffer from a request to the given endpoint.
+   */
+  private fun cacheBuffer(buffer: Buffer, endpoint: String) {
+    val json = buffer.toJsonObject()
+    when (endpoint) {
+      "users" ->
+        usersCache.put(json.getString("userID"), json)
+      "relays" ->
+        relaysCache.put(json.getString("relayID"), json)
+      "items" ->
+        itemsCache.put(json.getInteger("id"), json)
+      else -> throw AssertionError("Impossible")
+    }
+  }
+
+  /**
+   * Caches the given json object from a request to the given endpoint.
+   */
+  private fun cacheJsonObjectResponse(response: HttpResponse<JsonObject>, endpoint: String) =
+    cacheBuffer(response.bodyAsBuffer(), endpoint)
+
+  /**
+   * Caches the given json array from a request to the given endpoint.
+   */
+  private fun cacheJsonArrayResponse(response: HttpResponse<JsonArray>, endpoint: String) {
+    response.body().forEach {
+      val item = it as JsonObject
+      cacheBuffer(item.toBuffer(), endpoint)
+    }
+  }
+
+  /**
+   * Deletes the element corresponding to the given id from the given endpoint's cache.
+   */
+  private fun deleteElementFromCache(id: String, endpoint: String) {
+    when (endpoint) {
+      "users" ->
+        usersCache.invalidate(id)
+      "relays" ->
+        relaysCache.invalidate(id)
+      "items" ->
+        itemsCache.invalidate(id.toInt())
+      else -> throw AssertionError("Impossible")
     }
   }
 }
