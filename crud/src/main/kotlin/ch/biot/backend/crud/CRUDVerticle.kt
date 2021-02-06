@@ -183,10 +183,16 @@ class CRUDVerticle : AbstractVerticle() {
             remove("mqttPassword")
           }
         )
-        mongoClient.findOneAndUpdate(RELAYS_COLLECTION, query, extraInfo)
-      }.onSuccess {
+        mongoClient.findOneAndUpdateWithOptions(
+          RELAYS_COLLECTION, query, extraInfo,
+          findOptionsOf(),
+          updateOptionsOf(returningNewDocument = true)
+        )
+      }.onSuccess { relay ->
         logger.info("New relay registered")
-        ctx.end()
+        ctx.response()
+          .putHeader("Content-Type", "application/json")
+          .end(relay.clean().encode())
       }.onFailure { error ->
         logger.error("Could not register relay", error)
         ctx.fail(500, error)
@@ -259,7 +265,10 @@ class CRUDVerticle : AbstractVerticle() {
         // Send to the RelaysCommunicationVerticle the entry to update the relay
         vertx.eventBus().send(RELAYS_UPDATE_ADDRESS, cleanEntry)
         logger.info("Update sent to the event bus address $RELAYS_UPDATE_ADDRESS")
-        ctx.end()
+
+        ctx.response()
+          .putHeader("Content-Type", "application/json")
+          .end(result.clean().encode())
       }.onFailure { error ->
         logger.error("Could not update MongoDB collection $RELAYS_COLLECTION with update JSON $update", error)
         ctx.fail(500)
@@ -302,10 +311,16 @@ class CRUDVerticle : AbstractVerticle() {
             remove("password")
           }
         )
-        mongoClient.findOneAndUpdate(USERS_COLLECTION, query, extraInfo)
-      }.onSuccess {
+        mongoClient.findOneAndUpdateWithOptions(
+          USERS_COLLECTION, query, extraInfo,
+          findOptionsOf(),
+          updateOptionsOf(returningNewDocument = true)
+        )
+      }.onSuccess { user ->
         logger.info("New user registered")
-        ctx.end()
+        ctx.response()
+          .putHeader("Content-Type", "application/json")
+          .end(user.clean().encode())
       }.onFailure { error ->
         logger.error("Could not register user", error)
         ctx.fail(500, error)
@@ -362,13 +377,17 @@ class CRUDVerticle : AbstractVerticle() {
           "\$currentDate" to obj("lastModified" to true)
         )
       }
-      mongoClient.findOneAndUpdate(
+      mongoClient.findOneAndUpdateWithOptions(
         USERS_COLLECTION,
         query,
-        update
-      ).onSuccess {
+        update,
+        findOptionsOf(),
+        updateOptionsOf(returningNewDocument = true)
+      ).onSuccess { user ->
         logger.info("Successfully updated MongoDB collection $USERS_COLLECTION with update JSON $update")
-        ctx.end()
+        ctx.response()
+          .putHeader("Content-Type", "application/json")
+          .end(user.clean().encode())
       }.onFailure { error ->
         logger.error("Could not update MongoDB collection $USERS_COLLECTION with update JSON $update", error)
         ctx.fail(500)
@@ -427,10 +446,25 @@ class CRUDVerticle : AbstractVerticle() {
       val service: String = json["service"]
       pgPool.preparedQuery(INSERT_ITEM)
         .execute(Tuple.of(beacon, category, service))
-        .onSuccess {
+        .compose {
+          // Retrieve the row inserted
+          val id = it.iterator().next().getInteger("id")
+          pgPool.preparedQuery(GET_ITEM).execute(Tuple.of(id))
+        }
+        .onSuccess { res ->
           logger.info("New item registered")
-          val row = it.iterator().next()
-          ctx.end(row.getInteger("id").toString())
+
+          if (res.size() == 0) {
+            // No item found, fail
+            ctx.fail(500)
+            return@onSuccess
+          }
+
+          val result: JsonObject = res.iterator().next().toItemJson()
+
+          ctx.response()
+            .putHeader("Content-Type", "application/json")
+            .end(result.encode())
         }.onFailure { error ->
           logger.error("Could not register item", error)
           ctx.fail(500, error)
@@ -499,9 +533,17 @@ class CRUDVerticle : AbstractVerticle() {
       val service: String = json["service"]
       pgPool.preparedQuery(UPDATE_ITEM)
         .execute(Tuple.of(beacon, category, service, itemID.toInt()))
+        .compose {
+          // Retrieve the row updated
+          val id = it.iterator().next().getInteger("id")
+          pgPool.preparedQuery(GET_ITEM).execute(Tuple.of(id))
+        }
         .onSuccess {
           logger.info("Successfully updated item $itemID")
-          ctx.end()
+          val row = it.iterator().next()
+          ctx.response()
+            .putHeader("Content-Type", "application/json")
+            .end(row.toItemJson().encode())
         }
         .onFailure { error ->
           logger.error("Could not update item $itemID", error)

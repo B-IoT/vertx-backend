@@ -119,7 +119,9 @@ class TestCRUDVerticleUsers {
   @Test
   @DisplayName("registerUser correctly registers a new user")
   fun registerIsCorrect(testContext: VertxTestContext) {
-    val response = Given {
+    val expected = newUser.copy().apply { remove("password") }
+
+    val response = Buffer.buffer(Given {
       spec(requestSpecification)
       contentType(ContentType.JSON)
       accept(ContentType.JSON)
@@ -130,10 +132,12 @@ class TestCRUDVerticleUsers {
       statusCode(200)
     } Extract {
       asString()
-    }
+    }).toJsonObject()
 
     testContext.verify {
-      expectThat(response).isEmpty()
+      val password = response.remove("password")
+      expectThat(response).isEqualTo(expected)
+      expectThat(password).isNotNull()
       testContext.completeNow()
     }
   }
@@ -196,7 +200,7 @@ class TestCRUDVerticleUsers {
       "company" to "test2"
     )
 
-    val response = Given {
+    val response = Buffer.buffer(Given {
       spec(requestSpecification)
       contentType(ContentType.JSON)
       accept(ContentType.JSON)
@@ -207,25 +211,18 @@ class TestCRUDVerticleUsers {
       statusCode(200)
     } Extract {
       asString()
-    }
+    }).toJsonObject()
 
     testContext.verify {
-      expectThat(response).isEmpty()
-    }
-
-    mongoClient.findOne("users", jsonObjectOf("userID" to "test"), jsonObjectOf())
-      .onSuccess { json ->
-        expectThat(json).isNotNull()
-        expect {
-          that(json.getString("company")).isEqualTo(updateJson.getString("company"))
-          that(json.getString("userID")).isEqualTo(existingUser.getString("userID"))
-          that(json.getString("username")).isEqualTo(existingUser.getString("username"))
-          that(json.getString("password")).isEqualTo(existingUser.getString("password"))
-          that(json.containsKey("lastModified")).isTrue()
-        }
-        testContext.completeNow()
+      expectThat(response).isNotNull()
+      expect {
+        that(response.getString("company")).isEqualTo(updateJson.getString("company"))
+        that(response.getString("userID")).isEqualTo(existingUser.getString("userID"))
+        that(response.getString("username")).isEqualTo(existingUser.getString("username"))
+        that(response.containsKey("lastModified")).isTrue()
       }
-      .onFailure(testContext::failNow)
+      testContext.completeNow()
+    }
   }
 
   @Test

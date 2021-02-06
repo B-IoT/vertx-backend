@@ -33,6 +33,7 @@ import strikt.api.expectThat
 import strikt.assertions.isEmpty
 import strikt.assertions.isEqualTo
 import strikt.assertions.isNotEmpty
+import strikt.assertions.isNotNull
 import java.io.File
 
 
@@ -144,7 +145,7 @@ class TestCRUDVerticleItems {
       "service" to "Bloc 1"
     )
 
-    val response = Given {
+    val response = Buffer.buffer(Given {
       spec(requestSpecification)
       contentType(ContentType.JSON)
       body(newItem.encode())
@@ -154,10 +155,15 @@ class TestCRUDVerticleItems {
       statusCode(200)
     } Extract {
       asString()
-    }
+    }).toJsonObject()
 
     testContext.verify {
-      expectThat(response).isNotEmpty() // it returns the id of the registered item
+      expect {
+        that(response.getString("beacon")).isEqualTo(newItem.getString("beacon"))
+        that(response.getString("category")).isEqualTo(newItem.getString("category"))
+        that(response.getString("service")).isEqualTo(newItem.getString("service"))
+        that(response.getInteger("id")).isNotNull()
+      }
       testContext.completeNow()
     }
   }
@@ -227,7 +233,7 @@ class TestCRUDVerticleItems {
   @Test
   @DisplayName("updateItem correctly updates the desired item")
   fun updateItemIsCorrect(vertx: Vertx, testContext: VertxTestContext) {
-    val response = Given {
+    val response = Buffer.buffer(Given {
       spec(requestSpecification)
       contentType(ContentType.JSON)
       accept(ContentType.JSON)
@@ -238,27 +244,20 @@ class TestCRUDVerticleItems {
       statusCode(200)
     } Extract {
       asString()
-    }
+    }).toJsonObject()
 
     testContext.verify {
-      expectThat(response).isEmpty()
-    }
-
-    pgPool.preparedQuery(GET_ITEM).execute(Tuple.of(existingItemID))
-      .onSuccess { res ->
-        val json = res.iterator().next().toJson()
-        expect {
-          that(json.getString("beacon")).isEqualTo(updateItemJson.getString("beacon"))
-          that(json.getString("category")).isEqualTo(updateItemJson.getString("category"))
-          that(json.getString("service")).isEqualTo(updateItemJson.getString("service"))
-          that(json.getInteger("battery")).isEqualTo(existingBeaconData.getInteger("battery"))
-          that(json.getString("status")).isEqualTo(existingBeaconData.getString("status"))
-          that(json.getDouble("latitude")).isEqualTo(existingBeaconData.getDouble("latitude"))
-          that(json.getDouble("longitude")).isEqualTo(existingBeaconData.getDouble("longitude"))
-        }
-        testContext.completeNow()
+      expect {
+        that(response.getString("beacon")).isEqualTo(updateItemJson.getString("beacon"))
+        that(response.getString("category")).isEqualTo(updateItemJson.getString("category"))
+        that(response.getString("service")).isEqualTo(updateItemJson.getString("service"))
+        that(response.getInteger("battery")).isEqualTo(existingBeaconData.getInteger("battery"))
+        that(response.getString("status")).isEqualTo(existingBeaconData.getString("status"))
+        that(response.getDouble("latitude")).isEqualTo(existingBeaconData.getDouble("latitude"))
+        that(response.getDouble("longitude")).isEqualTo(existingBeaconData.getDouble("longitude"))
       }
-      .onFailure(testContext::failNow)
+      testContext.completeNow()
+    }
   }
 
   @Test

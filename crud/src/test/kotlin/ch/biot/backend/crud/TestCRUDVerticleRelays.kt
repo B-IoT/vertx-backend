@@ -78,7 +78,10 @@ class TestCRUDVerticleRelays {
   @BeforeEach
   fun setup(vertx: Vertx, testContext: VertxTestContext) {
     mongoClient =
-      MongoClient.createShared(vertx, jsonObjectOf("host" to "localhost", "port" to CRUDVerticle.MONGO_PORT, "db_name" to "clients"))
+      MongoClient.createShared(
+        vertx,
+        jsonObjectOf("host" to "localhost", "port" to CRUDVerticle.MONGO_PORT, "db_name" to "clients")
+      )
 
     val usernameField = "mqttUsername"
     val passwordField = "mqttPassword"
@@ -133,7 +136,9 @@ class TestCRUDVerticleRelays {
   @Test
   @DisplayName("registerRelay correctly registers a new relay")
   fun registerIsCorrect(testContext: VertxTestContext) {
-    val response = Given {
+    val expected = newRelay.copy().apply { remove("mqttPassword") }
+
+    val response = Buffer.buffer(Given {
       spec(requestSpecification)
       contentType(ContentType.JSON)
       accept(ContentType.JSON)
@@ -144,10 +149,12 @@ class TestCRUDVerticleRelays {
       statusCode(200)
     } Extract {
       asString()
-    }
+    }).toJsonObject()
 
     testContext.verify {
-      expectThat(response).isEmpty()
+      val password = response.remove("mqttPassword")
+      expectThat(response).isEqualTo(expected)
+      expectThat(password).isNotNull()
       testContext.completeNow()
     }
   }
@@ -233,7 +240,7 @@ class TestCRUDVerticleRelays {
       }
     }
 
-    val response = Given {
+    val response = Buffer.buffer(Given {
       spec(requestSpecification)
       contentType(ContentType.JSON)
       accept(ContentType.JSON)
@@ -244,27 +251,20 @@ class TestCRUDVerticleRelays {
       statusCode(200)
     } Extract {
       asString()
-    }
+    }).toJsonObject()
 
     testContext.verify {
-      expectThat(response).isEmpty()
-    }
-
-    mongoClient.findOne("relays", jsonObjectOf("relayID" to "testRelay"), jsonObjectOf())
-      .onSuccess { json ->
-        expectThat(json).isNotNull()
-        expect {
-          that(json.getBoolean("ledStatus")).isEqualTo(updateJson.getBoolean("ledStatus"))
-          that(json.getJsonObject("wifi")).isEqualTo(updateJson.getJsonObject("wifi"))
-          that(json.getDouble("latitude")).isEqualTo(updateJson.getDouble("latitude"))
-          that(json.getDouble("longitude")).isEqualTo(updateJson.getDouble("longitude"))
-          that(json.getString("mqttID")).isEqualTo(existingRelay.getString("mqttID"))
-          that(json.getString("relayID")).isEqualTo(existingRelay.getString("relayID"))
-          that(json.containsKey("lastModified")).isTrue()
-        }
-        testContext.completeNow()
+      expectThat(response).isNotNull()
+      expect {
+        that(response.getBoolean("ledStatus")).isEqualTo(updateJson.getBoolean("ledStatus"))
+        that(response.getJsonObject("wifi")).isEqualTo(updateJson.getJsonObject("wifi"))
+        that(response.getDouble("latitude")).isEqualTo(updateJson.getDouble("latitude"))
+        that(response.getDouble("longitude")).isEqualTo(updateJson.getDouble("longitude"))
+        that(response.getString("mqttID")).isEqualTo(existingRelay.getString("mqttID"))
+        that(response.getString("relayID")).isEqualTo(existingRelay.getString("relayID"))
+        that(response.containsKey("lastModified")).isTrue()
       }
-      .onFailure(testContext::failNow)
+    }
   }
 
   @Test
