@@ -321,44 +321,63 @@ class PublicApiVerticle : AbstractVerticle() {
 
     val idString = ctx.pathParam("id")
 
-    if (endpoint == "items") {
-      val id: Int = idString.toInt()
-      itemsCircuitBreaker.executeWithFallback({ promise ->
+    // Get element from cache
+    val element = when (endpoint) {
+      "users" ->
+        usersCache.getIfPresent(idString)
+      "relays" ->
+        relaysCache.getIfPresent(idString)
+      "items" ->
+        itemsCache.getIfPresent(idString.toInt())
+      else -> throw AssertionError("Impossible")
+    }
+
+    if (element != null) {
+      // If the element is in the cache, return it
+      ctx.response()
+        .putHeader("Content-Type", "application/json")
+        .end(element.encode())
+    } else {
+      // If the element is not in the cache, fetch it
+      if (endpoint == "items") {
+        val id: Int = idString.toInt()
+        itemsCircuitBreaker.executeWithFallback({ promise ->
+          webClient
+            .get(CRUD_PORT, "localhost", "/$endpoint/$id")
+            .putHeader("Accept", "application/json")
+            .timeout(TIMEOUT)
+            .`as`(BodyCodec.jsonObject())
+            .send()
+            .onSuccess { resp ->
+              // Cache the item
+              val item = resp.body()
+              itemsRecoveryCache.put(id, item)
+              itemsCache.put(id, item)
+              forwardJsonObjectOrStatusCode(ctx, resp)
+              promise.complete()
+            }
+            .onFailure { error ->
+              tryToRecoverItemFromCache(ctx, id)
+              promise.fail(error)
+            }
+        }) {
+          tryToRecoverItemFromCache(ctx, id)
+        }
+      } else {
         webClient
-          .get(CRUD_PORT, "localhost", "/$endpoint/$id")
+          .get(CRUD_PORT, "localhost", "/$endpoint/$idString")
           .putHeader("Accept", "application/json")
           .timeout(TIMEOUT)
           .`as`(BodyCodec.jsonObject())
           .send()
           .onSuccess { resp ->
-            // Cache the item
-            val item = resp.body()
-            itemsRecoveryCache.put(id, item)
-            itemsCache.put(id, item)
+            cacheJsonObjectResponse(resp, endpoint)
             forwardJsonObjectOrStatusCode(ctx, resp)
-            promise.complete()
           }
           .onFailure { error ->
-            tryToRecoverItemFromCache(ctx, id)
-            promise.fail(error)
+            sendBadGateway(ctx, error)
           }
-      }) {
-        tryToRecoverItemFromCache(ctx, id)
       }
-    } else {
-      webClient
-        .get(CRUD_PORT, "localhost", "/$endpoint/$idString")
-        .putHeader("Accept", "application/json")
-        .timeout(TIMEOUT)
-        .`as`(BodyCodec.jsonObject())
-        .send()
-        .onSuccess { resp ->
-          cacheJsonObjectResponse(resp, endpoint)
-          forwardJsonObjectOrStatusCode(ctx, resp)
-        }
-        .onFailure { error ->
-          sendBadGateway(ctx, error)
-        }
     }
   }
 
@@ -390,7 +409,7 @@ class PublicApiVerticle : AbstractVerticle() {
   private fun tryToRecoverItemFromCache(ctx: RoutingContext, itemID: Int) {
     val result = itemsRecoveryCache.getIfPresent(itemID)
     if (result == null) {
-      logger.error("Service not working and no cached data for the item $itemID")
+      logger.error("Service not working and no cached data for item $itemID")
       ctx.fail(502)
     } else {
       ctx.response()
