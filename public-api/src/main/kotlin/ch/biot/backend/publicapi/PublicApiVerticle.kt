@@ -32,6 +32,8 @@ import java.net.InetAddress
 class PublicApiVerticle : AbstractVerticle() {
 
   companion object {
+    private const val TIMEOUT: Long = 5000
+
     private const val API_PREFIX = "/api"
     private const val OAUTH_PREFIX = "/oauth"
     private const val CRUD_PORT = 3000
@@ -142,7 +144,7 @@ class PublicApiVerticle : AbstractVerticle() {
     fun makeJwtToken(username: String, company: String): String {
       // Add the company information to the custom claims of the token
       val claims = jsonObjectOf("company" to company)
-      // The token expires in 7 days
+      // The token expires in 7 days (10080 minutes)
       val jwtOptions = jwtOptionsOf(algorithm = "RS256", expiresInMinutes = 10080, issuer = "BIoT", subject = username)
       return jwtAuth.generateToken(claims, jwtOptions)
     }
@@ -154,6 +156,7 @@ class PublicApiVerticle : AbstractVerticle() {
 
     webClient
       .post(CRUD_PORT, "localhost", "/users/authenticate")
+      .timeout(TIMEOUT)
       .expect(ResponsePredicate.SC_SUCCESS)
       .sendJsonObject(payload)
       .onSuccess { response ->
@@ -195,6 +198,7 @@ class PublicApiVerticle : AbstractVerticle() {
 
     webClient
       .post(CRUD_PORT, "localhost", "/$endpoint")
+      .timeout(TIMEOUT)
       .putHeader("Content-Type", "application/json")
       .expect(ResponsePredicate.SC_OK)
       .sendBuffer(ctx.body)
@@ -215,6 +219,7 @@ class PublicApiVerticle : AbstractVerticle() {
 
     webClient
       .put(CRUD_PORT, "localhost", "/$endpoint/${ctx.pathParam("id")}")
+      .timeout(TIMEOUT)
       .putHeader("Content-Type", "application/json")
       .expect(ResponsePredicate.SC_OK)
       .sendBuffer(ctx.body)
@@ -234,6 +239,7 @@ class PublicApiVerticle : AbstractVerticle() {
 
     webClient
       .get(CRUD_PORT, "localhost", "/$endpoint")
+      .timeout(TIMEOUT)
       .`as`(BodyCodec.jsonArray())
       .send()
       .onSuccess { resp ->
@@ -252,6 +258,7 @@ class PublicApiVerticle : AbstractVerticle() {
 
     webClient
       .get(CRUD_PORT, "localhost", "/$endpoint/${ctx.pathParam("id")}")
+      .timeout(TIMEOUT)
       .`as`(BodyCodec.jsonObject())
       .send()
       .onSuccess { resp ->
@@ -270,6 +277,7 @@ class PublicApiVerticle : AbstractVerticle() {
 
     webClient
       .delete(CRUD_PORT, "localhost", "/$endpoint/${ctx.pathParam("id")}")
+      .timeout(TIMEOUT)
       .expect(ResponsePredicate.SC_OK)
       .send()
       .onSuccess {
