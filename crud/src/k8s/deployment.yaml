@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: crud
+  name: crud
+spec:
+  selector:
+    matchLabels:
+      app: crud
+  template:
+    metadata:
+      labels:
+        app: crud
+    spec:
+      containers:
+        - image: vertx-backend/crud:latest
+          name: crud
+          env:
+            - name: MONGO_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: crud-config
+                  key: mongo_port
+            - name: MONGO_HOST
+                valueFrom:
+                  configMapKeyRef:
+                    name: crud-config
+                    key: mongo_hostname
+            - name: TIMESCALE_PORT
+                valueFrom:
+                  configMapKeyRef:
+                    name: crud-config
+                    key: timescale_port
+            - name: TIMESCALE_HOST
+                valueFrom:
+                  configMapKeyRef:
+                    name: crud-config
+                    key: timescale_hostname
+            - name: HTTP_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: crud-config
+                  key: crud_port

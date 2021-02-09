@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: relays-communication-config
+data:
+  kafka_hostname: kafka.default.svc.cluster.local # TODO
+  kafka_port: "9092"

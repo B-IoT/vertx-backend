@@ -43,9 +43,13 @@ class CRUDVerticle : AbstractVerticle() {
 
     private const val RELAYS_UPDATE_ADDRESS = "relays.update"
 
-    internal const val HTTP_PORT = 3000
-    internal const val MONGO_PORT = 27017
-    internal const val TIMESCALE_PORT = 5432
+    internal val HTTP_PORT = System.getenv().getOrDefault("HTTP_PORT", "3000").toInt()
+
+    internal val MONGO_PORT = System.getenv().getOrDefault("MONGO_PORT", "27017").toInt()
+    private val MONGO_HOST: String = System.getenv().getOrDefault("MONGO_HOST", "localhost")
+
+    internal val TIMESCALE_PORT = System.getenv().getOrDefault("TIMESCALE_PORT", "5432").toInt()
+    private val TIMESCALE_HOST: String = System.getenv().getOrDefault("TIMESCALE_HOST", "localhost")
 
     internal val logger = LoggerFactory.getLogger(CRUDVerticle::class.java)
 
@@ -76,7 +80,7 @@ class CRUDVerticle : AbstractVerticle() {
   override fun start(startPromise: Promise<Void>?) {
     // Initialize MongoDB
     mongoClient =
-      MongoClient.createShared(vertx, jsonObjectOf("host" to "localhost", "port" to MONGO_PORT, "db_name" to "clients"))
+      MongoClient.createShared(vertx, jsonObjectOf("host" to MONGO_HOST, "port" to MONGO_PORT, "db_name" to "clients"))
 
     val usernameFieldRelays = "mqttUsername"
     val passwordFieldRelays = "mqttPassword"
@@ -112,7 +116,7 @@ class CRUDVerticle : AbstractVerticle() {
     val pgConnectOptions =
       pgConnectOptionsOf(
         port = TIMESCALE_PORT,
-        host = "localhost",
+        host = TIMESCALE_HOST,
         database = "postgres",
         user = "postgres",
         password = "biot",

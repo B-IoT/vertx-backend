@@ -3,11 +3,12 @@ kind: Service
 metadata:
   labels:
     app: public-api
+    vertx-backend: hazelcast
   name: public-api
 spec:
-  type: LoadBalancer
+  type: ClusterIP
   selector:
     app: public-api
   ports:
-    - name: http
-      port: 4000
+    - name: hazelcast
+      port: 5701

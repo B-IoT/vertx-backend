@@ -15,7 +15,7 @@
                             class="com.hazelcast.kubernetes.HazelcastKubernetesDiscoveryStrategy">
           <properties>
             <property name="service-label-name">vertx-backend</property>
-            <property name="service-label-value">relays-communication</property>
+            <property name="service-label-value">hazelcast</property>
           </properties>
         </discovery-strategy>
       </discovery-strategies>

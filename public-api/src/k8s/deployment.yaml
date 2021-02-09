@@ -17,14 +17,13 @@ spec:
         - image: vertx-backend/public-api:latest
           name: public-api
           env:
-            # TODO
-            - name: GATEWAY_HOST
+            - name: CRUD_HOST
               valueFrom:
                 configMapKeyRef:
-                  name: sensor-gateway-config
-                  key: gateway_hostname
-            - name: GATEWAY_PORT
+                  name: crud-config
+                  key: crud_hostname
+            - name: CRUD_PORT
               valueFrom:
                 configMapKeyRef:
-                  name: sensor-gateway-config
-                  key: gateway_port
+                  name: crud-config
+                  key: crud_port

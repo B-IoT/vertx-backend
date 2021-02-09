@@ -5,7 +5,9 @@
 package ch.biot.backend.relayscommunication
 
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.INGESTION_TOPIC
+import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.KAFKA_PORT
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.LAST_CONFIGURATION_TOPIC
+import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.MONGO_PORT
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.RELAYS_COLLECTION
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.RELAYS_UPDATE_ADDRESS
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.UPDATE_PARAMETERS_TOPIC
@@ -72,7 +74,7 @@ class TestRelaysCommunicationVerticle {
   @BeforeEach
   fun setup(vertx: Vertx, testContext: VertxTestContext) {
     val kafkaConfig = mapOf(
-      "bootstrap.servers" to "localhost:9092",
+      "bootstrap.servers" to "localhost:$KAFKA_PORT",
       "key.deserializer" to "org.apache.kafka.common.serialization.StringDeserializer",
       "value.deserializer" to "io.vertx.kafka.client.serialization.JsonObjectDeserializer",
       "auto.offset.reset" to "earliest",
@@ -92,7 +94,7 @@ class TestRelaysCommunicationVerticle {
     )
 
     mongoClient =
-      MongoClient.createShared(vertx, jsonObjectOf("host" to "localhost", "port" to 27017, "db_name" to "clients"))
+      MongoClient.createShared(vertx, jsonObjectOf("host" to "localhost", "port" to MONGO_PORT, "db_name" to "clients"))
 
     val usernameField = "mqttUsername"
     val passwordField = "mqttPassword"
@@ -261,7 +263,7 @@ class TestRelaysCommunicationVerticle {
     class KDockerComposeContainer(file: File) : DockerComposeContainer<KDockerComposeContainer>(file)
 
     private fun defineDockerCompose() =
-      KDockerComposeContainer(File("../docker-compose.yml")).withExposedService("mongo_1", 27017)
+      KDockerComposeContainer(File("../docker-compose.yml")).withExposedService("mongo_1", MONGO_PORT)
 
     @BeforeAll
     @JvmStatic

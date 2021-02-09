@@ -40,11 +40,16 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
     internal const val INGESTION_TOPIC = "incoming.update"
     internal const val RELAYS_UPDATE_ADDRESS = "relays.update"
 
-    internal const val MQTT_PORT = 8883
+    internal val MQTT_PORT = System.getenv().getOrDefault("MQTT_PORT", "8883").toInt()
+
+    private val MONGO_HOST: String = System.getenv().getOrDefault("MONGO_HOST", "localhost")
+    internal val MONGO_PORT = System.getenv().getOrDefault("MONGO_PORT", "27017").toInt()
+
+    private val KAFKA_HOST: String = System.getenv().getOrDefault("KAFKA_HOST", "localhost")
+    internal val KAFKA_PORT = System.getenv().getOrDefault("KAFKA_PORT", "9092").toInt()
 
     private val logger = LoggerFactory.getLogger(RelaysCommunicationVerticle::class.java)
 
-    @Throws(UnknownHostException::class)
     @JvmStatic
     fun main(args: Array<String>) {
       val ipv4 = InetAddress.getLocalHost().hostAddress
@@ -74,7 +79,7 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
     // Initialize the Kafka producer
     kafkaProducer = KafkaProducer.create(
       vertx, mapOf(
-        "bootstrap.servers" to "localhost:9092",
+        "bootstrap.servers" to "$KAFKA_HOST:$KAFKA_PORT",
         "key.serializer" to "org.apache.kafka.common.serialization.StringSerializer",
         "value.serializer" to "io.vertx.kafka.client.serialization.JsonObjectSerializer",
         "acks" to "1"
@@ -83,7 +88,7 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
 
     // Initialize MongoDB
     mongoClient =
-      MongoClient.createShared(vertx, jsonObjectOf("host" to "localhost", "port" to 27017, "db_name" to "clients"))
+      MongoClient.createShared(vertx, jsonObjectOf("host" to MONGO_HOST, "port" to MONGO_PORT, "db_name" to "clients"))
 
     val usernameField = "mqttUsername"
     val passwordField = "mqttPassword"

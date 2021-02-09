@@ -36,8 +36,9 @@ class PublicApiVerticle : AbstractVerticle() {
 
     private const val API_PREFIX = "/api"
     private const val OAUTH_PREFIX = "/oauth"
-    private const val CRUD_PORT = 3000
-    internal const val PUBLIC_PORT = 4000
+    private val CRUD_HOST: String = System.getenv().getOrDefault("CRUD_HOST", "localhost")
+    private val CRUD_PORT: Int = System.getenv().getOrDefault("CRUD_PORT", "3000").toInt()
+    internal val PUBLIC_PORT = System.getenv().getOrDefault("PUBLIC_PORT", "4000").toInt()
 
     internal val logger = LoggerFactory.getLogger(PublicApiVerticle::class.java)
 
@@ -65,8 +66,8 @@ class PublicApiVerticle : AbstractVerticle() {
 
     // Read public and private keys from the file system. They are used for JWT authentication
     // Blocking is not an issue since this action is done only once at startup
-    val publicKey = fs.readFileBlocking("public_key.pem").toString(Charsets.UTF_8)
-    val privateKey = fs.readFileBlocking("private_key.pem").toString(Charsets.UTF_8)
+    val publicKey = fs.readFileBlocking("public_key.pem")
+    val privateKey = fs.readFileBlocking("private_key.pem")
 
     jwtAuth = JWTAuth.create(
       vertx, jwtAuthOptionsOf(
@@ -155,7 +156,7 @@ class PublicApiVerticle : AbstractVerticle() {
     val username: String = payload["username"]
 
     webClient
-      .post(CRUD_PORT, "localhost", "/users/authenticate")
+      .post(CRUD_PORT, CRUD_HOST, "/users/authenticate")
       .timeout(TIMEOUT)
       .expect(ResponsePredicate.SC_SUCCESS)
       .sendJsonObject(payload)
@@ -197,7 +198,7 @@ class PublicApiVerticle : AbstractVerticle() {
     logger.info("New register request on /$endpoint endpoint")
 
     webClient
-      .post(CRUD_PORT, "localhost", "/$endpoint")
+      .post(CRUD_PORT, CRUD_HOST, "/$endpoint")
       .timeout(TIMEOUT)
       .putHeader("Content-Type", "application/json")
       .expect(ResponsePredicate.SC_OK)
@@ -218,7 +219,7 @@ class PublicApiVerticle : AbstractVerticle() {
     logger.info("New update request on /$endpoint endpoint")
 
     webClient
-      .put(CRUD_PORT, "localhost", "/$endpoint/${ctx.pathParam("id")}")
+      .put(CRUD_PORT, CRUD_HOST, "/$endpoint/${ctx.pathParam("id")}")
       .timeout(TIMEOUT)
       .putHeader("Content-Type", "application/json")
       .expect(ResponsePredicate.SC_OK)
@@ -238,7 +239,7 @@ class PublicApiVerticle : AbstractVerticle() {
     logger.info("New getMany request on /$endpoint endpoint")
 
     webClient
-      .get(CRUD_PORT, "localhost", "/$endpoint")
+      .get(CRUD_PORT, CRUD_HOST, "/$endpoint")
       .timeout(TIMEOUT)
       .`as`(BodyCodec.jsonArray())
       .send()
@@ -257,7 +258,7 @@ class PublicApiVerticle : AbstractVerticle() {
     logger.info("New getOne request on /$endpoint endpoint")
 
     webClient
-      .get(CRUD_PORT, "localhost", "/$endpoint/${ctx.pathParam("id")}")
+      .get(CRUD_PORT, CRUD_HOST, "/$endpoint/${ctx.pathParam("id")}")
       .timeout(TIMEOUT)
       .`as`(BodyCodec.jsonObject())
       .send()
@@ -276,7 +277,7 @@ class PublicApiVerticle : AbstractVerticle() {
     logger.info("New delete request on /$endpoint endpoint")
 
     webClient
-      .delete(CRUD_PORT, "localhost", "/$endpoint/${ctx.pathParam("id")}")
+      .delete(CRUD_PORT, CRUD_HOST, "/$endpoint/${ctx.pathParam("id")}")
       .timeout(TIMEOUT)
       .expect(ResponsePredicate.SC_OK)
       .send()
