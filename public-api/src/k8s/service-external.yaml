@@ -11,3 +11,5 @@ spec:
   ports:
     - name: http
       port: 4000
+    - name: hazelcast
+      port: 5701
