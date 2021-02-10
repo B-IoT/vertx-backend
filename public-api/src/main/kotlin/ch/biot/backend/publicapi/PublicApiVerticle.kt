@@ -37,7 +37,7 @@ class PublicApiVerticle : AbstractVerticle() {
     private const val API_PREFIX = "/api"
     private const val OAUTH_PREFIX = "/oauth"
     private val CRUD_HOST: String = System.getenv().getOrDefault("CRUD_HOST", "localhost")
-    private val CRUD_PORT: Int = System.getenv().getOrDefault("CRUD_PORT", "3000").toInt()
+    private val CRUD_PORT: Int = System.getenv().getOrDefault("CRUD_PORT", "8080").toInt()
     internal val PUBLIC_PORT = System.getenv().getOrDefault("PUBLIC_PORT", "8080").toInt()
 
     internal val logger = LoggerFactory.getLogger(PublicApiVerticle::class.java)

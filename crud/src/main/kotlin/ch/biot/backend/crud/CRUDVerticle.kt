@@ -130,7 +130,7 @@ class CRUDVerticle : AbstractVerticle() {
         database = "biot",
         user = "biot",
         password = "biot",
-        sslMode= SslMode.REQUIRE,
+        sslMode= if (TIMESCALE_HOST != "localhost") SslMode.REQUIRE else null, // SSL is disable when testing
         trustAll = true,
         cachePreparedStatements = true
       )

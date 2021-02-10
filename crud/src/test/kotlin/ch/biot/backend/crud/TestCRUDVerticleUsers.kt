@@ -191,7 +191,7 @@ class TestCRUDVerticleUsers {
 
   @Test
   @DisplayName("updateUser correctly updates the desired user")
-  fun updateUserIsCorrect(vertx: Vertx, testContext: VertxTestContext) {
+  fun updateUserIsCorrect(testContext: VertxTestContext) {
     val updateJson = jsonObjectOf(
       "company" to "test2"
     )
@@ -230,7 +230,7 @@ class TestCRUDVerticleUsers {
 
   @Test
   @DisplayName("authenticate correctly authenticates and returns the user's company")
-  fun authenticateIsCorrect(vertx: Vertx, testContext: VertxTestContext) {
+  fun authenticateIsCorrect(testContext: VertxTestContext) {
     val userJson = jsonObjectOf(
       "username" to "username",
       "password" to "password",
