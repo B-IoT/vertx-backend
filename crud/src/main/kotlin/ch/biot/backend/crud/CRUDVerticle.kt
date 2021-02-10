@@ -28,6 +28,7 @@ import io.vertx.kotlin.ext.mongo.updateOptionsOf
 import io.vertx.kotlin.pgclient.pgConnectOptionsOf
 import io.vertx.kotlin.sqlclient.poolOptionsOf
 import io.vertx.pgclient.PgPool
+import io.vertx.pgclient.SslMode
 import io.vertx.spi.cluster.hazelcast.HazelcastClusterManager
 import io.vertx.sqlclient.Tuple
 import org.slf4j.LoggerFactory
@@ -80,7 +81,16 @@ class CRUDVerticle : AbstractVerticle() {
   override fun start(startPromise: Promise<Void>?) {
     // Initialize MongoDB
     mongoClient =
-      MongoClient.createShared(vertx, jsonObjectOf("host" to MONGO_HOST, "port" to MONGO_PORT, "db_name" to "clients"))
+      MongoClient.createShared(
+        vertx,
+        jsonObjectOf(
+          "host" to MONGO_HOST,
+          "port" to MONGO_PORT,
+          "db_name" to "clients",
+          "username" to "biot",
+          "password" to "biot"
+        )
+      )
 
     val usernameFieldRelays = "mqttUsername"
     val passwordFieldRelays = "mqttPassword"
@@ -117,15 +127,17 @@ class CRUDVerticle : AbstractVerticle() {
       pgConnectOptionsOf(
         port = TIMESCALE_PORT,
         host = TIMESCALE_HOST,
-        database = "postgres",
-        user = "postgres",
+        database = "biot",
+        user = "biot",
         password = "biot",
+        sslMode= SslMode.REQUIRE,
+        trustAll = true,
         cachePreparedStatements = true
       )
     pgPool = PgPool.pool(vertx, pgConnectOptions, poolOptionsOf())
 
     // Initialize OpenAPI router
-    RouterBuilder.create(vertx, javaClass.getResource("swagger.yaml").toString()).onComplete { ar ->
+    RouterBuilder.create(vertx, "swagger.yaml").onComplete { ar ->
       if (ar.succeeded()) {
         // Spec loaded with success
         val routerBuilder = ar.result()
