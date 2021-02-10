@@ -3,5 +3,5 @@ kind: ConfigMap
 metadata:
   name: relays-communication-config
 data:
-  kafka_hostname: my-cluster-kafka-bootstrap.default.svc.cluster.local
+  kafka_hostname: my-cluster-kafka-bootstrap.kafka.svc.cluster.local
   kafka_port: "9092"

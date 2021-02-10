@@ -27,7 +27,6 @@ import io.vertx.reactivex.mqtt.messages.MqttPublishMessage
 import io.vertx.spi.cluster.hazelcast.HazelcastClusterManager
 import org.slf4j.LoggerFactory
 import java.net.InetAddress
-import java.net.UnknownHostException
 import java.time.Instant
 
 
@@ -40,7 +39,7 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
     internal const val INGESTION_TOPIC = "incoming.update"
     internal const val RELAYS_UPDATE_ADDRESS = "relays.update"
 
-    internal val MQTT_PORT = System.getenv().getOrDefault("MQTT_PORT", "8883").toInt()
+    internal val MQTT_PORT = System.getenv().getOrDefault("MQTT_PORT", "1883").toInt()
 
     private val MONGO_HOST: String = System.getenv().getOrDefault("MONGO_HOST", "localhost")
     internal val MONGO_PORT = System.getenv().getOrDefault("MONGO_PORT", "27017").toInt()
@@ -87,8 +86,12 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
     )
 
     // Initialize MongoDB
-    mongoClient =
-      MongoClient.createShared(vertx, jsonObjectOf("host" to MONGO_HOST, "port" to MONGO_PORT, "db_name" to "clients"))
+    mongoClient = MongoClient.createShared(
+      vertx, jsonObjectOf(
+        "host" to MONGO_HOST, "port" to MONGO_PORT, "db_name" to "clients", "username" to "biot",
+        "password" to "biot"
+      )
+    )
 
     val usernameField = "mqttUsername"
     val passwordField = "mqttPassword"
@@ -109,13 +112,11 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
       logger.info("Received relay update $json on event bus address $RELAYS_UPDATE_ADDRESS, sending it to client...")
       val mqttID: String = json["mqttID"]
 
-      // Remove the mqttID, as the relay already knows it
-      val jsonWithoutMqttID = json.copy().apply {
-        remove("mqttID")
-      }
+      // Clean the json from useless fields
+      val jsonClean = json.clean()
 
       // Send the message to the right relay on the MQTT topic "update.parameters"
-      clients[mqttID]?.let { client -> sendMessageTo(client, jsonWithoutMqttID, UPDATE_PARAMETERS_TOPIC) }
+      clients[mqttID]?.let { client -> sendMessageTo(client, jsonClean, UPDATE_PARAMETERS_TOPIC) }
     }
 
     // TODO MQTT on TLS

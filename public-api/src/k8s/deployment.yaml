@@ -16,6 +16,11 @@ spec:
       containers:
         - image: vertx-backend/public-api:latest
           name: public-api
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: hazelcast
+              containerPort: 5701
           env:
             - name: CRUD_HOST
               valueFrom:

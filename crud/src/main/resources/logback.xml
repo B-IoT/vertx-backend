@@ -15,7 +15,7 @@
   <logger name="org.apache.kafka" level="info"/>
   <logger name="com.hazelcast.level" level="info"/>
 
-  <root level="debug">
+  <root level="info">
     <appender-ref ref="STDOUT"/>
   </root>
 

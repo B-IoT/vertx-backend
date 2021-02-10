@@ -16,6 +16,11 @@ spec:
       containers:
         - image: vertx-backend/crud:latest
           name: crud
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: hazelcast
+              containerPort: 5701
           env:
             - name: MONGO_PORT
               valueFrom:

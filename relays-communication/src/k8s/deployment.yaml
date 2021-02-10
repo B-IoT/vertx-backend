@@ -16,6 +16,11 @@ spec:
       containers:
         - image: vertx-backend/relays-communication:latest
           name: relays-communication
+          ports:
+            - name: mqtt
+              containerPort: 1883
+            - name: hazelcast
+              containerPort: 5701
           env:
             - name: MONGO_HOST
               valueFrom:
