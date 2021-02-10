@@ -43,7 +43,7 @@ class CRUDVerticle : AbstractVerticle() {
 
     private const val RELAYS_UPDATE_ADDRESS = "relays.update"
 
-    internal val HTTP_PORT = System.getenv().getOrDefault("HTTP_PORT", "3000").toInt()
+    internal val HTTP_PORT = System.getenv().getOrDefault("HTTP_PORT", "8080").toInt()
 
     internal val MONGO_PORT = System.getenv().getOrDefault("MONGO_PORT", "27017").toInt()
     private val MONGO_HOST: String = System.getenv().getOrDefault("MONGO_HOST", "localhost")
@@ -125,7 +125,7 @@ class CRUDVerticle : AbstractVerticle() {
     pgPool = PgPool.pool(vertx, pgConnectOptions, poolOptionsOf())
 
     // Initialize OpenAPI router
-    RouterBuilder.create(vertx, "../swagger-api/swagger.yaml").onComplete { ar ->
+    RouterBuilder.create(vertx, javaClass.getResource("swagger.yaml").toString()).onComplete { ar ->
       if (ar.succeeded()) {
         // Spec loaded with success
         val routerBuilder = ar.result()
@@ -153,9 +153,13 @@ class CRUDVerticle : AbstractVerticle() {
         routerBuilder.operation("updateItem").handler(::updateItemHandler)
 
         val router: Router = routerBuilder.createRouter()
-        vertx.createHttpServer().requestHandler(router).listen(HTTP_PORT).onComplete {
-          startPromise?.complete()
-        }
+        vertx.createHttpServer().requestHandler(router).listen(HTTP_PORT)
+          .onSuccess {
+            logger.info("HTTP server listening on port $HTTP_PORT")
+            startPromise?.complete()
+          }.onFailure { error ->
+            startPromise?.fail(error.cause)
+          }
       } else {
         // Something went wrong during router builder initialization
         logger.error("Could not initialize router builder", ar.cause())

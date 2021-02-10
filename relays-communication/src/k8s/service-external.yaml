@@ -3,7 +3,7 @@ kind: Service
 metadata:
   labels:
     app: relays-communication
-  name: relays-communication
+  name: relays-communication-external
 spec:
   type: LoadBalancer
   selector:

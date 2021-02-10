@@ -23,22 +23,17 @@ spec:
                   name: crud-config
                   key: mongo_port
             - name: MONGO_HOST
-                valueFrom:
-                  configMapKeyRef:
-                    name: crud-config
-                    key: mongo_hostname
-            - name: TIMESCALE_PORT
-                valueFrom:
-                  configMapKeyRef:
-                    name: crud-config
-                    key: timescale_port
-            - name: TIMESCALE_HOST
-                valueFrom:
-                  configMapKeyRef:
-                    name: crud-config
-                    key: timescale_hostname
-            - name: HTTP_PORT
               valueFrom:
                 configMapKeyRef:
                   name: crud-config
-                  key: crud_port
+                  key: mongo_hostname
+            - name: TIMESCALE_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: crud-config
+                  key: timescale_port
+            - name: TIMESCALE_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: crud-config
+                  key: timescale_hostname

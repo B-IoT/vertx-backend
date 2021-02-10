@@ -4,8 +4,8 @@ metadata:
   name: crud-config
 data:
   crud_hostname: crud.default.svc.cluster.local
-  crud_port: "3000"
-  mongo_hostname: mongo.default.svc.cluster.local # TODO
+  crud_port: "8080"
+  mongo_hostname: biot-mongodb-svc.default.svc.cluster.local
   mongo_port: "27017"
-  timescale_hostname: timescale.default.svc.cluster.local # TODO
+  timescale_hostname: biot-timescaledb.default.svc.cluster.local
   timescale_port: "5432"

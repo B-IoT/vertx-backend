@@ -28,12 +28,12 @@ spec:
                   name: crud-config
                   key: mongo_port
             - name: KAFKA_HOST
-                valueFrom:
-                  configMapKeyRef:
-                    name: relays-communication-config
-                    key: kafka_hostname
+              valueFrom:
+                configMapKeyRef:
+                  name: relays-communication-config
+                  key: kafka_hostname
             - name: KAFKA_PORT
-                valueFrom:
-                  configMapKeyRef:
-                    name: relays-communication-config
-                    key: kafka_port
+              valueFrom:
+                configMapKeyRef:
+                  name: relays-communication-config
+                  key: kafka_port

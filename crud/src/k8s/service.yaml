@@ -11,6 +11,6 @@ spec:
     app: crud
   ports:
     - name: http
-      port: 3000
+      port: 8080
     - name: hazelcast
       port: 5701

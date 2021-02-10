@@ -4,7 +4,7 @@ metadata:
   labels:
     app: relays-communication
     vertx-backend: hazelcast
-  name: relays-communication
+  name: relays-communication-internal
 spec:
   type: ClusterIP
   selector:

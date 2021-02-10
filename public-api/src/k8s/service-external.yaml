@@ -3,11 +3,11 @@ kind: Service
 metadata:
   labels:
     app: public-api
-  name: public-api
+  name: public-api-external
 spec:
   type: LoadBalancer
   selector:
     app: public-api
   ports:
     - name: http
-      port: 4000
+      port: 8080

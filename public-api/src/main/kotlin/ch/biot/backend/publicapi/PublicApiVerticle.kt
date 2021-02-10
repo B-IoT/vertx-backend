@@ -38,7 +38,7 @@ class PublicApiVerticle : AbstractVerticle() {
     private const val OAUTH_PREFIX = "/oauth"
     private val CRUD_HOST: String = System.getenv().getOrDefault("CRUD_HOST", "localhost")
     private val CRUD_PORT: Int = System.getenv().getOrDefault("CRUD_PORT", "3000").toInt()
-    internal val PUBLIC_PORT = System.getenv().getOrDefault("PUBLIC_PORT", "4000").toInt()
+    internal val PUBLIC_PORT = System.getenv().getOrDefault("PUBLIC_PORT", "8080").toInt()
 
     internal val logger = LoggerFactory.getLogger(PublicApiVerticle::class.java)
 
@@ -125,9 +125,13 @@ class PublicApiVerticle : AbstractVerticle() {
 
     webClient = WebClient.create(vertx)
 
-    vertx.createHttpServer().requestHandler(router).listen(PUBLIC_PORT).onComplete {
-      startPromise?.complete()
-    }
+    vertx.createHttpServer().requestHandler(router).listen(PUBLIC_PORT)
+      .onSuccess {
+        logger.info("HTTP server listening on port $PUBLIC_PORT")
+        startPromise?.complete()
+      }.onFailure { error ->
+        startPromise?.fail(error.cause)
+      }
   }
 
   // Users

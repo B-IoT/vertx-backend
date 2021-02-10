@@ -1,0 +1,27 @@
+apiVersion: skaffold/v1
+kind: Config
+metadata:
+  name: vertx-backend
+build:
+  artifacts:
+    - image: vertx-backend/crud
+      jib:
+        type: gradle
+        project: crud
+      context: .
+    - image: vertx-backend/public-api
+      jib:
+        type: gradle
+        project: public-api
+      context: .
+    - image: vertx-backend/relays-communication
+      jib:
+        type: gradle
+        project: relays-communication
+      context: .
+deploy:
+  kubectl:
+    manifests:
+      - "crud/src/k8s/*.yaml"
+      - "public-api/src/k8s/*.yaml"
+      - "relays-communication/src/k8s/*.yaml"
