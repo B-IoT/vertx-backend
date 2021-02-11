@@ -6,6 +6,7 @@ metadata:
   name: relays-communication-external
 spec:
   type: LoadBalancer
+  loadBalancerIP: "34.78.12.162"
   selector:
     app: relays-communication
   ports:

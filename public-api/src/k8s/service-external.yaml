@@ -6,6 +6,7 @@ metadata:
   name: public-api-external
 spec:
   type: LoadBalancer
+  loadBalancerIP: "35.205.47.121"
   selector:
     app: public-api
   ports:
