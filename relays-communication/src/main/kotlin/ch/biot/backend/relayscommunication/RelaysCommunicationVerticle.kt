@@ -73,8 +73,6 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
   private lateinit var mongoAuth: MongoAuthentication
 
   override fun rxStart(): Completable {
-    // TODO update with real configuration
-
     // Initialize the Kafka producer
     kafkaProducer = KafkaProducer.create(
       vertx, mapOf(
