@@ -14,6 +14,12 @@ To build all JARs, use `./gradlew build` (it will also run the tests).
 
 To generate aggregated JaCoCo test coverage reports, first run all tests, then use `./gradlew jacocoRootReport`.
 
+If you have a local Kubernetes cluster (with MongoDB, TimescaleDB and Kafka running), you can use `skaffold dev` to locally deploy and run the backend in watch mode.
+
+## Deployment
+
+To build, push images to [Google Cloud Registry](https://console.cloud.google.com/gcr/images/dark-mark-304414?project=dark-mark-304414&authuser=1) and deploy to [Google Kubernetes Engine](https://console.cloud.google.com/kubernetes/list?authuser=1&project=dark-mark-304414), use `skaffold run -d eu.gcr.io/dark-mark-304414`.
+
 ## Architecture
 
 ![Architecture](documentation/architecture.png 'Backend architecture')
