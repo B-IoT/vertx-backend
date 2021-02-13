@@ -187,7 +187,7 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
      * Validates the JSON, returning true iff it contains all required fields.
      */
     fun validateJson(json: JsonObject): Boolean {
-      val keysToContain = listOf("relayID", "battery", "rssi", "mac", "isPushed")
+      val keysToContain = listOf("relayID", "rssi", "mac", "latitude", "longitude")
       return keysToContain.fold(true) { acc, curr ->
         acc && json.containsKey(curr)
       }
@@ -209,17 +209,17 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
           put("timestamp", Instant.now())
         }
 
-        val beaconMacAddress: String = message["mac"]
+        val relayID: String = message["relayID"]
 
         // Send the message to Kafka on the "incoming.update" topic
-        val record = KafkaProducerRecord.create(INGESTION_TOPIC, beaconMacAddress, kafkaMessage)
+        val record = KafkaProducerRecord.create(INGESTION_TOPIC, relayID, kafkaMessage)
         kafkaProducer.rxSend(record).subscribeBy(
           onSuccess = {
-            logger.info("Sent message $kafkaMessage with key '$beaconMacAddress' on topic '$INGESTION_TOPIC'")
+            logger.info("Sent message $kafkaMessage with key '$relayID' on topic '$INGESTION_TOPIC'")
           },
           onError = { error ->
             logger.error(
-              "Could not send message $kafkaMessage with key '$beaconMacAddress' on topic '$INGESTION_TOPIC'",
+              "Could not send message $kafkaMessage with key '$relayID' on topic '$INGESTION_TOPIC'",
               error
             )
           }

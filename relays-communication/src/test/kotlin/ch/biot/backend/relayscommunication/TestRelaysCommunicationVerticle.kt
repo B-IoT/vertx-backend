@@ -18,6 +18,7 @@ import io.vertx.core.json.JsonObject
 import io.vertx.junit5.VertxExtension
 import io.vertx.junit5.VertxTestContext
 import io.vertx.kotlin.core.json.get
+import io.vertx.kotlin.core.json.jsonArrayOf
 import io.vertx.kotlin.core.json.jsonObjectOf
 import io.vertx.kotlin.ext.auth.mongo.mongoAuthenticationOptionsOf
 import io.vertx.kotlin.ext.auth.mongo.mongoAuthorizationOptionsOf
@@ -171,8 +172,7 @@ class TestRelaysCommunicationVerticle {
               val expected = configuration.copy().apply {
                 remove("mqttID")
                 remove("mqttUsername")
-                remove("latitude")
-                remove("longitude")
+                remove("ledStatus")
               }
               expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
               testContext.completeNow()
@@ -187,7 +187,7 @@ class TestRelaysCommunicationVerticle {
   @Test
   @DisplayName("A MQTT client receives updates")
   fun clientReceivesUpdate(vertx: Vertx, testContext: VertxTestContext) {
-    val message = jsonObjectOf("ledStatus" to true, "mqttID" to "mqtt")
+    val message = jsonObjectOf("latitude" to 42.3, "mqttID" to "mqtt")
     mqttClient.rxConnect(RelaysCommunicationVerticle.MQTT_PORT, "localhost")
       .flatMap {
         mqttClient.publishHandler { msg ->
@@ -212,10 +212,10 @@ class TestRelaysCommunicationVerticle {
   fun mqttMessageIsIngested(testContext: VertxTestContext) {
     val message = jsonObjectOf(
       "relayID" to "abc",
-      "battery" to 10,
-      "rssi" to -60.0,
-      "mac" to "mac",
-      "isPushed" to false
+      "rssi" to jsonArrayOf(-60.0),
+      "mac" to jsonArrayOf("mac"),
+      "latitude" to 2.3,
+      "longitude" to 2.3
     )
 
     mqttClient.rxConnect(RelaysCommunicationVerticle.MQTT_PORT, "localhost")
@@ -237,17 +237,17 @@ class TestRelaysCommunicationVerticle {
       .toFlowable()
       .subscribe(
         { record ->
-          println(record)
           testContext.verify {
-            expectThat(record.key()).isEqualTo("mac")
+            val relayID = message.getString("relayID")
+            expectThat(record.key()).isEqualTo(relayID)
             val json = record.value()
             expect {
-              that(json.getString("relayID")).isEqualTo("abc")
+              that(json.getString("relayID")).isEqualTo(relayID)
               that(json.getString("timestamp")).isNotNull()
-              that(json.getInteger("battery")).isEqualTo(10)
-              that(json.getDouble("rssi")).isEqualTo(-60.0)
-              that(json.getString("mac")).isEqualTo("mac")
-              that(json.getBoolean("isPushed")).isEqualTo(false)
+              that(json.getJsonArray("rssi")).isEqualTo(message.getJsonArray("rssi"))
+              that(json.getJsonArray("mac")).isEqualTo(message.getJsonArray("mac"))
+              that(json.getDouble("latitude")).isEqualTo(message.getDouble("latitude"))
+              that(json.getDouble("longitude")).isEqualTo(message.getDouble("longitude"))
             }
             testContext.completeNow()
           }
