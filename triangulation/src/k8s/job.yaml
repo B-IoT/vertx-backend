@@ -1,0 +1,33 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: triangulation
+spec:
+  template:
+    spec:
+      containers:
+      - image: vertx-backend/triangulation:latest
+        name: triangulation
+        imagePullPolicy: IfNotPresent
+        env:
+          - name: KAFKA_PORT
+            valueFrom:
+              configMapKeyRef:
+                name: relays-communication-config
+                key: kafka_port
+          - name: KAFKA_HOST
+            valueFrom:
+              configMapKeyRef:
+                name: relays-communication-config
+                key: kafka_hostname
+          - name: TIMESCALE_PORT
+            valueFrom:
+              configMapKeyRef:
+                name: crud-config
+                key: timescale_port
+          - name: TIMESCALE_HOST
+            valueFrom:
+              configMapKeyRef:
+                name: crud-config
+                key: timescale_hostname
+      restartPolicy: Never
