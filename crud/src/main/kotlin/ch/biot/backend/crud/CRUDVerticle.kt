@@ -130,7 +130,7 @@ class CRUDVerticle : AbstractVerticle() {
         database = "biot",
         user = "biot",
         password = "biot",
-        sslMode= if (TIMESCALE_HOST != "localhost") SslMode.REQUIRE else null, // SSL is disable when testing
+        sslMode = if (TIMESCALE_HOST != "localhost") SslMode.REQUIRE else null, // SSL is disabled when testing
         trustAll = true,
         cachePreparedStatements = true
       )
@@ -165,6 +165,8 @@ class CRUDVerticle : AbstractVerticle() {
         routerBuilder.operation("updateItem").handler(::updateItemHandler)
 
         val router: Router = routerBuilder.createRouter()
+        router.get("/health").handler(::healthCheck)
+
         vertx.createHttpServer().requestHandler(router).listen(HTTP_PORT)
           .onSuccess {
             logger.info("HTTP server listening on port $HTTP_PORT")
@@ -177,6 +179,15 @@ class CRUDVerticle : AbstractVerticle() {
         logger.error("Could not initialize router builder", ar.cause())
       }
     }
+  }
+
+  // Health check
+
+  private fun healthCheck(ctx: RoutingContext) {
+    logger.info("Health check")
+    ctx.response()
+      .putHeader("Content-Type", "application/json")
+      .end(jsonObjectOf("status" to "UP").encode())
   }
 
   // Relays handlers

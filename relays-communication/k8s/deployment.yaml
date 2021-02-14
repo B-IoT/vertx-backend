@@ -8,6 +8,11 @@ spec:
   selector:
     matchLabels:
       app: relays-communication
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
   template:
     metadata:
       labels:

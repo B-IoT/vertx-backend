@@ -90,7 +90,7 @@ class PublicApiVerticle : AbstractVerticle() {
     // CORS allowed headers and methods
     val allowedHeaders =
       setOf("x-requested-with", "Access-Control-Allow-Origin", "origin", "Content-Type", "accept", "Authorization")
-    val allowedMethods = setOf(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT)
+    val allowedMethods = setOf(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT, HttpMethod.DELETE)
 
     router.route().handler(CorsHandler.create("*").allowedHeaders(allowedHeaders).allowedMethods(allowedMethods))
 
@@ -123,6 +123,10 @@ class PublicApiVerticle : AbstractVerticle() {
 
     // TODO Analytics
 
+    // Health checks
+    router.get("/health/ready").handler(::readinessCheck)
+    router.get("/health/live").handler(::livenessCheck)
+
     webClient = WebClient.create(vertx)
 
     vertx.createHttpServer().requestHandler(router).listen(PUBLIC_PORT)
@@ -132,6 +136,37 @@ class PublicApiVerticle : AbstractVerticle() {
       }.onFailure { error ->
         startPromise?.fail(error.cause)
       }
+  }
+
+  // Health checks
+
+  private fun readinessCheck(ctx: RoutingContext) {
+    webClient
+      .get(CRUD_PORT, CRUD_HOST, "/health")
+      .expect(ResponsePredicate.SC_OK)
+      .timeout(TIMEOUT)
+      .send()
+      .onSuccess {
+        logger.info("Readiness check complete")
+        ctx.response()
+          .putHeader("Content-Type", "application/json")
+          .end(jsonObjectOf("status" to "UP").encode())
+      }
+      .onFailure { error ->
+        val cause = error.cause
+        logger.error("Readiness check failed", cause)
+        ctx.response()
+          .setStatusCode(503)
+          .putHeader("Content-Type", "application/json")
+          .end(jsonObjectOf("status" to "DOWN", "reason" to cause?.message).encode())
+      }
+  }
+
+  private fun livenessCheck(ctx: RoutingContext) {
+    logger.info("Liveness check")
+    ctx.response()
+      .putHeader("Content-Type", "application/json")
+      .end(jsonObjectOf("status" to "UP").encode())
   }
 
   // Users

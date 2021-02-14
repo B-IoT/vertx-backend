@@ -8,6 +8,11 @@ spec:
   selector:
     matchLabels:
       app: crud
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
   template:
     metadata:
       labels:
@@ -42,3 +47,10 @@ spec:
                 configMapKeyRef:
                   name: crud-config
                   key: timescale_hostname
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            timeoutSeconds: 5
