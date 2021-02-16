@@ -1,18 +1,143 @@
 from confluent_kafka import Consumer, KafkaError, KafkaException
 from decouple import config
+import asyncio
+import asyncpg
 import sys
 import orjson
+import numpy as np
+import pandas as pd
 
 
 MIN_COMMIT_COUNT = 5
 TOPIC = "incoming.update"
 KAFKA_HOST = config("KAFKA_HOST", default="localhost")
 KAFKA_PORT = config("KAFKA_PORT", default=9092, cast=int)
+TIMESCALE_HOST = config("TIMESCALE_HOST", default="localhost")
+TIMESCALE_PORT = config("TIMESCALE_PORT", default=5432, cast=int)
+
+connectivity_df = pd.DataFrame()
+relay_df = pd.DataFrame(index=["lat", "long"])
 
 
-def store_beacons_data(data):
-    # TODO with asyncpg
-    pass
+def lat_to_meters(lat1, lon1, lat2, lon2):
+    """
+    Converts lat distance to meters.
+    """
+    R = 6378.137  # Radius of earth in KM
+    prod = np.pi / 180
+    dLat = (lat2 - lat1) * prod
+    dLon = (lon2 - lon1) * prod
+    a = (
+        np.sin(dLat / 2) ** 2
+        + np.cos(lat1 * prod) * np.cos(lat2 * prod) * np.sin(dLon / 2) ** 2
+    )
+    c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
+    d = R * c
+    return d * 1000  # meters
+
+
+def db_to_meters(RSSI, measure_ref, N):
+    """
+    Converts dB to meters.
+    """
+    d = 10 ** ((measure_ref - RSSI) / (10 * N))
+    return d
+
+
+def triangulate(relay_id, data):
+    relay_df[relay_id] = [data["latitude"], data["longitude"]]
+
+    beacons = data["mac"]
+    relay = pd.DataFrame(index=["RSSI", "tx", "ref"], columns=beacons)
+    relay.loc["RSSI"] = data["rssi"]
+    relay.loc["tx"] = 6
+    relay.loc["ref"] = -69
+    relay.loc["dist"] = db_to_meters(
+        relay.loc["RSSI"], relay.loc["ref"], relay.loc["tx"]
+    )
+
+    connectivity_df[relay_id] = relay.loc["dist"]
+
+    updated_beacon = connectivity_df[~connectivity_df.loc[:, relay_id].isnull()].index
+
+    # Triangulation of each beacon
+    coordinates = []
+    for i in range(len(updated_beacon)):
+
+        # Defining a temporary df for the data of the beacon
+        temp_df = pd.DataFrame(
+            connectivity_df.loc[beacons[i], :][connectivity_df.loc[beacons[i], :] > 0]
+        )
+        temp_df = temp_df.reset_index().rename(
+            columns={"index": "relay", beacons[i]: "dist"}
+        )
+        # We'll only use the 5 closest relays to the beacon
+        temp_df = temp_df.sort_values("dist", axis=0, ascending=True).iloc[:5, :]
+
+        # Case where multiple relays detect the beacon
+        lat = []
+        long = []
+        length = len(temp_df)
+        if length > 1:
+            print("Starting triangulation...")
+            for relay_1 in range(length - 1):
+                for relay_2 in range(relay_1 + 1, length):
+                    # Making a vector between the 2 gateways
+                    rel_1 = temp_df.loc[relay_1, "relay"]
+                    rel_2 = temp_df.loc[relay_2, "relay"]
+                    vect_lat = relay_df.loc["lat", rel_2] - relay_df.loc["lat", rel_1]
+                    vect_long = (
+                        relay_df.loc["long", rel_2] - relay_df.loc["long", rel_1]
+                    )
+
+                    # Calculating the distance between the 2 gateways in meter
+                    dist = lat_to_meters(
+                        relay_df.loc["lat", rel_1],
+                        relay_df.loc["long", rel_1],
+                        relay_df.loc["lat", rel_2],
+                        relay_df.loc["long", rel_2],
+                    )
+
+                    # Applying proportionality rule from the origin on the vector to determine the position of the beacon in lat;long coord
+                    # ie: x1 = x0 + (dist_beacon/dist_tot) * vector_length
+
+                    dist_1 = temp_df.loc[relay_1, "dist"]
+                    lat.append(relay_df.loc["lat", rel_1] + (dist_1 / dist) * vect_lat)
+                    long.append(
+                        relay_df.loc["long", rel_1] + (dist_1 / dist) * vect_long
+                    )
+
+            coordinates.append(
+                (beacons[i], 10, "available", np.mean(lat), np.mean(long))
+            )
+        elif len(temp_df) == 1:
+            print("Only detected once, low accuracy!")
+        else:
+            print("Not detected")
+
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(store_beacons_data(coordinates))
+
+
+async def store_beacons_data(data):
+    """
+    Stores the beacons' data in TimescaleDB.
+    Data must be an array of tuples of the following form: ("aa:aa:aa:aa:aa:aa", 10, "available", 2.3, 3.2).
+    """
+    async with asyncpg.create_pool(
+        host=TIMESCALE_HOST,
+        port=TIMESCALE_PORT,
+        ssl="require",
+        database="biot",
+        user="biot",
+        password="biot",
+    ) as pool:
+        async with pool.acquire() as conn:
+            stmt = await conn.prepare(
+                """INSERT INTO beacon_data (time, mac, battery, status, latitude, longitude) VALUES (NOW(), $1, $2, $3, $4, $5);"""
+            )
+            await stmt.executemany(data)
+            print("New data inserted")
 
 
 def commit_completed(err, _):
@@ -47,7 +172,7 @@ def consume_loop(consumer, topics):
                 print(f"  Key = {key}")
                 print(f"  Value = {value}")
 
-                # TODO here triangulate
+                triangulate(key, value)
 
                 msg_count += 1
                 if msg_count % MIN_COMMIT_COUNT == 0:

@@ -5,13 +5,14 @@ from decouple import config
 TIMESCALE_HOST = config("TIMESCALE_HOST", default="localhost")
 TIMESCALE_PORT = config("TIMESCALE_PORT", default=5432, cast=int)
 
-"""
-data must be an array of tuples of the following form:
-("aa:aa:aa:aa:aa:aa", 10, "available", 2.3, 3.2)
-"""
+
 
 
 async def f(data):
+    """
+data must be an array of tuples of the following form:
+("aa:aa:aa:aa:aa:aa", 10, "available", 2.3, 3.2)
+"""
     async with asyncpg.create_pool(
         host=TIMESCALE_HOST,
         port=TIMESCALE_PORT,
