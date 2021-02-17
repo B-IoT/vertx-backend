@@ -18,16 +18,27 @@ if __name__ == "__main__":
 
     producer = Producer(conf)
 
-    msg = orjson.dumps(
+    msg1 = orjson.dumps(
         {
             "relayID": "123",
-            "rssi": [-60.0],
+            "rssi": [-40.0],
             "mac": ["mac"],
-            "latitude": 2.3,
-            "longitude": 2.3,
+            "latitude": 42.34,
+            "longitude": 2.32,
             "timestamp": "timestamp",
         }
     )
-    producer.produce("incoming.update", key="key", value=msg, callback=acked)
+    msg2 = orjson.dumps(
+        {
+            "relayID": "124",
+            "rssi": [-60.0],
+            "mac": ["mac"],
+            "latitude": 42.33,
+            "longitude": 2.33,
+            "timestamp": "timestamp",
+        }
+    )
+    producer.produce("incoming.update", key="123", value=msg1, callback=acked)
+    producer.produce("incoming.update", key="124", value=msg2, callback=acked)
 
     producer.poll(1)

@@ -11,7 +11,7 @@ COPY requirements.txt .
 RUN pip install -r requirements.txt
 
 # copy the content of the local directory to the working directory
-COPY src/ .
+COPY src/triangulation.py .
 
 # command to run on container start
-CMD [ "python", "./db.py" ]
+CMD [ "python", "./triangulation.py" ]

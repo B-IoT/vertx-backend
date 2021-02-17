@@ -44,6 +44,26 @@ def db_to_meters(RSSI, measure_ref, N):
     return d
 
 
+async def store_beacons_data(data):
+    """
+    Stores the beacons' data in TimescaleDB.
+    Data must be an array of tuples of the following form: ("aa:aa:aa:aa:aa:aa", 10, "available", 2.3, 3.2).
+    """
+    async with asyncpg.create_pool(
+        host=TIMESCALE_HOST,
+        port=TIMESCALE_PORT,
+        database="biot",
+        user="biot",
+        password="biot",
+    ) as pool:
+        async with pool.acquire() as conn:
+            stmt = await conn.prepare(
+                """INSERT INTO beacon_data (time, mac, battery, status, latitude, longitude) VALUES (NOW(), $1, $2, $3, $4, $5);"""
+            )
+            await stmt.executemany(data)
+            print("  New beacons' data inserted in DB")
+
+
 def triangulate(relay_id, data):
     relay_df[relay_id] = [data["latitude"], data["longitude"]]
 
@@ -63,25 +83,27 @@ def triangulate(relay_id, data):
     # Triangulation of each beacon
     coordinates = []
     for i in range(len(updated_beacon)):
+        beacon = beacons[i]
 
-        # Defining a temporary df for the data of the beacon
+        # Temporary df for the data of the beacon
         temp_df = pd.DataFrame(
-            connectivity_df.loc[beacons[i], :][connectivity_df.loc[beacons[i], :] > 0]
+            connectivity_df.loc[beacon, :][connectivity_df.loc[beacon, :] > 0]
         )
         temp_df = temp_df.reset_index().rename(
-            columns={"index": "relay", beacons[i]: "dist"}
+            columns={"index": "relay", beacon: "dist"}
         )
-        # We'll only use the 5 closest relays to the beacon
+        # Only use the 5 closest relays to the beacon
         temp_df = temp_df.sort_values("dist", axis=0, ascending=True).iloc[:5, :]
 
-        # Case where multiple relays detect the beacon
         lat = []
         long = []
-        length = len(temp_df)
-        if length > 1:
-            print("Starting triangulation...")
-            for relay_1 in range(length - 1):
-                for relay_2 in range(relay_1 + 1, length):
+        nb_relays = len(temp_df)
+        if nb_relays > 1:
+            print(
+                f"  Beacon '{beacon}' detected by {nb_relays} relays, starting triangulation..."
+            )
+            for relay_1 in range(nb_relays - 1):
+                for relay_2 in range(relay_1 + 1, nb_relays):
                     # Making a vector between the 2 gateways
                     rel_1 = temp_df.loc[relay_1, "relay"]
                     rel_2 = temp_df.loc[relay_2, "relay"]
@@ -107,45 +129,30 @@ def triangulate(relay_id, data):
                         relay_df.loc["long", rel_1] + (dist_1 / dist) * vect_long
                     )
 
-            coordinates.append(
-                (beacons[i], 10, "available", np.mean(lat), np.mean(long))
-            )
+            coordinates.append((beacon, 10, "available", np.mean(lat), np.mean(long)))
+            print("  Triangulation done")
         elif len(temp_df) == 1:
-            print("Only detected once, low accuracy!")
+            print(f"  Beacon '{beacon}' detected by only one relay, skipping!")
         else:
-            print("Not detected")
+            print(f"  Beacon '{beacon}' not detected")
 
+    if coordinates:
         loop = asyncio.get_event_loop()
         loop.run_until_complete(store_beacons_data(coordinates))
 
 
-async def store_beacons_data(data):
-    """
-    Stores the beacons' data in TimescaleDB.
-    Data must be an array of tuples of the following form: ("aa:aa:aa:aa:aa:aa", 10, "available", 2.3, 3.2).
-    """
-    async with asyncpg.create_pool(
-        host=TIMESCALE_HOST,
-        port=TIMESCALE_PORT,
-        ssl="require",
-        database="biot",
-        user="biot",
-        password="biot",
-    ) as pool:
-        async with pool.acquire() as conn:
-            stmt = await conn.prepare(
-                """INSERT INTO beacon_data (time, mac, battery, status, latitude, longitude) VALUES (NOW(), $1, $2, $3, $4, $5);"""
-            )
-            await stmt.executemany(data)
-            print("New data inserted")
-
-
 def commit_completed(err, _):
+    """
+    Callack on commit completed.
+    """
     if err:
         print(str(err))
 
 
 def consume_loop(consumer, topics):
+    """
+    Starts consuming messages from the given topics using the given consumer.
+    """
     try:
         consumer.subscribe(topics)
 
@@ -188,12 +195,13 @@ if __name__ == "__main__":
             "bootstrap.servers": f"{KAFKA_HOST}:{KAFKA_PORT}",
             "group.id": "triangulation-client",
             "on_commit": commit_completed,
-            "auto.offset.reset": "earliest",
+            "auto.offset.reset": "latest",
+            "allow.auto.create.topics": "true"
         }
 
         consumer = Consumer(conf)
 
-        print(f"Starting consume loop on topic '{TOPIC}'")
+        print(f"Starting Kafka consumer loop on topic '{TOPIC}'...")
         consume_loop(consumer, [TOPIC])
     except KeyboardInterrupt:
-        print("\nStopped consumer")
+        print("\nStopped consumer!")
