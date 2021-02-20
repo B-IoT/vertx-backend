@@ -4,7 +4,6 @@
 
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import org.gradle.api.tasks.testing.logging.TestLogEvent.*
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 version = "1.0.0-SNAPSHOT"
 
@@ -85,7 +84,7 @@ jib {
   container {
     mainClass = mainVerticleName
     jvmFlags = listOf("-noverify", "-Djava.security.egd=file:/dev/./urandom")
-    ports = listOf("1883", "5701")
+    ports = listOf("1883", "1884", "1885", "5701")
     user = "nobody:nobody"
   }
 }

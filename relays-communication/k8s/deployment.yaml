@@ -24,6 +24,10 @@ spec:
           ports:
             - name: mqtt
               containerPort: 1883
+            - name: liveness
+              containerPort: 1884
+            - name: readiness
+              containerPort: 1885
             - name: hazelcast
               containerPort: 5701
           env:
@@ -47,3 +51,15 @@ spec:
                 configMapKeyRef:
                   name: relays-communication-config
                   key: kafka_port
+          livenessProbe:
+            tcpSocket:
+              port: 1884
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 5
+          readinessProbe:
+            tcpSocket:
+              port: 1885
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5

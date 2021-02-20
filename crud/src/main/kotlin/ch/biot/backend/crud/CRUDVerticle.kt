@@ -165,7 +165,8 @@ class CRUDVerticle : AbstractVerticle() {
         routerBuilder.operation("updateItem").handler(::updateItemHandler)
 
         val router: Router = routerBuilder.createRouter()
-        router.get("/health").handler(::healthCheck)
+        router.get("/health/live").handler(::livenessCheck)
+        router.get("/health/ready").handler(::readinessCheck)
 
         vertx.createHttpServer().requestHandler(router).listen(HTTP_PORT)
           .onSuccess {
@@ -181,10 +182,17 @@ class CRUDVerticle : AbstractVerticle() {
     }
   }
 
-  // Health check
+  // Health checks
 
-  private fun healthCheck(ctx: RoutingContext) {
-    logger.info("Health check")
+  private fun livenessCheck(ctx: RoutingContext) {
+    logger.info("Liveness check")
+    ctx.response()
+      .putHeader("Content-Type", "application/json")
+      .end(jsonObjectOf("status" to "UP").encode())
+  }
+
+  private fun readinessCheck(ctx: RoutingContext) {
+    logger.info("Readiness check complete")
     ctx.response()
       .putHeader("Content-Type", "application/json")
       .end(jsonObjectOf("status" to "UP").encode())

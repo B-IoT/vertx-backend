@@ -100,7 +100,12 @@ class PublicApiVerticle : AbstractVerticle() {
     }
 
     // Users
-    router.post("$OAUTH_PREFIX/register").handler(::registerUserHandler)
+    router.post("$OAUTH_PREFIX/register")
+      .handler(
+        CorsHandler.create("((http://)|(https://))localhost\\:\\d+").allowedHeaders(allowedHeaders)
+          .allowedMethods(setOf(HttpMethod.POST))
+      )
+      .handler(::registerUserHandler)
     router.post("$OAUTH_PREFIX/token").handler(::tokenHandler)
     router.put("$API_PREFIX/users/:id").handler(jwtAuthHandler).handler(::updateUserHandler)
     router.get("$API_PREFIX/users").handler(jwtAuthHandler).handler(::getUsersHandler)
@@ -142,7 +147,7 @@ class PublicApiVerticle : AbstractVerticle() {
 
   private fun readinessCheck(ctx: RoutingContext) {
     webClient
-      .get(CRUD_PORT, CRUD_HOST, "/health")
+      .get(CRUD_PORT, CRUD_HOST, "/health/ready")
       .expect(ResponsePredicate.SC_OK)
       .timeout(TIMEOUT)
       .send()

@@ -46,6 +46,9 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
     private val KAFKA_HOST: String = System.getenv().getOrDefault("KAFKA_HOST", "localhost")
     internal val KAFKA_PORT = System.getenv().getOrDefault("KAFKA_PORT", "9092").toInt()
 
+    private const val LIVENESS_PORT = 1884
+    private const val READINESS_PORT = 1885
+
     private val logger = LoggerFactory.getLogger(RelaysCommunicationVerticle::class.java)
 
     @JvmStatic
@@ -116,8 +119,18 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
       clients[mqttID]?.let { client -> sendMessageTo(client, jsonClean) }
     }
 
+    // TCP server for liveness checks
+    vertx.createNetServer().connectHandler {
+      logger.info("Liveness check")
+    }.rxListen(LIVENESS_PORT).subscribe()
+
     // TODO MQTT on TLS
-    return MqttServer.create(vertx).endpointHandler(::handleClient).rxListen(MQTT_PORT).ignoreElement()
+    return MqttServer.create(vertx).endpointHandler(::handleClient).rxListen(MQTT_PORT).doOnSuccess {
+      logger.info("MQTT server listening on port $MQTT_PORT")
+      vertx.createNetServer().connectHandler {
+        logger.info("Readiness check complete")
+      }.rxListen(READINESS_PORT).subscribe()
+    }.ignoreElement()
   }
 
   private fun handleClient(client: MqttEndpoint) {
