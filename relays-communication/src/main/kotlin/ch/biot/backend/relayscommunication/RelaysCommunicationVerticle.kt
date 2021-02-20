@@ -186,7 +186,7 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
      * Validates the JSON, returning true iff it contains all required fields.
      */
     fun validateJson(json: JsonObject): Boolean {
-      val keysToContain = listOf("relayID", "rssi", "mac", "latitude", "longitude")
+      val keysToContain = listOf("relayID", "rssi", "mac", "latitude", "longitude", "floor")
       return keysToContain.fold(true) { acc, curr ->
         acc && json.containsKey(curr)
       }

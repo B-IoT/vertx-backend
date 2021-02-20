@@ -4,7 +4,7 @@ db.createUser({
     roles: [
         {role: "dbAdmin", db: "clients"},
         {role: "readWrite", db: "clients"}
-        ]
+    ]
 });
 
 db.createCollection("relays");

@@ -214,7 +214,8 @@ class TestRelaysCommunicationVerticle {
       "rssi" to jsonArrayOf(-60.0),
       "mac" to jsonArrayOf("mac"),
       "latitude" to 2.3,
-      "longitude" to 2.3
+      "longitude" to 2.3,
+      "floor" to 1
     )
 
     mqttClient.rxConnect(RelaysCommunicationVerticle.MQTT_PORT, "localhost")
@@ -247,6 +248,7 @@ class TestRelaysCommunicationVerticle {
               that(json.getJsonArray("mac")).isEqualTo(message.getJsonArray("mac"))
               that(json.getDouble("latitude")).isEqualTo(message.getDouble("latitude"))
               that(json.getDouble("longitude")).isEqualTo(message.getDouble("longitude"))
+              that(json.getInteger("floor")).isEqualTo(message.getInteger("floor"))
             }
             testContext.completeNow()
           }
