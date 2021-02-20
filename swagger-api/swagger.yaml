@@ -383,6 +383,8 @@ components:
         longitude:
           type: number
           format: double
+        floor:
+          type: integer
         lastModified:
           type: string
           format: date-time
@@ -409,6 +411,8 @@ components:
         longitude:
           type: number
           format: double
+        floor:
+          type: integer
         wifi:
           $ref: '#/components/schemas/Relay_wifi'
       description: A relay to register
@@ -423,6 +427,8 @@ components:
         longitude:
           type: number
           format: double
+        floor:
+          type: integer
         wifi:
           $ref: '#/components/schemas/Relay_wifi'
         beacon:
