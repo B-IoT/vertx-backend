@@ -35,7 +35,6 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
   companion object {
     internal const val RELAYS_COLLECTION = "relays"
     internal const val UPDATE_PARAMETERS_TOPIC = "update.parameters"
-    internal const val LAST_CONFIGURATION_TOPIC = "last.configuration"
     internal const val INGESTION_TOPIC = "incoming.update"
     internal const val RELAYS_UPDATE_ADDRESS = "relays.update"
 
@@ -114,7 +113,7 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
       val jsonClean = json.clean()
 
       // Send the message to the right relay on the MQTT topic "update.parameters"
-      clients[mqttID]?.let { client -> sendMessageTo(client, jsonClean, UPDATE_PARAMETERS_TOPIC) }
+      clients[mqttID]?.let { client -> sendMessageTo(client, jsonClean) }
     }
 
     // TODO MQTT on TLS
@@ -243,7 +242,7 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
 
           // Remove useless fields and clean lastModified, then send
           val cleanConfig = config.clean()
-          sendMessageTo(client, cleanConfig, LAST_CONFIGURATION_TOPIC)
+          sendMessageTo(client, cleanConfig)
         }
       },
       onError = { error ->
@@ -253,18 +252,18 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
   }
 
   /**
-   * Sends the given message to the given client on the given MQTT topic.
+   * Sends the given message to the given client on the "update.parameters" MQTT topic.
    */
-  private fun sendMessageTo(client: MqttEndpoint, message: JsonObject, topic: String) {
+  private fun sendMessageTo(client: MqttEndpoint, message: JsonObject) {
     client.publishAcknowledgeHandler { messageId ->
       logger.info("Received ack for message $messageId")
-    }.rxPublish(topic, Buffer.newInstance(message.toBuffer()), MqttQoS.AT_LEAST_ONCE, false, false)
+    }.rxPublish(UPDATE_PARAMETERS_TOPIC, Buffer.newInstance(message.toBuffer()), MqttQoS.AT_LEAST_ONCE, false, false)
       .subscribeBy(
         onSuccess = { messageId ->
-          logger.info("Published message $message with id $messageId to client ${client.clientIdentifier()} on topic $topic")
+          logger.info("Published message $message with id $messageId to client ${client.clientIdentifier()} on topic $UPDATE_PARAMETERS_TOPIC")
         },
         onError = { error ->
-          logger.error("Could not send message $message on topic $topic", error)
+          logger.error("Could not send message $message on topic $UPDATE_PARAMETERS_TOPIC", error)
         }
       )
   }

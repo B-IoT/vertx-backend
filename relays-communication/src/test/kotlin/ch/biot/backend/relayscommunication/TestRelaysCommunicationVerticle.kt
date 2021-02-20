@@ -6,7 +6,6 @@ package ch.biot.backend.relayscommunication
 
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.INGESTION_TOPIC
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.KAFKA_PORT
-import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.LAST_CONFIGURATION_TOPIC
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.MONGO_PORT
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.RELAYS_COLLECTION
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.RELAYS_UPDATE_ADDRESS
@@ -167,7 +166,7 @@ class TestRelaysCommunicationVerticle {
     mqttClient.rxConnect(RelaysCommunicationVerticle.MQTT_PORT, "localhost")
       .flatMap {
         mqttClient.publishHandler { msg ->
-          if (msg.topicName() == LAST_CONFIGURATION_TOPIC) {
+          if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
             testContext.verify {
               val expected = configuration.copy().apply {
                 remove("mqttID")
@@ -178,7 +177,7 @@ class TestRelaysCommunicationVerticle {
               testContext.completeNow()
             }
           }
-        }.rxSubscribe(LAST_CONFIGURATION_TOPIC, MqttQoS.AT_LEAST_ONCE.value())
+        }.rxSubscribe(UPDATE_PARAMETERS_TOPIC, MqttQoS.AT_LEAST_ONCE.value())
       }.subscribeBy(
         onError = testContext::failNow
       )
