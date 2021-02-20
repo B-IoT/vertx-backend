@@ -51,7 +51,11 @@ paths:
               $ref: '#/components/schemas/RelayRegisterInfo'
       responses:
         "200":
-          description: successfully registered relay
+          description: the registered relay
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Relay'
   /relays/{id}:
     get:
       tags:
@@ -93,7 +97,11 @@ paths:
               $ref: '#/components/schemas/RelayUpdateInfo'
       responses:
         "200":
-          description: successfully updated relay
+          description: the updated relay
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Relay'
     delete:
       tags:
       - Relay
@@ -155,7 +163,11 @@ paths:
               $ref: '#/components/schemas/UserRegisterInfo'
       responses:
         "200":
-          description: successfully registered user
+          description: the registered user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
   /users/authenticate:
     post:
       tags:
@@ -217,7 +229,11 @@ paths:
               $ref: '#/components/schemas/UserUpdateInfo'
       responses:
         "200":
-          description: successfully updated user
+          description: the updated user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
     delete:
       tags:
       - User
@@ -279,12 +295,11 @@ paths:
               $ref: '#/components/schemas/ItemRegisterInfo'
       responses:
         "200":
-          description: successfully registered item
+          description: the registered item
           content:
-            text/plain:
+            application/json:
               schema:
-                type: integer
-                description: the id of the registered item
+                $ref: '#/components/schemas/Item'
   /items/{id}:
     get:
       tags:
@@ -328,7 +343,11 @@ paths:
               $ref: '#/components/schemas/ItemUpdateInfo'
       responses:
         "200":
-          description: successfully updated item
+          description: the updated item
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Item'
     delete:
       tags:
       - Item
@@ -364,6 +383,8 @@ components:
         longitude:
           type: number
           format: double
+        floor:
+          type: integer
         lastModified:
           type: string
           format: date-time
@@ -390,6 +411,8 @@ components:
         longitude:
           type: number
           format: double
+        floor:
+          type: integer
         wifi:
           $ref: '#/components/schemas/Relay_wifi'
       description: A relay to register
@@ -404,6 +427,8 @@ components:
         longitude:
           type: number
           format: double
+        floor:
+          type: integer
         wifi:
           $ref: '#/components/schemas/Relay_wifi'
         beacon:
