@@ -137,10 +137,10 @@ class PublicApiVerticle : AbstractVerticle() {
     webClient = WebClient.create(vertx)
 
     vertx.createHttpServer(
-//      httpServerOptionsOf(
-//        ssl = true,
-//        pemKeyCertOptions = pemKeyCertOptionsOf(certPath = "certificate.pem", keyPath = "certificate_key.pem")
-//      )
+      httpServerOptionsOf(
+        ssl = true,
+        pemKeyCertOptions = pemKeyCertOptionsOf(certPath = "certificate.pem", keyPath = "certificate_key.pem")
+      )
     ).requestHandler(router).listen(PUBLIC_PORT)
       .onSuccess {
         logger.info("HTTP server listening on port $PUBLIC_PORT")

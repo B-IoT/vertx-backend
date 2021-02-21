@@ -43,7 +43,7 @@ spec:
             httpGet:
               path: /health/live
               port: 8080
-#              scheme: HTTPS
+              scheme: HTTPS
             initialDelaySeconds: 60
             periodSeconds: 15
             timeoutSeconds: 5
@@ -51,7 +51,7 @@ spec:
             httpGet:
               path: /health/ready
               port: 8080
-#              scheme: HTTPS
+              scheme: HTTPS
             initialDelaySeconds: 10
             periodSeconds: 10
             timeoutSeconds: 5
