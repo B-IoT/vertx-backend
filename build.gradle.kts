@@ -21,7 +21,7 @@ allprojects {
     extra["logbackClassicVersion"] = "1.2.3"
     extra["testContainersVersion"] = "1.15.0"
     extra["restAssuredVersion"] = "4.3.2"
-    extra["striktVersion"] = "0.28.1"
+    extra["striktVersion"] = "0.29.0"
     extra["rxKotlinVersion"] = "2.4.0"
     extra["hazelcastVersion"] = "2.0.1"
 }
