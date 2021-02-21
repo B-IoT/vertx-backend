@@ -138,7 +138,7 @@ class PublicApiVerticle : AbstractVerticle() {
 
     vertx.createHttpServer(
       httpServerOptionsOf(
-        ssl = true,
+        ssl = CRUD_HOST != "localhost", // disabled when testing
         pemKeyCertOptions = pemKeyCertOptionsOf(certPath = "certificate.pem", keyPath = "certificate_key.pem")
       )
     ).requestHandler(router).listen(PUBLIC_PORT)
