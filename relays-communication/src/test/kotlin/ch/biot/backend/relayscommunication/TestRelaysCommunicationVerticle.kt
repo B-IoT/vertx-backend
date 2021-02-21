@@ -188,11 +188,14 @@ class TestRelaysCommunicationVerticle {
   fun clientReceivesUpdate(vertx: Vertx, testContext: VertxTestContext) {
     val message = jsonObjectOf("latitude" to 42.3, "mqttID" to "mqtt")
     mqttClient.publishHandler { msg ->
-      if (msg.topicName() == UPDATE_PARAMETERS_TOPIC && msg.messageId() == 1) { // only handle received message, not the one for the last configuration
-        testContext.verify {
-          val messageWithoutMqttID = message.copy().apply { remove("mqttID") }
-          expectThat(msg.payload().toJsonObject()).isEqualTo(messageWithoutMqttID)
-          testContext.completeNow()
+      if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
+        val json = msg.payload().toJsonObject()
+        if (!json.containsKey("relayID")) { // only handle received message, not the one for the last configuration
+          testContext.verify {
+            val messageWithoutMqttID = message.copy().apply { remove("mqttID") }
+            expectThat(json).isEqualTo(messageWithoutMqttID)
+            testContext.completeNow()
+          }
         }
       }
     }.rxConnect(RelaysCommunicationVerticle.MQTT_PORT, "localhost")
