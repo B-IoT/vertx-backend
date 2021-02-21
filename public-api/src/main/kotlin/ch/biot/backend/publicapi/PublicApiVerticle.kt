@@ -36,6 +36,13 @@ class PublicApiVerticle : AbstractVerticle() {
   companion object {
     private const val TIMEOUT: Long = 5000
 
+    private const val APPLICATION_JSON = "application/json"
+    private const val CONTENT_TYPE = "Content-Type"
+
+    private const val USERS_ENDPOINT = "users"
+    private const val RELAYS_ENDPOINT = "relays"
+    private const val ITEMS_ENDPOINT = "items"
+
     private const val API_PREFIX = "/api"
     private const val OAUTH_PREFIX = "/oauth"
     private val CRUD_HOST: String = System.getenv().getOrDefault("CRUD_HOST", "localhost")
@@ -91,7 +98,7 @@ class PublicApiVerticle : AbstractVerticle() {
 
     // CORS allowed headers and methods
     val allowedHeaders =
-      setOf("x-requested-with", "Access-Control-Allow-Origin", "origin", "Content-Type", "accept", "Authorization")
+      setOf("x-requested-with", "Access-Control-Allow-Origin", "origin", CONTENT_TYPE, "accept", "Authorization")
     val allowedMethods = setOf(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT, HttpMethod.DELETE)
 
     router.route().handler(CorsHandler.create("*").allowedHeaders(allowedHeaders).allowedMethods(allowedMethods))
@@ -109,24 +116,24 @@ class PublicApiVerticle : AbstractVerticle() {
       )
       .handler(::registerUserHandler)
     router.post("$OAUTH_PREFIX/token").handler(::tokenHandler)
-    router.put("$API_PREFIX/users/:id").handler(jwtAuthHandler).handler(::updateUserHandler)
-    router.get("$API_PREFIX/users").handler(jwtAuthHandler).handler(::getUsersHandler)
-    router.get("$API_PREFIX/users/:id").handler(jwtAuthHandler).handler(::getUserHandler)
-    router.delete("$API_PREFIX/users/:id").handler(jwtAuthHandler).handler(::deleteUserHandler)
+    router.put("$API_PREFIX/$USERS_ENDPOINT/:id").handler(jwtAuthHandler).handler(::updateUserHandler)
+    router.get("$API_PREFIX/$USERS_ENDPOINT").handler(jwtAuthHandler).handler(::getUsersHandler)
+    router.get("$API_PREFIX/$USERS_ENDPOINT/:id").handler(jwtAuthHandler).handler(::getUserHandler)
+    router.delete("$API_PREFIX/$USERS_ENDPOINT/:id").handler(jwtAuthHandler).handler(::deleteUserHandler)
 
     // Relays
-    router.post("$API_PREFIX/relays").handler(jwtAuthHandler).handler(::registerRelayHandler)
-    router.put("$API_PREFIX/relays/:id").handler(jwtAuthHandler).handler(::updateRelayHandler)
-    router.get("$API_PREFIX/relays").handler(jwtAuthHandler).handler(::getRelaysHandler)
-    router.get("$API_PREFIX/relays/:id").handler(jwtAuthHandler).handler(::getRelayHandler)
-    router.delete("$API_PREFIX/relays/:id").handler(jwtAuthHandler).handler(::deleteRelayHandler)
+    router.post("$API_PREFIX/$RELAYS_ENDPOINT").handler(jwtAuthHandler).handler(::registerRelayHandler)
+    router.put("$API_PREFIX/$RELAYS_ENDPOINT/:id").handler(jwtAuthHandler).handler(::updateRelayHandler)
+    router.get("$API_PREFIX/$RELAYS_ENDPOINT").handler(jwtAuthHandler).handler(::getRelaysHandler)
+    router.get("$API_PREFIX/$RELAYS_ENDPOINT/:id").handler(jwtAuthHandler).handler(::getRelayHandler)
+    router.delete("$API_PREFIX/$RELAYS_ENDPOINT/:id").handler(jwtAuthHandler).handler(::deleteRelayHandler)
 
     // Items
-    router.post("$API_PREFIX/items").handler(jwtAuthHandler).handler(::registerItemHandler)
-    router.put("$API_PREFIX/items/:id").handler(jwtAuthHandler).handler(::updateItemHandler)
-    router.get("$API_PREFIX/items").handler(jwtAuthHandler).handler(::getItemsHandler)
-    router.get("$API_PREFIX/items/:id").handler(jwtAuthHandler).handler(::getItemHandler)
-    router.delete("$API_PREFIX/items/:id").handler(jwtAuthHandler).handler(::deleteItemHandler)
+    router.post("$API_PREFIX/$ITEMS_ENDPOINT").handler(jwtAuthHandler).handler(::registerItemHandler)
+    router.put("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).handler(::updateItemHandler)
+    router.get("$API_PREFIX/$ITEMS_ENDPOINT").handler(jwtAuthHandler).handler(::getItemsHandler)
+    router.get("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).handler(::getItemHandler)
+    router.delete("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).handler(::deleteItemHandler)
 
     // TODO Analytics
 
@@ -161,7 +168,7 @@ class PublicApiVerticle : AbstractVerticle() {
       .onSuccess {
         logger.info("Readiness check complete")
         ctx.response()
-          .putHeader("Content-Type", "application/json")
+          .putHeader(CONTENT_TYPE, APPLICATION_JSON)
           .end(jsonObjectOf("status" to "UP").encode())
       }
       .onFailure { error ->
@@ -169,7 +176,7 @@ class PublicApiVerticle : AbstractVerticle() {
         logger.error("Readiness check failed", cause)
         ctx.response()
           .setStatusCode(503)
-          .putHeader("Content-Type", "application/json")
+          .putHeader(CONTENT_TYPE, APPLICATION_JSON)
           .end(jsonObjectOf("status" to "DOWN", "reason" to cause?.message).encode())
       }
   }
@@ -177,17 +184,17 @@ class PublicApiVerticle : AbstractVerticle() {
   private fun livenessCheck(ctx: RoutingContext) {
     logger.info("Liveness check")
     ctx.response()
-      .putHeader("Content-Type", "application/json")
+      .putHeader(CONTENT_TYPE, APPLICATION_JSON)
       .end(jsonObjectOf("status" to "UP").encode())
   }
 
   // Users
 
-  private fun registerUserHandler(ctx: RoutingContext) = registerHandler(ctx, "users")
-  private fun updateUserHandler(ctx: RoutingContext) = updateHandler(ctx, "users")
-  private fun getUsersHandler(ctx: RoutingContext) = getManyHandler(ctx, "users")
-  private fun getUserHandler(ctx: RoutingContext) = getOneHandler(ctx, "users")
-  private fun deleteUserHandler(ctx: RoutingContext) = deleteHandler(ctx, "users")
+  private fun registerUserHandler(ctx: RoutingContext) = registerHandler(ctx, USERS_ENDPOINT)
+  private fun updateUserHandler(ctx: RoutingContext) = updateHandler(ctx, USERS_ENDPOINT)
+  private fun getUsersHandler(ctx: RoutingContext) = getManyHandler(ctx, USERS_ENDPOINT)
+  private fun getUserHandler(ctx: RoutingContext) = getOneHandler(ctx, USERS_ENDPOINT)
+  private fun deleteUserHandler(ctx: RoutingContext) = deleteHandler(ctx, USERS_ENDPOINT)
 
   /**
    * Handles the token request.
@@ -214,7 +221,7 @@ class PublicApiVerticle : AbstractVerticle() {
       .onSuccess { response ->
         val company = response.bodyAsString()
         val token = makeJwtToken(username, company)
-        ctx.response().putHeader("Content-Type", "application/jwt").end(token)
+        ctx.response().putHeader(CONTENT_TYPE, "application/jwt").end(token)
       }
       .onFailure { error ->
         logger.error("Authentication error", error)
@@ -224,19 +231,19 @@ class PublicApiVerticle : AbstractVerticle() {
 
   // Relays
 
-  private fun registerRelayHandler(ctx: RoutingContext) = registerHandler(ctx, "relays")
-  private fun updateRelayHandler(ctx: RoutingContext) = updateHandler(ctx, "relays")
-  private fun getRelaysHandler(ctx: RoutingContext) = getManyHandler(ctx, "relays")
-  private fun getRelayHandler(ctx: RoutingContext) = getOneHandler(ctx, "relays")
-  private fun deleteRelayHandler(ctx: RoutingContext) = deleteHandler(ctx, "relays")
+  private fun registerRelayHandler(ctx: RoutingContext) = registerHandler(ctx, RELAYS_ENDPOINT)
+  private fun updateRelayHandler(ctx: RoutingContext) = updateHandler(ctx, RELAYS_ENDPOINT)
+  private fun getRelaysHandler(ctx: RoutingContext) = getManyHandler(ctx, RELAYS_ENDPOINT)
+  private fun getRelayHandler(ctx: RoutingContext) = getOneHandler(ctx, RELAYS_ENDPOINT)
+  private fun deleteRelayHandler(ctx: RoutingContext) = deleteHandler(ctx, RELAYS_ENDPOINT)
 
   // Items
 
-  private fun registerItemHandler(ctx: RoutingContext) = registerHandler(ctx, "items", forwardResponse = true)
-  private fun updateItemHandler(ctx: RoutingContext) = updateHandler(ctx, "items")
-  private fun getItemsHandler(ctx: RoutingContext) = getManyHandler(ctx, "items")
-  private fun getItemHandler(ctx: RoutingContext) = getOneHandler(ctx, "items")
-  private fun deleteItemHandler(ctx: RoutingContext) = deleteHandler(ctx, "items")
+  private fun registerItemHandler(ctx: RoutingContext) = registerHandler(ctx, ITEMS_ENDPOINT, forwardResponse = true)
+  private fun updateItemHandler(ctx: RoutingContext) = updateHandler(ctx, ITEMS_ENDPOINT)
+  private fun getItemsHandler(ctx: RoutingContext) = getManyHandler(ctx, ITEMS_ENDPOINT)
+  private fun getItemHandler(ctx: RoutingContext) = getOneHandler(ctx, ITEMS_ENDPOINT)
+  private fun deleteItemHandler(ctx: RoutingContext) = deleteHandler(ctx, ITEMS_ENDPOINT)
 
   // Helpers
 
@@ -251,7 +258,7 @@ class PublicApiVerticle : AbstractVerticle() {
     webClient
       .post(CRUD_PORT, CRUD_HOST, "/$endpoint")
       .timeout(TIMEOUT)
-      .putHeader("Content-Type", "application/json")
+      .putHeader(CONTENT_TYPE, APPLICATION_JSON)
       .expect(ResponsePredicate.SC_OK)
       .sendBuffer(ctx.body)
       .onSuccess { response ->
@@ -272,7 +279,7 @@ class PublicApiVerticle : AbstractVerticle() {
     webClient
       .put(CRUD_PORT, CRUD_HOST, "/$endpoint/${ctx.pathParam("id")}")
       .timeout(TIMEOUT)
-      .putHeader("Content-Type", "application/json")
+      .putHeader(CONTENT_TYPE, APPLICATION_JSON)
       .expect(ResponsePredicate.SC_OK)
       .sendBuffer(ctx.body)
       .onSuccess {
