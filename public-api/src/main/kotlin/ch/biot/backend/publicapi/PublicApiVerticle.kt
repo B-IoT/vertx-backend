@@ -18,8 +18,10 @@ import io.vertx.ext.web.handler.BodyHandler
 import io.vertx.ext.web.handler.CorsHandler
 import io.vertx.ext.web.handler.JWTAuthHandler
 import io.vertx.kotlin.core.eventbus.eventBusOptionsOf
+import io.vertx.kotlin.core.http.httpServerOptionsOf
 import io.vertx.kotlin.core.json.get
 import io.vertx.kotlin.core.json.jsonObjectOf
+import io.vertx.kotlin.core.net.pemKeyCertOptionsOf
 import io.vertx.kotlin.core.vertxOptionsOf
 import io.vertx.kotlin.ext.auth.jwt.jwtAuthOptionsOf
 import io.vertx.kotlin.ext.auth.jwtOptionsOf
@@ -66,18 +68,18 @@ class PublicApiVerticle : AbstractVerticle() {
 
     // Read public and private keys from the file system. They are used for JWT authentication
     // Blocking is not an issue since this action is done only once at startup
-    val publicKey = fs.readFileBlocking("public_key.pem")
-    val privateKey = fs.readFileBlocking("private_key.pem")
+    val publicKeyJWT = fs.readFileBlocking("public_key_jwt.pem")
+    val privateKeyJWT = fs.readFileBlocking("private_key_jwt.pem")
 
     jwtAuth = JWTAuth.create(
       vertx, jwtAuthOptionsOf(
         pubSecKeys = listOf(
           pubSecKeyOptionsOf(
             algorithm = "RS256",
-            buffer = publicKey
+            buffer = publicKeyJWT
           ), pubSecKeyOptionsOf(
             algorithm = "RS256",
-            buffer = privateKey
+            buffer = privateKeyJWT
           )
         )
       )
@@ -134,7 +136,12 @@ class PublicApiVerticle : AbstractVerticle() {
 
     webClient = WebClient.create(vertx)
 
-    vertx.createHttpServer().requestHandler(router).listen(PUBLIC_PORT)
+    vertx.createHttpServer(
+//      httpServerOptionsOf(
+//        ssl = true,
+//        pemKeyCertOptions = pemKeyCertOptionsOf(certPath = "certificate.pem", keyPath = "certificate_key.pem")
+//      )
+    ).requestHandler(router).listen(PUBLIC_PORT)
       .onSuccess {
         logger.info("HTTP server listening on port $PUBLIC_PORT")
         startPromise?.complete()

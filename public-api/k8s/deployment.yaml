@@ -27,6 +27,8 @@ spec:
             - name: hazelcast
               containerPort: 5701
           env:
+            - name: JAVA_TOOL_OPTIONS
+              value: --add-modules=java.se --add-exports=java.base/jdk.internal.ref=ALL-UNNAMED --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=java.management/sun.management=ALL-UNNAMED --add-opens=jdk.management/com.sun.management.internal=ALL-UNNAMED
             - name: CRUD_HOST
               valueFrom:
                 configMapKeyRef:
@@ -41,6 +43,7 @@ spec:
             httpGet:
               path: /health/live
               port: 8080
+#              scheme: HTTPS
             initialDelaySeconds: 60
             periodSeconds: 15
             timeoutSeconds: 5
@@ -48,6 +51,7 @@ spec:
             httpGet:
               path: /health/ready
               port: 8080
+#              scheme: HTTPS
             initialDelaySeconds: 10
             periodSeconds: 10
             timeoutSeconds: 5

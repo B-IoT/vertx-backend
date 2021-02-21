@@ -19,14 +19,14 @@ build:
         type: gradle
         project: relays-communication
       context: .
-#    - image: vertx-backend/triangulation
-#      docker:
-#        dockerfile: Dockerfile
-#      context: triangulation
+    - image: vertx-backend/triangulation
+      docker:
+        dockerfile: Dockerfile
+      context: triangulation
 deploy:
   kubectl:
     manifests:
       - "crud/k8s/*.yaml"
       - "public-api/k8s/*.yaml"
       - "relays-communication/k8s/*.yaml"
-#      - "triangulation/k8s/*.yaml"
+      - "triangulation/k8s/*.yaml"

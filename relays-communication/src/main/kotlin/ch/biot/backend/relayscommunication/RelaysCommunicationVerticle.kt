@@ -119,18 +119,22 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
       clients[mqttID]?.let { client -> sendMessageTo(client, jsonClean) }
     }
 
+//    // Certificate for TLS
+//    val pemKeyCertOptions = pemKeyCertOptionsOf(certPath = "certificate.pem", keyPath = "certificate_key.pem")
+//    val netServerOptions = netServerOptionsOf(ssl = true, pemKeyCertOptions = pemKeyCertOptions)
+
     // TCP server for liveness checks
     vertx.createNetServer().connectHandler {
       logger.info("Liveness check")
     }.rxListen(LIVENESS_PORT).subscribe()
 
-    // TODO MQTT on TLS
-    return MqttServer.create(vertx).endpointHandler(::handleClient).rxListen(MQTT_PORT).doOnSuccess {
-      logger.info("MQTT server listening on port $MQTT_PORT")
-      vertx.createNetServer().connectHandler {
-        logger.info("Readiness check complete")
-      }.rxListen(READINESS_PORT).subscribe()
-    }.ignoreElement()
+    return MqttServer.create(vertx)
+      .endpointHandler(::handleClient).rxListen(MQTT_PORT).doOnSuccess {
+        logger.info("MQTT server listening on port $MQTT_PORT")
+        vertx.createNetServer().connectHandler {
+          logger.info("Readiness check complete")
+        }.rxListen(READINESS_PORT).subscribe()
+      }.ignoreElement()
   }
 
   private fun handleClient(client: MqttEndpoint) {
