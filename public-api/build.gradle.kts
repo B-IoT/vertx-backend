@@ -23,11 +23,13 @@ dependencies {
   val restAssuredVersion = project.extra["restAssuredVersion"]
   val striktVersion = project.extra["striktVersion"]
   val testContainersVersion = project.extra["testContainersVersion"]
+  val hazelcastVersion = project.extra["hazelcastVersion"]
 
   implementation("io.vertx:vertx-web:$vertxVersion")
   implementation("io.vertx:vertx-web-client:$vertxVersion")
   implementation("io.vertx:vertx-auth-jwt:$vertxVersion")
   implementation("io.vertx:vertx-hazelcast:$vertxVersion")
+  implementation("com.hazelcast:hazelcast-kubernetes:$hazelcastVersion")
   implementation("io.vertx:vertx-lang-kotlin:$vertxVersion")
   implementation("ch.qos.logback:logback-classic:$logbackClassicVersion")
   testImplementation(project(":crud"))
@@ -65,4 +67,20 @@ tasks.withType<JavaExec> {
     "--on-redeploy=$doOnChange"
   )
   systemProperties["vertx.logger-delegate-factory-class-name"] = "io.vertx.core.logging.SLF4JLogDelegateFactory"
+}
+
+jib {
+  from {
+    image = "adoptopenjdk/openjdk11:ubi-minimal-jre"
+  }
+  to {
+    image = "vertx-backend/public-api"
+    tags = setOf("v1", "latest")
+  }
+  container {
+    mainClass = mainVerticleName
+    jvmFlags = listOf("-noverify", "-Djava.security.egd=file:/dev/./urandom")
+    ports = listOf("8080", "5701")
+    user = "nobody:nobody"
+  }
 }

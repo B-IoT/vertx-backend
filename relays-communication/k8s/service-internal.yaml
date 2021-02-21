@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: relays-communication
+    vertx-backend: hazelcast
+  name: relays-communication-internal
+spec:
+  type: ClusterIP
+  selector:
+    app: relays-communication
+  ports:
+    - name: hazelcast
+      port: 5701

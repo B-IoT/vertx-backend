@@ -27,7 +27,6 @@ import io.vertx.reactivex.mqtt.messages.MqttPublishMessage
 import io.vertx.spi.cluster.hazelcast.HazelcastClusterManager
 import org.slf4j.LoggerFactory
 import java.net.InetAddress
-import java.net.UnknownHostException
 import java.time.Instant
 
 
@@ -36,13 +35,22 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
   companion object {
     internal const val RELAYS_COLLECTION = "relays"
     internal const val UPDATE_PARAMETERS_TOPIC = "update.parameters"
-    internal const val LAST_CONFIGURATION_TOPIC = "last.configuration"
     internal const val INGESTION_TOPIC = "incoming.update"
     internal const val RELAYS_UPDATE_ADDRESS = "relays.update"
 
+    internal val MQTT_PORT = System.getenv().getOrDefault("MQTT_PORT", "1883").toInt()
+
+    private val MONGO_HOST: String = System.getenv().getOrDefault("MONGO_HOST", "localhost")
+    internal val MONGO_PORT = System.getenv().getOrDefault("MONGO_PORT", "27017").toInt()
+
+    private val KAFKA_HOST: String = System.getenv().getOrDefault("KAFKA_HOST", "localhost")
+    internal val KAFKA_PORT = System.getenv().getOrDefault("KAFKA_PORT", "9092").toInt()
+
+    private const val LIVENESS_PORT = 1884
+    private const val READINESS_PORT = 1885
+
     private val logger = LoggerFactory.getLogger(RelaysCommunicationVerticle::class.java)
 
-    @Throws(UnknownHostException::class)
     @JvmStatic
     fun main(args: Array<String>) {
       val ipv4 = InetAddress.getLocalHost().hostAddress
@@ -67,12 +75,10 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
   private lateinit var mongoAuth: MongoAuthentication
 
   override fun rxStart(): Completable {
-    // TODO update with real configuration
-
     // Initialize the Kafka producer
     kafkaProducer = KafkaProducer.create(
       vertx, mapOf(
-        "bootstrap.servers" to "localhost:9092",
+        "bootstrap.servers" to "$KAFKA_HOST:$KAFKA_PORT",
         "key.serializer" to "org.apache.kafka.common.serialization.StringSerializer",
         "value.serializer" to "io.vertx.kafka.client.serialization.JsonObjectSerializer",
         "acks" to "1"
@@ -80,8 +86,12 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
     )
 
     // Initialize MongoDB
-    mongoClient =
-      MongoClient.createShared(vertx, jsonObjectOf("host" to "localhost", "port" to 27017, "db_name" to "clients"))
+    mongoClient = MongoClient.createShared(
+      vertx, jsonObjectOf(
+        "host" to MONGO_HOST, "port" to MONGO_PORT, "db_name" to "clients", "username" to "biot",
+        "password" to "biot"
+      )
+    )
 
     val usernameField = "mqttUsername"
     val passwordField = "mqttPassword"
@@ -102,17 +112,29 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
       logger.info("Received relay update $json on event bus address $RELAYS_UPDATE_ADDRESS, sending it to client...")
       val mqttID: String = json["mqttID"]
 
-      // Remove the mqttID, as the relay already knows it
-      val jsonWithoutMqttID = json.copy().apply {
-        remove("mqttID")
-      }
+      // Clean the json from useless fields
+      val jsonClean = json.clean()
 
       // Send the message to the right relay on the MQTT topic "update.parameters"
-      clients[mqttID]?.let { client -> sendMessageTo(client, jsonWithoutMqttID, UPDATE_PARAMETERS_TOPIC) }
+      clients[mqttID]?.let { client -> sendMessageTo(client, jsonClean) }
     }
 
-    // TODO MQTT on TLS
-    return MqttServer.create(vertx).endpointHandler(::handleClient).rxListen(8883).ignoreElement()
+//    // Certificate for TLS
+//    val pemKeyCertOptions = pemKeyCertOptionsOf(certPath = "certificate.pem", keyPath = "certificate_key.pem")
+//    val netServerOptions = netServerOptionsOf(ssl = true, pemKeyCertOptions = pemKeyCertOptions)
+
+    // TCP server for liveness checks
+    vertx.createNetServer().connectHandler {
+      logger.info("Liveness check")
+    }.rxListen(LIVENESS_PORT).subscribe()
+
+    return MqttServer.create(vertx)
+      .endpointHandler(::handleClient).rxListen(MQTT_PORT).doOnSuccess {
+        logger.info("MQTT server listening on port $MQTT_PORT")
+        vertx.createNetServer().connectHandler {
+          logger.info("Readiness check complete")
+        }.rxListen(READINESS_PORT).subscribe()
+      }.ignoreElement()
   }
 
   private fun handleClient(client: MqttEndpoint) {
@@ -181,7 +203,7 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
      * Validates the JSON, returning true iff it contains all required fields.
      */
     fun validateJson(json: JsonObject): Boolean {
-      val keysToContain = listOf("relayID", "battery", "rssi", "mac", "isPushed")
+      val keysToContain = listOf("relayID", "rssi", "mac", "latitude", "longitude", "floor")
       return keysToContain.fold(true) { acc, curr ->
         acc && json.containsKey(curr)
       }
@@ -203,17 +225,17 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
           put("timestamp", Instant.now())
         }
 
-        val beaconMacAddress: String = message["mac"]
+        val relayID: String = message["relayID"]
 
         // Send the message to Kafka on the "incoming.update" topic
-        val record = KafkaProducerRecord.create(INGESTION_TOPIC, beaconMacAddress, kafkaMessage)
+        val record = KafkaProducerRecord.create(INGESTION_TOPIC, relayID, kafkaMessage)
         kafkaProducer.rxSend(record).subscribeBy(
           onSuccess = {
-            logger.info("Sent message $kafkaMessage with key '$beaconMacAddress' on topic '$INGESTION_TOPIC'")
+            logger.info("Sent message $kafkaMessage with key '$relayID' on topic '$INGESTION_TOPIC'")
           },
           onError = { error ->
             logger.error(
-              "Could not send message $kafkaMessage with key '$beaconMacAddress' on topic '$INGESTION_TOPIC'",
+              "Could not send message $kafkaMessage with key '$relayID' on topic '$INGESTION_TOPIC'",
               error
             )
           }
@@ -237,7 +259,7 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
 
           // Remove useless fields and clean lastModified, then send
           val cleanConfig = config.clean()
-          sendMessageTo(client, cleanConfig, LAST_CONFIGURATION_TOPIC)
+          sendMessageTo(client, cleanConfig)
         }
       },
       onError = { error ->
@@ -247,18 +269,18 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
   }
 
   /**
-   * Sends the given message to the given client on the given MQTT topic.
+   * Sends the given message to the given client on the "update.parameters" MQTT topic.
    */
-  private fun sendMessageTo(client: MqttEndpoint, message: JsonObject, topic: String) {
+  private fun sendMessageTo(client: MqttEndpoint, message: JsonObject) {
     client.publishAcknowledgeHandler { messageId ->
       logger.info("Received ack for message $messageId")
-    }.rxPublish(topic, Buffer.newInstance(message.toBuffer()), MqttQoS.AT_LEAST_ONCE, false, false)
+    }.rxPublish(UPDATE_PARAMETERS_TOPIC, Buffer.newInstance(message.toBuffer()), MqttQoS.AT_LEAST_ONCE, false, false)
       .subscribeBy(
         onSuccess = { messageId ->
-          logger.info("Published message $message with id $messageId to client ${client.clientIdentifier()} on topic $topic")
+          logger.info("Published message $message with id $messageId to client ${client.clientIdentifier()} on topic $UPDATE_PARAMETERS_TOPIC")
         },
         onError = { error ->
-          logger.error("Could not send message $message on topic $topic", error)
+          logger.error("Could not send message $message on topic $UPDATE_PARAMETERS_TOPIC", error)
         }
       )
   }

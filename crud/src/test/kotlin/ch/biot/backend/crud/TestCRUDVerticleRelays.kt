@@ -56,6 +56,7 @@ class TestCRUDVerticleRelays {
     "ledStatus" to false,
     "latitude" to 0.1,
     "longitude" to 0.3,
+    "floor" to 1,
     "wifi" to jsonObjectOf(
       "ssid" to "ssid",
       "password" to "pass"
@@ -69,6 +70,7 @@ class TestCRUDVerticleRelays {
     "ledStatus" to false,
     "latitude" to 0.1,
     "longitude" to 0.3,
+    "floor" to 1,
     "wifi" to jsonObjectOf(
       "ssid" to "ssid",
       "password" to "pass"
@@ -78,7 +80,10 @@ class TestCRUDVerticleRelays {
   @BeforeEach
   fun setup(vertx: Vertx, testContext: VertxTestContext) {
     mongoClient =
-      MongoClient.createShared(vertx, jsonObjectOf("host" to "localhost", "port" to CRUDVerticle.MONGO_PORT, "db_name" to "clients"))
+      MongoClient.createShared(
+        vertx,
+        jsonObjectOf("host" to "localhost", "port" to CRUDVerticle.MONGO_PORT, "db_name" to "clients")
+      )
 
     val usernameField = "mqttUsername"
     val passwordField = "mqttPassword"
@@ -207,6 +212,7 @@ class TestCRUDVerticleRelays {
       "ledStatus" to true,
       "latitude" to 1.0,
       "longitude" to -32.42332,
+      "floor" to 2,
       "wifi" to jsonObjectOf(
         "ssid" to "test",
         "password" to "test"
@@ -224,6 +230,9 @@ class TestCRUDVerticleRelays {
         expect {
           that(json.getBoolean("ledStatus")).isEqualTo(updateJson.getBoolean("ledStatus"))
           that(json.getJsonObject("wifi")).isEqualTo(updateJson.getJsonObject("wifi"))
+          that(json.getDouble("latitude")).isEqualTo(updateJson.getDouble("latitude"))
+          that(json.getDouble("longitude")).isEqualTo(updateJson.getDouble("longitude"))
+          that(json.getInteger("floor")).isEqualTo(updateJson.getInteger("floor"))
           that(json.getJsonObject("beacon")).isEqualTo(updateJson.getJsonObject("beacon"))
           that(json.getString("mqttID")).isEqualTo(existingRelay.getString("mqttID"))
           that(json.getString("relayID")).isEqualTo(existingRelay.getString("relayID"))
@@ -258,6 +267,7 @@ class TestCRUDVerticleRelays {
           that(json.getJsonObject("wifi")).isEqualTo(updateJson.getJsonObject("wifi"))
           that(json.getDouble("latitude")).isEqualTo(updateJson.getDouble("latitude"))
           that(json.getDouble("longitude")).isEqualTo(updateJson.getDouble("longitude"))
+          that(json.getInteger("floor")).isEqualTo(updateJson.getInteger("floor"))
           that(json.getString("mqttID")).isEqualTo(existingRelay.getString("mqttID"))
           that(json.getString("relayID")).isEqualTo(existingRelay.getString("relayID"))
           that(json.containsKey("lastModified")).isTrue()
@@ -278,6 +288,7 @@ class TestCRUDVerticleRelays {
       "ledStatus" to false,
       "latitude" to 0.1,
       "longitude" to 0.3,
+      "floor" to 1,
       "wifi" to jsonObjectOf(
         "ssid" to "ssid",
         "password" to "pass"

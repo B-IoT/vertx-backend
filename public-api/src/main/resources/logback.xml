@@ -14,7 +14,7 @@
   <logger name="io.vertx" level="info"/>
   <logger name="org.apache.kafka" level="info"/>
 
-  <root level="debug">
+  <root level="info">
     <appender-ref ref="STDOUT"/>
   </root>
 

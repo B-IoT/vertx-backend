@@ -5,7 +5,8 @@
 package ch.biot.backend.relayscommunication
 
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.INGESTION_TOPIC
-import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.LAST_CONFIGURATION_TOPIC
+import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.KAFKA_PORT
+import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.MONGO_PORT
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.RELAYS_COLLECTION
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.RELAYS_UPDATE_ADDRESS
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.UPDATE_PARAMETERS_TOPIC
@@ -16,6 +17,7 @@ import io.vertx.core.json.JsonObject
 import io.vertx.junit5.VertxExtension
 import io.vertx.junit5.VertxTestContext
 import io.vertx.kotlin.core.json.get
+import io.vertx.kotlin.core.json.jsonArrayOf
 import io.vertx.kotlin.core.json.jsonObjectOf
 import io.vertx.kotlin.ext.auth.mongo.mongoAuthenticationOptionsOf
 import io.vertx.kotlin.ext.auth.mongo.mongoAuthorizationOptionsOf
@@ -72,7 +74,7 @@ class TestRelaysCommunicationVerticle {
   @BeforeEach
   fun setup(vertx: Vertx, testContext: VertxTestContext) {
     val kafkaConfig = mapOf(
-      "bootstrap.servers" to "localhost:9092",
+      "bootstrap.servers" to "localhost:$KAFKA_PORT",
       "key.deserializer" to "org.apache.kafka.common.serialization.StringDeserializer",
       "value.deserializer" to "io.vertx.kafka.client.serialization.JsonObjectDeserializer",
       "auto.offset.reset" to "earliest",
@@ -92,7 +94,7 @@ class TestRelaysCommunicationVerticle {
     )
 
     mongoClient =
-      MongoClient.createShared(vertx, jsonObjectOf("host" to "localhost", "port" to 27017, "db_name" to "clients"))
+      MongoClient.createShared(vertx, jsonObjectOf("host" to "localhost", "port" to MONGO_PORT, "db_name" to "clients"))
 
     val usernameField = "mqttUsername"
     val passwordField = "mqttPassword"
@@ -161,22 +163,21 @@ class TestRelaysCommunicationVerticle {
   @Test
   @DisplayName("A MQTT client upon subscription receives the last configuration")
   fun clientSubscribesAndReceivesLastConfig(testContext: VertxTestContext) {
-    mqttClient.rxConnect(8883, "localhost")
+    mqttClient.rxConnect(RelaysCommunicationVerticle.MQTT_PORT, "localhost")
       .flatMap {
         mqttClient.publishHandler { msg ->
-          if (msg.topicName() == LAST_CONFIGURATION_TOPIC) {
+          if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
             testContext.verify {
               val expected = configuration.copy().apply {
                 remove("mqttID")
                 remove("mqttUsername")
-                remove("latitude")
-                remove("longitude")
+                remove("ledStatus")
               }
               expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
               testContext.completeNow()
             }
           }
-        }.rxSubscribe(LAST_CONFIGURATION_TOPIC, MqttQoS.AT_LEAST_ONCE.value())
+        }.rxSubscribe(UPDATE_PARAMETERS_TOPIC, MqttQoS.AT_LEAST_ONCE.value())
       }.subscribeBy(
         onError = testContext::failNow
       )
@@ -185,8 +186,8 @@ class TestRelaysCommunicationVerticle {
   @Test
   @DisplayName("A MQTT client receives updates")
   fun clientReceivesUpdate(vertx: Vertx, testContext: VertxTestContext) {
-    val message = jsonObjectOf("ledStatus" to true, "mqttID" to "mqtt")
-    mqttClient.rxConnect(8883, "localhost")
+    val message = jsonObjectOf("latitude" to 42.3, "mqttID" to "mqtt")
+    mqttClient.rxConnect(RelaysCommunicationVerticle.MQTT_PORT, "localhost")
       .flatMap {
         mqttClient.publishHandler { msg ->
           if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
@@ -210,13 +211,14 @@ class TestRelaysCommunicationVerticle {
   fun mqttMessageIsIngested(testContext: VertxTestContext) {
     val message = jsonObjectOf(
       "relayID" to "abc",
-      "battery" to 10,
-      "rssi" to -60.0,
-      "mac" to "mac",
-      "isPushed" to false
+      "rssi" to jsonArrayOf(-60.0),
+      "mac" to jsonArrayOf("mac"),
+      "latitude" to 2.3,
+      "longitude" to 2.3,
+      "floor" to 1
     )
 
-    mqttClient.rxConnect(8883, "localhost")
+    mqttClient.rxConnect(RelaysCommunicationVerticle.MQTT_PORT, "localhost")
       .flatMap {
         mqttClient.rxPublish(
           INGESTION_TOPIC,
@@ -235,17 +237,18 @@ class TestRelaysCommunicationVerticle {
       .toFlowable()
       .subscribe(
         { record ->
-          println(record)
           testContext.verify {
-            expectThat(record.key()).isEqualTo("mac")
+            val relayID = message.getString("relayID")
+            expectThat(record.key()).isEqualTo(relayID)
             val json = record.value()
             expect {
-              that(json.getString("relayID")).isEqualTo("abc")
+              that(json.getString("relayID")).isEqualTo(relayID)
               that(json.getString("timestamp")).isNotNull()
-              that(json.getInteger("battery")).isEqualTo(10)
-              that(json.getDouble("rssi")).isEqualTo(-60.0)
-              that(json.getString("mac")).isEqualTo("mac")
-              that(json.getBoolean("isPushed")).isEqualTo(false)
+              that(json.getJsonArray("rssi")).isEqualTo(message.getJsonArray("rssi"))
+              that(json.getJsonArray("mac")).isEqualTo(message.getJsonArray("mac"))
+              that(json.getDouble("latitude")).isEqualTo(message.getDouble("latitude"))
+              that(json.getDouble("longitude")).isEqualTo(message.getDouble("longitude"))
+              that(json.getInteger("floor")).isEqualTo(message.getInteger("floor"))
             }
             testContext.completeNow()
           }
@@ -261,7 +264,7 @@ class TestRelaysCommunicationVerticle {
     class KDockerComposeContainer(file: File) : DockerComposeContainer<KDockerComposeContainer>(file)
 
     private fun defineDockerCompose() =
-      KDockerComposeContainer(File("../docker-compose.yml")).withExposedService("mongo_1", 27017)
+      KDockerComposeContainer(File("../docker-compose.yml")).withExposedService("mongo_1", MONGO_PORT)
 
     @BeforeAll
     @JvmStatic

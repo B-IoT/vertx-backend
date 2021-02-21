@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: relays-communication
+  name: relays-communication
+spec:
+  selector:
+    matchLabels:
+      app: relays-communication
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: relays-communication
+    spec:
+      containers:
+        - image: vertx-backend/relays-communication:latest
+          name: relays-communication
+          ports:
+            - name: mqtt
+              containerPort: 1883
+            - name: liveness
+              containerPort: 1884
+            - name: readiness
+              containerPort: 1885
+            - name: hazelcast
+              containerPort: 5701
+          env:
+            - name: JAVA_TOOL_OPTIONS
+              value: --add-modules=java.se --add-exports=java.base/jdk.internal.ref=ALL-UNNAMED --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=java.management/sun.management=ALL-UNNAMED --add-opens=jdk.management/com.sun.management.internal=ALL-UNNAMED
+            - name: MONGO_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: crud-config
+                  key: mongo_hostname
+            - name: MONGO_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: crud-config
+                  key: mongo_port
+            - name: KAFKA_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: relays-communication-config
+                  key: kafka_hostname
+            - name: KAFKA_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: relays-communication-config
+                  key: kafka_port
+          livenessProbe:
+            tcpSocket:
+              port: 1884
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 5
+          readinessProbe:
+            tcpSocket:
+              port: 1885
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5

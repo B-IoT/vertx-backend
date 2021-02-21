@@ -4,7 +4,6 @@
 
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import org.gradle.api.tasks.testing.logging.TestLogEvent.*
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 version = "1.0.0-SNAPSHOT"
 
@@ -21,16 +20,17 @@ dependencies {
   val vertxVersion = project.extra["vertxVersion"]
   val junitJupiterVersion = project.extra["junitJupiterVersion"]
   val logbackClassicVersion = project.extra["logbackClassicVersion"]
-  val restAssuredVersion = project.extra["restAssuredVersion"]
   val striktVersion = project.extra["striktVersion"]
   val testContainersVersion = project.extra["testContainersVersion"]
   val rxKotlinVersion = project.extra["rxKotlinVersion"]
+  val hazelcastVersion = project.extra["hazelcastVersion"]
 
   implementation("io.vertx:vertx-rx-java2:$vertxVersion")
   implementation("io.reactivex.rxjava2:rxkotlin:$rxKotlinVersion")
   implementation("io.vertx:vertx-web:$vertxVersion")
   implementation("io.vertx:vertx-web-openapi:$vertxVersion")
   implementation("io.vertx:vertx-hazelcast:$vertxVersion")
+  implementation("com.hazelcast:hazelcast-kubernetes:$hazelcastVersion")
   implementation("io.vertx:vertx-kafka-client:$vertxVersion")
   implementation("io.vertx:vertx-lang-kotlin:$vertxVersion")
   implementation("io.vertx:vertx-mqtt:$vertxVersion")
@@ -71,4 +71,20 @@ tasks.withType<JavaExec> {
     "--on-redeploy=$doOnChange"
   )
   systemProperties["vertx.logger-delegate-factory-class-name"] = "io.vertx.core.logging.SLF4JLogDelegateFactory"
+}
+
+jib {
+  from {
+    image = "adoptopenjdk/openjdk11:ubi-minimal-jre"
+  }
+  to {
+    image = "vertx-backend/relays-communication"
+    tags = setOf("v1", "latest")
+  }
+  container {
+    mainClass = mainVerticleName
+    jvmFlags = listOf("-noverify", "-Djava.security.egd=file:/dev/./urandom")
+    ports = listOf("1883", "1884", "1885", "5701")
+    user = "nobody:nobody"
+  }
 }

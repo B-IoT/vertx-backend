@@ -49,8 +49,6 @@ internal fun JsonObject.cleanForRelay(): JsonObject = this.copy().apply {
   clean()
   remove("mqttUsername")
   remove("mqttPassword")
-  remove("latitude")
-  remove("longitude")
 }
 
 /**

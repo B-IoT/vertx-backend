@@ -23,6 +23,7 @@ import io.vertx.kotlin.core.json.jsonObjectOf
 import io.vertx.kotlin.pgclient.pgConnectOptionsOf
 import io.vertx.kotlin.sqlclient.poolOptionsOf
 import io.vertx.pgclient.PgPool
+import io.vertx.pgclient.SslMode
 import io.vertx.sqlclient.Tuple
 import org.junit.jupiter.api.*
 import org.junit.jupiter.api.extension.ExtendWith
@@ -69,9 +70,10 @@ class TestCRUDVerticleItems {
       pgConnectOptionsOf(
         port = CRUDVerticle.TIMESCALE_PORT,
         host = "localhost",
-        database = "postgres",
-        user = "postgres",
-        password = "biot"
+        database = "biot",
+        user = "biot",
+        password = "biot",
+        cachePreparedStatements = true
       )
     pgPool = PgPool.pool(vertx, pgConnectOptions, poolOptionsOf())
 
@@ -226,7 +228,7 @@ class TestCRUDVerticleItems {
 
   @Test
   @DisplayName("updateItem correctly updates the desired item")
-  fun updateItemIsCorrect(vertx: Vertx, testContext: VertxTestContext) {
+  fun updateItemIsCorrect(testContext: VertxTestContext) {
     val response = Given {
       spec(requestSpecification)
       contentType(ContentType.JSON)

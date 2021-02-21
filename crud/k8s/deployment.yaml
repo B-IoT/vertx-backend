@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: crud
+  name: crud
+spec:
+  selector:
+    matchLabels:
+      app: crud
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: crud
+    spec:
+      containers:
+        - image: vertx-backend/crud:latest
+          name: crud
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: hazelcast
+              containerPort: 5701
+          env:
+            - name: JAVA_TOOL_OPTIONS
+              value: --add-modules=java.se --add-exports=java.base/jdk.internal.ref=ALL-UNNAMED --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=java.management/sun.management=ALL-UNNAMED --add-opens=jdk.management/com.sun.management.internal=ALL-UNNAMED
+            - name: MONGO_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: crud-config
+                  key: mongo_port
+            - name: MONGO_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: crud-config
+                  key: mongo_hostname
+            - name: TIMESCALE_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: crud-config
+                  key: timescale_port
+            - name: TIMESCALE_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: crud-config
+                  key: timescale_hostname
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5

@@ -55,6 +55,7 @@ class TestPublicApiVerticle {
     "ledStatus" to false,
     "latitude" to 0.1,
     "longitude" to 0.3,
+    "floor" to 1,
     "wifi" to jsonObjectOf(
       "ssid" to "ssid",
       "password" to "pass"
@@ -373,6 +374,7 @@ class TestPublicApiVerticle {
       "ledStatus" to true,
       "latitude" to 1.0,
       "longitude" to -32.42332,
+      "floor" to 2,
       "wifi" to jsonObjectOf(
         "ssid" to "test",
         "password" to "test"
@@ -415,6 +417,7 @@ class TestPublicApiVerticle {
       "ledStatus" to false,
       "latitude" to 0.1,
       "longitude" to 0.3,
+      "floor" to 1,
       "wifi" to jsonObjectOf(
         "ssid" to "ssid",
         "password" to "pass"

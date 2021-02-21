@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: public-api
+    vertx-backend: hazelcast
+  name: public-api-internal
+spec:
+  type: ClusterIP
+  selector:
+    app: public-api
+  ports:
+    - name: hazelcast
+      port: 5701

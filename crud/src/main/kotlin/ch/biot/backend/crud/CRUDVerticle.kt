@@ -28,6 +28,7 @@ import io.vertx.kotlin.ext.mongo.updateOptionsOf
 import io.vertx.kotlin.pgclient.pgConnectOptionsOf
 import io.vertx.kotlin.sqlclient.poolOptionsOf
 import io.vertx.pgclient.PgPool
+import io.vertx.pgclient.SslMode
 import io.vertx.spi.cluster.hazelcast.HazelcastClusterManager
 import io.vertx.sqlclient.Tuple
 import org.slf4j.LoggerFactory
@@ -43,9 +44,13 @@ class CRUDVerticle : AbstractVerticle() {
 
     private const val RELAYS_UPDATE_ADDRESS = "relays.update"
 
-    internal const val HTTP_PORT = 3000
-    internal const val MONGO_PORT = 27017
-    internal const val TIMESCALE_PORT = 5432
+    internal val HTTP_PORT = System.getenv().getOrDefault("HTTP_PORT", "8080").toInt()
+
+    internal val MONGO_PORT = System.getenv().getOrDefault("MONGO_PORT", "27017").toInt()
+    private val MONGO_HOST: String = System.getenv().getOrDefault("MONGO_HOST", "localhost")
+
+    internal val TIMESCALE_PORT = System.getenv().getOrDefault("TIMESCALE_PORT", "5432").toInt()
+    private val TIMESCALE_HOST: String = System.getenv().getOrDefault("TIMESCALE_HOST", "localhost")
 
     internal val logger = LoggerFactory.getLogger(CRUDVerticle::class.java)
 
@@ -76,7 +81,16 @@ class CRUDVerticle : AbstractVerticle() {
   override fun start(startPromise: Promise<Void>?) {
     // Initialize MongoDB
     mongoClient =
-      MongoClient.createShared(vertx, jsonObjectOf("host" to "localhost", "port" to MONGO_PORT, "db_name" to "clients"))
+      MongoClient.createShared(
+        vertx,
+        jsonObjectOf(
+          "host" to MONGO_HOST,
+          "port" to MONGO_PORT,
+          "db_name" to "clients",
+          "username" to "biot",
+          "password" to "biot"
+        )
+      )
 
     val usernameFieldRelays = "mqttUsername"
     val passwordFieldRelays = "mqttPassword"
@@ -112,16 +126,18 @@ class CRUDVerticle : AbstractVerticle() {
     val pgConnectOptions =
       pgConnectOptionsOf(
         port = TIMESCALE_PORT,
-        host = "localhost",
-        database = "postgres",
-        user = "postgres",
+        host = TIMESCALE_HOST,
+        database = "biot",
+        user = "biot",
         password = "biot",
+        sslMode = if (TIMESCALE_HOST != "localhost") SslMode.REQUIRE else null, // SSL is disabled when testing
+        trustAll = true,
         cachePreparedStatements = true
       )
     pgPool = PgPool.pool(vertx, pgConnectOptions, poolOptionsOf())
 
     // Initialize OpenAPI router
-    RouterBuilder.create(vertx, "../swagger-api/swagger.yaml").onComplete { ar ->
+    RouterBuilder.create(vertx, "swagger.yaml").onComplete { ar ->
       if (ar.succeeded()) {
         // Spec loaded with success
         val routerBuilder = ar.result()
@@ -149,14 +165,37 @@ class CRUDVerticle : AbstractVerticle() {
         routerBuilder.operation("updateItem").handler(::updateItemHandler)
 
         val router: Router = routerBuilder.createRouter()
-        vertx.createHttpServer().requestHandler(router).listen(HTTP_PORT).onComplete {
-          startPromise?.complete()
-        }
+        router.get("/health/live").handler(::livenessCheck)
+        router.get("/health/ready").handler(::readinessCheck)
+
+        vertx.createHttpServer().requestHandler(router).listen(HTTP_PORT)
+          .onSuccess {
+            logger.info("HTTP server listening on port $HTTP_PORT")
+            startPromise?.complete()
+          }.onFailure { error ->
+            startPromise?.fail(error.cause)
+          }
       } else {
         // Something went wrong during router builder initialization
         logger.error("Could not initialize router builder", ar.cause())
       }
     }
+  }
+
+  // Health checks
+
+  private fun livenessCheck(ctx: RoutingContext) {
+    logger.info("Liveness check")
+    ctx.response()
+      .putHeader("Content-Type", "application/json")
+      .end(jsonObjectOf("status" to "UP").encode())
+  }
+
+  private fun readinessCheck(ctx: RoutingContext) {
+    logger.info("Readiness check complete")
+    ctx.response()
+      .putHeader("Content-Type", "application/json")
+      .end(jsonObjectOf("status" to "UP").encode())
   }
 
   // Relays handlers

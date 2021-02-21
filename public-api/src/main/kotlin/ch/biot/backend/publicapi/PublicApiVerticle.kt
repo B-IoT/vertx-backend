@@ -6,6 +6,7 @@ package ch.biot.backend.publicapi
 
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.Promise
+import io.vertx.core.Vertx
 import io.vertx.core.http.HttpMethod
 import io.vertx.ext.auth.jwt.JWTAuth
 import io.vertx.ext.web.Router
@@ -16,12 +17,18 @@ import io.vertx.ext.web.codec.BodyCodec
 import io.vertx.ext.web.handler.BodyHandler
 import io.vertx.ext.web.handler.CorsHandler
 import io.vertx.ext.web.handler.JWTAuthHandler
+import io.vertx.kotlin.core.eventbus.eventBusOptionsOf
+import io.vertx.kotlin.core.http.httpServerOptionsOf
 import io.vertx.kotlin.core.json.get
 import io.vertx.kotlin.core.json.jsonObjectOf
+import io.vertx.kotlin.core.net.pemKeyCertOptionsOf
+import io.vertx.kotlin.core.vertxOptionsOf
 import io.vertx.kotlin.ext.auth.jwt.jwtAuthOptionsOf
 import io.vertx.kotlin.ext.auth.jwtOptionsOf
 import io.vertx.kotlin.ext.auth.pubSecKeyOptionsOf
+import io.vertx.spi.cluster.hazelcast.HazelcastClusterManager
 import org.slf4j.LoggerFactory
+import java.net.InetAddress
 
 
 class PublicApiVerticle : AbstractVerticle() {
@@ -31,10 +38,26 @@ class PublicApiVerticle : AbstractVerticle() {
 
     private const val API_PREFIX = "/api"
     private const val OAUTH_PREFIX = "/oauth"
-    private const val CRUD_PORT = 3000
-    internal const val PUBLIC_PORT = 4000
+    private val CRUD_HOST: String = System.getenv().getOrDefault("CRUD_HOST", "localhost")
+    private val CRUD_PORT: Int = System.getenv().getOrDefault("CRUD_PORT", "8080").toInt()
+    internal val PUBLIC_PORT = System.getenv().getOrDefault("PUBLIC_PORT", "8080").toInt()
 
     internal val logger = LoggerFactory.getLogger(PublicApiVerticle::class.java)
+
+    @JvmStatic
+    fun main(args: Array<String>) {
+      val ipv4 = InetAddress.getLocalHost().hostAddress
+      val options = vertxOptionsOf(
+        clusterManager = HazelcastClusterManager(),
+        eventBusOptions = eventBusOptionsOf(host = ipv4, clusterPublicHost = ipv4)
+      )
+
+      Vertx.clusteredVertx(options).onSuccess {
+        it.deployVerticle(PublicApiVerticle())
+      }.onFailure { error ->
+        logger.error("Could not start", error)
+      }
+    }
   }
 
   private lateinit var webClient: WebClient
@@ -45,18 +68,18 @@ class PublicApiVerticle : AbstractVerticle() {
 
     // Read public and private keys from the file system. They are used for JWT authentication
     // Blocking is not an issue since this action is done only once at startup
-    val publicKey = fs.readFileBlocking("public_key.pem").toString(Charsets.UTF_8)
-    val privateKey = fs.readFileBlocking("private_key.pem").toString(Charsets.UTF_8)
+    val publicKeyJWT = fs.readFileBlocking("public_key_jwt.pem")
+    val privateKeyJWT = fs.readFileBlocking("private_key_jwt.pem")
 
     jwtAuth = JWTAuth.create(
       vertx, jwtAuthOptionsOf(
         pubSecKeys = listOf(
           pubSecKeyOptionsOf(
             algorithm = "RS256",
-            buffer = publicKey
+            buffer = publicKeyJWT
           ), pubSecKeyOptionsOf(
             algorithm = "RS256",
-            buffer = privateKey
+            buffer = privateKeyJWT
           )
         )
       )
@@ -69,7 +92,7 @@ class PublicApiVerticle : AbstractVerticle() {
     // CORS allowed headers and methods
     val allowedHeaders =
       setOf("x-requested-with", "Access-Control-Allow-Origin", "origin", "Content-Type", "accept", "Authorization")
-    val allowedMethods = setOf(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT)
+    val allowedMethods = setOf(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT, HttpMethod.DELETE)
 
     router.route().handler(CorsHandler.create("*").allowedHeaders(allowedHeaders).allowedMethods(allowedMethods))
 
@@ -79,7 +102,12 @@ class PublicApiVerticle : AbstractVerticle() {
     }
 
     // Users
-    router.post("$OAUTH_PREFIX/register").handler(::registerUserHandler)
+    router.post("$OAUTH_PREFIX/register")
+      .handler(
+        CorsHandler.create("((http://)|(https://))localhost\\:\\d+").allowedHeaders(allowedHeaders)
+          .allowedMethods(setOf(HttpMethod.POST))
+      )
+      .handler(::registerUserHandler)
     router.post("$OAUTH_PREFIX/token").handler(::tokenHandler)
     router.put("$API_PREFIX/users/:id").handler(jwtAuthHandler).handler(::updateUserHandler)
     router.get("$API_PREFIX/users").handler(jwtAuthHandler).handler(::getUsersHandler)
@@ -102,11 +130,55 @@ class PublicApiVerticle : AbstractVerticle() {
 
     // TODO Analytics
 
+    // Health checks
+    router.get("/health/ready").handler(::readinessCheck)
+    router.get("/health/live").handler(::livenessCheck)
+
     webClient = WebClient.create(vertx)
 
-    vertx.createHttpServer().requestHandler(router).listen(PUBLIC_PORT).onComplete {
-      startPromise?.complete()
-    }
+    vertx.createHttpServer(
+      httpServerOptionsOf(
+        ssl = CRUD_HOST != "localhost", // disabled when testing
+        pemKeyCertOptions = pemKeyCertOptionsOf(certPath = "certificate.pem", keyPath = "certificate_key.pem")
+      )
+    ).requestHandler(router).listen(PUBLIC_PORT)
+      .onSuccess {
+        logger.info("HTTP server listening on port $PUBLIC_PORT")
+        startPromise?.complete()
+      }.onFailure { error ->
+        startPromise?.fail(error.cause)
+      }
+  }
+
+  // Health checks
+
+  private fun readinessCheck(ctx: RoutingContext) {
+    webClient
+      .get(CRUD_PORT, CRUD_HOST, "/health/ready")
+      .expect(ResponsePredicate.SC_OK)
+      .timeout(TIMEOUT)
+      .send()
+      .onSuccess {
+        logger.info("Readiness check complete")
+        ctx.response()
+          .putHeader("Content-Type", "application/json")
+          .end(jsonObjectOf("status" to "UP").encode())
+      }
+      .onFailure { error ->
+        val cause = error.cause
+        logger.error("Readiness check failed", cause)
+        ctx.response()
+          .setStatusCode(503)
+          .putHeader("Content-Type", "application/json")
+          .end(jsonObjectOf("status" to "DOWN", "reason" to cause?.message).encode())
+      }
+  }
+
+  private fun livenessCheck(ctx: RoutingContext) {
+    logger.info("Liveness check")
+    ctx.response()
+      .putHeader("Content-Type", "application/json")
+      .end(jsonObjectOf("status" to "UP").encode())
   }
 
   // Users
@@ -135,7 +207,7 @@ class PublicApiVerticle : AbstractVerticle() {
     val username: String = payload["username"]
 
     webClient
-      .post(CRUD_PORT, "localhost", "/users/authenticate")
+      .post(CRUD_PORT, CRUD_HOST, "/users/authenticate")
       .timeout(TIMEOUT)
       .expect(ResponsePredicate.SC_SUCCESS)
       .sendJsonObject(payload)
@@ -177,7 +249,7 @@ class PublicApiVerticle : AbstractVerticle() {
     logger.info("New register request on /$endpoint endpoint")
 
     webClient
-      .post(CRUD_PORT, "localhost", "/$endpoint")
+      .post(CRUD_PORT, CRUD_HOST, "/$endpoint")
       .timeout(TIMEOUT)
       .putHeader("Content-Type", "application/json")
       .expect(ResponsePredicate.SC_OK)
@@ -198,7 +270,7 @@ class PublicApiVerticle : AbstractVerticle() {
     logger.info("New update request on /$endpoint endpoint")
 
     webClient
-      .put(CRUD_PORT, "localhost", "/$endpoint/${ctx.pathParam("id")}")
+      .put(CRUD_PORT, CRUD_HOST, "/$endpoint/${ctx.pathParam("id")}")
       .timeout(TIMEOUT)
       .putHeader("Content-Type", "application/json")
       .expect(ResponsePredicate.SC_OK)
@@ -218,7 +290,7 @@ class PublicApiVerticle : AbstractVerticle() {
     logger.info("New getMany request on /$endpoint endpoint")
 
     webClient
-      .get(CRUD_PORT, "localhost", "/$endpoint")
+      .get(CRUD_PORT, CRUD_HOST, "/$endpoint")
       .timeout(TIMEOUT)
       .`as`(BodyCodec.jsonArray())
       .send()
@@ -237,7 +309,7 @@ class PublicApiVerticle : AbstractVerticle() {
     logger.info("New getOne request on /$endpoint endpoint")
 
     webClient
-      .get(CRUD_PORT, "localhost", "/$endpoint/${ctx.pathParam("id")}")
+      .get(CRUD_PORT, CRUD_HOST, "/$endpoint/${ctx.pathParam("id")}")
       .timeout(TIMEOUT)
       .`as`(BodyCodec.jsonObject())
       .send()
@@ -256,7 +328,7 @@ class PublicApiVerticle : AbstractVerticle() {
     logger.info("New delete request on /$endpoint endpoint")
 
     webClient
-      .delete(CRUD_PORT, "localhost", "/$endpoint/${ctx.pathParam("id")}")
+      .delete(CRUD_PORT, CRUD_HOST, "/$endpoint/${ctx.pathParam("id")}")
       .timeout(TIMEOUT)
       .expect(ResponsePredicate.SC_OK)
       .send()

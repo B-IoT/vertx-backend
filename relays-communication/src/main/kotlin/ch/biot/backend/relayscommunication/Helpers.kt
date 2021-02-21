@@ -13,8 +13,10 @@ internal fun JsonObject.clean(): JsonObject = this.copy().apply {
   remove("mqttID")
   remove("mqttUsername")
   remove("mqttPassword")
-  remove("latitude")
-  remove("longitude")
+  if (containsKey("beacon")) {
+    remove("beacon") // TODO remove when supported
+  }
+  remove("ledStatus") // TODO remove when supported
   if (containsKey("lastModified")) {
     val lastModifiedObject: JsonObject = this["lastModified"]
     put("lastModified", lastModifiedObject["\$date"])
