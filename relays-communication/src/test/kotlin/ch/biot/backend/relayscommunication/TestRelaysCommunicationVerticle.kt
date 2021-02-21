@@ -187,17 +187,17 @@ class TestRelaysCommunicationVerticle {
   @DisplayName("A MQTT client receives updates")
   fun clientReceivesUpdate(vertx: Vertx, testContext: VertxTestContext) {
     val message = jsonObjectOf("latitude" to 42.3, "mqttID" to "mqtt")
-    mqttClient.rxConnect(RelaysCommunicationVerticle.MQTT_PORT, "localhost")
+    mqttClient.publishHandler { msg ->
+      if (msg.topicName() == UPDATE_PARAMETERS_TOPIC && msg.messageId() == 1) { // only handle received message, not the one for the last configuration
+        testContext.verify {
+          val messageWithoutMqttID = message.copy().apply { remove("mqttID") }
+          expectThat(msg.payload().toJsonObject()).isEqualTo(messageWithoutMqttID)
+          testContext.completeNow()
+        }
+      }
+    }.rxConnect(RelaysCommunicationVerticle.MQTT_PORT, "localhost")
       .flatMap {
-        mqttClient.publishHandler { msg ->
-          if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
-            testContext.verify {
-              val messageWithoutMqttID = message.copy().apply { remove("mqttID") }
-              expectThat(msg.payload().toJsonObject()).isEqualTo(messageWithoutMqttID)
-              testContext.completeNow()
-            }
-          }
-        }.rxSubscribe(UPDATE_PARAMETERS_TOPIC, MqttQoS.AT_LEAST_ONCE.value())
+        mqttClient.rxSubscribe(UPDATE_PARAMETERS_TOPIC, MqttQoS.AT_LEAST_ONCE.value())
       }.subscribeBy(
         onSuccess = {
           vertx.eventBus().send(RELAYS_UPDATE_ADDRESS, message)
