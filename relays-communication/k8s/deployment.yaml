@@ -23,11 +23,11 @@ spec:
           name: relays-communication
           ports:
             - name: mqtt
-              containerPort: 1883
+              containerPort: 8883
             - name: liveness
-              containerPort: 1884
+              containerPort: 8884
             - name: readiness
-              containerPort: 1885
+              containerPort: 8885
             - name: hazelcast
               containerPort: 5701
           env:
@@ -55,13 +55,13 @@ spec:
                   key: kafka_port
           livenessProbe:
             tcpSocket:
-              port: 1884
+              port: 8884
             initialDelaySeconds: 60
             periodSeconds: 15
             timeoutSeconds: 5
           readinessProbe:
             tcpSocket:
-              port: 1885
+              port: 8885
             initialDelaySeconds: 10
             periodSeconds: 10
             timeoutSeconds: 5

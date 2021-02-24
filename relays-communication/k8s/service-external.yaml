@@ -11,4 +11,4 @@ spec:
     app: relays-communication
   ports:
     - name: mqtt
-      port: 1883
+      port: 8883

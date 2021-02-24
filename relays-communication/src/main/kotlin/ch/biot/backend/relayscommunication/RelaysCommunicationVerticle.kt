@@ -9,13 +9,17 @@ import io.netty.handler.codec.mqtt.MqttQoS
 import io.reactivex.Completable
 import io.reactivex.rxkotlin.subscribeBy
 import io.vertx.core.Vertx
+import io.vertx.core.http.ClientAuth
 import io.vertx.core.json.DecodeException
 import io.vertx.core.json.JsonObject
 import io.vertx.kotlin.core.eventbus.eventBusOptionsOf
 import io.vertx.kotlin.core.json.get
 import io.vertx.kotlin.core.json.jsonObjectOf
+import io.vertx.kotlin.core.net.netServerOptionsOf
+import io.vertx.kotlin.core.net.pemKeyCertOptionsOf
 import io.vertx.kotlin.core.vertxOptionsOf
 import io.vertx.kotlin.ext.auth.mongo.mongoAuthenticationOptionsOf
+import io.vertx.kotlin.mqtt.mqttServerOptionsOf
 import io.vertx.reactivex.core.buffer.Buffer
 import io.vertx.reactivex.ext.auth.mongo.MongoAuthentication
 import io.vertx.reactivex.ext.mongo.MongoClient
@@ -38,7 +42,7 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
     internal const val INGESTION_TOPIC = "incoming.update"
     internal const val RELAYS_UPDATE_ADDRESS = "relays.update"
 
-    internal val MQTT_PORT = System.getenv().getOrDefault("MQTT_PORT", "1883").toInt()
+    internal val MQTT_PORT = System.getenv().getOrDefault("MQTT_PORT", "8883").toInt()
 
     private val MONGO_HOST: String = System.getenv().getOrDefault("MONGO_HOST", "localhost")
     internal val MONGO_PORT = System.getenv().getOrDefault("MONGO_PORT", "27017").toInt()
@@ -46,8 +50,8 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
     private val KAFKA_HOST: String = System.getenv().getOrDefault("KAFKA_HOST", "localhost")
     internal val KAFKA_PORT = System.getenv().getOrDefault("KAFKA_PORT", "9092").toInt()
 
-    private const val LIVENESS_PORT = 1884
-    private const val READINESS_PORT = 1885
+    private const val LIVENESS_PORT = 8884
+    private const val READINESS_PORT = 8885
 
     private val logger = LoggerFactory.getLogger(RelaysCommunicationVerticle::class.java)
 
@@ -119,19 +123,22 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
       clients[mqttID]?.let { client -> sendMessageTo(client, jsonClean) }
     }
 
-//    // Certificate for TLS
-//    val pemKeyCertOptions = pemKeyCertOptionsOf(certPath = "certificate.pem", keyPath = "certificate_key.pem")
-//    val netServerOptions = netServerOptionsOf(ssl = true, pemKeyCertOptions = pemKeyCertOptions)
+    // Certificate for TLS
+    val pemKeyCertOptions = pemKeyCertOptionsOf(certPath = "certificate.pem", keyPath = "certificate_key.pem")
+    val netServerOptions = netServerOptionsOf(ssl = true, pemKeyCertOptions = pemKeyCertOptions)
 
     // TCP server for liveness checks
-    vertx.createNetServer().connectHandler {
+    vertx.createNetServer(netServerOptions).connectHandler {
       logger.info("Liveness check")
     }.rxListen(LIVENESS_PORT).subscribe()
 
-    return MqttServer.create(vertx)
+    return MqttServer.create(
+      vertx,
+      mqttServerOptionsOf(ssl = true, pemKeyCertOptions = pemKeyCertOptions, clientAuth = ClientAuth.REQUEST)
+    )
       .endpointHandler(::handleClient).rxListen(MQTT_PORT).doOnSuccess {
         logger.info("MQTT server listening on port $MQTT_PORT")
-        vertx.createNetServer().connectHandler {
+        vertx.createNetServer(netServerOptions).connectHandler {
           logger.info("Readiness check complete")
         }.rxListen(READINESS_PORT).subscribe()
       }.ignoreElement()
