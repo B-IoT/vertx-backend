@@ -5,6 +5,7 @@ import asyncpg
 import sys
 import gc
 import orjson
+import datetime
 import numpy as np
 import pandas as pd
 
@@ -207,8 +208,8 @@ def consume_loop(consumer, topics):
                 # Valid message received
                 key: str = msg.key().decode()
                 value: dict = orjson.loads(msg.value())
-                print("Message received:")
-                print(f"  Key = {key}")
+                print(f"[{datetime.datetime.utcnow()}] Message received:")
+                print(f"  Key = {key}")h
                 print(f"  Value = {value}")
 
                 triangulate(key, value)
