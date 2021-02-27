@@ -21,7 +21,8 @@ CREATE TABLE IF NOT EXISTS beacon_data
     battery INTEGER,
     status VARCHAR(50),
     latitude DECIMAL(9, 6),
-    longitude DECIMAL(9, 6)
+    longitude DECIMAL(9, 6),
+    floor INTEGER
 );
 
 SELECT create_hypertable('beacon_data', 'time');
