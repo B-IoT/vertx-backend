@@ -3,6 +3,7 @@ from decouple import config
 import asyncio
 import asyncpg
 import sys
+import gc
 import orjson
 import numpy as np
 import pandas as pd
@@ -68,8 +69,18 @@ def triangulate(relay_id, data):
     relay_df[relay_id] = [data["latitude"], data["longitude"]]
 
     beacons = data["mac"]
-    relay = pd.DataFrame(index=["RSSI", "tx", "ref"], columns=beacons)
-    relay.loc["RSSI"] = data["rssi"]
+
+    if not beacons:
+        print('  No beacon detected, skipping!')
+        return
+
+    df_beacons = pd.DataFrame(columns=['beacon', 'rssi']) # used to remove duplicates through averaging
+    df_beacons['beacon'] = beacons
+    df_beacons['rssi'] = data["rssi"]
+    averaged = df_beacons.groupby('beacon').agg('mean')
+    
+    relay = pd.DataFrame(index=["RSSI", "tx", "ref"], columns=averaged.index)
+    relay.loc["RSSI"] = averaged["rssi"]
     relay.loc["tx"] = 6
     relay.loc["ref"] = -69
     relay.loc["dist"] = db_to_meters(
@@ -134,11 +145,16 @@ def triangulate(relay_id, data):
         elif len(temp_df) == 1:
             print(f"  Beacon '{beacon}' detected by only one relay, skipping!")
         else:
-            print(f"  Beacon '{beacon}' not detected")
+            print(f"  Beacon '{beacon}' not detected by any relay, skipping!")
 
     if coordinates:
         loop = asyncio.get_event_loop()
         loop.run_until_complete(store_beacons_data(coordinates))
+    
+    # Garbage collect
+    to_delete = [df_beacons, averaged, relay, updated_beacon, coordinates, temp_df]
+    del to_delete
+    gc.collect()
 
 
 def commit_completed(err, _):
