@@ -17,7 +17,7 @@ TIMESCALE_HOST = config("TIMESCALE_HOST", default="localhost")
 TIMESCALE_PORT = config("TIMESCALE_PORT", default=5432, cast=int)
 
 connectivity_df = pd.DataFrame()
-relay_df = pd.DataFrame(index=["lat", "long"])
+relay_df = pd.DataFrame(index=["lat", "long", "floor"])
 
 
 def lat_to_meters(lat1, lon1, lat2, lon2):
@@ -48,7 +48,7 @@ def db_to_meters(RSSI, measure_ref, N):
 async def store_beacons_data(data):
     """
     Stores the beacons' data in TimescaleDB.
-    Data must be an array of tuples of the following form: ("aa:aa:aa:aa:aa:aa", 10, "available", 2.3, 3.2).
+    Data must be an array of tuples of the following form: ("aa:aa:aa:aa:aa:aa", 10, "available", 2.3, 3.2, 1).
     """
     async with asyncpg.create_pool(
         host=TIMESCALE_HOST,
@@ -59,14 +59,14 @@ async def store_beacons_data(data):
     ) as pool:
         async with pool.acquire() as conn:
             stmt = await conn.prepare(
-                """INSERT INTO beacon_data (time, mac, battery, status, latitude, longitude) VALUES (NOW(), $1, $2, $3, $4, $5);"""
+                """INSERT INTO beacon_data (time, mac, battery, status, latitude, longitude, floor) VALUES (NOW(), $1, $2, $3, $4, $5, $6);"""
             )
             await stmt.executemany(data)
             print("  New beacons' data inserted in DB")
 
 
 def triangulate(relay_id, data):
-    relay_df[relay_id] = [data["latitude"], data["longitude"]]
+    relay_df[relay_id] = [data["latitude"], data["longitude"], data["floor"]]
 
     beacons = data["mac"]
 
@@ -140,7 +140,19 @@ def triangulate(relay_id, data):
                         relay_df.loc["long", rel_1] + (dist_1 / dist) * vect_long
                     )
 
-            coordinates.append((beacon, 10, "available", np.mean(lat), np.mean(long)))
+            temp_relay = temp_df.loc[:, "relay"]
+            floor = np.mean(relay_df.loc["floor", temp_relay])   
+
+            if (floor - np.floor(floor)) - 0.5 <= 1e-5: 
+                # Case where we're in the middle, eg: floor = 1.5
+                # Taking the floor of the closest relay
+                floor = relay_df.loc["floor", temp_df.loc[0, "relay"]] 
+            else:
+                # Otherwise taking the mean floor + rounding it
+                floor = np.around(np.mean(relay_df.loc["floor", temp_relay])) 
+            
+            coordinates.append((beacon, 10, "available", np.mean(lat), np.mean(long), floor))
+
             print("  Triangulation done")
         elif len(temp_df) == 1:
             print(f"  Beacon '{beacon}' detected by only one relay, skipping!")
@@ -152,8 +164,12 @@ def triangulate(relay_id, data):
         loop.run_until_complete(store_beacons_data(coordinates))
     
     # Garbage collect
-    to_delete = [df_beacons, averaged, relay, updated_beacon, coordinates, temp_df]
-    del to_delete
+    del df_beacons
+    del averaged
+    del relay
+    del updated_beacon
+    del coordinates
+    del temp_df
     gc.collect()
 
 
