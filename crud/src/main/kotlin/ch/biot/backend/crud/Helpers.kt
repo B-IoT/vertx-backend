@@ -85,5 +85,6 @@ internal fun Row.toItemJson(): JsonObject = jsonObjectOf(
   "battery" to getInteger("battery"),
   "status" to getString("status"),
   "latitude" to getDouble("latitude"),
-  "longitude" to getDouble("longitude")
+  "longitude" to getDouble("longitude"),
+  "floor" to getInteger("floor")
 )

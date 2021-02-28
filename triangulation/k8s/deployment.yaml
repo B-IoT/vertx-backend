@@ -1,14 +1,26 @@
-apiVersion: batch/v1
-kind: Job
+apiVersion: apps/v1
+kind: Deployment
 metadata:
+  labels:
+    app: triangulation
   name: triangulation
 spec:
+  selector:
+    matchLabels:
+      app: triangulation
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
   template:
+    metadata:
+      labels:
+        app: triangulation
     spec:
       containers:
       - image: vertx-backend/triangulation:latest
         name: triangulation
-        imagePullPolicy: IfNotPresent
         env:
           - name: KAFKA_PORT
             valueFrom:
@@ -30,4 +42,3 @@ spec:
               configMapKeyRef:
                 name: crud-config
                 key: timescale_hostname
-      restartPolicy: Never

@@ -23,7 +23,6 @@ import io.vertx.kotlin.core.json.jsonObjectOf
 import io.vertx.kotlin.pgclient.pgConnectOptionsOf
 import io.vertx.kotlin.sqlclient.poolOptionsOf
 import io.vertx.pgclient.PgPool
-import io.vertx.pgclient.SslMode
 import io.vertx.sqlclient.Tuple
 import org.junit.jupiter.api.*
 import org.junit.jupiter.api.extension.ExtendWith
@@ -55,7 +54,8 @@ class TestCRUDVerticleItems {
     "battery" to 50,
     "status" to "disponible",
     "latitude" to 2.333333,
-    "longitude" to -2.333333
+    "longitude" to -2.333333,
+    "floor" to 1
   )
 
   private val updateItemJson = jsonObjectOf(
@@ -102,7 +102,8 @@ class TestCRUDVerticleItems {
             existingBeaconData.getInteger("battery") + 5,
             existingBeaconData.getString("status"),
             existingBeaconData.getDouble("latitude"),
-            existingBeaconData.getDouble("longitude")
+            existingBeaconData.getDouble("longitude"),
+            existingBeaconData.getInteger("floor")
           )
         )
     }.compose {
@@ -113,7 +114,8 @@ class TestCRUDVerticleItems {
             existingBeaconData.getInteger("battery"),
             existingBeaconData.getString("status"),
             existingBeaconData.getDouble("latitude"),
-            existingBeaconData.getDouble("longitude")
+            existingBeaconData.getDouble("longitude"),
+            existingBeaconData.getInteger("floor")
           )
         )
     }.compose {
@@ -124,7 +126,8 @@ class TestCRUDVerticleItems {
             existingBeaconData.getInteger("battery"),
             existingBeaconData.getString("status"),
             existingBeaconData.getDouble("latitude"),
-            existingBeaconData.getDouble("longitude")
+            existingBeaconData.getDouble("longitude"),
+            existingBeaconData.getInteger("floor")
           )
         )
     }
@@ -172,6 +175,7 @@ class TestCRUDVerticleItems {
       put("status", existingBeaconData.getString("status"))
       put("latitude", existingBeaconData.getDouble("latitude"))
       put("longitude", existingBeaconData.getDouble("longitude"))
+      put("floor", existingBeaconData.getInteger("floor"))
     })
 
     val response = Buffer.buffer(Given {
@@ -203,6 +207,7 @@ class TestCRUDVerticleItems {
       put("status", existingBeaconData.getString("status"))
       put("latitude", existingBeaconData.getDouble("latitude"))
       put("longitude", existingBeaconData.getDouble("longitude"))
+      put("floor", existingBeaconData.getInteger("floor"))
     }
 
     val response = Buffer.buffer(Given {
@@ -257,6 +262,7 @@ class TestCRUDVerticleItems {
           that(json.getString("status")).isEqualTo(existingBeaconData.getString("status"))
           that(json.getDouble("latitude")).isEqualTo(existingBeaconData.getDouble("latitude"))
           that(json.getDouble("longitude")).isEqualTo(existingBeaconData.getDouble("longitude"))
+          that(json.getInteger("floor")).isEqualTo(existingBeaconData.getInteger("floor"))
         }
         testContext.completeNow()
       }
@@ -305,7 +311,7 @@ class TestCRUDVerticleItems {
   companion object {
 
     private const val INSERT_BEACON_DATA =
-      "INSERT INTO beacon_data(time, mac, battery, status, latitude, longitude) values(NOW(), $1, $2, $3, $4, $5)"
+      "INSERT INTO beacon_data(time, mac, battery, status, latitude, longitude, floor) values(NOW(), $1, $2, $3, $4, $5, $6)"
 
     private val requestSpecification: RequestSpecification = RequestSpecBuilder()
       .addFilters(listOf(ResponseLoggingFilter(), RequestLoggingFilter()))

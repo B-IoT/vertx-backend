@@ -3,9 +3,9 @@
  */
 
 plugins {
-    kotlin("jvm") version "1.4.21"
-    id("com.github.johnrengelman.shadow") version "5.2.0" apply false
-    id("com.google.cloud.tools.jib") version "2.4.0" apply false
+    kotlin("jvm") version "1.4.31"
+    id("com.github.johnrengelman.shadow") version "6.1.0" apply false
+    id("com.google.cloud.tools.jib") version "2.8.0" apply false
     id("com.github.ben-manes.versions") version "0.36.0"
     jacoco
 }
@@ -17,11 +17,11 @@ repositories {
 
 allprojects {
     extra["vertxVersion"] = if (project.hasProperty("vertxVersion")) project.property("vertxVersion") else "4.0.2"
-    extra["junitJupiterVersion"] = "5.7.0"
+    extra["junitJupiterVersion"] = "5.7.1"
     extra["logbackClassicVersion"] = "1.2.3"
-    extra["testContainersVersion"] = "1.15.0"
-    extra["restAssuredVersion"] = "4.3.2"
-    extra["striktVersion"] = "0.28.1"
+    extra["testContainersVersion"] = "1.15.2"
+    extra["restAssuredVersion"] = "4.3.3"
+    extra["striktVersion"] = "0.29.0"
     extra["rxKotlinVersion"] = "2.4.0"
     extra["hazelcastVersion"] = "2.2.1"
 }
