@@ -26,6 +26,9 @@ import io.vertx.kotlin.core.vertxOptionsOf
 import io.vertx.kotlin.ext.auth.jwt.jwtAuthOptionsOf
 import io.vertx.kotlin.ext.auth.jwtOptionsOf
 import io.vertx.kotlin.ext.auth.pubSecKeyOptionsOf
+import io.vertx.kotlin.micrometer.micrometerMetricsOptionsOf
+import io.vertx.kotlin.micrometer.vertxPrometheusOptionsOf
+import io.vertx.micrometer.PrometheusScrapingHandler
 import io.vertx.spi.cluster.hazelcast.HazelcastClusterManager
 import org.slf4j.LoggerFactory
 import java.net.InetAddress
@@ -56,7 +59,11 @@ class PublicApiVerticle : AbstractVerticle() {
       val ipv4 = InetAddress.getLocalHost().hostAddress
       val options = vertxOptionsOf(
         clusterManager = HazelcastClusterManager(),
-        eventBusOptions = eventBusOptionsOf(host = ipv4, clusterPublicHost = ipv4)
+        eventBusOptions = eventBusOptionsOf(host = ipv4, clusterPublicHost = ipv4),
+        metricsOptions = micrometerMetricsOptionsOf(
+          enabled = true,
+          prometheusOptions = vertxPrometheusOptionsOf(enabled = true, publishQuantiles = true)
+        )
       )
 
       Vertx.clusteredVertx(options).onSuccess {
@@ -140,6 +147,9 @@ class PublicApiVerticle : AbstractVerticle() {
     // Health checks
     router.get("/health/ready").handler(::readinessCheck)
     router.get("/health/live").handler(::livenessCheck)
+
+    // Metrics
+    router.route("/metrics").handler(PrometheusScrapingHandler.create())
 
     webClient = WebClient.create(vertx)
 

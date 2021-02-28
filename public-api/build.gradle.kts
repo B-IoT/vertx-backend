@@ -24,10 +24,13 @@ dependencies {
   val striktVersion = project.extra["striktVersion"]
   val testContainersVersion = project.extra["testContainersVersion"]
   val hazelcastVersion = project.extra["hazelcastVersion"]
+  val micrometerPrometheusVersion = project.extra["micrometerPrometheusVersion"]
 
   implementation("io.vertx:vertx-web:$vertxVersion")
   implementation("io.vertx:vertx-web-client:$vertxVersion")
   implementation("io.vertx:vertx-auth-jwt:$vertxVersion")
+  implementation("io.vertx:vertx-micrometer-metrics:$vertxVersion")
+  implementation("io.micrometer:micrometer-registry-prometheus:$micrometerPrometheusVersion")
   implementation("io.vertx:vertx-hazelcast:$vertxVersion")
   implementation("com.hazelcast:hazelcast-kubernetes:$hazelcastVersion")
   implementation("io.vertx:vertx-lang-kotlin:$vertxVersion")
