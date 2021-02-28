@@ -513,6 +513,7 @@ class TestPublicApiVerticle {
         that(obj.containsKey("status")).isTrue()
         that(obj.containsKey("latitude")).isTrue()
         that(obj.containsKey("longitude")).isTrue()
+        that(obj.containsKey("floor")).isTrue()
       }
 
       testContext.completeNow()
@@ -550,6 +551,7 @@ class TestPublicApiVerticle {
         that(response.containsKey("status")).isTrue()
         that(response.containsKey("latitude")).isTrue()
         that(response.containsKey("longitude")).isTrue()
+        that(response.containsKey("floor")).isTrue()
       }
       testContext.completeNow()
     }

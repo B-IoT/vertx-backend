@@ -499,6 +499,9 @@ components:
         longitude:
           type: number
           format: double
+        floor:
+          type: integer
+          format: int32
       description: An item
     ItemRegisterInfo:
       type: object
