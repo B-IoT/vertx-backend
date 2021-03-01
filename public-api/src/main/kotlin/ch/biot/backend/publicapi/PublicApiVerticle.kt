@@ -103,6 +103,9 @@ class PublicApiVerticle : AbstractVerticle() {
 
     val router = Router.router(vertx)
 
+    // Metrics
+    router.route("/metrics").handler(PrometheusScrapingHandler.create())
+
     // CORS allowed headers and methods
     val allowedHeaders =
       setOf("x-requested-with", "Access-Control-Allow-Origin", "origin", CONTENT_TYPE, "accept", "Authorization")
@@ -147,9 +150,6 @@ class PublicApiVerticle : AbstractVerticle() {
     // Health checks
     router.get("/health/ready").handler(::readinessCheck)
     router.get("/health/live").handler(::livenessCheck)
-
-    // Metrics
-    router.route("/metrics").handler(PrometheusScrapingHandler.create())
 
     webClient = WebClient.create(vertx)
 

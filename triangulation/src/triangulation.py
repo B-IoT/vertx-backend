@@ -209,7 +209,7 @@ def consume_loop(consumer, topics):
                 key: str = msg.key().decode()
                 value: dict = orjson.loads(msg.value())
                 print(f"[{datetime.datetime.utcnow()}] Message received:")
-                print(f"  Key = {key}")h
+                print(f"  Key = {key}")
                 print(f"  Value = {value}")
 
                 triangulate(key, value)

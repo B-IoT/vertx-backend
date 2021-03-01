@@ -8,6 +8,9 @@ spec:
   endpoints:
     - interval: 30s
       port: http
+      scheme: https
+      tlsConfig:
+        insecureSkipVerify: true
   selector:
     matchLabels:
       app: public-api
