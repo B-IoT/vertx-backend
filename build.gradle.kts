@@ -23,7 +23,7 @@ allprojects {
     extra["restAssuredVersion"] = "4.3.3"
     extra["striktVersion"] = "0.29.0"
     extra["rxKotlinVersion"] = "2.4.0"
-    extra["hazelcastVersion"] = "2.2.1"
+    extra["hazelcastVersion"] = "2.2.2"
     extra["micrometerPrometheusVersion"] = "1.6.4"
 }
 
