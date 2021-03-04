@@ -1,11 +1,11 @@
 from confluent_kafka import Consumer, KafkaError, KafkaException
 from decouple import config
+from loguru import logger
 import asyncio
 import asyncpg
 import sys
 import gc
 import orjson
-import datetime
 import numpy as np
 import pandas as pd
 
@@ -19,6 +19,17 @@ TIMESCALE_PORT = config("TIMESCALE_PORT", default=5432, cast=int)
 
 connectivity_df = pd.DataFrame()
 relay_df = pd.DataFrame(index=["lat", "long", "floor"])
+
+logger.configure(
+    handlers=[
+        dict(
+            sink=sys.stderr,
+            format="<green>[{time}]</> <level>{message}</level>",
+            backtrace=True,
+            diagnose=True,
+        )
+    ]
+)
 
 
 def lat_to_meters(lat1, lon1, lat2, lon2):
@@ -63,7 +74,7 @@ async def store_beacons_data(data):
                 """INSERT INTO beacon_data (time, mac, battery, status, latitude, longitude, floor) VALUES (NOW(), $1, $2, $3, $4, $5, $6);"""
             )
             await stmt.executemany(data)
-            print("  New beacons' data inserted in DB")
+            logger.info("New beacons' data inserted in DB")
 
 
 def triangulate(relay_id, data):
@@ -72,14 +83,16 @@ def triangulate(relay_id, data):
     beacons = data["mac"]
 
     if not beacons:
-        print('  No beacon detected, skipping!')
+        logger.info("No beacon detected, skipping!")
         return
 
-    df_beacons = pd.DataFrame(columns=['beacon', 'rssi']) # used to remove duplicates through averaging
-    df_beacons['beacon'] = beacons
-    df_beacons['rssi'] = data["rssi"]
-    averaged = df_beacons.groupby('beacon').agg('mean')
-    
+    df_beacons = pd.DataFrame(
+        columns=["beacon", "rssi"]
+    )  # used to remove duplicates through averaging
+    df_beacons["beacon"] = beacons
+    df_beacons["rssi"] = data["rssi"]
+    averaged = df_beacons.groupby("beacon").agg("mean")
+
     relay = pd.DataFrame(index=["RSSI", "tx", "ref"], columns=averaged.index)
     relay.loc["RSSI"] = averaged["rssi"]
     relay.loc["tx"] = 6
@@ -111,8 +124,10 @@ def triangulate(relay_id, data):
         long = []
         nb_relays = len(temp_df)
         if nb_relays > 1:
-            print(
-                f"  Beacon '{beacon}' detected by {nb_relays} relays, starting triangulation..."
+            logger.info(
+                "Beacon '{}' detected by {} relays, starting triangulation...",
+                beacon,
+                nb_relays,
             )
             for relay_1 in range(nb_relays - 1):
                 for relay_2 in range(relay_1 + 1, nb_relays):
@@ -142,28 +157,30 @@ def triangulate(relay_id, data):
                     )
 
             temp_relay = temp_df.loc[:, "relay"]
-            floor = np.mean(relay_df.loc["floor", temp_relay])   
+            floor = np.mean(relay_df.loc["floor", temp_relay])
 
-            if (floor - np.floor(floor)) - 0.5 <= 1e-5: 
+            if (floor - np.floor(floor)) - 0.5 <= 1e-5:
                 # Case where we're in the middle, eg: floor = 1.5
                 # Taking the floor of the closest relay
-                floor = relay_df.loc["floor", temp_df.loc[0, "relay"]] 
+                floor = relay_df.loc["floor", temp_df.loc[0, "relay"]]
             else:
                 # Otherwise taking the mean floor + rounding it
-                floor = np.around(np.mean(relay_df.loc["floor", temp_relay])) 
-            
-            coordinates.append((beacon, 10, "available", np.mean(lat), np.mean(long), floor))
+                floor = np.around(np.mean(relay_df.loc["floor", temp_relay]))
 
-            print("  Triangulation done")
+            coordinates.append(
+                (beacon, 10, "available", np.mean(lat), np.mean(long), floor)
+            )
+
+            logger.info("Triangulation done")
         elif len(temp_df) == 1:
-            print(f"  Beacon '{beacon}' detected by only one relay, skipping!")
+            logger.info("Beacon '{}' detected by only one relay, skipping!", beacon)
         else:
-            print(f"  Beacon '{beacon}' not detected by any relay, skipping!")
+            logger.info("Beacon '{}' not detected by any relay, skipping!", beacon)
 
     if coordinates:
         loop = asyncio.get_event_loop()
         loop.run_until_complete(store_beacons_data(coordinates))
-    
+
     # Garbage collect
     del df_beacons
     del averaged
@@ -179,7 +196,7 @@ def commit_completed(err, _):
     Callack on commit completed.
     """
     if err:
-        print(str(err))
+        logger.error(str(err))
 
 
 def consume_loop(consumer, topics):
@@ -208,9 +225,9 @@ def consume_loop(consumer, topics):
                 # Valid message received
                 key: str = msg.key().decode()
                 value: dict = orjson.loads(msg.value())
-                print(f"[{datetime.datetime.utcnow()}] Message received:")
-                print(f"  Key = {key}")
-                print(f"  Value = {value}")
+                logger.info("Message received:")
+                logger.info("Key = {}", key)
+                logger.info("Value = {}", value)
 
                 triangulate(key, value)
 
@@ -229,12 +246,12 @@ if __name__ == "__main__":
             "group.id": "triangulation-client",
             "on_commit": commit_completed,
             "auto.offset.reset": "latest",
-            "allow.auto.create.topics": "true"
+            "allow.auto.create.topics": "true",
         }
 
         consumer = Consumer(conf)
 
-        print(f"Starting Kafka consumer loop on topic '{TOPIC}'...")
+        logger.info("Starting Kafka consumer loop on topic '{}'...", TOPIC)
         consume_loop(consumer, [TOPIC])
     except KeyboardInterrupt:
-        print("\nStopped consumer!")
+        logger.info("Stopped consumer!")
