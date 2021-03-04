@@ -303,6 +303,48 @@ class TestCRUDVerticleUsers {
     }
   }
 
+  @Test
+  @DisplayName("Liveness check succeeds")
+  fun livenessCheckSucceeds(testContext: VertxTestContext) {
+    val expected = jsonObjectOf("status" to "UP")
+
+    val response = Buffer.buffer(Given {
+      spec(requestSpecification)
+    } When {
+      get("/health/live")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }).toJsonObject()
+
+    testContext.verify {
+      expectThat(response).isEqualTo(expected)
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("Readiness check succeeds")
+  fun readinessCheckSucceeds(testContext: VertxTestContext) {
+    val expected = jsonObjectOf("status" to "UP")
+
+    val response = Buffer.buffer(Given {
+      spec(requestSpecification)
+    } When {
+      get("/health/ready")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }).toJsonObject()
+
+    testContext.verify {
+      expectThat(response).isEqualTo(expected)
+      testContext.completeNow()
+    }
+  }
+
   companion object {
 
     private val requestSpecification: RequestSpecification = RequestSpecBuilder()
