@@ -39,6 +39,9 @@ import java.util.*
 class CRUDVerticle : AbstractVerticle() {
 
   companion object {
+    private const val APPLICATION_JSON = "application/json"
+    private const val CONTENT_TYPE = "Content-Type"
+
     private const val RELAYS_COLLECTION = "relays"
     private const val USERS_COLLECTION = "users"
 
@@ -187,14 +190,14 @@ class CRUDVerticle : AbstractVerticle() {
   private fun livenessCheck(ctx: RoutingContext) {
     logger.info("Liveness check")
     ctx.response()
-      .putHeader("Content-Type", "application/json")
+      .putHeader(CONTENT_TYPE, APPLICATION_JSON)
       .end(jsonObjectOf("status" to "UP").encode())
   }
 
   private fun readinessCheck(ctx: RoutingContext) {
     logger.info("Readiness check complete")
     ctx.response()
-      .putHeader("Content-Type", "application/json")
+      .putHeader(CONTENT_TYPE, APPLICATION_JSON)
       .end(jsonObjectOf("status" to "UP").encode())
   }
 
@@ -237,7 +240,7 @@ class CRUDVerticle : AbstractVerticle() {
     // TODO use offset and limit parameters
     mongoClient.find(RELAYS_COLLECTION, jsonObjectOf()).onSuccess { relays ->
       ctx.response()
-        .putHeader("Content-Type", "application/json")
+        .putHeader(CONTENT_TYPE, APPLICATION_JSON)
         .end(JsonArray(relays.map { it.clean() }).encode())
     }.onFailure { error ->
       logger.error("Could not get relays", error)
@@ -254,7 +257,7 @@ class CRUDVerticle : AbstractVerticle() {
     val query = jsonObjectOf("relayID" to relayID)
     mongoClient.findOne(RELAYS_COLLECTION, query, jsonObjectOf()).onSuccess { relay ->
       ctx.response()
-        .putHeader("Content-Type", "application/json")
+        .putHeader(CONTENT_TYPE, APPLICATION_JSON)
         .end(relay.clean().encode())
     }.onFailure { error ->
       logger.error("Could not get relay", error)
@@ -357,7 +360,7 @@ class CRUDVerticle : AbstractVerticle() {
     mongoClient.find(USERS_COLLECTION, jsonObjectOf())
       .onSuccess { users ->
         ctx.response()
-          .putHeader("Content-Type", "application/json")
+          .putHeader(CONTENT_TYPE, APPLICATION_JSON)
           .end(JsonArray(users.map { it.clean() }).encode())
       }.onFailure { error ->
         logger.error("Could not get users", error)
@@ -374,7 +377,7 @@ class CRUDVerticle : AbstractVerticle() {
     val query = jsonObjectOf("userID" to userID)
     mongoClient.findOne(USERS_COLLECTION, query, jsonObjectOf()).onSuccess { user ->
       ctx.response()
-        .putHeader("Content-Type", "application/json")
+        .putHeader(CONTENT_TYPE, APPLICATION_JSON)
         .end(user.clean().encode())
     }.onFailure { error ->
       logger.error("Could not get user", error)
@@ -484,7 +487,7 @@ class CRUDVerticle : AbstractVerticle() {
         val result = if (res.size() == 0) listOf() else res.map { it.toItemJson() }
 
         ctx.response()
-          .putHeader("Content-Type", "application/json")
+          .putHeader(CONTENT_TYPE, APPLICATION_JSON)
           .end(JsonArray(result).encode())
       }.onFailure { error ->
         logger.error("Could not get items", error)
@@ -511,7 +514,7 @@ class CRUDVerticle : AbstractVerticle() {
         val result: JsonObject = res.iterator().next().toItemJson()
 
         ctx.response()
-          .putHeader("Content-Type", "application/json")
+          .putHeader(CONTENT_TYPE, APPLICATION_JSON)
           .end(result.encode())
       }.onFailure { error ->
         logger.error("Could not get item", error)
