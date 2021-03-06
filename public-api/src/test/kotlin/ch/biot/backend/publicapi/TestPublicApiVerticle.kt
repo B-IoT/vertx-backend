@@ -16,6 +16,7 @@ import io.restassured.module.kotlin.extensions.When
 import io.restassured.specification.RequestSpecification
 import io.vertx.core.Vertx
 import io.vertx.core.buffer.Buffer
+import io.vertx.core.json.JsonArray
 import io.vertx.junit5.VertxExtension
 import io.vertx.junit5.VertxTestContext
 import io.vertx.kotlin.core.json.get
@@ -522,6 +523,46 @@ class TestPublicApiVerticle {
 
   @Test
   @Order(15)
+  @DisplayName("Getting the items (with query parameters) succeeds")
+  fun getItemsWithQueryParametersSucceeds(testContext: VertxTestContext) {
+    val response = Buffer.buffer(Given {
+      spec(requestSpecification)
+      accept(ContentType.JSON)
+      header("Authorization", "Bearer $token")
+    } When {
+      queryParam("category", item.getString("category"))
+      get("/api/items")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }).toJsonArray()
+
+    testContext.verify {
+      expectThat(response).isNotNull()
+      expectThat(response.isEmpty).isFalse()
+
+      val obj = response.getJsonObject(0)
+      val id = obj.remove("id")
+      expectThat(id).isEqualTo(itemID)
+      expect {
+        that(obj.getString("beacon")).isEqualTo(item.getString("beacon"))
+        that(obj.getString("category")).isEqualTo(item.getString("category"))
+        that(obj.getString("service")).isEqualTo(item.getString("service"))
+        that(obj.containsKey("timestamp")).isTrue()
+        that(obj.containsKey("battery")).isTrue()
+        that(obj.containsKey("status")).isTrue()
+        that(obj.containsKey("latitude")).isTrue()
+        that(obj.containsKey("longitude")).isTrue()
+        that(obj.containsKey("floor")).isTrue()
+      }
+
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @Order(16)
   @DisplayName("Getting an item succeeds")
   fun getItemSucceeds(testContext: VertxTestContext) {
     val expected = item.copy()
@@ -558,7 +599,31 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(16)
+  @Order(17)
+  @DisplayName("Getting the categories succeeds")
+  fun getCategoriesSucceeds(testContext: VertxTestContext) {
+    val expected = JsonArray(listOf(item.getString("category")))
+
+    val response = Buffer.buffer(Given {
+      spec(requestSpecification)
+      accept(ContentType.JSON)
+      header("Authorization", "Bearer $token")
+    } When {
+      get("/api/items/categories")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }).toJsonArray()
+
+    testContext.verify {
+      expectThat(response).isEqualTo(expected)
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @Order(18)
   @DisplayName("Updating an item succeeds")
   fun updateItemSucceeds(testContext: VertxTestContext) {
     val updateJson = jsonObjectOf(
@@ -588,7 +653,7 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(17)
+  @Order(19)
   @DisplayName("Deleting an item succeeds")
   fun deleteItemSucceeds(testContext: VertxTestContext) {
     val newItem = jsonObjectOf(
@@ -630,7 +695,7 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(18)
+  @Order(20)
   @DisplayName("Liveness check succeeds")
   fun livenessCheckSucceeds(testContext: VertxTestContext) {
     val expected = jsonObjectOf("status" to "UP")
@@ -652,7 +717,7 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(19)
+  @Order(21)
   @DisplayName("Readiness check succeeds")
   fun readinessCheckSucceeds(testContext: VertxTestContext) {
     val expected = jsonObjectOf("status" to "UP")

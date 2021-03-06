@@ -53,5 +53,5 @@ internal fun forwardJsonArrayOrStatusCode(ctx: RoutingContext, resp: HttpRespons
  */
 internal fun sendBadGateway(ctx: RoutingContext, error: Throwable) {
   PublicApiVerticle.logger.error("Oops... an error occurred!", error)
-  ctx.fail(502)
+  ctx.fail(502, error)
 }
