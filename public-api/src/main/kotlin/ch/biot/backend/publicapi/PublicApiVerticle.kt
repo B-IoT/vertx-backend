@@ -142,9 +142,9 @@ class PublicApiVerticle : AbstractVerticle() {
     router.post("$API_PREFIX/$ITEMS_ENDPOINT").handler(jwtAuthHandler).handler(::registerItemHandler)
     router.put("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).handler(::updateItemHandler)
     router.get("$API_PREFIX/$ITEMS_ENDPOINT").handler(jwtAuthHandler).handler(::getItemsHandler)
+    router.get("$API_PREFIX/$ITEMS_ENDPOINT/categories").handler(jwtAuthHandler).handler(::getCategoriesHandler)
     router.get("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).handler(::getItemHandler)
     router.delete("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).handler(::deleteItemHandler)
-    router.get("$API_PREFIX/$ITEMS_ENDPOINT/categories").handler(jwtAuthHandler).handler(::getCategoriesHandler)
 
     // TODO Analytics
 

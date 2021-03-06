@@ -484,8 +484,9 @@ class CRUDVerticle : AbstractVerticle() {
     logger.info("New getItems request")
     val params = ctx.queryParams()
     val executedQuery = when {
-      params.contains("userPosition") -> {
-        val (latitude, longitude) = params["userPosition"].split(',').map { it.toDouble() }
+      params.contains("latitude") && params.contains("longitude") -> {
+        val latitude = params["latitude"].toDouble()
+        val longitude = params["longitude"].toDouble()
         if (params.contains("category")) {
           pgPool.preparedQuery(GET_ITEMS_WITH_CATEGORY_AND_POSITION)
             .execute(Tuple.of(params["category"], latitude, longitude))

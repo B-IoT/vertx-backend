@@ -15,6 +15,8 @@ import io.restassured.module.kotlin.extensions.When
 import io.restassured.specification.RequestSpecification
 import io.vertx.core.Vertx
 import io.vertx.core.buffer.Buffer
+import io.vertx.core.json.JsonArray
+import io.vertx.core.json.JsonObject
 import io.vertx.junit5.VertxExtension
 import io.vertx.junit5.VertxTestContext
 import io.vertx.kotlin.core.json.get
@@ -32,6 +34,7 @@ import strikt.api.expect
 import strikt.api.expectThat
 import strikt.assertions.isEmpty
 import strikt.assertions.isEqualTo
+import strikt.assertions.isFalse
 import strikt.assertions.isNotEmpty
 import java.io.File
 
@@ -47,6 +50,12 @@ class TestCRUDVerticleItems {
     "beacon" to "ab:ab:ab:ab:ab:ab",
     "category" to "ECG",
     "service" to "Bloc 2"
+  )
+
+  private val closestItem = jsonObjectOf(
+    "beacon" to "ff:ff:ab:ab:ab:ab",
+    "category" to "Lit",
+    "service" to "Bloc 1"
   )
 
   private val existingBeaconData = jsonObjectOf(
@@ -79,7 +88,7 @@ class TestCRUDVerticleItems {
 
     dropAllItems()
       .compose {
-        insertItem()
+        insertItems()
       }.onSuccess {
         vertx.deployVerticle(CRUDVerticle(), testContext.succeedingThenComplete())
       }.onFailure(testContext::failNow)
@@ -90,11 +99,27 @@ class TestCRUDVerticleItems {
       pgPool.query("DELETE FROM beacon_data").execute()
     }
 
-  private fun insertItem() = pgPool.preparedQuery(INSERT_ITEM)
+  private fun insertItems() = pgPool.preparedQuery(INSERT_ITEM)
     .execute(Tuple.of(existingItem["beacon"], existingItem["category"], existingItem["service"]))
     .compose {
       existingItemID = it.iterator().next().getInteger("id")
-
+      pgPool.preparedQuery(INSERT_ITEM)
+        .execute(Tuple.of(closestItem["beacon"], closestItem["category"], closestItem["service"]))
+    }.compose {
+      pgPool.preparedQuery(INSERT_ITEM)
+        .execute(Tuple.of("fake1", closestItem["category"], closestItem["service"]))
+    }.compose {
+      pgPool.preparedQuery(INSERT_ITEM)
+        .execute(Tuple.of("fake2", closestItem["category"], closestItem["service"]))
+    }.compose {
+      pgPool.preparedQuery(INSERT_ITEM)
+        .execute(Tuple.of("fake3", closestItem["category"], closestItem["service"]))
+    }
+    .compose {
+      pgPool.preparedQuery(INSERT_ITEM)
+        .execute(Tuple.of("fake4", closestItem["category"], closestItem["service"]))
+    }
+    .compose {
       pgPool.preparedQuery(INSERT_BEACON_DATA)
         .execute(
           Tuple.of(
@@ -127,6 +152,66 @@ class TestCRUDVerticleItems {
             existingBeaconData.getString("status"),
             existingBeaconData.getDouble("latitude"),
             existingBeaconData.getDouble("longitude"),
+            existingBeaconData.getInteger("floor")
+          )
+        )
+    }.compose {
+      pgPool.preparedQuery(INSERT_BEACON_DATA)
+        .execute(
+          Tuple.of(
+            closestItem.getString("beacon"),
+            existingBeaconData.getInteger("battery"),
+            existingBeaconData.getString("status"),
+            42,
+            -8,
+            existingBeaconData.getInteger("floor")
+          )
+        )
+    }.compose {
+      pgPool.preparedQuery(INSERT_BEACON_DATA)
+        .execute(
+          Tuple.of(
+            "fake1",
+            existingBeaconData.getInteger("battery"),
+            existingBeaconData.getString("status"),
+            44,
+            -8,
+            existingBeaconData.getInteger("floor")
+          )
+        )
+    }.compose {
+      pgPool.preparedQuery(INSERT_BEACON_DATA)
+        .execute(
+          Tuple.of(
+            "fake2",
+            existingBeaconData.getInteger("battery"),
+            existingBeaconData.getString("status"),
+            45,
+            -8,
+            existingBeaconData.getInteger("floor")
+          )
+        )
+    }.compose {
+      pgPool.preparedQuery(INSERT_BEACON_DATA)
+        .execute(
+          Tuple.of(
+            "fake3",
+            existingBeaconData.getInteger("battery"),
+            existingBeaconData.getString("status"),
+            46,
+            -8,
+            existingBeaconData.getInteger("floor")
+          )
+        )
+    }.compose {
+      pgPool.preparedQuery(INSERT_BEACON_DATA)
+        .execute(
+          Tuple.of(
+            "fake4",
+            existingBeaconData.getInteger("battery"),
+            existingBeaconData.getString("status"),
+            47,
+            -8,
             existingBeaconData.getInteger("floor")
           )
         )
@@ -170,14 +255,6 @@ class TestCRUDVerticleItems {
   @Test
   @DisplayName("getItems correctly retrieves all items")
   fun getItemsIsCorrect(testContext: VertxTestContext) {
-    val expected = jsonArrayOf(existingItem.copy().apply {
-      put("battery", existingBeaconData.getInteger("battery"))
-      put("status", existingBeaconData.getString("status"))
-      put("latitude", existingBeaconData.getDouble("latitude"))
-      put("longitude", existingBeaconData.getDouble("longitude"))
-      put("floor", existingBeaconData.getInteger("floor"))
-    })
-
     val response = Buffer.buffer(Given {
       spec(requestSpecification)
       accept(ContentType.JSON)
@@ -190,11 +267,105 @@ class TestCRUDVerticleItems {
     }).toJsonArray()
 
     testContext.verify {
-      val id = response.getJsonObject(0).remove("id")
-      val timestamp: String = response.getJsonObject(0).remove("timestamp") as String
+      expectThat(response.isEmpty).isFalse()
+      expectThat(response.size()).isEqualTo(6)
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("getItems with category correctly retrieves all items of the given category")
+  fun getItemsWithCategoryIsCorrect(testContext: VertxTestContext) {
+    val response = Buffer.buffer(Given {
+      spec(requestSpecification)
+      accept(ContentType.JSON)
+    } When {
+      queryParam("category", existingItem.getString("category"))
+      get("/items")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }).toJsonArray()
+
+    testContext.verify {
+      expectThat(response.isEmpty).isFalse()
+      response.forEach {
+        val jsonObj = it as JsonObject
+        expectThat(jsonObj.getString("category")).isEqualTo(existingItem.getString("category"))
+      }
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("getItems with user position (latitude and longitude) correctly retrieves the 5 closest items")
+  fun getItemsWithUserPositionIsCorrect(testContext: VertxTestContext) {
+    val response = Buffer.buffer(Given {
+      spec(requestSpecification)
+      accept(ContentType.JSON)
+    } When {
+      queryParam("latitude", 42)
+      queryParam("longitude", -8)
+      get("/items")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }).toJsonArray()
+
+    testContext.verify {
+      expectThat(response.size()).isEqualTo(5)
+      val first = response.getJsonObject(0)
+      expectThat(first.getString("mac")).isEqualTo(closestItem.getString("mac"))
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("getItems with user position (latitude and longitude) correctly retrieves the 5 closest items of the given category")
+  fun getItemsWithUserPositionAndCategoryIsCorrect(testContext: VertxTestContext) {
+    val response = Buffer.buffer(Given {
+      spec(requestSpecification)
+      accept(ContentType.JSON)
+    } When {
+      queryParam("latitude", 42)
+      queryParam("longitude", -8)
+      queryParam("category", closestItem.getString("category"))
+      get("/items")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }).toJsonArray()
+
+    testContext.verify {
+      expectThat(response.size()).isEqualTo(5)
+      val first = response.getJsonObject(0)
+      expectThat(first.getString("mac")).isEqualTo(closestItem.getString("mac"))
+      expectThat(first.getString("category")).isEqualTo(closestItem.getString("category"))
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("getCategories correctly retrieves all categories")
+  fun getCategoriesIsCorrect(testContext: VertxTestContext) {
+    val expected = JsonArray(listOf(existingItem.getString("category"), closestItem.getString("category")))
+
+    val response = Buffer.buffer(Given {
+      spec(requestSpecification)
+      accept(ContentType.JSON)
+    } When {
+      get("/items/categories")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }).toJsonArray()
+
+    testContext.verify {
       expectThat(response).isEqualTo(expected)
-      expectThat(id).isEqualTo(existingItemID)
-      expectThat(timestamp).isNotEmpty()
       testContext.completeNow()
     }
   }

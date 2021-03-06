@@ -284,15 +284,18 @@ paths:
         explode: true
         schema:
           type: string
-      - name: userPosition
-        in: query
-        description: comma-separated user position (latitude and longitude)
-        required: false
-        style: form
-        explode: true
+      - in: query
+        name: latitude
+        description: user latitude
         schema:
-          type: string
-          example: 42.3,8.3
+          type: number
+          format: double
+      - in: query
+        name: longitude
+        description: user longitude
+        schema:
+          type: number
+          format: double
       responses:
         "200":
           description: All the items
