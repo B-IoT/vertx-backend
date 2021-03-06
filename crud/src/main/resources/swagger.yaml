@@ -1,9 +1,10 @@
 openapi: 3.0.0
 info:
   title: Vert.x API
-  version: "1"
+  description: BIoT Vert.x API
+  version: "2"
 servers:
-- url: https://virtserver.swaggerhub.com/b-iot/Vert.x/1
+- url: https://virtserver.swaggerhub.com/b-iot/Vert.x/2
   description: SwaggerHub API Auto Mocking
 paths:
   /relays:
@@ -275,6 +276,23 @@ paths:
         schema:
           type: integer
           format: int32
+      - name: category
+        in: query
+        description: item category
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+      - name: userPosition
+        in: query
+        description: comma-separated user position (latitude and longitude)
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+          example: 42.3,8.3
       responses:
         "200":
           description: All the items
@@ -300,6 +318,21 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Item'
+  /items/categories:
+    get:
+      tags:
+      - Item
+      description: returns all items's categories
+      operationId: getCategories
+      responses:
+        "200":
+          description: All the categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
   /items/{id}:
     get:
       tags:

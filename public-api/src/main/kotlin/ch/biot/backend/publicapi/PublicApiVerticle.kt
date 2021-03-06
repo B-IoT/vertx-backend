@@ -144,6 +144,7 @@ class PublicApiVerticle : AbstractVerticle() {
     router.get("$API_PREFIX/$ITEMS_ENDPOINT").handler(jwtAuthHandler).handler(::getItemsHandler)
     router.get("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).handler(::getItemHandler)
     router.delete("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).handler(::deleteItemHandler)
+    router.get("$API_PREFIX/$ITEMS_ENDPOINT/categories").handler(jwtAuthHandler).handler(::getCategoriesHandler)
 
     // TODO Analytics
 
@@ -254,6 +255,7 @@ class PublicApiVerticle : AbstractVerticle() {
   private fun getItemsHandler(ctx: RoutingContext) = getManyHandler(ctx, ITEMS_ENDPOINT)
   private fun getItemHandler(ctx: RoutingContext) = getOneHandler(ctx, ITEMS_ENDPOINT)
   private fun deleteItemHandler(ctx: RoutingContext) = deleteHandler(ctx, ITEMS_ENDPOINT)
+  private fun getCategoriesHandler(ctx: RoutingContext) = getManyHandler(ctx, "$ITEMS_ENDPOINT/categories")
 
   // Helpers
 
@@ -306,8 +308,11 @@ class PublicApiVerticle : AbstractVerticle() {
   private fun getManyHandler(ctx: RoutingContext, endpoint: String) {
     logger.info("New getMany request on /$endpoint endpoint")
 
+    val query = ctx.request().query()
+    val requestURI = if (query.isEmpty()) "/$endpoint" else "/$endpoint/?$query"
+
     webClient
-      .get(CRUD_PORT, CRUD_HOST, "/$endpoint")
+      .get(CRUD_PORT, CRUD_HOST, requestURI)
       .timeout(TIMEOUT)
       .`as`(BodyCodec.jsonArray())
       .send()

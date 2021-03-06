@@ -166,6 +166,7 @@ class CRUDVerticle : AbstractVerticle() {
         routerBuilder.operation("getItem").handler(::getItemHandler)
         routerBuilder.operation("deleteItem").handler(::deleteItemHandler)
         routerBuilder.operation("updateItem").handler(::updateItemHandler)
+        routerBuilder.operation("getCategories").handler(::getCategoriesHandler)
 
         val router: Router = routerBuilder.createRouter()
         router.get("/health/live").handler(::livenessCheck)
@@ -481,18 +482,31 @@ class CRUDVerticle : AbstractVerticle() {
    */
   private fun getItemsHandler(ctx: RoutingContext) {
     logger.info("New getItems request")
-    pgPool.preparedQuery(GET_ITEMS)
-      .execute()
-      .onSuccess { res ->
-        val result = if (res.size() == 0) listOf() else res.map { it.toItemJson() }
-
-        ctx.response()
-          .putHeader(CONTENT_TYPE, APPLICATION_JSON)
-          .end(JsonArray(result).encode())
-      }.onFailure { error ->
-        logger.error("Could not get items", error)
-        ctx.fail(500, error)
+    val params = ctx.queryParams()
+    val executedQuery = when {
+      params.contains("userPosition") -> {
+        val (latitude, longitude) = params["userPosition"].split(',').map { it.toDouble() }
+        if (params.contains("category")) {
+          pgPool.preparedQuery(GET_ITEMS_WITH_CATEGORY_AND_POSITION)
+            .execute(Tuple.of(params["category"], latitude, longitude))
+        } else {
+          pgPool.preparedQuery(GET_ITEMS_WITH_POSITION).execute(Tuple.of(latitude, longitude))
+        }
       }
+      params.contains("category") -> pgPool.preparedQuery(GET_ITEMS_WITH_CATEGORY).execute(Tuple.of(params["category"]))
+      else -> pgPool.preparedQuery(GET_ITEMS).execute()
+    }
+
+    executedQuery.onSuccess { res ->
+      val result = if (res.size() == 0) listOf() else res.map { it.toItemJson() }
+
+      ctx.response()
+        .putHeader(CONTENT_TYPE, APPLICATION_JSON)
+        .end(JsonArray(result).encode())
+    }.onFailure { error ->
+      logger.error("Could not get items", error)
+      ctx.fail(500, error)
+    }
   }
 
   /**
@@ -561,6 +575,25 @@ class CRUDVerticle : AbstractVerticle() {
         ctx.end()
       }.onFailure { error ->
         logger.error("Could not delete item", error)
+        ctx.fail(500, error)
+      }
+  }
+
+  /**
+   * Handles a getCategories request.
+   */
+  private fun getCategoriesHandler(ctx: RoutingContext) {
+    logger.info("New getCategories request")
+    pgPool.preparedQuery(GET_CATEGORIES)
+      .execute()
+      .onSuccess { res ->
+        val result = if (res.size() == 0) listOf() else res.map { it.getString("category") }
+
+        ctx.response()
+          .putHeader(CONTENT_TYPE, APPLICATION_JSON)
+          .end(JsonArray(result).encode())
+      }.onFailure { error ->
+        logger.error("Could not get categories", error)
         ctx.fail(500, error)
       }
   }
