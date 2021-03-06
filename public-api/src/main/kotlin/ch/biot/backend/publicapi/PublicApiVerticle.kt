@@ -309,7 +309,7 @@ class PublicApiVerticle : AbstractVerticle() {
     logger.info("New getMany request on /$endpoint endpoint")
 
     val query = ctx.request().query()
-    val requestURI = if (query.isEmpty()) "/$endpoint" else "/$endpoint/?$query"
+    val requestURI = if (query != null && query.isNotEmpty()) "/$endpoint/?$query" else "/$endpoint"
 
     webClient
       .get(CRUD_PORT, CRUD_HOST, requestURI)
