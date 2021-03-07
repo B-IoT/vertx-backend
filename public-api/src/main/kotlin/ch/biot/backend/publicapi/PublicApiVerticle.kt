@@ -121,6 +121,7 @@ class PublicApiVerticle : AbstractVerticle() {
     // Users
     router.post("$OAUTH_PREFIX/register")
       .handler(
+        // Only allow creating a user from inside the network
         CorsHandler.create("((http://)|(https://))localhost\\:\\d+").allowedHeaders(allowedHeaders)
           .allowedMethods(setOf(HttpMethod.POST))
       )
@@ -267,19 +268,23 @@ class PublicApiVerticle : AbstractVerticle() {
   private fun registerHandler(ctx: RoutingContext, endpoint: String, forwardResponse: Boolean = false) {
     logger.info("New register request on /$endpoint endpoint")
 
-    webClient
-      .post(CRUD_PORT, CRUD_HOST, "/$endpoint")
-      .timeout(TIMEOUT)
-      .putHeader(CONTENT_TYPE, APPLICATION_JSON)
-      .expect(ResponsePredicate.SC_OK)
-      .sendBuffer(ctx.body)
-      .onSuccess { response ->
-        if (forwardResponse) ctx.end(response.body())
-        else sendStatusCode(ctx, response.statusCode())
+    webClient.post(CRUD_PORT, CRUD_HOST, "/$endpoint").apply {
+      if (endpoint != USERS_ENDPOINT) {
+        // The users endpoint is not considered because, as the user is being created, there is no authenticated user associated to the context
+        addQueryParam("company", ctx.user().principal()["company"])
       }
-      .onFailure { error ->
-        sendBadGateway(ctx, error)
-      }
+      timeout(TIMEOUT)
+      putHeader(CONTENT_TYPE, APPLICATION_JSON)
+      expect(ResponsePredicate.SC_OK)
+      sendBuffer(ctx.body)
+        .onSuccess { response ->
+          if (forwardResponse) ctx.end(response.body())
+          else sendStatusCode(ctx, response.statusCode())
+        }
+        .onFailure { error ->
+          sendBadGateway(ctx, error)
+        }
+    }
   }
 
   /**
@@ -290,6 +295,7 @@ class PublicApiVerticle : AbstractVerticle() {
 
     webClient
       .put(CRUD_PORT, CRUD_HOST, "/$endpoint/${ctx.pathParam("id")}")
+      .addQueryParam("company", ctx.user().principal()["company"])
       .timeout(TIMEOUT)
       .putHeader(CONTENT_TYPE, APPLICATION_JSON)
       .expect(ResponsePredicate.SC_OK)
@@ -313,6 +319,7 @@ class PublicApiVerticle : AbstractVerticle() {
 
     webClient
       .get(CRUD_PORT, CRUD_HOST, requestURI)
+      .addQueryParam("company", ctx.user().principal()["company"])
       .timeout(TIMEOUT)
       .`as`(BodyCodec.jsonArray())
       .send()
@@ -332,6 +339,7 @@ class PublicApiVerticle : AbstractVerticle() {
 
     webClient
       .get(CRUD_PORT, CRUD_HOST, "/$endpoint/${ctx.pathParam("id")}")
+      .addQueryParam("company", ctx.user().principal()["company"])
       .timeout(TIMEOUT)
       .`as`(BodyCodec.jsonObject())
       .send()
@@ -351,6 +359,7 @@ class PublicApiVerticle : AbstractVerticle() {
 
     webClient
       .delete(CRUD_PORT, CRUD_HOST, "/$endpoint/${ctx.pathParam("id")}")
+      .addQueryParam("company", ctx.user().principal()["company"])
       .timeout(TIMEOUT)
       .expect(ResponsePredicate.SC_OK)
       .send()
