@@ -45,6 +45,9 @@ class CRUDVerticle : AbstractVerticle() {
     private const val RELAYS_COLLECTION = "relays"
     private const val USERS_COLLECTION = "users"
 
+    private const val ITEMS_TABLE = "items"
+    private const val BEACON_DATA_TABLE = "beacon_data"
+
     private const val RELAYS_UPDATE_ADDRESS = "relays.update"
 
     internal val HTTP_PORT = System.getenv().getOrDefault("HTTP_PORT", "8080").toInt()
@@ -74,10 +77,12 @@ class CRUDVerticle : AbstractVerticle() {
   }
 
   private lateinit var mongoClient: MongoClient
-  private lateinit var mongoUserUtilRelays: MongoUserUtil
-  private lateinit var mongoAuthRelays: MongoAuthentication
   private lateinit var mongoUserUtilUsers: MongoUserUtil
   private lateinit var mongoAuthUsers: MongoAuthentication
+
+  // Map from Collection name to Pair of MongoDB authentication utils
+  // It is used since there is a collection per company
+  private val mongoAuthRelaysCache: MutableMap<String, Pair<MongoUserUtil, MongoAuthentication>> = mutableMapOf()
 
   private lateinit var pgPool: PgPool
 
@@ -94,21 +99,6 @@ class CRUDVerticle : AbstractVerticle() {
           "password" to "biot"
         )
       )
-
-    val usernameFieldRelays = "mqttUsername"
-    val passwordFieldRelays = "mqttPassword"
-    val mongoAuthRelaysOptions = mongoAuthenticationOptionsOf(
-      collectionName = RELAYS_COLLECTION,
-      passwordCredentialField = passwordFieldRelays,
-      passwordField = passwordFieldRelays,
-      usernameCredentialField = usernameFieldRelays,
-      usernameField = usernameFieldRelays
-    )
-
-    mongoUserUtilRelays = MongoUserUtil.create(
-      mongoClient, mongoAuthRelaysOptions, mongoAuthorizationOptionsOf()
-    )
-    mongoAuthRelays = MongoAuthentication.create(mongoClient, mongoAuthRelaysOptions)
 
     val usernameFieldUsers = "username"
     val passwordFieldUsers = "password"
@@ -208,9 +198,37 @@ class CRUDVerticle : AbstractVerticle() {
    * Handles a registerRelay request.
    */
   private fun registerRelayHandler(ctx: RoutingContext) {
+    fun createMongoAuthUtils(collection: String): Pair<MongoUserUtil, MongoAuthentication> {
+      val usernameFieldRelays = "mqttUsername"
+      val passwordFieldRelays = "mqttPassword"
+      val mongoAuthRelaysOptions = mongoAuthenticationOptionsOf(
+        collectionName = collection,
+        passwordCredentialField = passwordFieldRelays,
+        passwordField = passwordFieldRelays,
+        usernameCredentialField = usernameFieldRelays,
+        usernameField = usernameFieldRelays
+      )
+
+      return MongoUserUtil.create(
+        mongoClient,
+        mongoAuthRelaysOptions,
+        mongoAuthorizationOptionsOf()
+      ) to MongoAuthentication.create(mongoClient, mongoAuthRelaysOptions)
+    }
+
     logger.info("New register request")
     val json = ctx.bodyAsJson
     json.validateAndThen(ctx) {
+      // Get the MongoDB authentication utils associated to the right collection, based on the user's company
+      val collection = ctx.getCollection(RELAYS_COLLECTION)
+      val (mongoUserUtilRelays, mongoAuthRelays) = if (mongoAuthRelaysCache.containsKey(collection)) {
+        mongoAuthRelaysCache[collection]!!
+      } else {
+        val helpers = createMongoAuthUtils(collection)
+        mongoAuthRelaysCache[collection] = helpers
+        helpers
+      }
+
       // Create the relay
       val password: String = json["mqttPassword"]
       val hashedPassword = password.saltAndHash(mongoAuthRelays)
@@ -222,7 +240,7 @@ class CRUDVerticle : AbstractVerticle() {
             remove("mqttPassword")
           }
         )
-        mongoClient.findOneAndUpdate(RELAYS_COLLECTION, query, extraInfo)
+        mongoClient.findOneAndUpdate(collection, query, extraInfo)
       }.onSuccess {
         logger.info("New relay registered")
         ctx.end()
@@ -238,8 +256,9 @@ class CRUDVerticle : AbstractVerticle() {
    */
   private fun getRelaysHandler(ctx: RoutingContext) {
     logger.info("New getRelays request")
-    // TODO use offset and limit parameters
-    mongoClient.find(RELAYS_COLLECTION, jsonObjectOf()).onSuccess { relays ->
+
+    val collection = ctx.getCollection(RELAYS_COLLECTION)
+    mongoClient.find(collection, jsonObjectOf()).onSuccess { relays ->
       ctx.response()
         .putHeader(CONTENT_TYPE, APPLICATION_JSON)
         .end(JsonArray(relays.map { it.clean() }).encode())
@@ -255,8 +274,10 @@ class CRUDVerticle : AbstractVerticle() {
   private fun getRelayHandler(ctx: RoutingContext) {
     val relayID = ctx.pathParam("id")
     logger.info("New getRelay request for relay $relayID")
+
     val query = jsonObjectOf("relayID" to relayID)
-    mongoClient.findOne(RELAYS_COLLECTION, query, jsonObjectOf()).onSuccess { relay ->
+    val collection = ctx.getCollection(RELAYS_COLLECTION)
+    mongoClient.findOne(collection, query, jsonObjectOf()).onSuccess { relay ->
       ctx.response()
         .putHeader(CONTENT_TYPE, APPLICATION_JSON)
         .end(relay.clean().encode())
@@ -283,14 +304,15 @@ class CRUDVerticle : AbstractVerticle() {
           "\$currentDate" to obj("lastModified" to true)
         )
       }
+      val collection = ctx.getCollection(RELAYS_COLLECTION)
       mongoClient.findOneAndUpdateWithOptions(
-        RELAYS_COLLECTION,
+        collection,
         query,
         update,
         findOptionsOf(),
         updateOptionsOf(returningNewDocument = true)
       ).onSuccess { result ->
-        logger.info("Successfully updated MongoDB collection $RELAYS_COLLECTION with update JSON $update")
+        logger.info("Successfully updated MongoDB collection $collection with update JSON $update")
         // Put the beacon information in the JSON to send to the relay
         val cleanEntry = result.cleanForRelay().apply {
           put("beacon", json["beacon"])
@@ -300,7 +322,7 @@ class CRUDVerticle : AbstractVerticle() {
         logger.info("Update sent to the event bus address $RELAYS_UPDATE_ADDRESS")
         ctx.end()
       }.onFailure { error ->
-        logger.error("Could not update MongoDB collection $RELAYS_COLLECTION with update JSON $update", error)
+        logger.error("Could not update MongoDB collection $collection with update JSON $update", error)
         ctx.fail(500)
       }
     }
@@ -313,7 +335,8 @@ class CRUDVerticle : AbstractVerticle() {
     val relayID = ctx.pathParam("id")
     logger.info("New deleteRelay request for relay $relayID")
     val query = jsonObjectOf("relayID" to relayID)
-    mongoClient.removeDocument(RELAYS_COLLECTION, query).onSuccess {
+    val collection = ctx.getCollection(RELAYS_COLLECTION)
+    mongoClient.removeDocument(collection, query).onSuccess {
       ctx.end()
     }.onFailure { error ->
       logger.error("Could not delete relay", error)
@@ -357,7 +380,7 @@ class CRUDVerticle : AbstractVerticle() {
    */
   private fun getUsersHandler(ctx: RoutingContext) {
     logger.info("New getUsers request")
-    // TODO use offset and limit parameters
+
     mongoClient.find(USERS_COLLECTION, jsonObjectOf())
       .onSuccess { users ->
         ctx.response()
@@ -464,7 +487,8 @@ class CRUDVerticle : AbstractVerticle() {
       val beacon: String = json["beacon"]
       val category: String = json["category"]
       val service: String = json["service"]
-      pgPool.preparedQuery(INSERT_ITEM)
+      val table = ctx.getCollection(ITEMS_TABLE)
+      pgPool.preparedQuery(insertItem(table))
         .execute(Tuple.of(beacon, category, service))
         .onSuccess {
           logger.info("New item registered")
@@ -483,19 +507,23 @@ class CRUDVerticle : AbstractVerticle() {
   private fun getItemsHandler(ctx: RoutingContext) {
     logger.info("New getItems request")
     val params = ctx.queryParams()
+    val itemsTable = ctx.getCollection(ITEMS_TABLE)
+    val beaconDataTable = ctx.getCollection(BEACON_DATA_TABLE)
     val executedQuery = when {
       params.contains("latitude") && params.contains("longitude") -> {
         val latitude = params["latitude"].toDouble()
         val longitude = params["longitude"].toDouble()
         if (params.contains("category")) {
-          pgPool.preparedQuery(GET_ITEMS_WITH_CATEGORY_AND_POSITION)
+          pgPool.preparedQuery(getItemsWithCategoryAndPosition(itemsTable, beaconDataTable))
             .execute(Tuple.of(params["category"], latitude, longitude))
         } else {
-          pgPool.preparedQuery(GET_ITEMS_WITH_POSITION).execute(Tuple.of(latitude, longitude))
+          pgPool.preparedQuery(getItemsWithPosition(itemsTable, beaconDataTable))
+            .execute(Tuple.of(latitude, longitude))
         }
       }
-      params.contains("category") -> pgPool.preparedQuery(GET_ITEMS_WITH_CATEGORY).execute(Tuple.of(params["category"]))
-      else -> pgPool.preparedQuery(GET_ITEMS).execute()
+      params.contains("category") -> pgPool.preparedQuery(getItemsWithCategory(itemsTable, beaconDataTable))
+        .execute(Tuple.of(params["category"]))
+      else -> pgPool.preparedQuery(getItems(itemsTable, beaconDataTable)).execute()
     }
 
     executedQuery.onSuccess { res ->
@@ -514,11 +542,13 @@ class CRUDVerticle : AbstractVerticle() {
    * Handles a getItem request.
    */
   private fun getItemHandler(ctx: RoutingContext) {
-    val itemID = ctx.pathParam("id")
+    val itemID = ctx.pathParam("id").toInt() // the id needs to be converted to Int, as the DB stores it as an integer
     logger.info("New getItem request for item $itemID")
 
-    pgPool.preparedQuery(GET_ITEM)
-      .execute(Tuple.of(itemID.toInt())) // the id needs to be converted to Int, as the DB stores it as an integer
+    val itemsTable = ctx.getCollection(ITEMS_TABLE)
+    val beaconDataTable = ctx.getCollection(BEACON_DATA_TABLE)
+    pgPool.preparedQuery(getItem(itemsTable, beaconDataTable))
+      .execute(Tuple.of(itemID))
       .onSuccess { res ->
         if (res.size() == 0) {
           // No item found, fail
@@ -550,7 +580,9 @@ class CRUDVerticle : AbstractVerticle() {
       val beacon: String = json["beacon"]
       val category: String = json["category"]
       val service: String = json["service"]
-      pgPool.preparedQuery(UPDATE_ITEM)
+
+      val table = ctx.getCollection(ITEMS_TABLE)
+      pgPool.preparedQuery(updateItem(table))
         .execute(Tuple.of(beacon, category, service, itemID.toInt()))
         .onSuccess {
           logger.info("Successfully updated item $itemID")
@@ -567,11 +599,12 @@ class CRUDVerticle : AbstractVerticle() {
    * Handles a deleteItem request.
    */
   private fun deleteItemHandler(ctx: RoutingContext) {
-    val itemID = ctx.pathParam("id")
+    val itemID = ctx.pathParam("id").toInt() // the id needs to be converted to Int, as the DB stores it as an integer
     logger.info("New deleteItem request for item $itemID")
 
-    pgPool.preparedQuery(DELETE_ITEM)
-      .execute(Tuple.of(itemID.toInt())) // the id needs to be converted to Int, as the DB stores it as an integer
+    val table = ctx.getCollection(ITEMS_TABLE)
+    pgPool.preparedQuery(deleteItem(table))
+      .execute(Tuple.of(itemID))
       .onSuccess {
         ctx.end()
       }.onFailure { error ->
@@ -585,7 +618,9 @@ class CRUDVerticle : AbstractVerticle() {
    */
   private fun getCategoriesHandler(ctx: RoutingContext) {
     logger.info("New getCategories request")
-    pgPool.preparedQuery(GET_CATEGORIES)
+
+    val table = ctx.getCollection(ITEMS_TABLE)
+    pgPool.preparedQuery(getCategories(table))
       .execute()
       .onSuccess { res ->
         val result = if (res.size() == 0) listOf() else res.map { it.getString("category") }

@@ -20,7 +20,6 @@ import io.vertx.core.json.JsonObject
 import io.vertx.junit5.VertxExtension
 import io.vertx.junit5.VertxTestContext
 import io.vertx.kotlin.core.json.get
-import io.vertx.kotlin.core.json.jsonArrayOf
 import io.vertx.kotlin.core.json.jsonObjectOf
 import io.vertx.kotlin.pgclient.pgConnectOptionsOf
 import io.vertx.kotlin.sqlclient.poolOptionsOf
@@ -99,24 +98,24 @@ class TestCRUDVerticleItems {
       pgPool.query("DELETE FROM beacon_data").execute()
     }
 
-  private fun insertItems() = pgPool.preparedQuery(INSERT_ITEM)
+  private fun insertItems() = pgPool.preparedQuery(insertItem("items"))
     .execute(Tuple.of(existingItem["beacon"], existingItem["category"], existingItem["service"]))
     .compose {
       existingItemID = it.iterator().next().getInteger("id")
-      pgPool.preparedQuery(INSERT_ITEM)
+      pgPool.preparedQuery(insertItem("items"))
         .execute(Tuple.of(closestItem["beacon"], closestItem["category"], closestItem["service"]))
     }.compose {
-      pgPool.preparedQuery(INSERT_ITEM)
+      pgPool.preparedQuery(insertItem("items"))
         .execute(Tuple.of("fake1", closestItem["category"], closestItem["service"]))
     }.compose {
-      pgPool.preparedQuery(INSERT_ITEM)
+      pgPool.preparedQuery(insertItem("items"))
         .execute(Tuple.of("fake2", closestItem["category"], closestItem["service"]))
     }.compose {
-      pgPool.preparedQuery(INSERT_ITEM)
+      pgPool.preparedQuery(insertItem("items"))
         .execute(Tuple.of("fake3", closestItem["category"], closestItem["service"]))
     }
     .compose {
-      pgPool.preparedQuery(INSERT_ITEM)
+      pgPool.preparedQuery(insertItem("items"))
         .execute(Tuple.of("fake4", closestItem["category"], closestItem["service"]))
     }
     .compose {
@@ -422,7 +421,7 @@ class TestCRUDVerticleItems {
       expectThat(response).isEmpty()
     }
 
-    pgPool.preparedQuery(GET_ITEM).execute(Tuple.of(existingItemID))
+    pgPool.preparedQuery(getItem("items", "beacon_data")).execute(Tuple.of(existingItemID))
       .onSuccess { res ->
         val json = res.iterator().next().toJson()
         expect {

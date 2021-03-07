@@ -88,3 +88,14 @@ internal fun Row.toItemJson(): JsonObject = jsonObjectOf(
   "longitude" to getDouble("longitude"),
   "floor" to getInteger("floor")
 )
+
+/**
+ * Returns the right collection (or table) to use based on the user's company and baseCollectionName provided.
+ *
+ * @param baseCollectionName the name of the base collection, such as "relays" or "items"
+ * @return the name of the collection (or table) to use
+ */
+internal fun RoutingContext.getCollection(baseCollectionName: String): String {
+  val company = this.queryParams()["company"]
+  return if (company != "biot") "${baseCollectionName}_$company" else baseCollectionName
+}
