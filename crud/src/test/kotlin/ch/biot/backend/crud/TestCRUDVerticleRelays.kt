@@ -144,6 +144,7 @@ class TestCRUDVerticleRelays {
       accept(ContentType.JSON)
       body(newRelay.encode())
     } When {
+      queryParam("company", "biot")
       post("/relays")
     } Then {
       statusCode(200)
@@ -166,6 +167,7 @@ class TestCRUDVerticleRelays {
       spec(requestSpecification)
       accept(ContentType.JSON)
     } When {
+      queryParam("company", "biot")
       get("/relays")
     } Then {
       statusCode(200)
@@ -190,6 +192,7 @@ class TestCRUDVerticleRelays {
       spec(requestSpecification)
       accept(ContentType.JSON)
     } When {
+      queryParam("company", "biot")
       get("/relays/testRelay")
     } Then {
       statusCode(200)
@@ -248,6 +251,7 @@ class TestCRUDVerticleRelays {
       accept(ContentType.JSON)
       body(updateJson.encode())
     } When {
+      queryParam("company", "biot")
       put("/relays/testRelay")
     } Then {
       statusCode(200)
@@ -302,6 +306,7 @@ class TestCRUDVerticleRelays {
       accept(ContentType.JSON)
       body(relayToRemove.encode())
     } When {
+      queryParam("company", "biot")
       post("/relays")
     } Then {
       statusCode(200)
@@ -311,6 +316,7 @@ class TestCRUDVerticleRelays {
     val response = Given {
       spec(requestSpecification)
     } When {
+      queryParam("company", "biot")
       delete("/relays/${relayToRemove.getString("relayID")}")
     } Then {
       statusCode(200)

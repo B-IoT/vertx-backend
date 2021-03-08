@@ -35,9 +35,10 @@ CREATE INDEX ON items(beacon);
 
 CREATE INDEX ON beacon_data(mac, time DESC);
 
-ALTER TABLE beacon_data SET (
-    timescaledb.compress,
-    timescaledb.compress_segmentby = 'mac'
-);
-
-SELECT add_compression_policy('beacon_data', INTERVAL '7 days');
+-- Use the following commands to enable compression
+-- ALTER TABLE beacon_data SET (
+--     timescaledb.compress,
+--     timescaledb.compress_segmentby = 'mac'
+-- );
+--
+-- SELECT add_compression_policy('beacon_data', INTERVAL '7 days');

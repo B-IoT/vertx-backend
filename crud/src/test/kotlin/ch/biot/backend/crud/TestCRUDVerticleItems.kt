@@ -238,6 +238,7 @@ class TestCRUDVerticleItems {
       contentType(ContentType.JSON)
       body(newItem.encode())
     } When {
+      queryParam("company", "biot")
       post("/items")
     } Then {
       statusCode(200)
@@ -258,6 +259,7 @@ class TestCRUDVerticleItems {
       spec(requestSpecification)
       accept(ContentType.JSON)
     } When {
+      queryParam("company", "biot")
       get("/items")
     } Then {
       statusCode(200)
@@ -280,6 +282,7 @@ class TestCRUDVerticleItems {
       accept(ContentType.JSON)
     } When {
       queryParam("category", existingItem.getString("category"))
+      queryParam("company", "biot")
       get("/items")
     } Then {
       statusCode(200)
@@ -306,6 +309,7 @@ class TestCRUDVerticleItems {
     } When {
       queryParam("latitude", 42)
       queryParam("longitude", -8)
+      queryParam("company", "biot")
       get("/items")
     } Then {
       statusCode(200)
@@ -331,6 +335,7 @@ class TestCRUDVerticleItems {
       queryParam("latitude", 42)
       queryParam("longitude", -8)
       queryParam("category", closestItem.getString("category"))
+      queryParam("company", "biot")
       get("/items")
     } Then {
       statusCode(200)
@@ -356,6 +361,7 @@ class TestCRUDVerticleItems {
       spec(requestSpecification)
       accept(ContentType.JSON)
     } When {
+      queryParam("company", "biot")
       get("/items/categories")
     } Then {
       statusCode(200)
@@ -384,6 +390,7 @@ class TestCRUDVerticleItems {
       spec(requestSpecification)
       accept(ContentType.JSON)
     } When {
+      queryParam("company", "biot")
       get("/items/$existingItemID")
     } Then {
       statusCode(200)
@@ -410,6 +417,7 @@ class TestCRUDVerticleItems {
       accept(ContentType.JSON)
       body(updateItemJson.encode())
     } When {
+      queryParam("company", "biot")
       put("/items/$existingItemID")
     } Then {
       statusCode(200)
@@ -454,6 +462,7 @@ class TestCRUDVerticleItems {
       contentType(ContentType.JSON)
       body(newItem.encode())
     } When {
+      queryParam("company", "biot")
       post("/items")
     } Then {
       statusCode(200)
@@ -465,6 +474,7 @@ class TestCRUDVerticleItems {
     val response = Given {
       spec(requestSpecification)
     } When {
+      queryParam("company", "biot")
       delete("/items/$id")
     } Then {
       statusCode(200)
