@@ -26,6 +26,10 @@ internal fun JsonObject?.validateAndThen(ctx: RoutingContext, block: (JsonObject
       CRUDVerticle.logger.warn("Bad request with empty body")
       ctx.fail(400)
     }
+    this.containsKey("company") && !this.getString("company").matches("^[a-zA-Z]+$".toRegex()) -> {
+      CRUDVerticle.logger.warn("Bad request with wrongly formatted company")
+      ctx.fail(400)
+    }
     else -> block(this)
   }
 }
