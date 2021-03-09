@@ -139,6 +139,35 @@ class TestCRUDVerticleUsers {
   }
 
   @Test
+  @DisplayName("registerUser fails with wrongly formatted company")
+  fun registerUserFailsWithWronglyFormattedCompany(testContext: VertxTestContext) {
+    val wrongUser = jsonObjectOf(
+      "userID" to "wrong",
+      "username" to "wrong",
+      "password" to "wrong",
+      "company" to "wrong company"
+    )
+
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      body(wrongUser.encode())
+    } When {
+      post("/users")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Bad Request")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
   @DisplayName("getUsers correctly retrieves all users")
   fun getUsersIsCorrect(testContext: VertxTestContext) {
     val expected = jsonArrayOf(existingUser.copy().apply { remove("password") })
@@ -193,7 +222,7 @@ class TestCRUDVerticleUsers {
   @DisplayName("updateUser correctly updates the desired user")
   fun updateUserIsCorrect(testContext: VertxTestContext) {
     val updateJson = jsonObjectOf(
-      "company" to "test2"
+      "company" to "newCompany"
     )
 
     val response = Given {

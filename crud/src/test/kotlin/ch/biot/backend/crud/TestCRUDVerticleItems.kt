@@ -20,7 +20,6 @@ import io.vertx.core.json.JsonObject
 import io.vertx.junit5.VertxExtension
 import io.vertx.junit5.VertxTestContext
 import io.vertx.kotlin.core.json.get
-import io.vertx.kotlin.core.json.jsonArrayOf
 import io.vertx.kotlin.core.json.jsonObjectOf
 import io.vertx.kotlin.pgclient.pgConnectOptionsOf
 import io.vertx.kotlin.sqlclient.poolOptionsOf
@@ -32,10 +31,7 @@ import org.testcontainers.containers.DockerComposeContainer
 import org.testcontainers.junit.jupiter.Testcontainers
 import strikt.api.expect
 import strikt.api.expectThat
-import strikt.assertions.isEmpty
-import strikt.assertions.isEqualTo
-import strikt.assertions.isFalse
-import strikt.assertions.isNotEmpty
+import strikt.assertions.*
 import java.io.File
 
 
@@ -99,24 +95,24 @@ class TestCRUDVerticleItems {
       pgPool.query("DELETE FROM beacon_data").execute()
     }
 
-  private fun insertItems() = pgPool.preparedQuery(INSERT_ITEM)
+  private fun insertItems() = pgPool.preparedQuery(insertItem("items"))
     .execute(Tuple.of(existingItem["beacon"], existingItem["category"], existingItem["service"]))
     .compose {
       existingItemID = it.iterator().next().getInteger("id")
-      pgPool.preparedQuery(INSERT_ITEM)
+      pgPool.preparedQuery(insertItem("items"))
         .execute(Tuple.of(closestItem["beacon"], closestItem["category"], closestItem["service"]))
     }.compose {
-      pgPool.preparedQuery(INSERT_ITEM)
+      pgPool.preparedQuery(insertItem("items"))
         .execute(Tuple.of("fake1", closestItem["category"], closestItem["service"]))
     }.compose {
-      pgPool.preparedQuery(INSERT_ITEM)
+      pgPool.preparedQuery(insertItem("items"))
         .execute(Tuple.of("fake2", closestItem["category"], closestItem["service"]))
     }.compose {
-      pgPool.preparedQuery(INSERT_ITEM)
+      pgPool.preparedQuery(insertItem("items"))
         .execute(Tuple.of("fake3", closestItem["category"], closestItem["service"]))
     }
     .compose {
-      pgPool.preparedQuery(INSERT_ITEM)
+      pgPool.preparedQuery(insertItem("items"))
         .execute(Tuple.of("fake4", closestItem["category"], closestItem["service"]))
     }
     .compose {
@@ -239,6 +235,7 @@ class TestCRUDVerticleItems {
       contentType(ContentType.JSON)
       body(newItem.encode())
     } When {
+      queryParam("company", "biot")
       post("/items")
     } Then {
       statusCode(200)
@@ -259,6 +256,7 @@ class TestCRUDVerticleItems {
       spec(requestSpecification)
       accept(ContentType.JSON)
     } When {
+      queryParam("company", "biot")
       get("/items")
     } Then {
       statusCode(200)
@@ -274,6 +272,71 @@ class TestCRUDVerticleItems {
   }
 
   @Test
+  @DisplayName("getItems returns an empty list for another company")
+  fun getItemsReturnsEmptyForAnotherCompany(testContext: VertxTestContext) {
+    pgPool.query(
+      """CREATE TABLE IF NOT EXISTS items_another
+(
+    id SERIAL PRIMARY KEY,
+    beacon VARCHAR(17) NOT NULL UNIQUE,
+    category VARCHAR(100) NOT NULL,
+    service VARCHAR(100)
+);"""
+    ).execute().compose {
+      pgPool.query(
+        """CREATE TABLE IF NOT EXISTS beacon_data_another
+(
+    time TIMESTAMPTZ NOT NULL,
+    mac VARCHAR(17) NOT NULL,
+    battery INTEGER,
+    status VARCHAR(50),
+    latitude DECIMAL(9, 6),
+    longitude DECIMAL(9, 6),
+    floor INTEGER
+);"""
+      ).execute()
+    }.onComplete {
+      val response = Buffer.buffer(Given {
+        spec(requestSpecification)
+        accept(ContentType.JSON)
+      } When {
+        queryParam("company", "another")
+        get("/items")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }).toJsonArray()
+
+      testContext.verify {
+        expectThat(response.isEmpty).isTrue()
+        testContext.completeNow()
+      }
+    }
+  }
+
+  @Test
+  @DisplayName("getItems fails for another company whose tables have not been created")
+  fun getItemsFailsForAnotherCompanyNotCreated(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      accept(ContentType.JSON)
+    } When {
+      queryParam("company", "anotherCompany")
+      get("/items")
+    } Then {
+      statusCode(500)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Internal Server Error")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
   @DisplayName("getItems with category correctly retrieves all items of the given category")
   fun getItemsWithCategoryIsCorrect(testContext: VertxTestContext) {
     val response = Buffer.buffer(Given {
@@ -281,6 +344,7 @@ class TestCRUDVerticleItems {
       accept(ContentType.JSON)
     } When {
       queryParam("category", existingItem.getString("category"))
+      queryParam("company", "biot")
       get("/items")
     } Then {
       statusCode(200)
@@ -307,6 +371,7 @@ class TestCRUDVerticleItems {
     } When {
       queryParam("latitude", 42)
       queryParam("longitude", -8)
+      queryParam("company", "biot")
       get("/items")
     } Then {
       statusCode(200)
@@ -332,6 +397,7 @@ class TestCRUDVerticleItems {
       queryParam("latitude", 42)
       queryParam("longitude", -8)
       queryParam("category", closestItem.getString("category"))
+      queryParam("company", "biot")
       get("/items")
     } Then {
       statusCode(200)
@@ -357,6 +423,7 @@ class TestCRUDVerticleItems {
       spec(requestSpecification)
       accept(ContentType.JSON)
     } When {
+      queryParam("company", "biot")
       get("/items/categories")
     } Then {
       statusCode(200)
@@ -385,6 +452,7 @@ class TestCRUDVerticleItems {
       spec(requestSpecification)
       accept(ContentType.JSON)
     } When {
+      queryParam("company", "biot")
       get("/items/$existingItemID")
     } Then {
       statusCode(200)
@@ -411,6 +479,7 @@ class TestCRUDVerticleItems {
       accept(ContentType.JSON)
       body(updateItemJson.encode())
     } When {
+      queryParam("company", "biot")
       put("/items/$existingItemID")
     } Then {
       statusCode(200)
@@ -422,7 +491,7 @@ class TestCRUDVerticleItems {
       expectThat(response).isEmpty()
     }
 
-    pgPool.preparedQuery(GET_ITEM).execute(Tuple.of(existingItemID))
+    pgPool.preparedQuery(getItem("items", "beacon_data")).execute(Tuple.of(existingItemID))
       .onSuccess { res ->
         val json = res.iterator().next().toJson()
         expect {
@@ -455,6 +524,7 @@ class TestCRUDVerticleItems {
       contentType(ContentType.JSON)
       body(newItem.encode())
     } When {
+      queryParam("company", "biot")
       post("/items")
     } Then {
       statusCode(200)
@@ -466,6 +536,7 @@ class TestCRUDVerticleItems {
     val response = Given {
       spec(requestSpecification)
     } When {
+      queryParam("company", "biot")
       delete("/items/$id")
     } Then {
       statusCode(200)
