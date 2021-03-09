@@ -184,6 +184,27 @@ class TestCRUDVerticleRelays {
   }
 
   @Test
+  @DisplayName("getRelays returns an empty list for another company")
+  fun getRelaysReturnsEmptyForAnotherCompany(testContext: VertxTestContext) {
+    val response = Buffer.buffer(Given {
+      spec(requestSpecification)
+      accept(ContentType.JSON)
+    } When {
+      queryParam("company", "another")
+      get("/relays")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }).toJsonArray()
+
+    testContext.verify {
+      expectThat(response.isEmpty).isTrue()
+      testContext.completeNow()
+    }
+  }
+
+  @Test
   @DisplayName("getRelay correctly retrieves the desired relay")
   fun getRelayIsCorrect(testContext: VertxTestContext) {
     val expected = existingRelay.copy().apply { remove("mqttPassword") }

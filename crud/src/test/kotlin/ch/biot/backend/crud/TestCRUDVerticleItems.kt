@@ -31,10 +31,7 @@ import org.testcontainers.containers.DockerComposeContainer
 import org.testcontainers.junit.jupiter.Testcontainers
 import strikt.api.expect
 import strikt.api.expectThat
-import strikt.assertions.isEmpty
-import strikt.assertions.isEqualTo
-import strikt.assertions.isFalse
-import strikt.assertions.isNotEmpty
+import strikt.assertions.*
 import java.io.File
 
 
@@ -270,6 +267,71 @@ class TestCRUDVerticleItems {
     testContext.verify {
       expectThat(response.isEmpty).isFalse()
       expectThat(response.size()).isEqualTo(6)
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("getItems returns an empty list for another company")
+  fun getItemsReturnsEmptyForAnotherCompany(testContext: VertxTestContext) {
+    pgPool.query(
+      """CREATE TABLE IF NOT EXISTS items_another
+(
+    id SERIAL PRIMARY KEY,
+    beacon VARCHAR(17) NOT NULL UNIQUE,
+    category VARCHAR(100) NOT NULL,
+    service VARCHAR(100)
+);"""
+    ).execute().compose {
+      pgPool.query(
+        """CREATE TABLE IF NOT EXISTS beacon_data_another
+(
+    time TIMESTAMPTZ NOT NULL,
+    mac VARCHAR(17) NOT NULL,
+    battery INTEGER,
+    status VARCHAR(50),
+    latitude DECIMAL(9, 6),
+    longitude DECIMAL(9, 6),
+    floor INTEGER
+);"""
+      ).execute()
+    }.onComplete {
+      val response = Buffer.buffer(Given {
+        spec(requestSpecification)
+        accept(ContentType.JSON)
+      } When {
+        queryParam("company", "another")
+        get("/items")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }).toJsonArray()
+
+      testContext.verify {
+        expectThat(response.isEmpty).isTrue()
+        testContext.completeNow()
+      }
+    }
+  }
+
+  @Test
+  @DisplayName("getItems fails for another company whose tables have not been created")
+  fun getItemsFailsForAnotherCompanyNotCreated(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      accept(ContentType.JSON)
+    } When {
+      queryParam("company", "anotherCompany")
+      get("/items")
+    } Then {
+      statusCode(500)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Internal Server Error")
       testContext.completeNow()
     }
   }
