@@ -222,7 +222,7 @@ class TestCRUDVerticleUsers {
   @DisplayName("updateUser correctly updates the desired user")
   fun updateUserIsCorrect(testContext: VertxTestContext) {
     val updateJson = jsonObjectOf(
-      "company" to "test2"
+      "company" to "newCompany"
     )
 
     val response = Given {
