@@ -2,9 +2,9 @@ openapi: 3.0.0
 info:
   title: Vert.x API
   description: BIoT Vert.x API
-  version: "2"
+  version: "2.1"
 servers:
-- url: https://virtserver.swaggerhub.com/b-iot/Vert.x/2
+- url: https://virtserver.swaggerhub.com/b-iot/Vert.x/2.1
   description: SwaggerHub API Auto Mocking
 paths:
   /relays:
@@ -284,15 +284,6 @@ paths:
         explode: true
         schema:
           type: string
-      - name: userPosition
-        in: query
-        description: comma-separated user position (latitude and longitude)
-        required: false
-        style: form
-        explode: true
-        schema:
-          type: string
-          example: 42.3,8.3
       responses:
         "200":
           description: All the items
@@ -333,6 +324,46 @@ paths:
                 type: array
                 items:
                   type: string
+  /items/closest:
+    get:
+      tags:
+      - Item
+      description: returns the 5 closest items per floor
+      operationId: getClosestItems
+      parameters:
+      - name: latitude
+        in: query
+        description: user latitude
+        required: true
+        style: form
+        explode: true
+        schema:
+          type: number
+          format: double
+      - name: longitude
+        in: query
+        description: user longitude
+        required: true
+        style: form
+        explode: true
+        schema:
+          type: number
+          format: double
+      - name: category
+        in: query
+        description: item category
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The 5 closest items per floor
+          content:
+            application/json:
+              schema:
+                type: object
   /items/{id}:
     get:
       tags:
