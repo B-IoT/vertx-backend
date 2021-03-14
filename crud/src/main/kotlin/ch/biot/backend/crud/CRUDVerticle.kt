@@ -33,8 +33,6 @@ import io.vertx.spi.cluster.hazelcast.HazelcastClusterManager
 import io.vertx.sqlclient.Tuple
 import org.slf4j.LoggerFactory
 import java.net.InetAddress
-import java.util.*
-
 
 class CRUDVerticle : AbstractVerticle() {
 

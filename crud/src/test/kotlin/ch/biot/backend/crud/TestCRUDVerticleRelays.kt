@@ -39,7 +39,6 @@ import strikt.assertions.isNotNull
 import strikt.assertions.isTrue
 import java.io.File
 
-
 @ExtendWith(VertxExtension::class)
 @Testcontainers
 class TestCRUDVerticleRelays {
@@ -163,17 +162,19 @@ class TestCRUDVerticleRelays {
   fun getRelaysIsCorrect(testContext: VertxTestContext) {
     val expected = jsonArrayOf(existingRelay.copy().apply { remove("mqttPassword") })
 
-    val response = Buffer.buffer(Given {
-      spec(requestSpecification)
-      accept(ContentType.JSON)
-    } When {
-      queryParam("company", "biot")
-      get("/relays")
-    } Then {
-      statusCode(200)
-    } Extract {
-      asString()
-    }).toJsonArray()
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        accept(ContentType.JSON)
+      } When {
+        queryParam("company", "biot")
+        get("/relays")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonArray()
 
     testContext.verify {
       val password = response.getJsonObject(0).remove("mqttPassword")
@@ -186,17 +187,19 @@ class TestCRUDVerticleRelays {
   @Test
   @DisplayName("getRelays returns an empty list for another company")
   fun getRelaysReturnsEmptyForAnotherCompany(testContext: VertxTestContext) {
-    val response = Buffer.buffer(Given {
-      spec(requestSpecification)
-      accept(ContentType.JSON)
-    } When {
-      queryParam("company", "another")
-      get("/relays")
-    } Then {
-      statusCode(200)
-    } Extract {
-      asString()
-    }).toJsonArray()
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        accept(ContentType.JSON)
+      } When {
+        queryParam("company", "another")
+        get("/relays")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonArray()
 
     testContext.verify {
       expectThat(response.isEmpty).isTrue()
@@ -209,17 +212,19 @@ class TestCRUDVerticleRelays {
   fun getRelayIsCorrect(testContext: VertxTestContext) {
     val expected = existingRelay.copy().apply { remove("mqttPassword") }
 
-    val response = Buffer.buffer(Given {
-      spec(requestSpecification)
-      accept(ContentType.JSON)
-    } When {
-      queryParam("company", "biot")
-      get("/relays/testRelay")
-    } Then {
-      statusCode(200)
-    } Extract {
-      asString()
-    }).toJsonObject()
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        accept(ContentType.JSON)
+      } When {
+        queryParam("company", "biot")
+        get("/relays/testRelay")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonObject()
 
     testContext.verify {
       val password = response.remove("mqttPassword")
@@ -379,6 +384,5 @@ class TestCRUDVerticleRelays {
     fun afterAll() {
       instance.stop()
     }
-
   }
 }

@@ -45,7 +45,6 @@ import java.security.SecureRandom
 import java.util.*
 import java.util.concurrent.TimeUnit
 
-
 @ExtendWith(VertxExtension::class)
 @Testcontainers
 class TestRelaysCommunicationVerticle {
@@ -86,7 +85,8 @@ class TestRelaysCommunicationVerticle {
     val kafkaAdminClient = KafkaAdminClient.create(vertx, kafkaConfig)
 
     mqttClient = MqttClient.create(
-      vertx, mqttClientOptionsOf(
+      vertx,
+      mqttClientOptionsOf(
         clientId = configuration["mqttID"],
         username = configuration["mqttUsername"],
         password = mqttPassword
@@ -121,7 +121,8 @@ class TestRelaysCommunicationVerticle {
       )
       .andThen(
         mongoClient.rxCreateIndexWithOptions(
-          RELAYS_COLLECTION, jsonObjectOf("mqttUsername" to 1), indexOptionsOf().unique(
+          RELAYS_COLLECTION, jsonObjectOf("mqttUsername" to 1),
+          indexOptionsOf().unique(
             true
           )
         )

@@ -39,7 +39,6 @@ import strikt.assertions.isFalse
 import strikt.assertions.isNotNull
 import java.io.File
 
-
 @ExtendWith(VertxExtension::class)
 @Testcontainers
 class TestCRUDVerticleUsers {
@@ -174,16 +173,18 @@ class TestCRUDVerticleUsers {
   fun getUsersIsCorrect(testContext: VertxTestContext) {
     val expected = jsonArrayOf(existingUser.copy().apply { remove("password") })
 
-    val response = Buffer.buffer(Given {
-      spec(requestSpecification)
-      accept(ContentType.JSON)
-    } When {
-      get("/users")
-    } Then {
-      statusCode(200)
-    } Extract {
-      asString()
-    }).toJsonArray()
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        accept(ContentType.JSON)
+      } When {
+        get("/users")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonArray()
 
     testContext.verify {
       expectThat(response).isNotNull()
@@ -201,16 +202,18 @@ class TestCRUDVerticleUsers {
   fun getUserIsCorrect(testContext: VertxTestContext) {
     val expected = existingUser.copy().apply { remove("password") }
 
-    val response = Buffer.buffer(Given {
-      spec(requestSpecification)
-      accept(ContentType.JSON)
-    } When {
-      get("/users/test")
-    } Then {
-      statusCode(200)
-    } Extract {
-      asString()
-    }).toJsonObject()
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        accept(ContentType.JSON)
+      } When {
+        get("/users/test")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonObject()
 
     testContext.verify {
       val password = response.remove("password")
@@ -347,15 +350,17 @@ class TestCRUDVerticleUsers {
   fun livenessCheckSucceeds(testContext: VertxTestContext) {
     val expected = jsonObjectOf("status" to "UP")
 
-    val response = Buffer.buffer(Given {
-      spec(requestSpecification)
-    } When {
-      get("/health/live")
-    } Then {
-      statusCode(200)
-    } Extract {
-      asString()
-    }).toJsonObject()
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+      } When {
+        get("/health/live")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonObject()
 
     testContext.verify {
       expectThat(response).isEqualTo(expected)
@@ -368,15 +373,17 @@ class TestCRUDVerticleUsers {
   fun readinessCheckSucceeds(testContext: VertxTestContext) {
     val expected = jsonObjectOf("status" to "UP")
 
-    val response = Buffer.buffer(Given {
-      spec(requestSpecification)
-    } When {
-      get("/health/ready")
-    } Then {
-      statusCode(200)
-    } Extract {
-      asString()
-    }).toJsonObject()
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+      } When {
+        get("/health/ready")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonObject()
 
     testContext.verify {
       expectThat(response).isEqualTo(expected)
@@ -412,6 +419,5 @@ class TestCRUDVerticleUsers {
     fun afterAll() {
       instance.stop()
     }
-
   }
 }

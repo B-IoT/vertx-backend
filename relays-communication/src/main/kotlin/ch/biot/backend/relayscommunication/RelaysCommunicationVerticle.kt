@@ -29,7 +29,6 @@ import org.slf4j.LoggerFactory
 import java.net.InetAddress
 import java.time.Instant
 
-
 class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
 
   companion object {
@@ -77,7 +76,8 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
   override fun rxStart(): Completable {
     // Initialize the Kafka producer
     kafkaProducer = KafkaProducer.create(
-      vertx, mapOf(
+      vertx,
+      mapOf(
         "bootstrap.servers" to "$KAFKA_HOST:$KAFKA_PORT",
         "key.serializer" to "org.apache.kafka.common.serialization.StringSerializer",
         "value.serializer" to "io.vertx.kafka.client.serialization.JsonObjectSerializer",
@@ -87,7 +87,8 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
 
     // Initialize MongoDB
     mongoClient = MongoClient.createShared(
-      vertx, jsonObjectOf(
+      vertx,
+      jsonObjectOf(
         "host" to MONGO_HOST, "port" to MONGO_PORT, "db_name" to "clients", "username" to "biot",
         "password" to "biot"
       )
@@ -96,7 +97,8 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
     val usernameField = "mqttUsername"
     val passwordField = "mqttPassword"
     mongoAuth = MongoAuthentication.create(
-      mongoClient, mongoAuthenticationOptionsOf(
+      mongoClient,
+      mongoAuthenticationOptionsOf(
         collectionName = RELAYS_COLLECTION,
         passwordCredentialField = passwordField,
         passwordField = passwordField,
