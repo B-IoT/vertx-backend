@@ -32,9 +32,11 @@ import org.junit.jupiter.api.*
 import org.junit.jupiter.api.extension.ExtendWith
 import org.testcontainers.containers.DockerComposeContainer
 import org.testcontainers.junit.jupiter.Testcontainers
-import strikt.api.expect
 import strikt.api.expectThat
-import strikt.assertions.*
+import strikt.assertions.isEmpty
+import strikt.assertions.isEqualTo
+import strikt.assertions.isFalse
+import strikt.assertions.isNotNull
 import java.io.File
 
 
@@ -221,8 +223,9 @@ class TestCRUDVerticleUsers {
   @Test
   @DisplayName("updateUser correctly updates the desired user")
   fun updateUserIsCorrect(testContext: VertxTestContext) {
+    val newPassword = "newPassword"
     val updateJson = jsonObjectOf(
-      "company" to "newCompany"
+      "password" to newPassword
     )
 
     val response = Given {
@@ -242,19 +245,26 @@ class TestCRUDVerticleUsers {
       expectThat(response).isEmpty()
     }
 
-    mongoClient.findOne("users", jsonObjectOf("userID" to "test"), jsonObjectOf())
-      .onSuccess { json ->
-        expectThat(json).isNotNull()
-        expect {
-          that(json.getString("company")).isEqualTo(updateJson.getString("company"))
-          that(json.getString("userID")).isEqualTo(existingUser.getString("userID"))
-          that(json.getString("username")).isEqualTo(existingUser.getString("username"))
-          that(json.getString("password")).isEqualTo(existingUser.getString("password"))
-          that(json.containsKey("lastModified")).isTrue()
-        }
-        testContext.completeNow()
-      }
-      .onFailure(testContext::failNow)
+    val updatedUser = existingUser.copy().apply {
+      put("password", newPassword)
+    }
+
+    val company = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      body(updatedUser.encode())
+    } When {
+      post("/users/authenticate")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(company).isEqualTo(existingUser["company"])
+      testContext.completeNow()
+    }
   }
 
   @Test

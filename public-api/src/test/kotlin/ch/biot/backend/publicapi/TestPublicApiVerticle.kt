@@ -223,7 +223,7 @@ class TestPublicApiVerticle {
   @DisplayName("Updating a user succeeds")
   fun updateUserSucceeds(testContext: VertxTestContext) {
     val updateJson = jsonObjectOf(
-      "company" to "newCompany"
+      "password" to "newPassword"
     )
 
     val response = Given {

@@ -524,8 +524,9 @@ components:
     UserUpdateInfo:
       type: object
       properties:
-        company:
+        password:
           type: string
+          format: password
       description: Update information for a user
     UserAuthenticateInfo:
       type: object
