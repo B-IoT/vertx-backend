@@ -101,5 +101,5 @@ internal fun Row.toItemJson(): JsonObject = jsonObjectOf(
  */
 internal fun RoutingContext.getCollection(baseCollectionName: String): String {
   val company = this.queryParams()["company"]
-  return if (company != "biot") "${baseCollectionName}_$company" else baseCollectionName
+  return if (company != null && company != "biot") "${baseCollectionName}_$company" else baseCollectionName
 }

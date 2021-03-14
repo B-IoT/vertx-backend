@@ -116,6 +116,10 @@ class TestCRUDVerticleItems {
         .execute(Tuple.of("fake4", closestItem["category"], closestItem["service"]))
     }
     .compose {
+      pgPool.preparedQuery(insertItem("items"))
+        .execute(Tuple.of("fake5", closestItem["category"], closestItem["service"]))
+    }
+    .compose {
       pgPool.preparedQuery(INSERT_BEACON_DATA)
         .execute(
           Tuple.of(
@@ -211,6 +215,18 @@ class TestCRUDVerticleItems {
             existingBeaconData.getInteger("floor")
           )
         )
+    }.compose {
+      pgPool.preparedQuery(INSERT_BEACON_DATA)
+        .execute(
+          Tuple.of(
+            "fake5",
+            existingBeaconData.getInteger("battery"),
+            existingBeaconData.getString("status"),
+            47,
+            -8,
+            2
+          )
+        )
     }
 
   @AfterEach
@@ -266,7 +282,7 @@ class TestCRUDVerticleItems {
 
     testContext.verify {
       expectThat(response.isEmpty).isFalse()
-      expectThat(response.size()).isEqualTo(6)
+      expectThat(response.size()).isEqualTo(7)
       testContext.completeNow()
     }
   }
@@ -363,33 +379,39 @@ class TestCRUDVerticleItems {
   }
 
   @Test
-  @DisplayName("getItems with user position (latitude and longitude) correctly retrieves the 5 closest items")
-  fun getItemsWithUserPositionIsCorrect(testContext: VertxTestContext) {
+  @DisplayName("getClosestItems correctly retrieves the 5 closest items per floor")
+  fun getClosestItemsIsCorrect(testContext: VertxTestContext) {
     val response = Buffer.buffer(Given {
       spec(requestSpecification)
       accept(ContentType.JSON)
     } When {
       queryParam("latitude", 42)
       queryParam("longitude", -8)
-      queryParam("company", "biot")
-      get("/items")
+      get("/items/closest")
     } Then {
       statusCode(200)
     } Extract {
       asString()
-    }).toJsonArray()
+    }).toJsonObject()
 
     testContext.verify {
-      expectThat(response.size()).isEqualTo(5)
-      val first = response.getJsonObject(0)
-      expectThat(first.getString("mac")).isEqualTo(closestItem.getString("mac"))
+      val firstFloor: JsonArray = response["1"]
+      expectThat(firstFloor.size()).isEqualTo(5)
+      val closestFirstFloor = firstFloor.getJsonObject(0)
+      expectThat(closestFirstFloor.getString("beacon")).isEqualTo(closestItem.getString("beacon"))
+
+      val secondFloor: JsonArray = response["2"]
+      expectThat(secondFloor.size()).isEqualTo(1)
+      val closestSecondFloor = secondFloor.getJsonObject(0)
+      expectThat(closestSecondFloor.getString("beacon")).isEqualTo("fake5")
+
       testContext.completeNow()
     }
   }
 
   @Test
-  @DisplayName("getItems with user position (latitude and longitude) correctly retrieves the 5 closest items of the given category")
-  fun getItemsWithUserPositionAndCategoryIsCorrect(testContext: VertxTestContext) {
+  @DisplayName("getClosestItems correctly retrieves the 5 closest items of the given category per floor")
+  fun getClosestItemsWithCategoryIsCorrect(testContext: VertxTestContext) {
     val response = Buffer.buffer(Given {
       spec(requestSpecification)
       accept(ContentType.JSON)
@@ -397,19 +419,26 @@ class TestCRUDVerticleItems {
       queryParam("latitude", 42)
       queryParam("longitude", -8)
       queryParam("category", closestItem.getString("category"))
-      queryParam("company", "biot")
-      get("/items")
+      get("/items/closest")
     } Then {
       statusCode(200)
     } Extract {
       asString()
-    }).toJsonArray()
+    }).toJsonObject()
 
     testContext.verify {
-      expectThat(response.size()).isEqualTo(5)
-      val first = response.getJsonObject(0)
-      expectThat(first.getString("mac")).isEqualTo(closestItem.getString("mac"))
-      expectThat(first.getString("category")).isEqualTo(closestItem.getString("category"))
+      val firstFloor: JsonArray = response["1"]
+      expectThat(firstFloor.size()).isEqualTo(5)
+      val closestFirstFloor = firstFloor.getJsonObject(0)
+      expectThat(closestFirstFloor.getString("category")).isEqualTo(closestItem.getString("category"))
+      expectThat(closestFirstFloor.getString("beacon")).isEqualTo(closestItem.getString("beacon"))
+
+      val secondFloor: JsonArray = response["2"]
+      expectThat(secondFloor.size()).isEqualTo(1)
+      val closestSecondFloor = secondFloor.getJsonObject(0)
+      expectThat(closestSecondFloor.getString("category")).isEqualTo(closestItem.getString("category"))
+      expectThat(closestSecondFloor.getString("beacon")).isEqualTo("fake5")
+
       testContext.completeNow()
     }
   }

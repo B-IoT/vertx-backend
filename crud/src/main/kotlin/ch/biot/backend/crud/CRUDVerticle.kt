@@ -154,6 +154,7 @@ class CRUDVerticle : AbstractVerticle() {
         routerBuilder.operation("registerItem").handler(::registerItemHandler)
         routerBuilder.operation("getItems").handler(::getItemsHandler)
         routerBuilder.operation("getItem").handler(::getItemHandler)
+        routerBuilder.operation("getClosestItems").handler(::getClosestItemsHandler)
         routerBuilder.operation("deleteItem").handler(::deleteItemHandler)
         routerBuilder.operation("updateItem").handler(::updateItemHandler)
         routerBuilder.operation("getCategories").handler(::getCategoriesHandler)
@@ -507,23 +508,14 @@ class CRUDVerticle : AbstractVerticle() {
   private fun getItemsHandler(ctx: RoutingContext) {
     logger.info("New getItems request")
     val params = ctx.queryParams()
+
     val itemsTable = ctx.getCollection(ITEMS_TABLE)
     val beaconDataTable = ctx.getCollection(BEACON_DATA_TABLE)
-    val executedQuery = when {
-      params.contains("latitude") && params.contains("longitude") -> {
-        val latitude = params["latitude"].toDouble()
-        val longitude = params["longitude"].toDouble()
-        if (params.contains("category")) {
-          pgPool.preparedQuery(getItemsWithCategoryAndPosition(itemsTable, beaconDataTable))
-            .execute(Tuple.of(params["category"], latitude, longitude))
-        } else {
-          pgPool.preparedQuery(getItemsWithPosition(itemsTable, beaconDataTable))
-            .execute(Tuple.of(latitude, longitude))
-        }
-      }
-      params.contains("category") -> pgPool.preparedQuery(getItemsWithCategory(itemsTable, beaconDataTable))
-        .execute(Tuple.of(params["category"]))
-      else -> pgPool.preparedQuery(getItems(itemsTable, beaconDataTable)).execute()
+
+    val executedQuery = if (params.contains("category")) {
+      pgPool.preparedQuery(getItemsWithCategory(itemsTable, beaconDataTable)).execute(Tuple.of(params["category"]))
+    } else {
+      pgPool.preparedQuery(getItems(itemsTable, beaconDataTable)).execute()
     }
 
     executedQuery.onSuccess { res ->
@@ -534,6 +526,52 @@ class CRUDVerticle : AbstractVerticle() {
         .end(JsonArray(result).encode())
     }.onFailure { error ->
       logger.error("Could not get items", error)
+      ctx.fail(500, error)
+    }
+  }
+
+  private fun getClosestItemsHandler(ctx: RoutingContext) {
+    logger.info("New getClosestItems request")
+
+    val params = ctx.queryParams()
+    val latitude = params["latitude"].toDouble()
+    val longitude = params["longitude"].toDouble()
+
+    val itemsTable = ctx.getCollection(ITEMS_TABLE)
+    val beaconDataTable = ctx.getCollection(BEACON_DATA_TABLE)
+
+    val executedQuery = if (params.contains("category")) {
+      pgPool.preparedQuery(getClosestItemsWithCategory(itemsTable, beaconDataTable))
+        .execute(Tuple.of(params["category"], latitude, longitude))
+    } else {
+      pgPool.preparedQuery(getClosestItems(itemsTable, beaconDataTable))
+        .execute(Tuple.of(latitude, longitude))
+    }
+
+    executedQuery.onSuccess { res ->
+      val result = if (res.size() == 0) jsonObjectOf() else {
+        val json = jsonObjectOf()
+        res.forEach { row ->
+          val floor = row.getInteger("floor")?.toString() ?: "unknown"
+          val closestItems = row.getJsonArray("closest_items")
+            .take(5)
+            .map {
+              (it as JsonObject).apply {
+                put("timestamp", getString("time"))
+                remove("time")
+                remove("mac")
+              }
+            } // only the 5 closest
+          json.put(floor, closestItems)
+        }
+        json
+      }
+
+      ctx.response()
+        .putHeader(CONTENT_TYPE, APPLICATION_JSON)
+        .end(result.encode())
+    }.onFailure { error ->
+      logger.error("Could not get closest items", error)
       ctx.fail(500, error)
     }
   }

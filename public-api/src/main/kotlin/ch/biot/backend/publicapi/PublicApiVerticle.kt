@@ -144,6 +144,7 @@ class PublicApiVerticle : AbstractVerticle() {
     router.put("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).handler(::updateItemHandler)
     router.get("$API_PREFIX/$ITEMS_ENDPOINT").handler(jwtAuthHandler).handler(::getItemsHandler)
     router.get("$API_PREFIX/$ITEMS_ENDPOINT/categories").handler(jwtAuthHandler).handler(::getCategoriesHandler)
+    router.get("$API_PREFIX/$ITEMS_ENDPOINT/closest").handler(jwtAuthHandler).handler(::getClosestItemsHandler)
     router.get("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).handler(::getItemHandler)
     router.delete("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).handler(::deleteItemHandler)
 
@@ -254,6 +255,21 @@ class PublicApiVerticle : AbstractVerticle() {
   private fun registerItemHandler(ctx: RoutingContext) = registerHandler(ctx, ITEMS_ENDPOINT, forwardResponse = true)
   private fun updateItemHandler(ctx: RoutingContext) = updateHandler(ctx, ITEMS_ENDPOINT)
   private fun getItemsHandler(ctx: RoutingContext) = getManyHandler(ctx, ITEMS_ENDPOINT)
+  private fun getClosestItemsHandler(ctx: RoutingContext) {
+    logger.info("New getClosestItems request")
+
+    webClient.get(CRUD_PORT, CRUD_HOST, "/$ITEMS_ENDPOINT/closest/?${ctx.request().query()}")
+      .addQueryParam("company", ctx.user().principal()["company"])
+      .timeout(TIMEOUT)
+      .`as`(BodyCodec.jsonObject())
+      .send()
+      .onSuccess { resp ->
+        forwardJsonObjectOrStatusCode(ctx, resp)
+      }
+      .onFailure { error ->
+        sendBadGateway(ctx, error)
+      }
+  }
   private fun getItemHandler(ctx: RoutingContext) = getOneHandler(ctx, ITEMS_ENDPOINT)
   private fun deleteItemHandler(ctx: RoutingContext) = deleteHandler(ctx, ITEMS_ENDPOINT)
   private fun getCategoriesHandler(ctx: RoutingContext) = getManyHandler(ctx, "$ITEMS_ENDPOINT/categories")
@@ -337,8 +353,7 @@ class PublicApiVerticle : AbstractVerticle() {
   private fun getOneHandler(ctx: RoutingContext, endpoint: String) {
     logger.info("New getOne request on /$endpoint endpoint")
 
-    webClient
-      .get(CRUD_PORT, CRUD_HOST, "/$endpoint/${ctx.pathParam("id")}")
+    webClient.get(CRUD_PORT, CRUD_HOST, "/$endpoint/${ctx.pathParam("id")}")
       .addQueryParam("company", ctx.user().principal()["company"])
       .timeout(TIMEOUT)
       .`as`(BodyCodec.jsonObject())

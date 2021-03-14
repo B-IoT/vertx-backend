@@ -563,6 +563,30 @@ class TestPublicApiVerticle {
 
   @Test
   @Order(16)
+  @DisplayName("Getting the closest items succeeds")
+  fun getClosestItemsSucceeds(testContext: VertxTestContext) {
+    val response = Buffer.buffer(Given {
+      spec(requestSpecification)
+      accept(ContentType.JSON)
+      header("Authorization", "Bearer $token")
+    } When {
+      queryParam("latitude", 42)
+      queryParam("longitude", -8)
+      get("/api/items/closest")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }).toJsonObject()
+
+    testContext.verify {
+      expectThat(response.isEmpty).isFalse()
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @Order(17)
   @DisplayName("Getting an item succeeds")
   fun getItemSucceeds(testContext: VertxTestContext) {
     val expected = item.copy()
@@ -599,7 +623,7 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(17)
+  @Order(18)
   @DisplayName("Getting the categories succeeds")
   fun getCategoriesSucceeds(testContext: VertxTestContext) {
     val expected = JsonArray(listOf(item.getString("category")))
@@ -623,7 +647,7 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(18)
+  @Order(19)
   @DisplayName("Updating an item succeeds")
   fun updateItemSucceeds(testContext: VertxTestContext) {
     val updateJson = jsonObjectOf(
@@ -653,7 +677,7 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(19)
+  @Order(20)
   @DisplayName("Deleting an item succeeds")
   fun deleteItemSucceeds(testContext: VertxTestContext) {
     val newItem = jsonObjectOf(
@@ -695,7 +719,7 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(20)
+  @Order(21)
   @DisplayName("Liveness check succeeds")
   fun livenessCheckSucceeds(testContext: VertxTestContext) {
     val expected = jsonObjectOf("status" to "UP")
@@ -717,7 +741,7 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(21)
+  @Order(22)
   @DisplayName("Readiness check succeeds")
   fun readinessCheckSucceeds(testContext: VertxTestContext) {
     val expected = jsonObjectOf("status" to "UP")
