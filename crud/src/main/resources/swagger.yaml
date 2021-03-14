@@ -4,34 +4,34 @@ info:
   description: BIoT Vert.x API
   version: "2.1"
 servers:
-- url: https://virtserver.swaggerhub.com/b-iot/Vert.x/2.1
-  description: SwaggerHub API Auto Mocking
+  - url: https://virtserver.swaggerhub.com/b-iot/Vert.x/2.1
+    description: SwaggerHub API Auto Mocking
 paths:
   /relays:
     get:
       tags:
-      - Relay
+        - Relay
       description: returns all relays
       operationId: getRelays
       parameters:
-      - name: offset
-        in: query
-        description: number of records to skip
-        required: false
-        style: form
-        explode: true
-        schema:
-          type: integer
-          format: int32
-      - name: limit
-        in: query
-        description: max number of records to return
-        required: false
-        style: form
-        explode: true
-        schema:
-          type: integer
-          format: int32
+        - name: offset
+          in: query
+          description: number of records to skip
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: integer
+            format: int32
+        - name: limit
+          in: query
+          description: max number of records to return
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: integer
+            format: int32
       responses:
         "200":
           description: All the relays
@@ -43,7 +43,7 @@ paths:
                   $ref: '#/components/schemas/Relay'
     post:
       tags:
-      - Relay
+        - Relay
       operationId: registerRelay
       requestBody:
         content:
@@ -60,17 +60,17 @@ paths:
   /relays/{id}:
     get:
       tags:
-      - Relay
+        - Relay
       description: returns a specific relay
       operationId: getRelay
       parameters:
-      - name: id
-        in: path
-        required: true
-        style: simple
-        explode: false
-        schema:
-          type: string
+        - name: id
+          in: path
+          required: true
+          style: simple
+          explode: false
+          schema:
+            type: string
       responses:
         "200":
           description: a relay
@@ -80,17 +80,17 @@ paths:
                 $ref: '#/components/schemas/Relay'
     put:
       tags:
-      - Relay
+        - Relay
       description: updates a specific relay
       operationId: updateRelay
       parameters:
-      - name: id
-        in: path
-        required: true
-        style: simple
-        explode: false
-        schema:
-          type: string
+        - name: id
+          in: path
+          required: true
+          style: simple
+          explode: false
+          schema:
+            type: string
       requestBody:
         content:
           application/json:
@@ -105,45 +105,45 @@ paths:
                 $ref: '#/components/schemas/Relay'
     delete:
       tags:
-      - Relay
+        - Relay
       description: deletes a specific relay
       operationId: deleteRelay
       parameters:
-      - name: id
-        in: path
-        required: true
-        style: simple
-        explode: false
-        schema:
-          type: string
+        - name: id
+          in: path
+          required: true
+          style: simple
+          explode: false
+          schema:
+            type: string
       responses:
         "200":
           description: successfully deleted relay
   /users:
     get:
       tags:
-      - User
+        - User
       description: returns all users
       operationId: getUsers
       parameters:
-      - name: offset
-        in: query
-        description: number of users to skip
-        required: false
-        style: form
-        explode: true
-        schema:
-          type: integer
-          format: int32
-      - name: limit
-        in: query
-        description: max number of users to return
-        required: false
-        style: form
-        explode: true
-        schema:
-          type: integer
-          format: int32
+        - name: offset
+          in: query
+          description: number of users to skip
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: integer
+            format: int32
+        - name: limit
+          in: query
+          description: max number of users to return
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: integer
+            format: int32
       responses:
         "200":
           description: All the users
@@ -155,7 +155,7 @@ paths:
                   $ref: '#/components/schemas/User'
     post:
       tags:
-      - User
+        - User
       operationId: registerUser
       requestBody:
         content:
@@ -172,7 +172,7 @@ paths:
   /users/authenticate:
     post:
       tags:
-      - User
+        - User
       operationId: authenticate
       requestBody:
         content:
@@ -192,17 +192,17 @@ paths:
   /users/{id}:
     get:
       tags:
-      - User
+        - User
       description: returns a specific user
       operationId: getUser
       parameters:
-      - name: id
-        in: path
-        required: true
-        style: simple
-        explode: false
-        schema:
-          type: string
+        - name: id
+          in: path
+          required: true
+          style: simple
+          explode: false
+          schema:
+            type: string
       responses:
         "200":
           description: a user
@@ -212,17 +212,17 @@ paths:
                 $ref: '#/components/schemas/User'
     put:
       tags:
-      - User
+        - User
       description: updates a specific user
       operationId: updateUser
       parameters:
-      - name: id
-        in: path
-        required: true
-        style: simple
-        explode: false
-        schema:
-          type: string
+        - name: id
+          in: path
+          required: true
+          style: simple
+          explode: false
+          schema:
+            type: string
       requestBody:
         content:
           application/json:
@@ -237,53 +237,53 @@ paths:
                 $ref: '#/components/schemas/User'
     delete:
       tags:
-      - User
+        - User
       description: deletes a specific user
       operationId: deleteUser
       parameters:
-      - name: id
-        in: path
-        required: true
-        style: simple
-        explode: false
-        schema:
-          type: string
+        - name: id
+          in: path
+          required: true
+          style: simple
+          explode: false
+          schema:
+            type: string
       responses:
         "200":
           description: successfully deleted user
   /items:
     get:
       tags:
-      - Item
+        - Item
       description: returns all items
       operationId: getItems
       parameters:
-      - name: offset
-        in: query
-        description: number of items to skip
-        required: false
-        style: form
-        explode: true
-        schema:
-          type: integer
-          format: int32
-      - name: limit
-        in: query
-        description: max number of items to return
-        required: false
-        style: form
-        explode: true
-        schema:
-          type: integer
-          format: int32
-      - name: category
-        in: query
-        description: item category
-        required: false
-        style: form
-        explode: true
-        schema:
-          type: string
+        - name: offset
+          in: query
+          description: number of items to skip
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: integer
+            format: int32
+        - name: limit
+          in: query
+          description: max number of items to return
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: integer
+            format: int32
+        - name: category
+          in: query
+          description: item category
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: string
       responses:
         "200":
           description: All the items
@@ -295,7 +295,7 @@ paths:
                   $ref: '#/components/schemas/Item'
     post:
       tags:
-      - Item
+        - Item
       operationId: registerItem
       requestBody:
         content:
@@ -312,7 +312,7 @@ paths:
   /items/categories:
     get:
       tags:
-      - Item
+        - Item
       description: returns all items's categories
       operationId: getCategories
       responses:
@@ -327,36 +327,36 @@ paths:
   /items/closest:
     get:
       tags:
-      - Item
+        - Item
       description: returns the 5 closest items per floor
       operationId: getClosestItems
       parameters:
-      - name: latitude
-        in: query
-        description: user latitude
-        required: true
-        style: form
-        explode: true
-        schema:
-          type: number
-          format: double
-      - name: longitude
-        in: query
-        description: user longitude
-        required: true
-        style: form
-        explode: true
-        schema:
-          type: number
-          format: double
-      - name: category
-        in: query
-        description: item category
-        required: false
-        style: form
-        explode: true
-        schema:
-          type: string
+        - name: latitude
+          in: query
+          description: user latitude
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: number
+            format: double
+        - name: longitude
+          in: query
+          description: user longitude
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: number
+            format: double
+        - name: category
+          in: query
+          description: item category
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: string
       responses:
         "200":
           description: The 5 closest items per floor
@@ -367,17 +367,17 @@ paths:
   /items/{id}:
     get:
       tags:
-      - Item
+        - Item
       description: returns a specific item
       operationId: getItem
       parameters:
-      - name: id
-        in: path
-        required: true
-        style: simple
-        explode: false
-        schema:
-          type: string
+        - name: id
+          in: path
+          required: true
+          style: simple
+          explode: false
+          schema:
+            type: string
       responses:
         "200":
           description: an item
@@ -389,17 +389,17 @@ paths:
           description: Item not found
     put:
       tags:
-      - Item
+        - Item
       description: updates a specific item
       operationId: updateItem
       parameters:
-      - name: id
-        in: path
-        required: true
-        style: simple
-        explode: false
-        schema:
-          type: string
+        - name: id
+          in: path
+          required: true
+          style: simple
+          explode: false
+          schema:
+            type: string
       requestBody:
         content:
           application/json:
@@ -414,17 +414,17 @@ paths:
                 $ref: '#/components/schemas/Item'
     delete:
       tags:
-      - Item
+        - Item
       description: deletes a specific item
       operationId: deleteItem
       parameters:
-      - name: id
-        in: path
-        required: true
-        style: simple
-        explode: false
-        schema:
-          type: string
+        - name: id
+          in: path
+          required: true
+          style: simple
+          explode: false
+          schema:
+            type: string
       responses:
         "200":
           description: successfully deleted item
@@ -524,8 +524,9 @@ components:
     UserUpdateInfo:
       type: object
       properties:
-        company:
+        password:
           type: string
+          format: password
       description: Update information for a user
     UserAuthenticateInfo:
       type: object

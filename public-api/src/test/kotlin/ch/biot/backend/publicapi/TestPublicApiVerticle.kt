@@ -31,7 +31,6 @@ import strikt.api.expectThat
 import strikt.assertions.*
 import java.io.File
 
-
 @ExtendWith(VertxExtension::class)
 @TestMethodOrder(MethodOrderer.OrderAnnotation::class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -168,17 +167,19 @@ class TestPublicApiVerticle {
   fun getUsersSucceeds(testContext: VertxTestContext) {
     val expected = jsonArrayOf(user.copy().apply { remove("password") })
 
-    val response = Buffer.buffer(Given {
-      spec(requestSpecification)
-      accept(ContentType.JSON)
-      header("Authorization", "Bearer $token")
-    } When {
-      get("/api/users")
-    } Then {
-      statusCode(200)
-    } Extract {
-      asString()
-    }).toJsonArray()
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        accept(ContentType.JSON)
+        header("Authorization", "Bearer $token")
+      } When {
+        get("/api/users")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonArray()
 
     testContext.verify {
       expectThat(response).isNotNull()
@@ -197,17 +198,19 @@ class TestPublicApiVerticle {
   fun getUserSucceeds(testContext: VertxTestContext) {
     val expected = user.copy().apply { remove("password") }
 
-    val response = Buffer.buffer(Given {
-      spec(requestSpecification)
-      accept(ContentType.JSON)
-      header("Authorization", "Bearer $token")
-    } When {
-      get("/api/users/${user.getString("userID")}")
-    } Then {
-      statusCode(200)
-    } Extract {
-      asString()
-    }).toJsonObject()
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        accept(ContentType.JSON)
+        header("Authorization", "Bearer $token")
+      } When {
+        get("/api/users/${user.getString("userID")}")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonObject()
 
     testContext.verify {
       expectThat(response).isNotNull()
@@ -223,7 +226,7 @@ class TestPublicApiVerticle {
   @DisplayName("Updating a user succeeds")
   fun updateUserSucceeds(testContext: VertxTestContext) {
     val updateJson = jsonObjectOf(
-      "company" to "newCompany"
+      "password" to "newPassword"
     )
 
     val response = Given {
@@ -317,17 +320,19 @@ class TestPublicApiVerticle {
   fun getRelaysSucceeds(testContext: VertxTestContext) {
     val expected = jsonArrayOf(relay.copy().apply { remove("mqttPassword") })
 
-    val response = Buffer.buffer(Given {
-      spec(requestSpecification)
-      accept(ContentType.JSON)
-      header("Authorization", "Bearer $token")
-    } When {
-      get("/api/relays")
-    } Then {
-      statusCode(200)
-    } Extract {
-      asString()
-    }).toJsonArray()
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        accept(ContentType.JSON)
+        header("Authorization", "Bearer $token")
+      } When {
+        get("/api/relays")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonArray()
 
     testContext.verify {
       expectThat(response).isNotNull()
@@ -346,17 +351,19 @@ class TestPublicApiVerticle {
   fun getRelaySucceeds(testContext: VertxTestContext) {
     val expected = relay.copy().apply { remove("mqttPassword") }
 
-    val response = Buffer.buffer(Given {
-      spec(requestSpecification)
-      accept(ContentType.JSON)
-      header("Authorization", "Bearer $token")
-    } When {
-      get("/api/relays/${relay.getString("relayID")}")
-    } Then {
-      statusCode(200)
-    } Extract {
-      asString()
-    }).toJsonObject()
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        accept(ContentType.JSON)
+        header("Authorization", "Bearer $token")
+      } When {
+        get("/api/relays/${relay.getString("relayID")}")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonObject()
 
     testContext.verify {
       expectThat(response).isNotNull()
@@ -486,17 +493,19 @@ class TestPublicApiVerticle {
   fun getItemsSucceeds(testContext: VertxTestContext) {
     val expected = item.copy()
 
-    val response = Buffer.buffer(Given {
-      spec(requestSpecification)
-      accept(ContentType.JSON)
-      header("Authorization", "Bearer $token")
-    } When {
-      get("/api/items")
-    } Then {
-      statusCode(200)
-    } Extract {
-      asString()
-    }).toJsonArray()
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        accept(ContentType.JSON)
+        header("Authorization", "Bearer $token")
+      } When {
+        get("/api/items")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonArray()
 
     testContext.verify {
       expectThat(response).isNotNull()
@@ -525,18 +534,20 @@ class TestPublicApiVerticle {
   @Order(15)
   @DisplayName("Getting the items (with query parameters) succeeds")
   fun getItemsWithQueryParametersSucceeds(testContext: VertxTestContext) {
-    val response = Buffer.buffer(Given {
-      spec(requestSpecification)
-      accept(ContentType.JSON)
-      header("Authorization", "Bearer $token")
-    } When {
-      queryParam("category", item.getString("category"))
-      get("/api/items")
-    } Then {
-      statusCode(200)
-    } Extract {
-      asString()
-    }).toJsonArray()
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        accept(ContentType.JSON)
+        header("Authorization", "Bearer $token")
+      } When {
+        queryParam("category", item.getString("category"))
+        get("/api/items")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonArray()
 
     testContext.verify {
       expectThat(response).isNotNull()
@@ -565,19 +576,21 @@ class TestPublicApiVerticle {
   @Order(16)
   @DisplayName("Getting the closest items succeeds")
   fun getClosestItemsSucceeds(testContext: VertxTestContext) {
-    val response = Buffer.buffer(Given {
-      spec(requestSpecification)
-      accept(ContentType.JSON)
-      header("Authorization", "Bearer $token")
-    } When {
-      queryParam("latitude", 42)
-      queryParam("longitude", -8)
-      get("/api/items/closest")
-    } Then {
-      statusCode(200)
-    } Extract {
-      asString()
-    }).toJsonObject()
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        accept(ContentType.JSON)
+        header("Authorization", "Bearer $token")
+      } When {
+        queryParam("latitude", 42)
+        queryParam("longitude", -8)
+        get("/api/items/closest")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonObject()
 
     testContext.verify {
       expectThat(response.isEmpty).isFalse()
@@ -591,17 +604,19 @@ class TestPublicApiVerticle {
   fun getItemSucceeds(testContext: VertxTestContext) {
     val expected = item.copy()
 
-    val response = Buffer.buffer(Given {
-      spec(requestSpecification)
-      accept(ContentType.JSON)
-      header("Authorization", "Bearer $token")
-    } When {
-      get("/api/items/$itemID")
-    } Then {
-      statusCode(200)
-    } Extract {
-      asString()
-    }).toJsonObject()
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        accept(ContentType.JSON)
+        header("Authorization", "Bearer $token")
+      } When {
+        get("/api/items/$itemID")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonObject()
 
     testContext.verify {
       expectThat(response).isNotNull()
@@ -628,17 +643,19 @@ class TestPublicApiVerticle {
   fun getCategoriesSucceeds(testContext: VertxTestContext) {
     val expected = JsonArray(listOf(item.getString("category")))
 
-    val response = Buffer.buffer(Given {
-      spec(requestSpecification)
-      accept(ContentType.JSON)
-      header("Authorization", "Bearer $token")
-    } When {
-      get("/api/items/categories")
-    } Then {
-      statusCode(200)
-    } Extract {
-      asString()
-    }).toJsonArray()
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        accept(ContentType.JSON)
+        header("Authorization", "Bearer $token")
+      } When {
+        get("/api/items/categories")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonArray()
 
     testContext.verify {
       expectThat(response).isEqualTo(expected)
@@ -724,15 +741,17 @@ class TestPublicApiVerticle {
   fun livenessCheckSucceeds(testContext: VertxTestContext) {
     val expected = jsonObjectOf("status" to "UP")
 
-    val response = Buffer.buffer(Given {
-      spec(requestSpecification)
-    } When {
-      get("/health/live")
-    } Then {
-      statusCode(200)
-    } Extract {
-      asString()
-    }).toJsonObject()
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+      } When {
+        get("/health/live")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonObject()
 
     testContext.verify {
       expectThat(response).isEqualTo(expected)
@@ -746,15 +765,17 @@ class TestPublicApiVerticle {
   fun readinessCheckSucceeds(testContext: VertxTestContext) {
     val expected = jsonObjectOf("status" to "UP")
 
-    val response = Buffer.buffer(Given {
-      spec(requestSpecification)
-    } When {
-      get("/health/ready")
-    } Then {
-      statusCode(200)
-    } Extract {
-      asString()
-    }).toJsonObject()
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+      } When {
+        get("/health/ready")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonObject()
 
     testContext.verify {
       expectThat(response).isEqualTo(expected)
@@ -793,6 +814,5 @@ class TestPublicApiVerticle {
     fun afterAll() {
       instance.stop()
     }
-
   }
 }

@@ -33,8 +33,6 @@ import io.vertx.spi.cluster.hazelcast.HazelcastClusterManager
 import io.vertx.sqlclient.Tuple
 import org.slf4j.LoggerFactory
 import java.net.InetAddress
-import java.util.*
-
 
 class CRUDVerticle : AbstractVerticle() {
 
@@ -418,13 +416,18 @@ class CRUDVerticle : AbstractVerticle() {
     val json = ctx.bodyAsJson
     json.validateAndThen(ctx) {
       // Update MongoDB
-      val query = jsonObjectOf("userID" to ctx.pathParam("id"))
+      val jsonWithSaltedPassword = json.copy().apply {
+        put("password", getString("password").saltAndHash(mongoAuthUsers))
+      }
       val update = json {
         obj(
-          "\$set" to json,
+          "\$set" to jsonWithSaltedPassword,
           "\$currentDate" to obj("lastModified" to true)
         )
       }
+
+      val query = jsonObjectOf("userID" to ctx.pathParam("id"))
+
       mongoClient.findOneAndUpdate(
         USERS_COLLECTION,
         query,

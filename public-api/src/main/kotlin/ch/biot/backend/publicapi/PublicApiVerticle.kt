@@ -33,7 +33,6 @@ import io.vertx.spi.cluster.hazelcast.HazelcastClusterManager
 import org.slf4j.LoggerFactory
 import java.net.InetAddress
 
-
 class PublicApiVerticle : AbstractVerticle() {
 
   companion object {
@@ -86,12 +85,14 @@ class PublicApiVerticle : AbstractVerticle() {
     val privateKeyJWT = fs.readFileBlocking("private_key_jwt.pem")
 
     jwtAuth = JWTAuth.create(
-      vertx, jwtAuthOptionsOf(
+      vertx,
+      jwtAuthOptionsOf(
         pubSecKeys = listOf(
           pubSecKeyOptionsOf(
             algorithm = "RS256",
             buffer = publicKeyJWT
-          ), pubSecKeyOptionsOf(
+          ),
+          pubSecKeyOptionsOf(
             algorithm = "RS256",
             buffer = privateKeyJWT
           )
@@ -270,6 +271,7 @@ class PublicApiVerticle : AbstractVerticle() {
         sendBadGateway(ctx, error)
       }
   }
+
   private fun getItemHandler(ctx: RoutingContext) = getOneHandler(ctx, ITEMS_ENDPOINT)
   private fun deleteItemHandler(ctx: RoutingContext) = deleteHandler(ctx, ITEMS_ENDPOINT)
   private fun getCategoriesHandler(ctx: RoutingContext) = getManyHandler(ctx, "$ITEMS_ENDPOINT/categories")

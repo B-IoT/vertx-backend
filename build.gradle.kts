@@ -119,4 +119,3 @@ tasks.wrapper {
     distributionType = Wrapper.DistributionType.ALL
     gradleVersion = "6.7.1"
 }
-

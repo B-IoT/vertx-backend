@@ -34,7 +34,6 @@ import strikt.api.expectThat
 import strikt.assertions.*
 import java.io.File
 
-
 @ExtendWith(VertxExtension::class)
 @Testcontainers
 class TestCRUDVerticleItems {
@@ -268,17 +267,19 @@ class TestCRUDVerticleItems {
   @Test
   @DisplayName("getItems correctly retrieves all items")
   fun getItemsIsCorrect(testContext: VertxTestContext) {
-    val response = Buffer.buffer(Given {
-      spec(requestSpecification)
-      accept(ContentType.JSON)
-    } When {
-      queryParam("company", "biot")
-      get("/items")
-    } Then {
-      statusCode(200)
-    } Extract {
-      asString()
-    }).toJsonArray()
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        accept(ContentType.JSON)
+      } When {
+        queryParam("company", "biot")
+        get("/items")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonArray()
 
     testContext.verify {
       expectThat(response.isEmpty).isFalse()
@@ -312,17 +313,19 @@ class TestCRUDVerticleItems {
 );"""
       ).execute()
     }.onComplete {
-      val response = Buffer.buffer(Given {
-        spec(requestSpecification)
-        accept(ContentType.JSON)
-      } When {
-        queryParam("company", "another")
-        get("/items")
-      } Then {
-        statusCode(200)
-      } Extract {
-        asString()
-      }).toJsonArray()
+      val response = Buffer.buffer(
+        Given {
+          spec(requestSpecification)
+          accept(ContentType.JSON)
+        } When {
+          queryParam("company", "another")
+          get("/items")
+        } Then {
+          statusCode(200)
+        } Extract {
+          asString()
+        }
+      ).toJsonArray()
 
       testContext.verify {
         expectThat(response.isEmpty).isTrue()
@@ -355,18 +358,20 @@ class TestCRUDVerticleItems {
   @Test
   @DisplayName("getItems with category correctly retrieves all items of the given category")
   fun getItemsWithCategoryIsCorrect(testContext: VertxTestContext) {
-    val response = Buffer.buffer(Given {
-      spec(requestSpecification)
-      accept(ContentType.JSON)
-    } When {
-      queryParam("category", existingItem.getString("category"))
-      queryParam("company", "biot")
-      get("/items")
-    } Then {
-      statusCode(200)
-    } Extract {
-      asString()
-    }).toJsonArray()
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        accept(ContentType.JSON)
+      } When {
+        queryParam("category", existingItem.getString("category"))
+        queryParam("company", "biot")
+        get("/items")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonArray()
 
     testContext.verify {
       expectThat(response.isEmpty).isFalse()
@@ -381,18 +386,20 @@ class TestCRUDVerticleItems {
   @Test
   @DisplayName("getClosestItems correctly retrieves the 5 closest items per floor")
   fun getClosestItemsIsCorrect(testContext: VertxTestContext) {
-    val response = Buffer.buffer(Given {
-      spec(requestSpecification)
-      accept(ContentType.JSON)
-    } When {
-      queryParam("latitude", 42)
-      queryParam("longitude", -8)
-      get("/items/closest")
-    } Then {
-      statusCode(200)
-    } Extract {
-      asString()
-    }).toJsonObject()
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        accept(ContentType.JSON)
+      } When {
+        queryParam("latitude", 42)
+        queryParam("longitude", -8)
+        get("/items/closest")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonObject()
 
     testContext.verify {
       val firstFloor: JsonArray = response["1"]
@@ -412,19 +419,21 @@ class TestCRUDVerticleItems {
   @Test
   @DisplayName("getClosestItems correctly retrieves the 5 closest items of the given category per floor")
   fun getClosestItemsWithCategoryIsCorrect(testContext: VertxTestContext) {
-    val response = Buffer.buffer(Given {
-      spec(requestSpecification)
-      accept(ContentType.JSON)
-    } When {
-      queryParam("latitude", 42)
-      queryParam("longitude", -8)
-      queryParam("category", closestItem.getString("category"))
-      get("/items/closest")
-    } Then {
-      statusCode(200)
-    } Extract {
-      asString()
-    }).toJsonObject()
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        accept(ContentType.JSON)
+      } When {
+        queryParam("latitude", 42)
+        queryParam("longitude", -8)
+        queryParam("category", closestItem.getString("category"))
+        get("/items/closest")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonObject()
 
     testContext.verify {
       val firstFloor: JsonArray = response["1"]
@@ -448,17 +457,19 @@ class TestCRUDVerticleItems {
   fun getCategoriesIsCorrect(testContext: VertxTestContext) {
     val expected = JsonArray(listOf(existingItem.getString("category"), closestItem.getString("category")))
 
-    val response = Buffer.buffer(Given {
-      spec(requestSpecification)
-      accept(ContentType.JSON)
-    } When {
-      queryParam("company", "biot")
-      get("/items/categories")
-    } Then {
-      statusCode(200)
-    } Extract {
-      asString()
-    }).toJsonArray()
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        accept(ContentType.JSON)
+      } When {
+        queryParam("company", "biot")
+        get("/items/categories")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonArray()
 
     testContext.verify {
       expectThat(response).isEqualTo(expected)
@@ -477,17 +488,19 @@ class TestCRUDVerticleItems {
       put("floor", existingBeaconData.getInteger("floor"))
     }
 
-    val response = Buffer.buffer(Given {
-      spec(requestSpecification)
-      accept(ContentType.JSON)
-    } When {
-      queryParam("company", "biot")
-      get("/items/$existingItemID")
-    } Then {
-      statusCode(200)
-    } Extract {
-      asString()
-    }).toJsonObject()
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        accept(ContentType.JSON)
+      } When {
+        queryParam("company", "biot")
+        get("/items/$existingItemID")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonObject()
 
     testContext.verify {
       val id = response.remove("id")
@@ -610,6 +623,5 @@ class TestCRUDVerticleItems {
     fun afterAll() {
       instance.stop()
     }
-
   }
 }
