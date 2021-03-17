@@ -110,6 +110,9 @@ def triangulate(relay_id, data):
     for i in range(len(updated_beacon)):
         beacon = beacons[i]
 
+        if beacon not in connectivity_df.index:
+            continue
+
         # Temporary df for the data of the beacon
         temp_df = pd.DataFrame(
             connectivity_df.loc[beacon, :][connectivity_df.loc[beacon, :] > 0]
@@ -119,6 +122,7 @@ def triangulate(relay_id, data):
         )
         # Only use the 5 closest relays to the beacon
         temp_df = temp_df.sort_values("dist", axis=0, ascending=True).iloc[:5, :]
+        temp_df = temp_df.reset_index()
 
         lat = []
         long = []
@@ -171,6 +175,8 @@ def triangulate(relay_id, data):
                 (beacon, 10, "available", np.mean(lat), np.mean(long), floor)
             )
 
+            del temp_df
+
             logger.info("Triangulation done")
         elif len(temp_df) == 1:
             logger.info("Beacon '{}' detected by only one relay, skipping!", beacon)
@@ -187,7 +193,6 @@ def triangulate(relay_id, data):
     del relay
     del updated_beacon
     del coordinates
-    del temp_df
     gc.collect()
 
 
