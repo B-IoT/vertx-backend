@@ -5,7 +5,7 @@
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import org.gradle.api.tasks.testing.logging.TestLogEvent.*
 
-version = "1.1.1-SNAPSHOT"
+version = "1.1.2-SNAPSHOT"
 
 val mainVerticleName = "ch.biot.backend.publicapi.PublicApiVerticle"
 val watchForChange = "src/**/*"
@@ -78,7 +78,7 @@ jib {
   }
   to {
     image = "vertx-backend/public-api"
-    tags = setOf("v1.1.1", "latest")
+    tags = setOf("v1.1.2", "latest")
   }
   container {
     mainClass = mainVerticleName
