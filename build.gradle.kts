@@ -16,7 +16,7 @@ repositories {
 }
 
 allprojects {
-    extra["vertxVersion"] = if (project.hasProperty("vertxVersion")) project.property("vertxVersion") else "4.0.2"
+    extra["vertxVersion"] = if (project.hasProperty("vertxVersion")) project.property("vertxVersion") else "4.0.3"
     extra["junitJupiterVersion"] = "5.7.1"
     extra["logbackClassicVersion"] = "1.2.3"
     extra["testContainersVersion"] = "1.15.2"
@@ -24,7 +24,7 @@ allprojects {
     extra["striktVersion"] = "0.29.0"
     extra["rxKotlinVersion"] = "2.4.0"
     extra["hazelcastVersion"] = "2.2.2"
-    extra["micrometerPrometheusVersion"] = "1.6.4"
+    extra["micrometerPrometheusVersion"] = "1.6.5"
 }
 
 subprojects {
