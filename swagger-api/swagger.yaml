@@ -428,6 +428,19 @@ paths:
       responses:
         "200":
           description: successfully deleted item
+  /analytics/status:
+    get:
+      tags:
+      - Analytics
+      description: returns the items' status
+      operationId: analyticsGetStatus
+      responses:
+        "200":
+          description: the status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusAgg'
 components:
   schemas:
     Relay:
@@ -588,6 +601,25 @@ components:
         service:
           type: string
       description: Update information for an item
+    Status:
+      type: object
+      properties:
+        available:
+          type: integer
+          format: int32
+        unavailable:
+          type: integer
+          format: int32
+        toRepair:
+          type: integer
+          format: int32
+      description: Item's status
+    StatusAgg:
+      type: object
+      properties:
+        overall:
+          $ref: '#/components/schemas/Status'
+      description: The status of the items
     Relay_wifi:
       type: object
       properties:
