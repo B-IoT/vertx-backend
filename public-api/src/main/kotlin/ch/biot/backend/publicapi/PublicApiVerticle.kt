@@ -44,6 +44,7 @@ class PublicApiVerticle : AbstractVerticle() {
     private const val USERS_ENDPOINT = "users"
     private const val RELAYS_ENDPOINT = "relays"
     private const val ITEMS_ENDPOINT = "items"
+    private const val ANALYTICS_ENDPOINT = "analytics"
 
     private const val API_PREFIX = "/api"
     private const val OAUTH_PREFIX = "/oauth"
@@ -149,11 +150,12 @@ class PublicApiVerticle : AbstractVerticle() {
     router.get("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).handler(::getItemHandler)
     router.delete("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).handler(::deleteItemHandler)
 
-    // TODO Analytics
+    // Analytics
+    router.get("$API_PREFIX/$ANALYTICS_ENDPOINT/status").handler(jwtAuthHandler).handler(::analyticsGetStatusHandler)
 
     // Health checks
-    router.get("/health/ready").handler(::readinessCheck)
-    router.get("/health/live").handler(::livenessCheck)
+    router.get("/health/ready").handler(::readinessCheckHandler)
+    router.get("/health/live").handler(::livenessCheckHandler)
 
     webClient = WebClient.create(vertx)
 
@@ -171,9 +173,26 @@ class PublicApiVerticle : AbstractVerticle() {
       }
   }
 
+  // Analytics
+  private fun analyticsGetStatusHandler(ctx: RoutingContext) {
+    logger.info("New getStatus request on $ANALYTICS_ENDPOINT endpoint")
+
+    webClient.get(CRUD_PORT, CRUD_HOST, "/$ANALYTICS_ENDPOINT/status")
+      .addQueryParam("company", ctx.user().principal()["company"])
+      .timeout(TIMEOUT)
+      .`as`(BodyCodec.jsonObject())
+      .send()
+      .onSuccess { resp ->
+        forwardJsonObjectOrStatusCode(ctx, resp)
+      }
+      .onFailure { error ->
+        sendBadGateway(ctx, error)
+      }
+  }
+
   // Health checks
 
-  private fun readinessCheck(ctx: RoutingContext) {
+  private fun readinessCheckHandler(ctx: RoutingContext) {
     webClient
       .get(CRUD_PORT, CRUD_HOST, "/health/ready")
       .expect(ResponsePredicate.SC_OK)
@@ -195,7 +214,7 @@ class PublicApiVerticle : AbstractVerticle() {
       }
   }
 
-  private fun livenessCheck(ctx: RoutingContext) {
+  private fun livenessCheckHandler(ctx: RoutingContext) {
     logger.info("Liveness check")
     ctx.response()
       .putHeader(CONTENT_TYPE, APPLICATION_JSON)

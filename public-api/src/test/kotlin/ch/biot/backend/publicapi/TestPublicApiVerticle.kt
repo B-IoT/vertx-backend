@@ -783,6 +783,29 @@ class TestPublicApiVerticle {
     }
   }
 
+  @Test
+  @Order(23)
+  @DisplayName("Getting the item's status succeeds (analytics)")
+  fun getStatusSucceeds(testContext: VertxTestContext) {
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        header("Authorization", "Bearer $token")
+      } When {
+        get("/api/analytics/status")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonObject()
+
+    testContext.verify {
+      expectThat(response.isEmpty).isFalse()
+      testContext.completeNow()
+    }
+  }
+
   companion object {
 
     private val requestSpecification: RequestSpecification = RequestSpecBuilder()
