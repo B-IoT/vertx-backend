@@ -161,17 +161,19 @@ class TestCRUDVerticleAnalytics {
   @Test
   @DisplayName("getStatus retrieves the items' status for each service")
   fun getStatusIsCorrect(testContext: VertxTestContext) {
-    val response = Buffer.buffer(Given {
-      spec(requestSpecification)
-      contentType(ContentType.JSON)
-    } When {
-      queryParam("company", "biot")
-      get("/analytics/status")
-    } Then {
-      statusCode(200)
-    } Extract {
-      asString()
-    }).toJsonObject()
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+      } When {
+        queryParam("company", "biot")
+        get("/analytics/status")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonObject()
 
     testContext.verify {
       expectThat(response.containsKey(existingItemOne.getString("service"))).isTrue()
