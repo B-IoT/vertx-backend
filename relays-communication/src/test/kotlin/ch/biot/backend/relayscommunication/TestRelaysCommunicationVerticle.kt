@@ -261,6 +261,141 @@ class TestRelaysCommunicationVerticle {
       )
   }
 
+  @Test
+  @DisplayName("An invalid MQTT JSON message is not ingested because it is missing fields")
+  fun invalidMqttMessageIsNotIngestedWrongFields(testContext: VertxTestContext) {
+    val message = jsonObjectOf(
+      "relayID" to "abc",
+      "rssi" to jsonArrayOf(-60.0),
+      "mac" to jsonArrayOf("mac"),
+      "longitude" to 2.3,
+      "floor" to 1
+    )
+
+    mqttClient.rxConnect(RelaysCommunicationVerticle.MQTT_PORT, "localhost")
+      .flatMap {
+        mqttClient.rxPublish(
+          INGESTION_TOPIC,
+          Buffer.newInstance(message.toBuffer()),
+          MqttQoS.AT_LEAST_ONCE,
+          false,
+          false
+        )
+      }.subscribeBy(onError = testContext::failNow)
+
+    kafkaConsumer
+      .rxSubscribe(INGESTION_TOPIC).subscribe()
+
+    testContext.verify {
+      kafkaConsumer.toFlowable().timeout(5, TimeUnit.SECONDS).firstOrError().subscribeBy(
+        onSuccess = { testContext.failNow("The message was ingested") },
+        onError = { testContext.completeNow() }
+      )
+    }
+  }
+
+  @Test
+  @DisplayName("An invalid MQTT JSON message is not ingested because it has zero coordinates")
+  fun invalidMqttMessageIsNotIngestedWrongCoordinates(testContext: VertxTestContext) {
+    val message = jsonObjectOf(
+      "relayID" to "abc",
+      "rssi" to jsonArrayOf(-60.0),
+      "mac" to jsonArrayOf("mac"),
+      "longitude" to 0,
+      "latitude" to 2.3,
+      "floor" to 1
+    )
+
+    mqttClient.rxConnect(RelaysCommunicationVerticle.MQTT_PORT, "localhost")
+      .flatMap {
+        mqttClient.rxPublish(
+          INGESTION_TOPIC,
+          Buffer.newInstance(message.toBuffer()),
+          MqttQoS.AT_LEAST_ONCE,
+          false,
+          false
+        )
+      }.subscribeBy(onError = testContext::failNow)
+
+    kafkaConsumer
+      .rxSubscribe(INGESTION_TOPIC).subscribe()
+
+    testContext.verify {
+      kafkaConsumer.toFlowable().timeout(5, TimeUnit.SECONDS).firstOrError().subscribeBy(
+        onSuccess = { testContext.failNow("The message was ingested") },
+        onError = { testContext.completeNow() }
+      )
+    }
+  }
+
+  @Test
+  @DisplayName("An invalid MQTT JSON message is not ingested because it has empty arrays")
+  fun invalidMqttMessageIsNotIngestedWrongArrays(testContext: VertxTestContext) {
+    val message = jsonObjectOf(
+      "relayID" to "abc",
+      "rssi" to jsonArrayOf(-60.0),
+      "mac" to jsonArrayOf(),
+      "longitude" to 0,
+      "latitude" to 2.3,
+      "floor" to 1
+    )
+
+    mqttClient.rxConnect(RelaysCommunicationVerticle.MQTT_PORT, "localhost")
+      .flatMap {
+        mqttClient.rxPublish(
+          INGESTION_TOPIC,
+          Buffer.newInstance(message.toBuffer()),
+          MqttQoS.AT_LEAST_ONCE,
+          false,
+          false
+        )
+      }.subscribeBy(onError = testContext::failNow)
+
+    kafkaConsumer
+      .rxSubscribe(INGESTION_TOPIC).subscribe()
+
+    testContext.verify {
+      kafkaConsumer.toFlowable().timeout(5, TimeUnit.SECONDS).firstOrError().subscribeBy(
+        onSuccess = { testContext.failNow("The message was ingested") },
+        onError = { testContext.completeNow() }
+      )
+    }
+  }
+
+  @Test
+  @DisplayName("An invalid MQTT JSON message is not ingested because it has arrays of different length")
+  fun invalidMqttMessageIsNotIngestedWrongArraysLength(testContext: VertxTestContext) {
+    val message = jsonObjectOf(
+      "relayID" to "abc",
+      "rssi" to jsonArrayOf(-60.0),
+      "mac" to jsonArrayOf("beacon1", "beacon2"),
+      "longitude" to 0,
+      "latitude" to 2.3,
+      "floor" to 1
+    )
+
+    mqttClient.rxConnect(RelaysCommunicationVerticle.MQTT_PORT, "localhost")
+      .flatMap {
+        mqttClient.rxPublish(
+          INGESTION_TOPIC,
+          Buffer.newInstance(message.toBuffer()),
+          MqttQoS.AT_LEAST_ONCE,
+          false,
+          false
+        )
+      }.subscribeBy(onError = testContext::failNow)
+
+    kafkaConsumer
+      .rxSubscribe(INGESTION_TOPIC).subscribe()
+
+    testContext.verify {
+      kafkaConsumer.toFlowable().timeout(5, TimeUnit.SECONDS).firstOrError().subscribeBy(
+        onSuccess = { testContext.failNow("The message was ingested") },
+        onError = { testContext.completeNow() }
+      )
+    }
+  }
+
   companion object {
 
     private val instance: KDockerComposeContainer by lazy { defineDockerCompose() }
