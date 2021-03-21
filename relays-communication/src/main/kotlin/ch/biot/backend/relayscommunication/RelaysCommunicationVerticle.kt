@@ -8,6 +8,9 @@ import io.netty.handler.codec.mqtt.MqttConnectReturnCode
 import io.netty.handler.codec.mqtt.MqttQoS
 import io.reactivex.Completable
 import io.reactivex.rxkotlin.subscribeBy
+import io.vertx.core.CompositeFuture
+import io.vertx.core.Future
+import io.vertx.core.Promise
 import io.vertx.core.Vertx
 import io.vertx.core.json.DecodeException
 import io.vertx.core.json.JsonObject
@@ -204,11 +207,40 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
     /**
      * Validates the JSON, returning true iff it contains all required fields.
      */
-    fun validateJson(json: JsonObject): Boolean {
-      val keysToContain = listOf("relayID", "rssi", "mac", "latitude", "longitude", "floor")
-      return keysToContain.fold(true) { acc, curr ->
-        acc && json.containsKey(curr)
+    fun validateJson(json: JsonObject): CompositeFuture {
+      fun validateWithFuture(promise: Promise<Boolean>, errorMessage: String, validatingFunction: () -> Boolean) {
+        val isValid = validatingFunction()
+        if (isValid) promise.complete(isValid) else promise.fail(errorMessage)
       }
+
+      val containsAllKeys = Future.future<Boolean> { promise ->
+        val keysToContain = listOf("relayID", "rssi", "mac", "latitude", "longitude", "floor")
+        validateWithFuture(promise, "Fields are missing") {
+          keysToContain.fold(true) { acc, curr ->
+            acc && json.containsKey(curr)
+          }
+        }
+      }
+
+      val validCoordinates = Future.future<Boolean> { promise ->
+        validateWithFuture(promise, "One or both coordinates are 0") {
+          json.getDouble("latitude") != 0.0 && json.getDouble("longitude") != 0.0
+        }
+      }
+
+      val nonEmptyArrays = Future.future<Boolean> { promise ->
+        validateWithFuture(promise, "One or both arrays are empty") {
+          !json.getJsonArray("rssi").isEmpty && !json.getJsonArray("mac").isEmpty
+        }
+      }
+
+      val sameLengthArrays = Future.future<Boolean> { promise ->
+        validateWithFuture(promise, "The mac and rssi arrays do not have the same length") {
+          json.getJsonArray("rssi").size() == json.getJsonArray("mac").size()
+        }
+      }
+
+      return CompositeFuture.all(containsAllKeys, validCoordinates, nonEmptyArrays, sameLengthArrays)
     }
 
     try {
@@ -220,28 +252,32 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
         client.publishAcknowledge(m.messageId())
       }
 
-      if (m.topicName() == INGESTION_TOPIC && validateJson(message)) {
-        // The message contains data to ingest and is valid
-        val kafkaMessage = message.copy().apply {
-          // Add a timestamp to the message to send to Kafka
-          put("timestamp", Instant.now())
-        }
-
-        val relayID: String = message["relayID"]
-
-        // Send the message to Kafka on the "incoming.update" topic
-        val record = KafkaProducerRecord.create(INGESTION_TOPIC, relayID, kafkaMessage)
-        kafkaProducer.rxSend(record).subscribeBy(
-          onSuccess = {
-            logger.info("Sent message $kafkaMessage with key '$relayID' on topic '$INGESTION_TOPIC'")
-          },
-          onError = { error ->
-            logger.error(
-              "Could not send message $kafkaMessage with key '$relayID' on topic '$INGESTION_TOPIC'",
-              error
-            )
+      if (m.topicName() == INGESTION_TOPIC) {
+        validateJson(message).onSuccess {
+          // The message contains data to ingest and is valid
+          val kafkaMessage = message.copy().apply {
+            // Add a timestamp to the message to send to Kafka
+            put("timestamp", Instant.now())
           }
-        )
+
+          val relayID: String = message["relayID"]
+
+          // Send the message to Kafka on the "incoming.update" topic
+          val record = KafkaProducerRecord.create(INGESTION_TOPIC, relayID, kafkaMessage)
+          kafkaProducer.rxSend(record).subscribeBy(
+            onSuccess = {
+              logger.info("Sent message $kafkaMessage with key '$relayID' on topic '$INGESTION_TOPIC'")
+            },
+            onError = { error ->
+              logger.error(
+                "Could not send message $kafkaMessage with key '$relayID' on topic '$INGESTION_TOPIC'",
+                error
+              )
+            }
+          )
+        }.onFailure { error ->
+          logger.error("Invalid JSON received", error)
+        }
       }
     } catch (e: DecodeException) {
       logger.error("Could not decode MQTT message $m", e)

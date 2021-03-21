@@ -157,9 +157,13 @@ class CRUDVerticle : AbstractVerticle() {
         routerBuilder.operation("updateItem").handler(::updateItemHandler)
         routerBuilder.operation("getCategories").handler(::getCategoriesHandler)
 
+        // Analytics
+        routerBuilder.operation("analyticsGetStatus").handler(::analyticsGetStatusHandler)
+
+        // Health checks
         val router: Router = routerBuilder.createRouter()
-        router.get("/health/live").handler(::livenessCheck)
-        router.get("/health/ready").handler(::readinessCheck)
+        router.get("/health/live").handler(::livenessCheckHandler)
+        router.get("/health/ready").handler(::readinessCheckHandler)
 
         vertx.createHttpServer().requestHandler(router).listen(HTTP_PORT)
           .onSuccess {
@@ -175,16 +179,62 @@ class CRUDVerticle : AbstractVerticle() {
     }
   }
 
-  // Health checks
+  // Analytics handlers
 
-  private fun livenessCheck(ctx: RoutingContext) {
+  /**
+   * Handles a getStatus request.
+   */
+  private fun analyticsGetStatusHandler(ctx: RoutingContext) {
+    logger.info("New analytics get status request")
+
+    val itemsTable = ctx.getCollection(ITEMS_TABLE)
+    val beaconDataTable = ctx.getCollection(BEACON_DATA_TABLE)
+
+    pgPool.preparedQuery(getStatus(itemsTable, beaconDataTable)).execute()
+      .onSuccess { res ->
+        val result =
+          if (res.size() == 0) jsonObjectOf()
+          else {
+            // For each service, count the number of available, unavailable and toRepair objects
+            res.groupBy { it.getString("service") }.toList().fold(jsonObjectOf()) { json, (service, statuses) ->
+              val statusesJson = statuses.fold(jsonObjectOf()) { obj, row ->
+                val status = row.getString("status")
+                val count = row.getInteger("count")
+                if (status != null && count != null) {
+                  obj.put(status, count)
+                }
+                obj
+              }.apply {
+                // Set the missing values to 0
+                listOf("available", "unavailable", "toRepair").forEach {
+                  if (!containsKey(it)) {
+                    put(it, 0)
+                  }
+                }
+              }
+              json.put(service, statusesJson)
+            }
+          }
+
+        ctx.response()
+          .putHeader(CONTENT_TYPE, APPLICATION_JSON)
+          .end(result.encode())
+      }.onFailure { error ->
+        logger.error("Could not get items' status", error)
+        ctx.fail(500, error)
+      }
+  }
+
+  // Health checks handlers
+
+  private fun livenessCheckHandler(ctx: RoutingContext) {
     logger.info("Liveness check")
     ctx.response()
       .putHeader(CONTENT_TYPE, APPLICATION_JSON)
       .end(jsonObjectOf("status" to "UP").encode())
   }
 
-  private fun readinessCheck(ctx: RoutingContext) {
+  private fun readinessCheckHandler(ctx: RoutingContext) {
     logger.info("Readiness check complete")
     ctx.response()
       .putHeader(CONTENT_TYPE, APPLICATION_JSON)
@@ -553,8 +603,7 @@ class CRUDVerticle : AbstractVerticle() {
 
     executedQuery.onSuccess { res ->
       val result = if (res.size() == 0) jsonObjectOf() else {
-        val json = jsonObjectOf()
-        res.forEach { row ->
+        res.fold(jsonObjectOf()) { json, row ->
           val floor = row.getInteger("floor")?.toString() ?: "unknown"
           val closestItems = row.getJsonArray("closest_items")
             .take(5)
@@ -567,7 +616,6 @@ class CRUDVerticle : AbstractVerticle() {
             } // only the 5 closest
           json.put(floor, closestItems)
         }
-        json
       }
 
       ctx.response()
