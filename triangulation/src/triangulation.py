@@ -1,6 +1,7 @@
 from confluent_kafka import Consumer, KafkaError, KafkaException
 from decouple import config
 from loguru import logger
+from collections import defaultdict
 import asyncio
 import asyncpg
 import sys
@@ -9,6 +10,7 @@ import orjson
 import numpy as np
 import pandas as pd
 
+# Constants
 
 MIN_COMMIT_COUNT = 5
 TOPIC = "incoming.update"
@@ -17,8 +19,13 @@ KAFKA_PORT = config("KAFKA_PORT", default=9092, cast=int)
 TIMESCALE_HOST = config("TIMESCALE_HOST", default="localhost")
 TIMESCALE_PORT = config("TIMESCALE_PORT", default=5432, cast=int)
 
+# Data structures
+
 connectivity_df = pd.DataFrame()
 relay_df = pd.DataFrame(index=["lat", "long", "floor"])
+
+# Used for weighted moving average of the coordinates
+coordinates_history_per_beacon = defaultdict(list)
 
 logger.configure(
     handlers=[
@@ -30,6 +37,46 @@ logger.configure(
         )
     ]
 )
+
+
+def update_coordinates_history(beacon: str, new_coordinates: tuple):
+    """
+    Updates the coordinates history of the given beacon with the given new coordinates.
+    """
+    history = coordinates_history_per_beacon[beacon]
+    size = len(history)
+    if size == 5:
+        # Remove oldest, to keep history's length to 5
+        history.pop()
+
+    # Insert the element to the head of the list
+    history.insert(0, new_coordinates)
+
+
+def compute_weights(length: int):
+    """
+    Computes the weights to be used for the moving average.
+    """
+    denom = (length * (length + 1)) / 2
+    return np.array([n / denom for n in range(length, 0, -1)])
+
+
+def build_weights_dict():
+    """
+    Builds the dictionary of the weights, with keys (corresponding to the length of the coordinates history)
+    from 1 to 5.
+    """
+    return {i: compute_weights(i) for i in range(1, 6)}
+
+
+def weighted_moving_average(coordinates_history, weights):
+    """
+    Computes the moving average given the weights and the coordinates history.
+    """
+    size = len(coordinates_history)
+    w = weights[size]
+    latitudes, longitudes = zip(*coordinates_history)
+    return np.average(latitudes, weights=w), np.average(longitudes, weights=w)
 
 
 def lat_to_meters(lat1, lon1, lat2, lon2):
@@ -77,7 +124,7 @@ async def store_beacons_data(data):
             logger.info("New beacons' data inserted in DB")
 
 
-def triangulate(relay_id, data):
+def triangulate(relay_id, data, weights_dict):
     relay_df[relay_id] = [data["latitude"], data["longitude"], data["floor"]]
 
     beacons = data["mac"]
@@ -86,9 +133,8 @@ def triangulate(relay_id, data):
         logger.info("No beacon detected, skipping!")
         return
 
-    df_beacons = pd.DataFrame(
-        columns=["beacon", "rssi"]
-    )  # used to remove duplicates through averaging
+    # Used to remove duplicates through averaging
+    df_beacons = pd.DataFrame(columns=["beacon", "rssi"])
     df_beacons["beacon"] = beacons
     df_beacons["rssi"] = data["rssi"]
     averaged = df_beacons.groupby("beacon").agg("mean")
@@ -171,8 +217,16 @@ def triangulate(relay_id, data):
                 # Otherwise taking the mean floor + rounding it
                 floor = np.around(np.mean(relay_df.loc["floor", temp_relay]))
 
+            # Add the computed coordinates to the beacon's history
+            update_coordinates_history(beacon, (np.mean(lat), np.mean(long)))
+
+            # Use the weighted moving average for smoothing coordinates computation
+            weighted_latitude, weighted_longitude = weighted_moving_average(
+                coordinates_history_per_beacon[beacon], weights_dict
+            )
+
             coordinates.append(
-                (beacon, 10, "available", np.mean(lat), np.mean(long), floor)
+                (beacon, 10, "available", weighted_latitude, weighted_longitude, floor)
             )
 
             del temp_df
@@ -204,7 +258,7 @@ def commit_completed(err, _):
         logger.error(str(err))
 
 
-def consume_loop(consumer, topics):
+def consume_loop(consumer, weights_dict, topics):
     """
     Starts consuming messages from the given topics using the given consumer.
     """
@@ -234,7 +288,7 @@ def consume_loop(consumer, topics):
                 logger.info("Key = {}", key)
                 logger.info("Value = {}", value)
 
-                triangulate(key, value)
+                triangulate(key, value, weights_dict)
 
                 msg_count += 1
                 if msg_count % MIN_COMMIT_COUNT == 0:
@@ -255,8 +309,9 @@ if __name__ == "__main__":
         }
 
         consumer = Consumer(conf)
+        weights_dict = build_weights_dict()
 
         logger.info("Starting Kafka consumer loop on topic '{}'...", TOPIC)
-        consume_loop(consumer, [TOPIC])
+        consume_loop(consumer, weights_dict, [TOPIC])
     except KeyboardInterrupt:
         logger.info("Stopped consumer!")
