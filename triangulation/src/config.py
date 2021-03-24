@@ -13,7 +13,7 @@ logger.configure(
     ]
 )
 
-KAFKA_HOST = config("KAFKA_HOST", default="localhost")
-KAFKA_PORT = config("KAFKA_PORT", default=9092, cast=int)
-TIMESCALE_HOST = config("TIMESCALE_HOST", default="localhost")
-TIMESCALE_PORT = config("TIMESCALE_PORT", default=5432, cast=int)
+KAFKA_HOST: str = config("KAFKA_HOST", default="localhost")
+KAFKA_PORT: int = config("KAFKA_PORT", default=9092, cast=int)
+TIMESCALE_HOST: str = config("TIMESCALE_HOST", default="localhost")
+TIMESCALE_PORT: int = config("TIMESCALE_PORT", default=5432, cast=int)

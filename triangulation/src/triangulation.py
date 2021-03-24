@@ -5,6 +5,7 @@ import gc
 import numpy as np
 import pandas as pd
 from collections import defaultdict
+from typing import DefaultDict, Tuple, List
 
 
 class _CoordinatesHistory:
@@ -12,17 +13,21 @@ class _CoordinatesHistory:
     Coordinates history used for weighted moving average.
     """
 
+    MAX_HISTORY_SIZE = 5
+
     def __init__(self):
-        self.history_per_beacon = defaultdict(list)
+        self.history_per_beacon: DefaultDict[str, List[Tuple[float, float]]] = defaultdict(list)
         self.weights = self._build_weights_dict()
 
-    def _update_coordinates_history(self, beacon: str, new_coordinates: tuple):
+    def _update_coordinates_history(
+        self, beacon: str, new_coordinates: Tuple[float, float]
+    ):
         """
         Updates the coordinates history of the given beacon with the given new coordinates.
         """
         history = self.history_per_beacon[beacon]
         size = len(history)
-        if size == 5:
+        if size == self.MAX_HISTORY_SIZE:
             # Remove oldest, to keep history's length to 5
             history.pop()
 
@@ -41,11 +46,13 @@ class _CoordinatesHistory:
         Builds the dictionary of the weights, with keys (corresponding to the length of the coordinates history)
         from 1 to 5.
         """
-        return {i: self._compute_weights(i) for i in range(1, 6)}
+        return {
+            i: self._compute_weights(i) for i in range(1, self.MAX_HISTORY_SIZE + 1)
+        }
 
-    def weighted_moving_average(self, beacon):
+    def weighted_moving_average(self, beacon: str) -> Tuple[float, float]:
         """
-        Computes the moving average given the beacon.
+        Computes the moving average given the beacon, returning the average for both latitude and longitude.
         """
         coordinates_history = self.history_per_beacon[beacon]
         size = len(coordinates_history)
@@ -66,8 +73,6 @@ class Triangulator:
         # Data structures
         self.connectivity_df = pd.DataFrame()
         self.relay_df = pd.DataFrame(index=["lat", "long", "floor"])
-        print(TIMESCALE_HOST)
-        print(TIMESCALE_PORT)
         self.db_pool = await asyncpg.create_pool(
             host=TIMESCALE_HOST,
             port=TIMESCALE_PORT,
@@ -79,7 +84,7 @@ class Triangulator:
 
         return self
 
-    async def _store_beacons_data(self, data):
+    async def _store_beacons_data(self, data: list):
         """
         Stores the beacons' data in TimescaleDB.
         Data must be an array of tuples of the following form: ("aa:aa:aa:aa:aa:aa", 10, "available", 2.3, 3.2, 1).
@@ -114,7 +119,7 @@ class Triangulator:
         d = 10 ** ((measure_ref - RSSI) / (10 * N))
         return d
 
-    async def triangulate(self, relay_id, data):
+    async def triangulate(self, relay_id: str, data: dict):
         """
         Triangulates all beacons detected by the given relay, if enough information is available.
         """

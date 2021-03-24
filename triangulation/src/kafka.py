@@ -1,7 +1,10 @@
+from typing import List
+from config import logger, KAFKA_HOST, KAFKA_PORT
+
 from confluent_kafka import Consumer, KafkaError, KafkaException
 import orjson
 import sys
-from config import logger, KAFKA_HOST, KAFKA_PORT
+from collections.abc import Callable
 
 
 class KafkaConsumer:
@@ -28,7 +31,12 @@ class KafkaConsumer:
         if err:
             logger.error(str(err))
 
-    async def _consume_loop(self, consumer, topics, on_message):
+    async def _consume_loop(
+        self,
+        consumer: Consumer,
+        topics: List[str],
+        on_message: Callable[[str, dict], None],
+    ):
         """
         Starts consuming messages from the given topics using the given consumer.
         """
@@ -67,7 +75,7 @@ class KafkaConsumer:
             # Close down consumer to commit final offsets.
             consumer.close()
 
-    async def start(self, topics, on_message):
+    async def start(self, topics: List[str], on_message: Callable[[str, dict], None]):
         """
         Starts consuming the given topics, calling the given callback upon message reception.
         """
