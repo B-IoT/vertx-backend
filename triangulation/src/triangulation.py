@@ -19,7 +19,7 @@ class _CoordinatesHistory:
         self.history_per_beacon: DefaultDict[str, List[Tuple[float, float]]] = defaultdict(list)
         self.weights = self._build_weights_dict()
 
-    def _update_coordinates_history(
+    def update_coordinates_history(
         self, beacon: str, new_coordinates: Tuple[float, float]
     ):
         """
@@ -94,7 +94,7 @@ class Triangulator:
                 """INSERT INTO beacon_data (time, mac, battery, status, latitude, longitude, floor) VALUES (NOW(), $1, $2, $3, $4, $5, $6);"""
             )
             await stmt.executemany(data)
-            logger.info("New beacons' data inserted in DB")
+            logger.info("New beacons' data inserted in DB: {}", data)
 
     def _lat_to_meters(self, lat1, lon1, lat2, lon2):
         """
