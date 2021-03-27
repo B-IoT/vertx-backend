@@ -1,3 +1,5 @@
+# Copyright (c) 2021 BIoT. All rights reserved.
+
 from decouple import config
 from loguru import logger
 import sys

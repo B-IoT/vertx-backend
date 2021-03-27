@@ -1,3 +1,5 @@
+# Copyright (c) 2021 BIoT. All rights reserved.
+
 from kafka import KafkaConsumer
 from config import logger
 from triangulation import Triangulator

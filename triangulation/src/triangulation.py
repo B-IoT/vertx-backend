@@ -1,3 +1,5 @@
+# Copyright (c) 2021 BIoT. All rights reserved.
+
 from config import logger, TIMESCALE_HOST, TIMESCALE_PORT
 
 import asyncpg
@@ -149,7 +151,21 @@ class Triangulator:
             relay.loc["RSSI"], relay.loc["ref"], relay.loc["tx"]
         )
 
-        self.connectivity_df[relay_id] = relay.loc["dist"]
+        # Update the connectivity matrix with the new distances to the relay
+        distances = relay.loc["dist"].rename(relay_id)
+        OLD_SUFFIX = "_old"
+        self.connectivity_df = pd.merge(
+            self.connectivity_df,
+            distances,
+            how="outer",
+            left_index=True,
+            right_index=True,
+            suffixes=(OLD_SUFFIX, None),
+        )g
+        # Filter out old measurements
+        self.connectivity_df = self.connectivity_df[
+            [col for col in self.connectivity_df.columns if OLD_SUFFIX not in col]
+        ]
 
         updated_beacons = self.connectivity_df[
             ~self.connectivity_df.loc[:, relay_id].isnull()

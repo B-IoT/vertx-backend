@@ -1,10 +1,12 @@
-from typing import List
+# Copyright (c) 2021 BIoT. All rights reserved.
+
 from config import logger, KAFKA_HOST, KAFKA_PORT
 
 from confluent_kafka import Consumer, KafkaError, KafkaException
+from typing import List
+from collections.abc import Callable
 import orjson
 import sys
-from collections.abc import Callable
 
 
 class KafkaConsumer:
