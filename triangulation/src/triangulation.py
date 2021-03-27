@@ -16,7 +16,9 @@ class _CoordinatesHistory:
     MAX_HISTORY_SIZE = 5
 
     def __init__(self):
-        self.history_per_beacon: DefaultDict[str, List[Tuple[float, float]]] = defaultdict(list)
+        self.history_per_beacon: DefaultDict[
+            str, List[Tuple[float, float]]
+        ] = defaultdict(list)
         self.weights = self._build_weights_dict()
 
     def update_coordinates_history(
@@ -128,7 +130,8 @@ class Triangulator:
 
         beacons = data["mac"]
 
-        if not beacons:
+        # Filter out empty arrays or arrays with empty strings
+        if not beacons or not all(beacons):
             logger.info("No beacon detected, skipping!")
             return
 
@@ -148,13 +151,13 @@ class Triangulator:
 
         self.connectivity_df[relay_id] = relay.loc["dist"]
 
-        updated_beacon = self.connectivity_df[
+        updated_beacons = self.connectivity_df[
             ~self.connectivity_df.loc[:, relay_id].isnull()
         ].index
 
         # Triangulation of each beacon
         coordinates = []
-        for i in range(len(updated_beacon)):
+        for i in range(len(updated_beacons)):
             beacon = beacons[i]
 
             if beacon not in self.connectivity_df.index:
@@ -264,6 +267,6 @@ class Triangulator:
         del df_beacons
         del averaged
         del relay
-        del updated_beacon
+        del updated_beacons
         del coordinates
         gc.collect()
