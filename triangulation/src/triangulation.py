@@ -161,7 +161,7 @@ class Triangulator:
             left_index=True,
             right_index=True,
             suffixes=(OLD_SUFFIX, None),
-        )g
+        )
         # Filter out old measurements
         self.connectivity_df = self.connectivity_df[
             [col for col in self.connectivity_df.columns if OLD_SUFFIX not in col]
