@@ -128,19 +128,22 @@ class Triangulator:
         Triangulates all beacons detected by the given relay, if enough information is available.
         """
 
-        self.relay_df[relay_id] = [data["latitude"], data["longitude"], data["floor"]]
+        self.relay_df[relay_id] = [data["latitude"], data["longitude"], int(data["floor"])]
 
         beacons = data["mac"]
 
-        # Filter out empty arrays or arrays with empty strings
-        if not beacons or not all(beacons):
+        # Filter out empty arrays
+        if not beacons:
             logger.info("No beacon detected, skipping!")
             return
+        
+        # Filter out empty MAC addresses
+        beacons, rssis = zip(*[(b, r) for b, r in zip(beacons, data["rssi"]) if b])
 
         # Used to remove duplicates through averaging
         df_beacons = pd.DataFrame(columns=["beacon", "rssi"])
         df_beacons["beacon"] = beacons
-        df_beacons["rssi"] = data["rssi"]
+        df_beacons["rssi"] = rssis
         averaged = df_beacons.groupby("beacon").agg("mean")
 
         relay = pd.DataFrame(index=["RSSI", "tx", "ref"], columns=averaged.index)
