@@ -215,8 +215,22 @@ class TestRelaysCommunicationVerticle {
   fun mqttMessageIsIngested(testContext: VertxTestContext) {
     val message = jsonObjectOf(
       "relayID" to "abc",
-      "rssi" to jsonArrayOf(-60.0),
-      "mac" to jsonArrayOf("mac"),
+      "beacons" to jsonArrayOf(
+        jsonObjectOf(
+          "mac" to "aa:aa:aa:aa:aa:aa",
+          "rssi" to -60.0,
+          "battery" to 42,
+          "temperature" to 25,
+          "state" to 0
+        ),
+        jsonObjectOf(
+          "mac" to "bb:aa:aa:aa:aa:aa",
+          "rssi" to -59.0,
+          "battery" to 100,
+          "temperature" to 20,
+          "state" to 1
+        )
+      ),
       "latitude" to 2.3,
       "longitude" to 2.3,
       "floor" to 1
@@ -248,8 +262,7 @@ class TestRelaysCommunicationVerticle {
             expect {
               that(json.getString("relayID")).isEqualTo(relayID)
               that(json.getString("timestamp")).isNotNull()
-              that(json.getJsonArray("rssi")).isEqualTo(message.getJsonArray("rssi"))
-              that(json.getJsonArray("mac")).isEqualTo(message.getJsonArray("mac"))
+              that(json.getJsonArray("beacons")).isEqualTo(message.getJsonArray("beacons"))
               that(json.getDouble("latitude")).isEqualTo(message.getDouble("latitude"))
               that(json.getDouble("longitude")).isEqualTo(message.getDouble("longitude"))
               that(json.getInteger("floor")).isEqualTo(message.getInteger("floor"))
@@ -266,8 +279,68 @@ class TestRelaysCommunicationVerticle {
   fun invalidMqttMessageIsNotIngestedWrongFields(testContext: VertxTestContext) {
     val message = jsonObjectOf(
       "relayID" to "abc",
-      "rssi" to jsonArrayOf(-60.0),
-      "mac" to jsonArrayOf("mac"),
+      "beacons" to jsonArrayOf(
+        jsonObjectOf(
+          "mac" to "aa:aa:aa:aa:aa:aa",
+          "rssi" to -60.0,
+          "battery" to 42,
+          "temperature" to 25,
+          "state" to 0
+        ),
+        jsonObjectOf(
+          "mac" to "bb:aa:aa:aa:aa:aa",
+          "rssi" to -59.0,
+          "battery" to 100,
+          "temperature" to 20,
+          "state" to 1
+        )
+      ),
+      "longitude" to 2.3,
+      "floor" to 1
+    )
+
+    mqttClient.rxConnect(RelaysCommunicationVerticle.MQTT_PORT, "localhost")
+      .flatMap {
+        mqttClient.rxPublish(
+          INGESTION_TOPIC,
+          Buffer.newInstance(message.toBuffer()),
+          MqttQoS.AT_LEAST_ONCE,
+          false,
+          false
+        )
+      }.subscribeBy(onError = testContext::failNow)
+
+    kafkaConsumer
+      .rxSubscribe(INGESTION_TOPIC).subscribe()
+
+    testContext.verify {
+      kafkaConsumer.toFlowable().timeout(5, TimeUnit.SECONDS).firstOrError().subscribeBy(
+        onSuccess = { testContext.failNow("The message was ingested") },
+        onError = { testContext.completeNow() }
+      )
+    }
+  }
+
+  @Test
+  @DisplayName("An invalid MQTT JSON message is not ingested because it is missing fields in the beacons field")
+  fun invalidMqttMessageIsNotIngestedWrongBeaconsFields(testContext: VertxTestContext) {
+    val message = jsonObjectOf(
+      "relayID" to "abc",
+      "beacons" to jsonArrayOf(
+        jsonObjectOf(
+          "mac" to "aa:aa:aa:aa:aa:aa",
+          "rssi" to -60.0,
+          "temperature" to 25,
+          "state" to 0
+        ),
+        jsonObjectOf(
+          "mac" to "bb:aa:aa:aa:aa:aa",
+          "rssi" to -59.0,
+          "battery" to 100,
+          "temperature" to 20,
+          "state" to 1
+        )
+      ),
       "longitude" to 2.3,
       "floor" to 1
     )
@@ -299,10 +372,24 @@ class TestRelaysCommunicationVerticle {
   fun invalidMqttMessageIsNotIngestedWrongCoordinates(testContext: VertxTestContext) {
     val message = jsonObjectOf(
       "relayID" to "abc",
-      "rssi" to jsonArrayOf(-60.0),
-      "mac" to jsonArrayOf("mac"),
-      "longitude" to 0,
+      "beacons" to jsonArrayOf(
+        jsonObjectOf(
+          "mac" to "aa:aa:aa:aa:aa:aa",
+          "rssi" to -60.0,
+          "battery" to 42,
+          "temperature" to 25,
+          "state" to 0
+        ),
+        jsonObjectOf(
+          "mac" to "bb:aa:aa:aa:aa:aa",
+          "rssi" to -59.0,
+          "battery" to 100,
+          "temperature" to 20,
+          "state" to 1
+        )
+      ),
       "latitude" to 2.3,
+      "longitude" to 0,
       "floor" to 1
     )
 
@@ -329,14 +416,28 @@ class TestRelaysCommunicationVerticle {
   }
 
   @Test
-  @DisplayName("An invalid MQTT JSON message is not ingested because it has empty arrays")
-  fun invalidMqttMessageIsNotIngestedWrongArrays(testContext: VertxTestContext) {
+  @DisplayName("An invalid MQTT JSON message is not ingested because it has empty MACs")
+  fun invalidMqttMessageIsNotIngestedEmptyMac(testContext: VertxTestContext) {
     val message = jsonObjectOf(
       "relayID" to "abc",
-      "rssi" to jsonArrayOf(-60.0),
-      "mac" to jsonArrayOf(),
-      "longitude" to 0,
+      "beacons" to jsonArrayOf(
+        jsonObjectOf(
+          "mac" to "",
+          "rssi" to -60.0,
+          "battery" to 42,
+          "temperature" to 25,
+          "state" to 0
+        ),
+        jsonObjectOf(
+          "mac" to "bb:aa:aa:aa:aa:aa",
+          "rssi" to -59.0,
+          "battery" to 0,
+          "temperature" to 20,
+          "state" to 1
+        )
+      ),
       "latitude" to 2.3,
+      "longitude" to 2.3,
       "floor" to 1
     )
 
@@ -363,14 +464,124 @@ class TestRelaysCommunicationVerticle {
   }
 
   @Test
-  @DisplayName("An invalid MQTT JSON message is not ingested because it has arrays of different length")
-  fun invalidMqttMessageIsNotIngestedWrongArraysLength(testContext: VertxTestContext) {
+  @DisplayName("An invalid MQTT JSON message is not ingested because a beacon has a too large battery level")
+  fun invalidMqttMessageIsNotIngestedInvalidBatteryTooLarge(testContext: VertxTestContext) {
     val message = jsonObjectOf(
       "relayID" to "abc",
-      "rssi" to jsonArrayOf(-60.0),
-      "mac" to jsonArrayOf("beacon1", "beacon2"),
-      "longitude" to 0,
+      "beacons" to jsonArrayOf(
+        jsonObjectOf(
+          "mac" to "aa:aa:aa:aa:aa:aa",
+          "rssi" to -60.0,
+          "battery" to 101,
+          "temperature" to 25,
+          "state" to 0
+        ),
+        jsonObjectOf(
+          "mac" to "bb:aa:aa:aa:aa:aa",
+          "rssi" to -59.0,
+          "battery" to 100,
+          "temperature" to 20,
+          "state" to 1
+        )
+      ),
       "latitude" to 2.3,
+      "longitude" to 2.3,
+      "floor" to 1
+    )
+
+    mqttClient.rxConnect(RelaysCommunicationVerticle.MQTT_PORT, "localhost")
+      .flatMap {
+        mqttClient.rxPublish(
+          INGESTION_TOPIC,
+          Buffer.newInstance(message.toBuffer()),
+          MqttQoS.AT_LEAST_ONCE,
+          false,
+          false
+        )
+      }.subscribeBy(onError = testContext::failNow)
+
+    kafkaConsumer
+      .rxSubscribe(INGESTION_TOPIC).subscribe()
+
+    testContext.verify {
+      kafkaConsumer.toFlowable().timeout(5, TimeUnit.SECONDS).firstOrError().subscribeBy(
+        onSuccess = { testContext.failNow("The message was ingested") },
+        onError = { testContext.completeNow() }
+      )
+    }
+  }
+
+  @Test
+  @DisplayName("An invalid MQTT JSON message is not ingested because a beacon has a too small battery level")
+  fun invalidMqttMessageIsNotIngestedInvalidBatteryTooSmall(testContext: VertxTestContext) {
+    val message = jsonObjectOf(
+      "relayID" to "abc",
+      "beacons" to jsonArrayOf(
+        jsonObjectOf(
+          "mac" to "aa:aa:aa:aa:aa:aa",
+          "rssi" to -60.0,
+          "battery" to -10,
+          "temperature" to 25,
+          "state" to 0
+        ),
+        jsonObjectOf(
+          "mac" to "bb:aa:aa:aa:aa:aa",
+          "rssi" to -59.0,
+          "battery" to 100,
+          "temperature" to 20,
+          "state" to 1
+        )
+      ),
+      "latitude" to 2.3,
+      "longitude" to 2.3,
+      "floor" to 1
+    )
+
+    mqttClient.rxConnect(RelaysCommunicationVerticle.MQTT_PORT, "localhost")
+      .flatMap {
+        mqttClient.rxPublish(
+          INGESTION_TOPIC,
+          Buffer.newInstance(message.toBuffer()),
+          MqttQoS.AT_LEAST_ONCE,
+          false,
+          false
+        )
+      }.subscribeBy(onError = testContext::failNow)
+
+    kafkaConsumer
+      .rxSubscribe(INGESTION_TOPIC).subscribe()
+
+    testContext.verify {
+      kafkaConsumer.toFlowable().timeout(5, TimeUnit.SECONDS).firstOrError().subscribeBy(
+        onSuccess = { testContext.failNow("The message was ingested") },
+        onError = { testContext.completeNow() }
+      )
+    }
+  }
+
+  @Test
+  @DisplayName("An invalid MQTT JSON message is not ingested because a beacon has an invalid state")
+  fun invalidMqttMessageIsNotIngestedInvalidState(testContext: VertxTestContext) {
+    val message = jsonObjectOf(
+      "relayID" to "abc",
+      "beacons" to jsonArrayOf(
+        jsonObjectOf(
+          "mac" to "aa:aa:aa:aa:aa:aa",
+          "rssi" to -60.0,
+          "battery" to -10,
+          "temperature" to 25,
+          "state" to -1
+        ),
+        jsonObjectOf(
+          "mac" to "bb:aa:aa:aa:aa:aa",
+          "rssi" to -59.0,
+          "battery" to 100,
+          "temperature" to 20,
+          "state" to 2
+        )
+      ),
+      "latitude" to 2.3,
+      "longitude" to 2.3,
       "floor" to 1
     )
 

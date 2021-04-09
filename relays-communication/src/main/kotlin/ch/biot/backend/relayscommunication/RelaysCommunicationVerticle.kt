@@ -214,11 +214,19 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
       }
 
       val containsAllKeys = Future.future<Boolean> { promise ->
-        val keysToContain = listOf("relayID", "rssi", "mac", "latitude", "longitude", "floor")
+        val keysToContain = listOf("relayID", "beacons", "latitude", "longitude", "floor")
+        val keysToContainBeacons = listOf("mac", "rssi", "battery", "temperature", "state")
         validateWithFuture(promise, "Fields are missing") {
-          keysToContain.fold(true) { acc, curr ->
+          val areFieldsValid = keysToContain.fold(true) { acc, curr ->
             acc && json.containsKey(curr)
           }
+          val areBeaconsFieldValid = keysToContainBeacons.fold(true) { acc, curr ->
+            acc && json.getJsonArray("beacons").all {
+              val beacon = it as JsonObject
+              beacon.containsKey(curr)
+            }
+          }
+          areFieldsValid && areBeaconsFieldValid
         }
       }
 
@@ -228,19 +236,20 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
         }
       }
 
-      val nonEmptyArrays = Future.future<Boolean> { promise ->
-        validateWithFuture(promise, "One or both arrays are empty") {
-          !json.getJsonArray("rssi").isEmpty && !json.getJsonArray("mac").isEmpty
+      val validBeaconsField = Future.future<Boolean> { promise ->
+        validateWithFuture(promise, "One or more fields are not valid in the beacons field") {
+          val beacons = json.getJsonArray("beacons")
+          beacons.all {
+            val beacon = it as JsonObject
+            val nonEmptyMac = beacon.getString("mac").isNotEmpty()
+            val validBattery = beacon.getInteger("battery") in 0..100
+            val validState = beacon.getInteger("state") in setOf(0, 1, 2)
+            nonEmptyMac && validBattery && validState
+          }
         }
       }
 
-      val sameLengthArrays = Future.future<Boolean> { promise ->
-        validateWithFuture(promise, "The mac and rssi arrays do not have the same length") {
-          json.getJsonArray("rssi").size() == json.getJsonArray("mac").size()
-        }
-      }
-
-      return CompositeFuture.all(containsAllKeys, validCoordinates, nonEmptyArrays, sameLengthArrays)
+      return CompositeFuture.all(containsAllKeys, validCoordinates, validBeaconsField)
     }
 
     try {
