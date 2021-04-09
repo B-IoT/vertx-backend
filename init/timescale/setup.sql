@@ -26,7 +26,8 @@ CREATE TABLE IF NOT EXISTS beacon_data
     status VARCHAR(50),
     latitude DECIMAL(9, 6),
     longitude DECIMAL(9, 6),
-    floor INTEGER
+    floor INTEGER,
+    temperature DECIMAL(5,2)
 );
 
 SELECT create_hypertable('beacon_data', 'time');
@@ -35,7 +36,7 @@ CREATE INDEX ON items(beacon);
 
 CREATE INDEX ON beacon_data(mac, time DESC);
 
--- Use the following commands to enable compression
+-- -- Use the following commands to enable compression
 -- ALTER TABLE beacon_data SET (
 --     timescaledb.compress,
 --     timescaledb.compress_segmentby = 'mac'

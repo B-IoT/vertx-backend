@@ -89,7 +89,9 @@ class TestRelaysCommunicationVerticle {
       mqttClientOptionsOf(
         clientId = configuration["mqttID"],
         username = configuration["mqttUsername"],
-        password = mqttPassword
+        password = mqttPassword,
+        willFlag = true,
+        willMessage = jsonObjectOf("company" to "biot").encode()
       )
     )
 

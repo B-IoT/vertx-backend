@@ -40,13 +40,14 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
     internal const val INGESTION_TOPIC = "incoming.update"
     internal const val RELAYS_UPDATE_ADDRESS = "relays.update"
 
-    internal val MQTT_PORT = System.getenv().getOrDefault("MQTT_PORT", "1883").toInt()
+    private val environment = System.getenv()
+    internal val MQTT_PORT = environment.getOrDefault("MQTT_PORT", "1883").toInt()
 
-    private val MONGO_HOST: String = System.getenv().getOrDefault("MONGO_HOST", "localhost")
-    internal val MONGO_PORT = System.getenv().getOrDefault("MONGO_PORT", "27017").toInt()
+    private val MONGO_HOST: String = environment.getOrDefault("MONGO_HOST", "localhost")
+    internal val MONGO_PORT = environment.getOrDefault("MONGO_PORT", "27017").toInt()
 
-    private val KAFKA_HOST: String = System.getenv().getOrDefault("KAFKA_HOST", "localhost")
-    internal val KAFKA_PORT = System.getenv().getOrDefault("KAFKA_PORT", "9092").toInt()
+    private val KAFKA_HOST: String = environment.getOrDefault("KAFKA_HOST", "localhost")
+    internal val KAFKA_PORT = environment.getOrDefault("KAFKA_PORT", "9092").toInt()
 
     private const val LIVENESS_PORT = 1884
     private const val READINESS_PORT = 1885
@@ -71,10 +72,13 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
 
   private val clients = mutableMapOf<String, MqttEndpoint>() // map of subscribed clientIdentifier to client
 
+  // Map from collection name to MongoAuthentication
+  // It is used since there is a collection per company
+  private val mongoAuthRelaysCache: MutableMap<String, MongoAuthentication> = mutableMapOf()
+
   private lateinit var kafkaProducer: KafkaProducer<String, JsonObject>
 
   private lateinit var mongoClient: MongoClient
-  private lateinit var mongoAuth: MongoAuthentication
 
   override fun rxStart(): Completable {
     // Initialize the Kafka producer
@@ -94,19 +98,6 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
       jsonObjectOf(
         "host" to MONGO_HOST, "port" to MONGO_PORT, "db_name" to "clients", "username" to "biot",
         "password" to "biot"
-      )
-    )
-
-    val usernameField = "mqttUsername"
-    val passwordField = "mqttPassword"
-    mongoAuth = MongoAuthentication.create(
-      mongoClient,
-      mongoAuthenticationOptionsOf(
-        collectionName = RELAYS_COLLECTION,
-        passwordCredentialField = passwordField,
-        passwordField = passwordField,
-        usernameCredentialField = usernameField,
-        usernameField = usernameField
       )
     )
 
@@ -160,7 +151,27 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
       "username" to mqttAuth.username,
       "password" to mqttAuth.password
     )
-    mongoAuth.rxAuthenticate(credentialsJson).subscribeBy(
+    val company = client.will().willMessage.toJsonObject().getString("company")
+    val collection = if (company != "biot") "${RELAYS_COLLECTION}_$company" else RELAYS_COLLECTION
+    val mongoAuthRelays = if (mongoAuthRelaysCache.containsKey(collection)) {
+      mongoAuthRelaysCache[collection]!!
+    } else {
+      val usernameField = "mqttUsername"
+      val passwordField = "mqttPassword"
+      val mongoAuth = MongoAuthentication.create(
+        mongoClient,
+        mongoAuthenticationOptionsOf(
+          collectionName = collection,
+          passwordCredentialField = passwordField,
+          passwordField = passwordField,
+          usernameCredentialField = usernameField,
+          usernameField = usernameField
+        )
+      )
+      mongoAuthRelaysCache[collection] = mongoAuth
+      mongoAuth
+    }
+    mongoAuthRelays.rxAuthenticate(credentialsJson).subscribeBy(
       onSuccess = {
         // Accept connection from the remote client
         logger.info("Client [$clientIdentifier] connected")
@@ -189,7 +200,7 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
             }
             clients.remove(clientIdentifier)
           }.publishHandler { m ->
-            handleMessage(m, client)
+            handleMessage(m, client, company)
           }
       },
       onError = {
@@ -203,7 +214,7 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
   /**
    * Handles a MQTT message received by the given client.
    */
-  private fun handleMessage(m: MqttPublishMessage, client: MqttEndpoint) {
+  private fun handleMessage(m: MqttPublishMessage, client: MqttEndpoint, company: String) {
     /**
      * Validates the JSON, returning true iff it contains all required fields.
      */
@@ -267,6 +278,7 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
           val kafkaMessage = message.copy().apply {
             // Add a timestamp to the message to send to Kafka
             put("timestamp", Instant.now())
+            put("company", company)
           }
 
           val relayID: String = message["relayID"]

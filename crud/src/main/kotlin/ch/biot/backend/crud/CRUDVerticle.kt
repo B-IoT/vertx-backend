@@ -48,13 +48,14 @@ class CRUDVerticle : AbstractVerticle() {
 
     private const val RELAYS_UPDATE_ADDRESS = "relays.update"
 
-    internal val HTTP_PORT = System.getenv().getOrDefault("HTTP_PORT", "8080").toInt()
+    private val environment = System.getenv()
+    internal val HTTP_PORT = environment.getOrDefault("HTTP_PORT", "8080").toInt()
 
-    internal val MONGO_PORT = System.getenv().getOrDefault("MONGO_PORT", "27017").toInt()
-    private val MONGO_HOST: String = System.getenv().getOrDefault("MONGO_HOST", "localhost")
+    internal val MONGO_PORT = environment.getOrDefault("MONGO_PORT", "27017").toInt()
+    private val MONGO_HOST: String = environment.getOrDefault("MONGO_HOST", "localhost")
 
-    internal val TIMESCALE_PORT = System.getenv().getOrDefault("TIMESCALE_PORT", "5432").toInt()
-    private val TIMESCALE_HOST: String = System.getenv().getOrDefault("TIMESCALE_HOST", "localhost")
+    internal val TIMESCALE_PORT = environment.getOrDefault("TIMESCALE_PORT", "5432").toInt()
+    private val TIMESCALE_HOST: String = environment.getOrDefault("TIMESCALE_HOST", "localhost")
 
     internal val logger = LoggerFactory.getLogger(CRUDVerticle::class.java)
 
