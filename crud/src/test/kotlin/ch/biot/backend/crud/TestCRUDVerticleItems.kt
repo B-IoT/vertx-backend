@@ -4,6 +4,9 @@
 
 package ch.biot.backend.crud
 
+import ch.biot.backend.crud.CRUDVerticle.Companion.HTTP_PORT
+import ch.biot.backend.crud.CRUDVerticle.Companion.MONGO_PORT
+import ch.biot.backend.crud.CRUDVerticle.Companion.TIMESCALE_PORT
 import io.restassured.builder.RequestSpecBuilder
 import io.restassured.filter.log.RequestLoggingFilter
 import io.restassured.filter.log.ResponseLoggingFilter
@@ -72,7 +75,7 @@ class TestCRUDVerticleItems {
   fun setup(vertx: Vertx, testContext: VertxTestContext) {
     val pgConnectOptions =
       pgConnectOptionsOf(
-        port = CRUDVerticle.TIMESCALE_PORT,
+        port = TIMESCALE_PORT,
         host = "localhost",
         database = "biot",
         user = "biot",
@@ -260,6 +263,35 @@ class TestCRUDVerticleItems {
 
     testContext.verify {
       expectThat(response).isNotEmpty() // it returns the id of the registered item
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("registerItem correctly registers a new item with a custom id")
+  fun registerWithIdIsCorrect(testContext: VertxTestContext) {
+    val newItem = jsonObjectOf(
+      "id" to 42,
+      "beacon" to "aa:aa:aa:aa:aa:aa",
+      "category" to "Lit",
+      "service" to "Bloc 1"
+    )
+
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      body(newItem.encode())
+    } When {
+      queryParam("company", "biot")
+      post("/items")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response.toInt()).isEqualTo(42) // it returns the id of the registered item
       testContext.completeNow()
     }
   }
@@ -600,7 +632,7 @@ class TestCRUDVerticleItems {
     private val requestSpecification: RequestSpecification = RequestSpecBuilder()
       .addFilters(listOf(ResponseLoggingFilter(), RequestLoggingFilter()))
       .setBaseUri("http://localhost")
-      .setPort(CRUDVerticle.HTTP_PORT)
+      .setPort(HTTP_PORT)
       .build()
 
     private val instance: KDockerComposeContainer by lazy { defineDockerCompose() }
@@ -609,8 +641,8 @@ class TestCRUDVerticleItems {
 
     private fun defineDockerCompose() = KDockerComposeContainer(File("../docker-compose.yml"))
       .withExposedService(
-        "mongo_1", CRUDVerticle.MONGO_PORT
-      ).withExposedService("timescale_1", CRUDVerticle.TIMESCALE_PORT)
+        "mongo_1", MONGO_PORT
+      ).withExposedService("timescale_1", TIMESCALE_PORT)
 
     @BeforeAll
     @JvmStatic

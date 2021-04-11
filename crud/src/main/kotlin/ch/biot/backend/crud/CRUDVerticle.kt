@@ -538,12 +538,17 @@ class CRUDVerticle : AbstractVerticle() {
     val json = ctx.bodyAsJson
     json.validateAndThen(ctx) {
       // Extract the information from the payload and insert the item in TimescaleDB
+      val id: Int? = json["id"]
       val beacon: String = json["beacon"]
       val category: String = json["category"]
       val service: String = json["service"]
       val table = ctx.getCollection(ITEMS_TABLE)
-      pgPool.preparedQuery(insertItem(table))
-        .execute(Tuple.of(beacon, category, service))
+
+      val executedQuery =
+        if (id != null) pgPool.preparedQuery(insertItem(table, true)).execute(Tuple.of(id, beacon, category, service))
+        else pgPool.preparedQuery(insertItem(table, false)).execute(Tuple.of(beacon, category, service))
+
+      executedQuery
         .onSuccess {
           logger.info("New item registered")
           val row = it.iterator().next()

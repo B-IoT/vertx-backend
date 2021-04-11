@@ -2,8 +2,9 @@ package ch.biot.backend.crud
 
 // TimescaleDB PostgreSQL queries for items
 
-internal fun insertItem(itemsTable: String) =
-  "INSERT INTO $itemsTable (beacon, category, service) VALUES ($1, $2, $3) RETURNING id"
+internal fun insertItem(itemsTable: String, customId: Boolean = false) =
+  if (customId) "INSERT INTO $itemsTable (id, beacon, category, service) VALUES ($1, $2, $3, $4) RETURNING id"
+  else "INSERT INTO $itemsTable (beacon, category, service) VALUES ($1, $2, $3) RETURNING id"
 
 internal fun getItems(itemsTable: String, beaconDataTable: String) =
   "SELECT DISTINCT ON (I.id) * FROM $itemsTable I LEFT JOIN $beaconDataTable D ON I.beacon = D.mac ORDER BY I.id, D.time DESC"
