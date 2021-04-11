@@ -645,8 +645,9 @@ class CRUDVerticle : AbstractVerticle() {
       .execute(Tuple.of(itemID))
       .onSuccess { res ->
         if (res.size() == 0) {
-          // No item found, fail
-          ctx.fail(404)
+          // No item found, answer with 404
+          ctx.response().statusCode = 404
+          ctx.end()
           return@onSuccess
         }
 
