@@ -19,7 +19,7 @@ allprojects {
     extra["vertxVersion"] = if (project.hasProperty("vertxVersion")) project.property("vertxVersion") else "4.0.3"
     extra["junitJupiterVersion"] = "5.7.1"
     extra["logbackClassicVersion"] = "1.2.3"
-    extra["testContainersVersion"] = "1.15.2"
+    extra["testContainersVersion"] = "1.15.3"
     extra["restAssuredVersion"] = "4.3.3"
     extra["striktVersion"] = "0.30.0"
     extra["rxKotlinVersion"] = "2.4.0"
