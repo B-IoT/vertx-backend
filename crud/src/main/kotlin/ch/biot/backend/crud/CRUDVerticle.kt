@@ -4,6 +4,16 @@
 
 package ch.biot.backend.crud
 
+import ch.biot.backend.crud.queries.*
+import ch.biot.backend.crud.queries.deleteItem
+import ch.biot.backend.crud.queries.getCategories
+import ch.biot.backend.crud.queries.getClosestItems
+import ch.biot.backend.crud.queries.getClosestItemsWithCategory
+import ch.biot.backend.crud.queries.getItem
+import ch.biot.backend.crud.queries.getItems
+import ch.biot.backend.crud.queries.getItemsWithCategory
+import ch.biot.backend.crud.queries.insertItem
+import ch.biot.backend.crud.queries.updateItem
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.Promise
 import io.vertx.core.Vertx
