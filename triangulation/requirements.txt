@@ -1,6 +1,7 @@
 asyncpg==0.22.0
 confluent-kafka==1.6.0
 loguru==0.5.3
+numexpr==2.7.3
 numpy==1.20.1
 orjson==3.4.8
 pandas==1.2.2

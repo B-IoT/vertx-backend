@@ -8,7 +8,12 @@ WORKDIR /code
 # copy the dependencies file to the working directory
 COPY requirements.txt .
 
+# upgrade packages
+RUN apt-get update
+RUN apt-get upgrade -y
+
 # install dependencies
+RUN pip install -U pip
 RUN pip install -r requirements.txt
 
 # copy the content of the local directory to the working directory
