@@ -50,6 +50,8 @@ class PublicApiVerticle : CoroutineVerticle() {
     private const val ITEMS_ENDPOINT = "items"
     private const val ANALYTICS_ENDPOINT = "analytics"
 
+    private const val UNAUTHORIZED_CODE = 401
+
     private const val API_PREFIX = "/api"
     private const val OAUTH_PREFIX = "/oauth"
     private val CRUD_HOST: String = System.getenv().getOrDefault("CRUD_HOST", "localhost")
@@ -86,6 +88,7 @@ class PublicApiVerticle : CoroutineVerticle() {
 
     // Read public and private keys from the file system. They are used for JWT authentication.
     val (publicKeyJWT, privateKeyJWT) = parZip(
+      vertx.dispatcher(),
       { fs.coroutineReadFile("public_key_jwt.pem") },
       { fs.coroutineReadFile("private_key_jwt.pem") }) { pub, priv ->
       pub to priv
@@ -167,17 +170,21 @@ class PublicApiVerticle : CoroutineVerticle() {
 
     webClient = WebClient.create(vertx)
 
-    vertx.createHttpServer(
-      httpServerOptionsOf(
-        ssl = CRUD_HOST != "localhost", // disabled when testing
-        pemKeyCertOptions = pemKeyCertOptionsOf(certPath = "certificate.pem", keyPath = "certificate_key.pem")
+    try {
+      vertx.createHttpServer(
+        httpServerOptionsOf(
+          ssl = CRUD_HOST != "localhost", // disabled when testing
+          pemKeyCertOptions = pemKeyCertOptionsOf(certPath = "certificate.pem", keyPath = "certificate_key.pem")
+        )
       )
-    )
-      .requestHandler(router)
-      .listen(PUBLIC_PORT)
-      .await()
+        .requestHandler(router)
+        .listen(PUBLIC_PORT)
+        .await()
 
-    LOGGER.info("HTTP server listening on port $PUBLIC_PORT")
+      LOGGER.info("HTTP server listening on port $PUBLIC_PORT")
+    } catch (error: Throwable) {
+      LOGGER.error("Could not start HTTP server", error)
+    }
   }
 
   // Analytics
@@ -265,7 +272,7 @@ class PublicApiVerticle : CoroutineVerticle() {
       .bimap(
         { error ->
           LOGGER.error("Authentication error", error)
-          ctx.fail(401)
+          ctx.fail(UNAUTHORIZED_CODE)
         },
         { response ->
           val company = response.bodyAsString()
