@@ -25,7 +25,7 @@ allprojects {
     extra["rxKotlinVersion"] = "2.4.0"
     extra["hazelcastVersion"] = "2.2.2"
     extra["micrometerPrometheusVersion"] = "1.6.6"
-    extra["arrowVersion"] = "0.13.1"
+    extra["arrowVersion"] = "0.13.2"
 }
 
 subprojects {
