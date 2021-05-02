@@ -18,7 +18,7 @@ If you have a local Kubernetes cluster (with MongoDB, TimescaleDB and Kafka runn
 
 ## Deployment
 
-To build, push images to [Google Cloud Registry](https://console.cloud.google.com/gcr/images/dark-mark-304414?project=dark-mark-304414&authuser=1) and deploy to [Google Kubernetes Engine](https://console.cloud.google.com/kubernetes/list?authuser=1&project=dark-mark-304414), use `skaffold run -d eu.gcr.io/dark-mark-304414`.
+To build, push images to [Google Cloud Registry](https://console.cloud.google.com/gcr/images/dark-mark-304414?project=dark-mark-304414&authuser=1) and deploy to [Google Kubernetes Engine](https://console.cloud.google.com/kubernetes/list?authuser=1&project=dark-mark-304414), use `./deploy.sh` (or `skaffold run -d eu.gcr.io/dark-mark-304414`).
 
 ## Architecture
 
