@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) 2021 BioT. All rights reserved.
+ */
+
 package ch.biot.backend.relayscommunication
 
 import io.vertx.core.json.JsonObject
