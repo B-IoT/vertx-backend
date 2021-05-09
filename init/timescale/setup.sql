@@ -1,3 +1,5 @@
+-- Copyright (c) 2021 BioT. All rights reserved.
+
 CREATE USER biot WITH PASSWORD 'biot';
 CREATE DATABASE biot OWNER biot;
 ALTER USER biot WITH SUPERUSER;

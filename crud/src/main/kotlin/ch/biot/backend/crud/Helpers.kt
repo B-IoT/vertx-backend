@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) 2021 BioT. All rights reserved.
+ */
+
 package ch.biot.backend.crud
 
 import ch.biot.backend.crud.CRUDVerticle.Companion.INTERNAL_SERVER_ERROR_CODE

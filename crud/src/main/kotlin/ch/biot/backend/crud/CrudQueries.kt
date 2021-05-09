@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) 2021 BioT. All rights reserved.
+ */
+
 package ch.biot.backend.crud
 
 // TimescaleDB PostgreSQL queries for items

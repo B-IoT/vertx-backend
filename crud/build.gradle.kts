@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 BIoT. All rights reserved.
+ * Copyright (c) 2021 BioT. All rights reserved.
  */
 
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar

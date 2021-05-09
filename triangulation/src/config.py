@@ -1,4 +1,4 @@
-# Copyright (c) 2021 BIoT. All rights reserved.
+# Copyright (c) 2021 BioT. All rights reserved.
 
 from decouple import config
 from loguru import logger
