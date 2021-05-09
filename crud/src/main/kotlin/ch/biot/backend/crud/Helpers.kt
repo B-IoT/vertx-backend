@@ -93,6 +93,7 @@ internal fun Row.toItemJson(): JsonObject = jsonObjectOf(
   "latitude" to getDouble("latitude"),
   "longitude" to getDouble("longitude"),
   "floor" to getInteger("floor")
+// TODO extract new information
 )
 
 /**
