@@ -5,7 +5,7 @@
 plugins {
     kotlin("jvm") version "1.4.32"
     id("com.github.johnrengelman.shadow") version "6.1.0" apply false
-    id("com.google.cloud.tools.jib") version "2.8.0" apply false
+    id("com.google.cloud.tools.jib") version "3.0.0" apply false
     id("com.github.ben-manes.versions") version "0.38.0"
     jacoco
 }
@@ -19,12 +19,13 @@ allprojects {
     extra["vertxVersion"] = if (project.hasProperty("vertxVersion")) project.property("vertxVersion") else "4.0.3"
     extra["junitJupiterVersion"] = "5.7.1"
     extra["logbackClassicVersion"] = "1.2.3"
-    extra["testContainersVersion"] = "1.15.2"
+    extra["testContainersVersion"] = "1.15.3"
     extra["restAssuredVersion"] = "4.3.3"
-    extra["striktVersion"] = "0.30.0"
+    extra["striktVersion"] = "0.31.0"
     extra["rxKotlinVersion"] = "2.4.0"
     extra["hazelcastVersion"] = "2.2.2"
-    extra["micrometerPrometheusVersion"] = "1.6.5"
+    extra["micrometerPrometheusVersion"] = "1.6.6"
+    extra["arrowVersion"] = "0.13.2"
 }
 
 subprojects {

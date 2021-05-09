@@ -103,33 +103,39 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
 
     // Add an event bus consumer to handle the JSON received from CRUDVerticle, which needs to be forwarded to the right
     // relay
-    vertx.eventBus().consumer<JsonObject>(RELAYS_UPDATE_ADDRESS) { message ->
-      val json = message.body()
-      logger.info("Received relay update $json on event bus address $RELAYS_UPDATE_ADDRESS, sending it to client...")
-      val mqttID: String = json["mqttID"]
+    vertx.eventBus().consumer<JsonObject>(RELAYS_UPDATE_ADDRESS)
+      .bodyStream()
+      .toFlowable()
+      .subscribe { json ->
+        logger.info("Received relay update $json on event bus address $RELAYS_UPDATE_ADDRESS, sending it to client...")
 
-      // Clean the json from useless fields
-      val jsonClean = json.clean()
+        val mqttID: String = json["mqttID"]
 
-      // Send the message to the right relay on the MQTT topic "update.parameters"
-      clients[mqttID]?.let { client -> sendMessageTo(client, jsonClean) }
-    }
+        // Clean the json from useless fields
+        val cleanJson = json.clean()
+
+        // Send the message to the right relay on the MQTT topic "update.parameters"
+        clients[mqttID]?.let { client -> sendMessageTo(client, cleanJson) }
+      }
 
 //    // Certificate for TLS
 //    val pemKeyCertOptions = pemKeyCertOptionsOf(certPath = "certificate.pem", keyPath = "certificate_key.pem")
 //    val netServerOptions = netServerOptionsOf(ssl = true, pemKeyCertOptions = pemKeyCertOptions)
 
     // TCP server for liveness checks
-    vertx.createNetServer().connectHandler {
+    return vertx.createNetServer().connectHandler {
       logger.info("Liveness check")
-    }.rxListen(LIVENESS_PORT).subscribe()
-
-    return MqttServer.create(vertx)
-      .endpointHandler(::handleClient).rxListen(MQTT_PORT).doOnSuccess {
+    }
+      .rxListen(LIVENESS_PORT)
+      .flatMap {
+        MqttServer.create(vertx)
+          .endpointHandler(::handleClient).rxListen(MQTT_PORT)
+      }
+      .flatMap {
         logger.info("MQTT server listening on port $MQTT_PORT")
         vertx.createNetServer().connectHandler {
           logger.info("Readiness check complete")
-        }.rxListen(READINESS_PORT).subscribe()
+        }.rxListen(READINESS_PORT)
       }.ignoreElement()
   }
 
