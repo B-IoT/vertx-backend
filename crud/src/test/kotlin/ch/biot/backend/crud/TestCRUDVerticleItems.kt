@@ -62,7 +62,8 @@ class TestCRUDVerticleItems {
     "status" to "disponible",
     "latitude" to 2.333333,
     "longitude" to -2.333333,
-    "floor" to 1
+    "floor" to 1,
+    "temperature" to 42.3
   )
 
   private val updateItemJson = jsonObjectOf(
@@ -130,7 +131,8 @@ class TestCRUDVerticleItems {
             existingBeaconData.getString("status"),
             existingBeaconData.getDouble("latitude"),
             existingBeaconData.getDouble("longitude"),
-            existingBeaconData.getInteger("floor")
+            existingBeaconData.getInteger("floor"),
+            existingBeaconData.getDouble("temperature")
           )
         )
     }.compose {
@@ -142,7 +144,8 @@ class TestCRUDVerticleItems {
             existingBeaconData.getString("status"),
             existingBeaconData.getDouble("latitude"),
             existingBeaconData.getDouble("longitude"),
-            existingBeaconData.getInteger("floor")
+            existingBeaconData.getInteger("floor"),
+            existingBeaconData.getDouble("temperature")
           )
         )
     }.compose {
@@ -154,7 +157,8 @@ class TestCRUDVerticleItems {
             existingBeaconData.getString("status"),
             existingBeaconData.getDouble("latitude"),
             existingBeaconData.getDouble("longitude"),
-            existingBeaconData.getInteger("floor")
+            existingBeaconData.getInteger("floor"),
+              existingBeaconData.getDouble("temperature")
           )
         )
     }.compose {
@@ -166,7 +170,8 @@ class TestCRUDVerticleItems {
             existingBeaconData.getString("status"),
             42,
             -8,
-            existingBeaconData.getInteger("floor")
+            existingBeaconData.getInteger("floor"),
+            existingBeaconData.getDouble("temperature")
           )
         )
     }.compose {
@@ -178,7 +183,8 @@ class TestCRUDVerticleItems {
             existingBeaconData.getString("status"),
             44,
             -8,
-            existingBeaconData.getInteger("floor")
+            existingBeaconData.getInteger("floor"),
+            existingBeaconData.getDouble("temperature")
           )
         )
     }.compose {
@@ -190,7 +196,8 @@ class TestCRUDVerticleItems {
             existingBeaconData.getString("status"),
             45,
             -8,
-            existingBeaconData.getInteger("floor")
+            existingBeaconData.getInteger("floor"),
+            existingBeaconData.getDouble("temperature")
           )
         )
     }.compose {
@@ -202,7 +209,8 @@ class TestCRUDVerticleItems {
             existingBeaconData.getString("status"),
             46,
             -8,
-            existingBeaconData.getInteger("floor")
+            existingBeaconData.getInteger("floor"),
+            existingBeaconData.getDouble("temperature")
           )
         )
     }.compose {
@@ -214,7 +222,8 @@ class TestCRUDVerticleItems {
             existingBeaconData.getString("status"),
             47,
             -8,
-            existingBeaconData.getInteger("floor")
+            existingBeaconData.getInteger("floor"),
+            existingBeaconData.getDouble("temperature")
           )
         )
     }.compose {
@@ -226,7 +235,8 @@ class TestCRUDVerticleItems {
             existingBeaconData.getString("status"),
             47,
             -8,
-            2
+            2,
+            3.3
           )
         )
     }
@@ -518,6 +528,7 @@ class TestCRUDVerticleItems {
       put("latitude", existingBeaconData.getDouble("latitude"))
       put("longitude", existingBeaconData.getDouble("longitude"))
       put("floor", existingBeaconData.getInteger("floor"))
+      put("temperature", existingBeaconData.getDouble("temperature"))
     }
 
     val response = Buffer.buffer(
@@ -577,6 +588,7 @@ class TestCRUDVerticleItems {
           that(json.getDouble("latitude")).isEqualTo(existingBeaconData.getDouble("latitude"))
           that(json.getDouble("longitude")).isEqualTo(existingBeaconData.getDouble("longitude"))
           that(json.getInteger("floor")).isEqualTo(existingBeaconData.getInteger("floor"))
+          that(json.getDouble("temperature")).isEqualTo(existingBeaconData.getDouble("temperature"))
         }
         testContext.completeNow()
       }
@@ -627,7 +639,7 @@ class TestCRUDVerticleItems {
   companion object {
 
     private const val INSERT_BEACON_DATA =
-      "INSERT INTO beacon_data(time, mac, battery, status, latitude, longitude, floor) values(NOW(), $1, $2, $3, $4, $5, $6)"
+      "INSERT INTO beacon_data(time, mac, battery, status, latitude, longitude, floor, temperature) values(NOW(), $1, $2, $3, $4, $5, $6, $7)"
 
     private val requestSpecification: RequestSpecification = RequestSpecBuilder()
       .addFilters(listOf(ResponseLoggingFilter(), RequestLoggingFilter()))
