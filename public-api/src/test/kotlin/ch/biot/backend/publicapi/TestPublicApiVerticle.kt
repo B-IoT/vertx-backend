@@ -139,7 +139,7 @@ class TestPublicApiVerticle {
 
   @Test
   @Order(3)
-  @DisplayName("Getting the token with wrong credentials failss")
+  @DisplayName("Getting the token with wrong credentials fails")
   fun getTokenWithWrongCredentialsFails(testContext: VertxTestContext) {
     val loginInfo = jsonObjectOf(
       "username" to "wrongUsername",

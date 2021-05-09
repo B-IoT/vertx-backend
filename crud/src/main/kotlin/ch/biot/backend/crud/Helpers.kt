@@ -1,5 +1,7 @@
 package ch.biot.backend.crud
 
+import ch.biot.backend.crud.CRUDVerticle.Companion.INTERNAL_SERVER_ERROR_CODE
+import ch.biot.backend.crud.CRUDVerticle.Companion.LOGGER
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.auth.mongo.MongoAuthentication
 import io.vertx.ext.web.RoutingContext
@@ -16,18 +18,18 @@ import java.util.*
  * @param ctx the routing context corresponding to the request handled
  * @param block the block of code to execute after validation. It takes this JSON object as argument
  */
-internal fun JsonObject?.validateAndThen(ctx: RoutingContext, block: (JsonObject) -> Unit) {
+internal suspend fun JsonObject?.validateAndThen(ctx: RoutingContext, block: suspend (JsonObject) -> Unit) {
   when {
     this == null -> {
-      CRUDVerticle.logger.warn("Bad request with null body")
+      LOGGER.warn("Bad request with null body")
       ctx.fail(400)
     }
     this.isEmpty -> {
-      CRUDVerticle.logger.warn("Bad request with empty body")
+      LOGGER.warn("Bad request with empty body")
       ctx.fail(400)
     }
     this.containsKey("company") && !this.getString("company").matches("^[a-zA-Z]+$".toRegex()) -> {
-      CRUDVerticle.logger.warn("Bad request with wrongly formatted company")
+      LOGGER.warn("Bad request with wrongly formatted company")
       ctx.fail(400)
     }
     else -> block(this)
@@ -103,3 +105,18 @@ internal fun RoutingContext.getCollection(baseCollectionName: String): String {
   val company = this.queryParams()["company"]
   return if (company != null && company != "biot") "${baseCollectionName}_$company" else baseCollectionName
 }
+
+/**
+ * Executes the given suspend block, catching any eventual error and failing the request through the context.
+ *
+ * @param errorMessage the error message to display
+ * @param ctx the context used to route the request
+ * @param block the suspend block to execute, wrapped in a try-catch clause
+ */
+internal suspend fun executeWithErrorHandling(errorMessage: String, ctx: RoutingContext, block: suspend () -> Unit) =
+  try {
+    block()
+  } catch (error: Throwable) {
+    LOGGER.error(errorMessage, error)
+    ctx.fail(INTERNAL_SERVER_ERROR_CODE, error)
+  }

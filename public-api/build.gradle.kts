@@ -5,7 +5,7 @@
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import org.gradle.api.tasks.testing.logging.TestLogEvent.*
 
-version = "1.1.2-SNAPSHOT"
+version = "1.1.3-SNAPSHOT"
 
 val mainVerticleName = "ch.biot.backend.publicapi.PublicApiVerticle"
 val watchForChange = "src/**/*"
@@ -25,6 +25,7 @@ dependencies {
   val testContainersVersion = project.extra["testContainersVersion"]
   val hazelcastVersion = project.extra["hazelcastVersion"]
   val micrometerPrometheusVersion = project.extra["micrometerPrometheusVersion"]
+  val arrowVersion = project.extra["arrowVersion"]
 
   implementation("io.vertx:vertx-web:$vertxVersion")
   implementation("io.vertx:vertx-web-client:$vertxVersion")
@@ -34,6 +35,8 @@ dependencies {
   implementation("io.vertx:vertx-hazelcast:$vertxVersion")
   implementation("com.hazelcast:hazelcast-kubernetes:$hazelcastVersion")
   implementation("io.vertx:vertx-lang-kotlin:$vertxVersion")
+  implementation("io.vertx:vertx-lang-kotlin-coroutines:$vertxVersion")
+  implementation("io.arrow-kt:arrow-fx-coroutines:$arrowVersion")
   implementation("ch.qos.logback:logback-classic:$logbackClassicVersion")
   testImplementation(project(":crud"))
   testImplementation("org.testcontainers:junit-jupiter:$testContainersVersion")
@@ -78,7 +81,7 @@ jib {
   }
   to {
     image = "vertx-backend/public-api"
-    tags = setOf("v1.1.2", "latest")
+    tags = setOf("v1.1.3", "latest")
   }
   container {
     mainClass = mainVerticleName
