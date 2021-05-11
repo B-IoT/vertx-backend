@@ -38,6 +38,7 @@ import strikt.api.expect
 import strikt.api.expectThat
 import strikt.assertions.*
 import java.io.File
+import java.time.LocalDate
 
 @ExtendWith(VertxExtension::class)
 @Testcontainers
@@ -49,13 +50,35 @@ class TestCRUDVerticleItems {
   private val existingItem = jsonObjectOf(
     "beacon" to "ab:ab:ab:ab:ab:ab",
     "category" to "ECG",
-    "service" to "Bloc 2"
+    "service" to "Bloc 2",
+    "itemID" to "abc",
+    "brand" to "ferrari",
+    "model" to "GT",
+    "supplier" to "sup",
+    "purchaseDate" to LocalDate.of(2021, 7, 8).toString(),
+    "purchasePrice" to 42.3,
+    "originLocation" to "center1",
+    "currentLocation" to "center2",
+    "room" to "616",
+    "contact" to "Monsieur Poirot",
+    "owner" to "Monsieur Dupont"
   )
 
   private val closestItem = jsonObjectOf(
     "beacon" to "ff:ff:ab:ab:ab:ab",
     "category" to "Lit",
-    "service" to "Bloc 1"
+    "service" to "Bloc 1",
+    "itemID" to "cde",
+    "brand" to "mazda",
+    "model" to "mx5",
+    "supplier" to "plier",
+    "purchaseDate" to LocalDate.of(2021, 8, 20).toString(),
+    "purchasePrice" to 57.8,
+    "originLocation" to "center3",
+    "currentLocation" to "center4",
+    "room" to "614",
+    "contact" to "Monsieur Delacroix",
+    "owner" to "Monsieur Monet"
   )
 
   private val existingBeaconData = jsonObjectOf(
@@ -70,7 +93,18 @@ class TestCRUDVerticleItems {
   private val updateItemJson = jsonObjectOf(
     "beacon" to "ad:ab:ab:ab:ab:ab",
     "category" to "Lit",
-    "service" to "Bloc 42"
+    "service" to "Bloc 42",
+    "itemID" to "new",
+    "brand" to "fiat",
+    "model" to "panda",
+    "supplier" to "rossi",
+    "purchaseDate" to LocalDate.of(2020, 11, 24).toString(),
+    "purchasePrice" to 1007.8,
+    "originLocation" to "center5",
+    "currentLocation" to "center6",
+    "room" to "17",
+    "contact" to "Jimmy",
+    "owner" to "Bob"
   )
 
   @BeforeEach
@@ -520,6 +554,17 @@ class TestCRUDVerticleItems {
       put("latitude", existingBeaconData.getDouble("latitude"))
       put("longitude", existingBeaconData.getDouble("longitude"))
       put("floor", existingBeaconData.getInteger("floor"))
+      put("itemID", existingBeaconData.getString("itemID"))
+      put("brand", existingBeaconData.getString("brand"))
+      put("model", existingBeaconData.getString("model"))
+      put("supplier", existingBeaconData.getString("supplier"))
+      put("purchaseDate", existingBeaconData.getString("purchaseDate"))
+      put("purchasePrice", existingBeaconData.getDouble("purchasePrice"))
+      put("originLocation", existingBeaconData.getString("originLocation"))
+      put("currentLocation", existingBeaconData.getString("currentLocation"))
+      put("room", existingBeaconData.getString("room"))
+      put("contact", existingBeaconData.getString("contact"))
+      put("owner", existingBeaconData.getString("owner"))
     }
 
     val response = Buffer.buffer(
@@ -574,6 +619,17 @@ class TestCRUDVerticleItems {
           that(json.getString("beacon")).isEqualTo(updateItemJson.getString("beacon"))
           that(json.getString("category")).isEqualTo(updateItemJson.getString("category"))
           that(json.getString("service")).isEqualTo(updateItemJson.getString("service"))
+          that(json.getString("itemID")).isEqualTo(existingBeaconData.getString("itemID"))
+          that(json.getString("brand")).isEqualTo(existingBeaconData.getString("brand"))
+          that(json.getString("model")).isEqualTo(existingBeaconData.getString("model"))
+          that(json.getString("supplier")).isEqualTo(existingBeaconData.getString("supplier"))
+          that(json.getString("purchaseDate")).isEqualTo(existingBeaconData.getString("purchaseDate"))
+          that(json.getDouble("purchasePrice")).isEqualTo(existingBeaconData.getDouble("purchasePrice"))
+          that(json.getString("originLocation")).isEqualTo(existingBeaconData.getString("originLocation"))
+          that(json.getString("currentLocation")).isEqualTo(existingBeaconData.getString("currentLocation"))
+          that(json.getString("room")).isEqualTo(existingBeaconData.getString("room"))
+          that(json.getString("contact")).isEqualTo(existingBeaconData.getString("contact"))
+          that(json.getString("owner")).isEqualTo(existingBeaconData.getString("owner"))
           that(json.getInteger("battery")).isEqualTo(existingBeaconData.getInteger("battery"))
           that(json.getString("status")).isEqualTo(existingBeaconData.getString("status"))
           that(json.getDouble("latitude")).isEqualTo(existingBeaconData.getDouble("latitude"))

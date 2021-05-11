@@ -77,7 +77,7 @@ internal fun JsonObject.cleanLastModified() {
  * @param mongoAuth the [MongoAuthentication] object used to hash the string
  * @return the salted and hashed string
  */
-internal fun String.saltAndHash(mongoAuth: MongoAuthentication): String {
+fun String.saltAndHash(mongoAuth: MongoAuthentication): String {
   val salt = ByteArray(16)
   SecureRandom().nextBytes(salt)
   return mongoAuth.hash("pbkdf2", String(Base64.getEncoder().encode(salt)), this)
@@ -91,14 +91,14 @@ internal fun Row.toItemJson(): JsonObject = jsonObjectOf(
   "beacon" to getString("beacon"),
   "category" to getString("category"),
   "service" to getString("service"),
-  "itemID" to getString("itemID"),
+  "itemID" to getString("itemid"),
   "brand" to getString("brand"),
   "model" to getString("model"),
   "supplier" to getString("supplier"),
-  "purchaseDate" to getLocalDate("purchaseDate"),
-  "purchasePrice" to getDouble("purchasePrice"),
-  "originLocation" to getString("originLocation"),
-  "currentLocation" to getString("currentLocation"),
+  "purchaseDate" to getLocalDate("purchasedate"),
+  "purchasePrice" to getDouble("purchaseprice"),
+  "originLocation" to getString("originlocation"),
+  "currentLocation" to getString("currentlocation"),
   "room" to getString("room"),
   "contact" to getString("contact"),
   "owner" to getString("owner"),

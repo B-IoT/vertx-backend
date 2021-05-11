@@ -16,6 +16,7 @@ import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.openapi.Operation
 import io.vertx.ext.web.openapi.RouterBuilder
 import io.vertx.kotlin.core.eventbus.eventBusOptionsOf
+import io.vertx.kotlin.core.http.httpServerOptionsOf
 import io.vertx.kotlin.core.json.get
 import io.vertx.kotlin.core.json.json
 import io.vertx.kotlin.core.json.jsonObjectOf
@@ -55,12 +56,14 @@ class CRUDVerticle : CoroutineVerticle() {
     internal const val INTERNAL_SERVER_ERROR_CODE = 500
     private const val UNAUTHORIZED_CODE = 401
 
-    internal val HTTP_PORT = System.getenv().getOrDefault("HTTP_PORT", "8080").toInt()
+    private const val SERVER_COMPRESSION_LEVEL = 4
 
-    internal val MONGO_PORT = System.getenv().getOrDefault("MONGO_PORT", "27017").toInt()
+    val HTTP_PORT = System.getenv().getOrDefault("HTTP_PORT", "8080").toInt()
+
+    val MONGO_PORT = System.getenv().getOrDefault("MONGO_PORT", "27017").toInt()
     private val MONGO_HOST: String = System.getenv().getOrDefault("MONGO_HOST", "localhost")
 
-    internal val TIMESCALE_PORT = System.getenv().getOrDefault("TIMESCALE_PORT", "5432").toInt()
+    val TIMESCALE_PORT = System.getenv().getOrDefault("TIMESCALE_PORT", "5432").toInt()
     private val TIMESCALE_HOST: String = System.getenv().getOrDefault("TIMESCALE_HOST", "localhost")
 
     internal val LOGGER = LoggerFactory.getLogger(CRUDVerticle::class.java)
@@ -172,7 +175,14 @@ class CRUDVerticle : CoroutineVerticle() {
       router.get("/health/ready").handler(::readinessCheckHandler)
 
       try {
-        vertx.createHttpServer().requestHandler(router)
+        vertx.createHttpServer(
+          httpServerOptionsOf(
+            compressionSupported = true,
+            compressionLevel = SERVER_COMPRESSION_LEVEL,
+            decompressionSupported = true
+          )
+        )
+          .requestHandler(router)
           .listen(HTTP_PORT)
           .await()
         LOGGER.info("HTTP server listening on port $HTTP_PORT")
