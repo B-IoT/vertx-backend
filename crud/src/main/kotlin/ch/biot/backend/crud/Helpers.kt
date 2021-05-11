@@ -91,13 +91,23 @@ internal fun Row.toItemJson(): JsonObject = jsonObjectOf(
   "beacon" to getString("beacon"),
   "category" to getString("category"),
   "service" to getString("service"),
+  "itemID" to getString("itemID"),
+  "brand" to getString("brand"),
+  "model" to getString("model"),
+  "supplier" to getString("supplier"),
+  "purchaseDate" to getLocalDate("purchaseDate"),
+  "purchasePrice" to getDouble("purchasePrice"),
+  "originLocation" to getString("originLocation"),
+  "currentLocation" to getString("currentLocation"),
+  "room" to getString("room"),
+  "contact" to getString("contact"),
+  "owner" to getString("owner"),
   "timestamp" to getOffsetDateTime("time")?.toString(),
   "battery" to getInteger("battery"),
   "status" to getString("status"),
   "latitude" to getDouble("latitude"),
   "longitude" to getDouble("longitude"),
   "floor" to getInteger("floor")
-// TODO extract new information
 )
 
 /**

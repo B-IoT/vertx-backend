@@ -4,6 +4,7 @@
 
 package ch.biot.backend.crud
 
+import ch.biot.backend.crud.queries.insertItem
 import io.restassured.builder.RequestSpecBuilder
 import io.restassured.filter.log.RequestLoggingFilter
 import io.restassured.filter.log.ResponseLoggingFilter

@@ -17,7 +17,18 @@ CREATE TABLE IF NOT EXISTS items
     id SERIAL PRIMARY KEY,
     beacon VARCHAR(17) NOT NULL UNIQUE,
     category VARCHAR(100) NOT NULL,
-    service VARCHAR(100)
+    service VARCHAR(100),
+    itemID VARCHAR(50),
+    brand VARCHAR(100),
+    model VARCHAR(100),
+    supplier VARCHAR(100),
+    purchaseDate DATE,
+    purchasePrice MONEY,
+    originLocation VARCHAR(100),
+    currentLocation VARCHAR(100),
+    room VARCHAR(100),
+    contact VARCHAR(100),
+    owner VARCHAR(100)
 );
 
 CREATE TABLE IF NOT EXISTS beacon_data

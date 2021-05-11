@@ -7,6 +7,8 @@ package ch.biot.backend.crud
 import ch.biot.backend.crud.CRUDVerticle.Companion.HTTP_PORT
 import ch.biot.backend.crud.CRUDVerticle.Companion.MONGO_PORT
 import ch.biot.backend.crud.CRUDVerticle.Companion.TIMESCALE_PORT
+import ch.biot.backend.crud.queries.getItem
+import ch.biot.backend.crud.queries.insertItem
 import io.restassured.builder.RequestSpecBuilder
 import io.restassured.filter.log.RequestLoggingFilter
 import io.restassured.filter.log.ResponseLoggingFilter
