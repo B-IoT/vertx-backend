@@ -4,6 +4,7 @@
 
 package ch.biot.backend.crud
 
+import ch.biot.backend.crud.queries.*
 import io.vertx.core.Vertx
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
@@ -15,6 +16,7 @@ import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.openapi.Operation
 import io.vertx.ext.web.openapi.RouterBuilder
 import io.vertx.kotlin.core.eventbus.eventBusOptionsOf
+import io.vertx.kotlin.core.http.httpServerOptionsOf
 import io.vertx.kotlin.core.json.get
 import io.vertx.kotlin.core.json.json
 import io.vertx.kotlin.core.json.jsonObjectOf
@@ -36,6 +38,7 @@ import io.vertx.sqlclient.Tuple
 import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
 import java.net.InetAddress
+import java.time.LocalDate
 
 class CRUDVerticle : CoroutineVerticle() {
 
@@ -54,12 +57,14 @@ class CRUDVerticle : CoroutineVerticle() {
     internal const val INTERNAL_SERVER_ERROR_CODE = 500
     private const val UNAUTHORIZED_CODE = 401
 
-    internal val HTTP_PORT = System.getenv().getOrDefault("HTTP_PORT", "8080").toInt()
+    private const val SERVER_COMPRESSION_LEVEL = 4
 
-    internal val MONGO_PORT = System.getenv().getOrDefault("MONGO_PORT", "27017").toInt()
+    val HTTP_PORT = System.getenv().getOrDefault("HTTP_PORT", "8080").toInt()
+
+    val MONGO_PORT = System.getenv().getOrDefault("MONGO_PORT", "27017").toInt()
     private val MONGO_HOST: String = System.getenv().getOrDefault("MONGO_HOST", "localhost")
 
-    internal val TIMESCALE_PORT = System.getenv().getOrDefault("TIMESCALE_PORT", "5432").toInt()
+    val TIMESCALE_PORT = System.getenv().getOrDefault("TIMESCALE_PORT", "5432").toInt()
     private val TIMESCALE_HOST: String = System.getenv().getOrDefault("TIMESCALE_HOST", "localhost")
 
     internal val LOGGER = LoggerFactory.getLogger(CRUDVerticle::class.java)
@@ -171,7 +176,14 @@ class CRUDVerticle : CoroutineVerticle() {
       router.get("/health/ready").handler(::readinessCheckHandler)
 
       try {
-        vertx.createHttpServer().requestHandler(router)
+        vertx.createHttpServer(
+          httpServerOptionsOf(
+            compressionSupported = true,
+            compressionLevel = SERVER_COMPRESSION_LEVEL,
+            decompressionSupported = true
+          )
+        )
+          .requestHandler(router)
           .listen(HTTP_PORT)
           .await()
         LOGGER.info("HTTP server listening on port $HTTP_PORT")
@@ -515,14 +527,12 @@ class CRUDVerticle : CoroutineVerticle() {
     json.validateAndThen(ctx) {
       // Extract the information from the payload and insert the item in TimescaleDB
       val id: Int? = json["id"]
-      val beacon: String = json["beacon"]
-      val category: String = json["category"]
-      val service: String = json["service"]
+      val info = extractItemInformation(json)
       val table = ctx.getCollection(ITEMS_TABLE)
 
       val executedQuery =
-        if (id != null) pgPool.preparedQuery(insertItem(table, true)).execute(Tuple.of(id, beacon, category, service))
-        else pgPool.preparedQuery(insertItem(table, false)).execute(Tuple.of(beacon, category, service))
+        if (id != null) pgPool.preparedQuery(insertItem(table, true)).execute(Tuple.of(id, *info.toTypedArray()))
+        else pgPool.preparedQuery(insertItem(table, false)).execute(Tuple.tuple(info))
 
       executeWithErrorHandling("Could not register item", ctx) {
         val queryResult = executedQuery.await()
@@ -631,20 +641,17 @@ class CRUDVerticle : CoroutineVerticle() {
    * Handles an updateItem request.
    */
   private suspend fun updateItemHandler(ctx: RoutingContext) {
-    val itemID = ctx.pathParam("id")
-    LOGGER.info("New updateItem request for item $itemID")
+    val id = ctx.pathParam("id")
+    LOGGER.info("New updateItem request for item $id")
 
     val json = ctx.bodyAsJson
     json.validateAndThen(ctx) {
       // Extract the information from the payload and update the item in TimescaleDB
-      val beacon: String = json["beacon"]
-      val category: String = json["category"]
-      val service: String = json["service"]
-
+      val info = listOf(id.toInt(), *extractItemInformation(json).toTypedArray())
       val table = ctx.getCollection(ITEMS_TABLE)
-      executeWithErrorHandling("Could not update item $itemID", ctx) {
-        pgPool.preparedQuery(updateItem(table)).execute(Tuple.of(beacon, category, service, itemID.toInt())).await()
-        LOGGER.info("Successfully updated item $itemID")
+      executeWithErrorHandling("Could not update item $id", ctx) {
+        pgPool.preparedQuery(updateItem(table)).execute(Tuple.tuple(info)).await()
+        LOGGER.info("Successfully updated item $id")
         ctx.end()
       }
     }
@@ -694,4 +701,41 @@ class CRUDVerticle : CoroutineVerticle() {
         }
       }
     }
+
+  /**
+   * Extracts the relevant item information from a given json.
+   */
+  private fun extractItemInformation(json: JsonObject): List<Any?> {
+    val beacon: String = json["beacon"]
+    val category: String = json["category"]
+    val service: String? = json["service"]
+    val itemID: String? = json["itemID"]
+    val brand: String? = json["brand"]
+    val model: String? = json["model"]
+    val supplier: String? = json["supplier"]
+    val purchaseDate: String? = json["purchaseDate"]
+    val purchasePrice: Double? = json["purchasePrice"]
+    val originLocation: String? = json["originLocation"]
+    val currentLocation: String? = json["currentLocation"]
+    val room: String? = json["room"]
+    val contact: String? = json["contact"]
+    val owner: String? = json["owner"]
+
+    return listOf(
+      beacon,
+      category,
+      service,
+      itemID,
+      brand,
+      model,
+      supplier,
+      purchaseDate?.let(LocalDate::parse),
+      purchasePrice,
+      originLocation,
+      currentLocation,
+      room,
+      contact,
+      owner
+    )
+  }
 }

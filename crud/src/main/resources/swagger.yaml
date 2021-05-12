@@ -2,9 +2,9 @@ openapi: 3.0.0
 info:
   title: Vert.x API
   description: BIoT Vert.x API
-  version: "2.1"
+  version: "2.2"
 servers:
-- url: https://virtserver.swaggerhub.com/b-iot/Vert.x/2.1
+- url: https://virtserver.swaggerhub.com/b-iot/Vert.x/2.2
   description: SwaggerHub API Auto Mocking
 paths:
   /relays:
@@ -561,6 +561,31 @@ components:
           type: string
         service:
           type: string
+        itemID:
+          type: string
+        brand:
+          type: string
+        model:
+          type: string
+        supplier:
+          type: string
+        purchaseDate:
+          type: string
+          format: date
+        purchasePrice:
+          minimum: 0
+          type: number
+          format: double
+        originLocation:
+          type: string
+        currentLocation:
+          type: string
+        room:
+          type: string
+        contact:
+          type: string
+        owner:
+          type: string
         timestamp:
           type: string
           format: date-time
@@ -593,6 +618,31 @@ components:
           type: string
         service:
           type: string
+        itemID:
+          type: string
+        brand:
+          type: string
+        model:
+          type: string
+        supplier:
+          type: string
+        purchaseDate:
+          type: string
+          format: date
+        purchasePrice:
+          minimum: 0
+          type: number
+          format: double
+        originLocation:
+          type: string
+        currentLocation:
+          type: string
+        room:
+          type: string
+        contact:
+          type: string
+        owner:
+          type: string
       description: An item to register
     ItemUpdateInfo:
       type: object
@@ -602,6 +652,31 @@ components:
         category:
           type: string
         service:
+          type: string
+        itemID:
+          type: string
+        brand:
+          type: string
+        model:
+          type: string
+        supplier:
+          type: string
+        purchaseDate:
+          type: string
+          format: date
+        purchasePrice:
+          minimum: 0
+          type: number
+          format: double
+        originLocation:
+          type: string
+        currentLocation:
+          type: string
+        room:
+          type: string
+        contact:
+          type: string
+        owner:
           type: string
       description: Update information for an item
     Status:
