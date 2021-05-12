@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS items
     model VARCHAR(100),
     supplier VARCHAR(100),
     purchaseDate DATE,
-    purchasePrice MONEY,
+    purchasePrice DECIMAL(15, 6),
     originLocation VARCHAR(100),
     currentLocation VARCHAR(100),
     room VARCHAR(100),

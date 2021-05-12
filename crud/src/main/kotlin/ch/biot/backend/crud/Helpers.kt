@@ -86,7 +86,7 @@ fun String.saltAndHash(mongoAuth: MongoAuthentication): String {
 /**
  * Converts the row to a JSON representation corresponding to an item.
  */
-internal fun Row.toItemJson(): JsonObject = jsonObjectOf(
+fun Row.toItemJson(): JsonObject = jsonObjectOf(
   "id" to getInteger("id"),
   "beacon" to getString("beacon"),
   "category" to getString("category"),
@@ -95,7 +95,7 @@ internal fun Row.toItemJson(): JsonObject = jsonObjectOf(
   "brand" to getString("brand"),
   "model" to getString("model"),
   "supplier" to getString("supplier"),
-  "purchaseDate" to getLocalDate("purchasedate"),
+  "purchaseDate" to getLocalDate("purchasedate").toString(),
   "purchasePrice" to getDouble("purchaseprice"),
   "originLocation" to getString("originlocation"),
   "currentLocation" to getString("currentlocation"),
