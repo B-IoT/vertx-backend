@@ -15,8 +15,8 @@ CREATE EXTENSION IF NOT EXISTS postgis;
 CREATE TABLE IF NOT EXISTS items
 (
     id SERIAL PRIMARY KEY,
-    beacon VARCHAR(17) NOT NULL UNIQUE,
-    category VARCHAR(100) NOT NULL,
+    beacon VARCHAR(17) UNIQUE,
+    category VARCHAR(100),
     service VARCHAR(100),
     itemID VARCHAR(50),
     brand VARCHAR(100),
