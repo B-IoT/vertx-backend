@@ -33,6 +33,7 @@ import strikt.api.expectThat
 import strikt.assertions.isEqualTo
 import strikt.assertions.isTrue
 import java.io.File
+import java.time.LocalDate
 
 @ExtendWith(VertxExtension::class)
 @Testcontainers
@@ -43,7 +44,18 @@ class TestCRUDVerticleAnalytics {
   private val existingItemOne = jsonObjectOf(
     "beacon" to "ab:ab:ab:ab:ab:ab",
     "category" to "ECG",
-    "service" to "Bloc 1"
+    "service" to "Bloc 1",
+    "itemID" to "abc",
+    "brand" to "ferrari",
+    "model" to "GT",
+    "supplier" to "sup",
+    "purchaseDate" to LocalDate.of(2021, 7, 8).toString(),
+    "purchasePrice" to 42.3,
+    "originLocation" to "center1",
+    "currentLocation" to "center2",
+    "room" to "616",
+    "contact" to "Monsieur Poirot",
+    "owner" to "Monsieur Dupont"
   )
   private val existingBeaconDataOne = jsonObjectOf(
     "mac" to existingItemOne.getString("beacon"),
@@ -57,7 +69,18 @@ class TestCRUDVerticleAnalytics {
   private val existingItemTwo = jsonObjectOf(
     "beacon" to "bb:ab:ab:ab:ab:ab",
     "category" to "ECG",
-    "service" to "Bloc 1"
+    "service" to "Bloc 1",
+    "itemID" to "abc",
+    "brand" to "ferrari",
+    "model" to "GT",
+    "supplier" to "sup",
+    "purchaseDate" to LocalDate.of(2021, 7, 8).toString(),
+    "purchasePrice" to 42.3,
+    "originLocation" to "center1",
+    "currentLocation" to "center2",
+    "room" to "616",
+    "contact" to "Monsieur Poirot",
+    "owner" to "Monsieur Dupont"
   )
   private val existingBeaconDataTwo = jsonObjectOf(
     "mac" to existingItemTwo.getString("beacon"),
@@ -71,7 +94,18 @@ class TestCRUDVerticleAnalytics {
   private val existingItemThree = jsonObjectOf(
     "beacon" to "cb:ab:ab:ab:ab:ab",
     "category" to "ECG",
-    "service" to "Bloc 2"
+    "service" to "Bloc 2",
+    "itemID" to "abc",
+    "brand" to "ferrari",
+    "model" to "GT",
+    "supplier" to "sup",
+    "purchaseDate" to LocalDate.of(2021, 7, 8).toString(),
+    "purchasePrice" to 42.3,
+    "originLocation" to "center1",
+    "currentLocation" to "center2",
+    "room" to "616",
+    "contact" to "Monsieur Poirot",
+    "owner" to "Monsieur Dupont"
   )
   private val existingBeaconDataThree = jsonObjectOf(
     "mac" to existingItemThree.getString("beacon"),
@@ -109,13 +143,64 @@ class TestCRUDVerticleAnalytics {
     }
 
   private fun insertItems() = pgPool.preparedQuery(insertItem("items"))
-    .execute(Tuple.of(existingItemOne["beacon"], existingItemOne["category"], existingItemOne["service"]))
+    .execute(
+      Tuple.of(
+        existingItemOne["beacon"],
+        existingItemOne["category"],
+        existingItemOne["service"],
+        existingItemOne["itemID"],
+        existingItemOne["brand"],
+        existingItemOne["model"],
+        existingItemOne["supplier"],
+        LocalDate.parse(existingItemOne["purchaseDate"]),
+        existingItemOne["purchasePrice"],
+        existingItemOne["originLocation"],
+        existingItemOne["currentLocation"],
+        existingItemOne["room"],
+        existingItemOne["contact"],
+        existingItemOne["owner"]
+      )
+    )
     .compose {
       pgPool.preparedQuery(insertItem("items"))
-        .execute(Tuple.of(existingItemTwo["beacon"], existingItemTwo["category"], existingItemTwo["service"]))
+        .execute(
+          Tuple.of(
+            existingItemTwo["beacon"],
+            existingItemTwo["category"],
+            existingItemTwo["service"],
+            existingItemTwo["itemID"],
+            existingItemTwo["brand"],
+            existingItemTwo["model"],
+            existingItemTwo["supplier"],
+            LocalDate.parse(existingItemTwo["purchaseDate"]),
+            existingItemTwo["purchasePrice"],
+            existingItemTwo["originLocation"],
+            existingItemTwo["currentLocation"],
+            existingItemTwo["room"],
+            existingItemTwo["contact"],
+            existingItemTwo["owner"]
+          )
+        )
     }.compose {
       pgPool.preparedQuery(insertItem("items"))
-        .execute(Tuple.of(existingItemThree["beacon"], existingItemThree["category"], existingItemThree["service"]))
+        .execute(
+          Tuple.of(
+            existingItemThree["beacon"],
+            existingItemThree["category"],
+            existingItemThree["service"],
+            existingItemThree["itemID"],
+            existingItemThree["brand"],
+            existingItemThree["model"],
+            existingItemThree["supplier"],
+            LocalDate.parse(existingItemThree["purchaseDate"]),
+            existingItemThree["purchasePrice"],
+            existingItemThree["originLocation"],
+            existingItemThree["currentLocation"],
+            existingItemThree["room"],
+            existingItemThree["contact"],
+            existingItemThree["owner"]
+          )
+        )
     }.compose {
       pgPool.preparedQuery(INSERT_BEACON_DATA).execute(
         Tuple.of(
