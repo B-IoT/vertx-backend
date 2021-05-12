@@ -95,7 +95,7 @@ fun Row.toItemJson(): JsonObject = jsonObjectOf(
   "brand" to getString("brand"),
   "model" to getString("model"),
   "supplier" to getString("supplier"),
-  "purchaseDate" to getLocalDate("purchasedate").toString(),
+  "purchaseDate" to getLocalDate("purchasedate")?.toString(),
   "purchasePrice" to getDouble("purchaseprice"),
   "originLocation" to getString("originlocation"),
   "currentLocation" to getString("currentlocation"),
