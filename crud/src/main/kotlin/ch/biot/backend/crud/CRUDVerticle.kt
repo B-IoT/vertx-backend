@@ -15,6 +15,10 @@ import io.vertx.ext.web.Router
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.openapi.Operation
 import io.vertx.ext.web.openapi.RouterBuilder
+import io.vertx.ext.web.validation.BadRequestException
+import io.vertx.ext.web.validation.BodyProcessorException
+import io.vertx.ext.web.validation.ParameterProcessorException
+import io.vertx.ext.web.validation.RequestPredicateException
 import io.vertx.kotlin.core.eventbus.eventBusOptionsOf
 import io.vertx.kotlin.core.http.httpServerOptionsOf
 import io.vertx.kotlin.core.json.get
@@ -38,7 +42,7 @@ import io.vertx.sqlclient.Tuple
 import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
 import java.net.InetAddress
-import java.time.LocalDate
+
 
 class CRUDVerticle : CoroutineVerticle() {
 
@@ -56,6 +60,7 @@ class CRUDVerticle : CoroutineVerticle() {
 
     internal const val INTERNAL_SERVER_ERROR_CODE = 500
     private const val UNAUTHORIZED_CODE = 401
+    const val BAD_REQUEST_CODE = 400
 
     private const val SERVER_COMPRESSION_LEVEL = 4
 
@@ -170,8 +175,9 @@ class CRUDVerticle : CoroutineVerticle() {
       // Analytics
       routerBuilder.operation("analyticsGetStatus").coroutineHandler(::analyticsGetStatusHandler)
 
-      // Health checks
+      // Health checks and error handling
       val router: Router = routerBuilder.createRouter()
+      router.errorHandler(BAD_REQUEST_CODE, ::badRequestErrorHandler)
       router.get("/health/live").handler(::livenessCheckHandler)
       router.get("/health/ready").handler(::readinessCheckHandler)
 
@@ -193,6 +199,38 @@ class CRUDVerticle : CoroutineVerticle() {
     } catch (error: Throwable) {
       // Something went wrong during router builder initialization
       LOGGER.error("Could not initialize router builder", error)
+    }
+  }
+
+  /**
+   * Handles a bad request error.
+   */
+  private fun badRequestErrorHandler(ctx: RoutingContext) {
+    val statusCode: Int = ctx.statusCode()
+    val response = ctx.response()
+
+    val failure = ctx.failure()
+    if (failure is BadRequestException) {
+      when (failure) {
+        is ParameterProcessorException -> {
+          // Something went wrong while parsing/validating a parameter
+          val errorMessage = "Something went wrong while parsing/validating a parameter."
+          LOGGER.error(errorMessage, failure)
+          response.setStatusCode(statusCode).end(errorMessage)
+        }
+        is BodyProcessorException -> {
+          // Something went wrong while parsing/validating the body
+          val errorMessage = "Something went while parsing/validating the body."
+          LOGGER.error(errorMessage, failure)
+          response.setStatusCode(statusCode).end(errorMessage)
+        }
+        is RequestPredicateException -> {
+          // A request predicate is unsatisfied
+          val errorMessage = "A request predicate is unsatisfied."
+          LOGGER.error(errorMessage, failure)
+          response.setStatusCode(statusCode).end(errorMessage)
+        }
+      }
     }
   }
 
@@ -701,41 +739,4 @@ class CRUDVerticle : CoroutineVerticle() {
         }
       }
     }
-
-  /**
-   * Extracts the relevant item information from a given json.
-   */
-  private fun extractItemInformation(json: JsonObject): List<Any?> {
-    val beacon: String = json["beacon"]
-    val category: String = json["category"]
-    val service: String? = json["service"]
-    val itemID: String? = json["itemID"]
-    val brand: String? = json["brand"]
-    val model: String? = json["model"]
-    val supplier: String? = json["supplier"]
-    val purchaseDate: String? = json["purchaseDate"]
-    val purchasePrice: Double? = json["purchasePrice"]
-    val originLocation: String? = json["originLocation"]
-    val currentLocation: String? = json["currentLocation"]
-    val room: String? = json["room"]
-    val contact: String? = json["contact"]
-    val owner: String? = json["owner"]
-
-    return listOf(
-      beacon,
-      category,
-      service,
-      itemID,
-      brand,
-      model,
-      supplier,
-      purchaseDate?.let(LocalDate::parse),
-      purchasePrice,
-      originLocation,
-      currentLocation,
-      room,
-      contact,
-      owner
-    )
-  }
 }
