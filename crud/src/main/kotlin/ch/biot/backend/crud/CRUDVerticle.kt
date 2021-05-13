@@ -60,7 +60,7 @@ class CRUDVerticle : CoroutineVerticle() {
 
     internal const val INTERNAL_SERVER_ERROR_CODE = 500
     private const val UNAUTHORIZED_CODE = 401
-    internal const val BAD_REQUEST_CODE = 400
+    const val BAD_REQUEST_CODE = 400
 
     private const val SERVER_COMPRESSION_LEVEL = 4
 
