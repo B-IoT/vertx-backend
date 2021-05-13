@@ -4,6 +4,7 @@
 
 package ch.biot.backend.crud
 
+import ch.biot.backend.crud.CRUDVerticle.Companion.BAD_REQUEST_CODE
 import ch.biot.backend.crud.CRUDVerticle.Companion.INTERNAL_SERVER_ERROR_CODE
 import ch.biot.backend.crud.CRUDVerticle.Companion.LOGGER
 import io.vertx.core.json.JsonObject
@@ -13,6 +14,7 @@ import io.vertx.kotlin.core.json.get
 import io.vertx.kotlin.core.json.jsonObjectOf
 import io.vertx.sqlclient.Row
 import java.security.SecureRandom
+import java.time.LocalDate
 import java.util.*
 
 /**
@@ -26,15 +28,15 @@ internal suspend fun JsonObject?.validateAndThen(ctx: RoutingContext, block: sus
   when {
     this == null -> {
       LOGGER.warn("Bad request with null body")
-      ctx.fail(400)
+      ctx.fail(BAD_REQUEST_CODE)
     }
     this.isEmpty -> {
       LOGGER.warn("Bad request with empty body")
-      ctx.fail(400)
+      ctx.fail(BAD_REQUEST_CODE)
     }
     this.containsKey("company") && !this.getString("company").matches("^[a-zA-Z]+$".toRegex()) -> {
       LOGGER.warn("Bad request with wrongly formatted company")
-      ctx.fail(400)
+      ctx.fail(BAD_REQUEST_CODE)
     }
     else -> block(this)
   }
@@ -109,6 +111,43 @@ fun Row.toItemJson(): JsonObject = jsonObjectOf(
   "longitude" to getDouble("longitude"),
   "floor" to getInteger("floor")
 )
+
+/**
+ * Extracts the relevant item information from a given json.
+ */
+internal fun extractItemInformation(json: JsonObject): List<Any?> {
+  val beacon: String = json["beacon"]
+  val category: String = json["category"]
+  val service: String? = json["service"]
+  val itemID: String? = json["itemID"]
+  val brand: String? = json["brand"]
+  val model: String? = json["model"]
+  val supplier: String? = json["supplier"]
+  val purchaseDate: String? = json["purchaseDate"]
+  val purchasePrice: Double? = json.getDouble("purchasePrice")
+  val originLocation: String? = json["originLocation"]
+  val currentLocation: String? = json["currentLocation"]
+  val room: String? = json["room"]
+  val contact: String? = json["contact"]
+  val owner: String? = json["owner"]
+
+  return listOf(
+    beacon,
+    category,
+    service,
+    itemID,
+    brand,
+    model,
+    supplier,
+    purchaseDate?.let(LocalDate::parse),
+    purchasePrice,
+    originLocation,
+    currentLocation,
+    room,
+    contact,
+    owner
+  )
+}
 
 /**
  * Returns the right collection (or table) to use based on the user's company and baseCollectionName provided.
