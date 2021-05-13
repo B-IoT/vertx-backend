@@ -575,7 +575,6 @@ components:
         purchasePrice:
           minimum: 0
           type: number
-          format: double
         originLocation:
           type: string
         currentLocation:
@@ -632,7 +631,6 @@ components:
         purchasePrice:
           minimum: 0
           type: number
-          format: double
         originLocation:
           type: string
         currentLocation:
@@ -667,7 +665,6 @@ components:
         purchasePrice:
           minimum: 0
           type: number
-          format: double
         originLocation:
           type: string
         currentLocation:

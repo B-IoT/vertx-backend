@@ -4,6 +4,7 @@
 
 package ch.biot.backend.crud
 
+import ch.biot.backend.crud.CRUDVerticle.Companion.BAD_REQUEST_CODE
 import ch.biot.backend.crud.CRUDVerticle.Companion.HTTP_PORT
 import ch.biot.backend.crud.CRUDVerticle.Companion.MONGO_PORT
 import ch.biot.backend.crud.CRUDVerticle.Companion.TIMESCALE_PORT
@@ -134,49 +135,77 @@ class TestCRUDVerticleItems {
     }
 
   private fun insertItems() = pgPool.preparedQuery(insertItem("items"))
-    .execute(Tuple.of(existingItem["beacon"], existingItem["category"], existingItem["service"],
-      existingItem["itemID"], existingItem["brand"], existingItem["model"], existingItem["supplier"],
-      LocalDate.parse(existingItem["purchaseDate"]), existingItem["purchasePrice"], existingItem["originLocation"],
-      existingItem["currentLocation"], existingItem["room"], existingItem["contact"], existingItem["owner"]))
+    .execute(
+      Tuple.of(
+        existingItem["beacon"], existingItem["category"], existingItem["service"],
+        existingItem["itemID"], existingItem["brand"], existingItem["model"], existingItem["supplier"],
+        LocalDate.parse(existingItem["purchaseDate"]), existingItem["purchasePrice"], existingItem["originLocation"],
+        existingItem["currentLocation"], existingItem["room"], existingItem["contact"], existingItem["owner"]
+      )
+    )
     .compose {
       existingItemID = it.iterator().next().getInteger("id")
       pgPool.preparedQuery(insertItem("items"))
-        .execute(Tuple.of(closestItem["beacon"], closestItem["category"], closestItem["service"],
-          closestItem["itemID"], closestItem["brand"], closestItem["model"], closestItem["supplier"],
-          LocalDate.parse(existingItem["purchaseDate"]), closestItem["purchasePrice"], closestItem["originLocation"],
-          closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["owner"]))
+        .execute(
+          Tuple.of(
+            closestItem["beacon"], closestItem["category"], closestItem["service"],
+            closestItem["itemID"], closestItem["brand"], closestItem["model"], closestItem["supplier"],
+            LocalDate.parse(existingItem["purchaseDate"]), closestItem["purchasePrice"], closestItem["originLocation"],
+            closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["owner"]
+          )
+        )
     }.compose {
       pgPool.preparedQuery(insertItem("items"))
-        .execute(Tuple.of("fake1", closestItem["category"], closestItem["service"],
-          closestItem["itemID"], closestItem["brand"], closestItem["model"], closestItem["supplier"],
-          LocalDate.parse(closestItem["purchaseDate"]), closestItem["purchasePrice"], closestItem["originLocation"],
-          closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["owner"]))
+        .execute(
+          Tuple.of(
+            "fake1", closestItem["category"], closestItem["service"],
+            closestItem["itemID"], closestItem["brand"], closestItem["model"], closestItem["supplier"],
+            LocalDate.parse(closestItem["purchaseDate"]), closestItem["purchasePrice"], closestItem["originLocation"],
+            closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["owner"]
+          )
+        )
     }.compose {
       pgPool.preparedQuery(insertItem("items"))
-        .execute(Tuple.of("fake2", closestItem["category"], closestItem["service"],
-          closestItem["itemID"], closestItem["brand"], closestItem["model"], closestItem["supplier"],
-          LocalDate.parse(closestItem["purchaseDate"]), closestItem["purchasePrice"], closestItem["originLocation"],
-          closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["owner"]))
+        .execute(
+          Tuple.of(
+            "fake2", closestItem["category"], closestItem["service"],
+            closestItem["itemID"], closestItem["brand"], closestItem["model"], closestItem["supplier"],
+            LocalDate.parse(closestItem["purchaseDate"]), closestItem["purchasePrice"], closestItem["originLocation"],
+            closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["owner"]
+          )
+        )
     }.compose {
       pgPool.preparedQuery(insertItem("items"))
-        .execute(Tuple.of("fake3", closestItem["category"], closestItem["service"],
-          closestItem["itemID"], closestItem["brand"], closestItem["model"], closestItem["supplier"],
-          LocalDate.parse(closestItem["purchaseDate"]), closestItem["purchasePrice"], closestItem["originLocation"],
-          closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["owner"]))
+        .execute(
+          Tuple.of(
+            "fake3", closestItem["category"], closestItem["service"],
+            closestItem["itemID"], closestItem["brand"], closestItem["model"], closestItem["supplier"],
+            LocalDate.parse(closestItem["purchaseDate"]), closestItem["purchasePrice"], closestItem["originLocation"],
+            closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["owner"]
+          )
+        )
     }
     .compose {
       pgPool.preparedQuery(insertItem("items"))
-        .execute(Tuple.of("fake4", closestItem["category"], closestItem["service"],
-          closestItem["itemID"], closestItem["brand"], closestItem["model"], closestItem["supplier"],
-          LocalDate.parse(closestItem["purchaseDate"]), closestItem["purchasePrice"], closestItem["originLocation"],
-          closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["owner"]))
+        .execute(
+          Tuple.of(
+            "fake4", closestItem["category"], closestItem["service"],
+            closestItem["itemID"], closestItem["brand"], closestItem["model"], closestItem["supplier"],
+            LocalDate.parse(closestItem["purchaseDate"]), closestItem["purchasePrice"], closestItem["originLocation"],
+            closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["owner"]
+          )
+        )
     }
     .compose {
       pgPool.preparedQuery(insertItem("items"))
-        .execute(Tuple.of("fake5", closestItem["category"], closestItem["service"],
-          closestItem["itemID"], closestItem["brand"], closestItem["model"], closestItem["supplier"],
-          LocalDate.parse(closestItem["purchaseDate"]), closestItem["purchasePrice"], closestItem["originLocation"],
-          closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["owner"]))
+        .execute(
+          Tuple.of(
+            "fake5", closestItem["category"], closestItem["service"],
+            closestItem["itemID"], closestItem["brand"], closestItem["model"], closestItem["supplier"],
+            LocalDate.parse(closestItem["purchaseDate"]), closestItem["purchasePrice"], closestItem["originLocation"],
+            closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["owner"]
+          )
+        )
     }
     .compose {
       pgPool.preparedQuery(INSERT_BEACON_DATA)
@@ -671,6 +700,29 @@ class TestCRUDVerticleItems {
         testContext.completeNow()
       }
       .onFailure(testContext::failNow)
+  }
+
+  @Test
+  @DisplayName("The bad request error handler works on wrong body received")
+  fun badRequestErrorHandlerWorksOnWrongBodyReceived(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      body(jsonObjectOf("category" to 12).encode())
+    } When {
+      queryParam("company", "biot")
+      put("/items/$existingItemID")
+    } Then {
+      statusCode(BAD_REQUEST_CODE)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went while parsing/validating the body.")
+      testContext.completeNow()
+    }
   }
 
   @Test
