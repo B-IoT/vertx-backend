@@ -226,14 +226,14 @@ class TestRelaysCommunicationVerticle {
           "rssi" to -60.0,
           "battery" to 42,
           "temperature" to 25,
-          "state" to 0
+          "status" to 0
         ),
         jsonObjectOf(
           "mac" to "bb:aa:aa:aa:aa:aa",
           "rssi" to -59.0,
           "battery" to 100,
           "temperature" to 20,
-          "state" to 1
+          "status" to 1
         )
       ),
       "latitude" to 2.3,
@@ -272,6 +272,7 @@ class TestRelaysCommunicationVerticle {
               that(json.getDouble("latitude")).isEqualTo(message.getDouble("latitude"))
               that(json.getDouble("longitude")).isEqualTo(message.getDouble("longitude"))
               that(json.getInteger("floor")).isEqualTo(message.getInteger("floor"))
+              that(json.getDouble("temperature")).isEqualTo(message.getDouble("temperature"))
             }
             testContext.completeNow()
           }
@@ -291,14 +292,14 @@ class TestRelaysCommunicationVerticle {
           "rssi" to -60.0,
           "battery" to 42,
           "temperature" to 25,
-          "state" to 0
+          "status" to 0
         ),
         jsonObjectOf(
           "mac" to "bb:aa:aa:aa:aa:aa",
           "rssi" to -59.0,
           "battery" to 100,
           "temperature" to 20,
-          "state" to 1
+          "status" to 1
         )
       ),
       "longitude" to 2.3,
@@ -337,14 +338,14 @@ class TestRelaysCommunicationVerticle {
           "mac" to "aa:aa:aa:aa:aa:aa",
           "rssi" to -60.0,
           "temperature" to 25,
-          "state" to 0
+          "status" to 0
         ),
         jsonObjectOf(
           "mac" to "bb:aa:aa:aa:aa:aa",
           "rssi" to -59.0,
           "battery" to 100,
           "temperature" to 20,
-          "state" to 1
+          "status" to 1
         )
       ),
       "longitude" to 2.3,
@@ -387,14 +388,14 @@ class TestRelaysCommunicationVerticle {
           "rssi" to -60.0,
           "battery" to 42,
           "temperature" to 25,
-          "state" to 0
+          "status" to 0
         ),
         jsonObjectOf(
           "mac" to "bb:aa:aa:aa:aa:aa",
           "rssi" to -59.0,
           "battery" to 100,
           "temperature" to 20,
-          "state" to 1
+          "status" to 1
         )
       ),
       "latitude" to 2.3,
@@ -435,14 +436,14 @@ class TestRelaysCommunicationVerticle {
           "rssi" to -60.0,
           "battery" to 42,
           "temperature" to 25,
-          "state" to 0
+          "status" to 0
         ),
         jsonObjectOf(
           "mac" to "bb:aa:aa:aa:aa:aa",
           "rssi" to -59.0,
           "battery" to 0,
           "temperature" to 20,
-          "state" to 1
+          "status" to 1
         )
       ),
       "latitude" to 2.3,
@@ -489,14 +490,14 @@ class TestRelaysCommunicationVerticle {
           "rssi" to -60.0,
           "battery" to 101,
           "temperature" to 25,
-          "state" to 0
+          "status" to 0
         ),
         jsonObjectOf(
           "mac" to "bb:aa:aa:aa:aa:aa",
           "rssi" to -59.0,
           "battery" to 100,
           "temperature" to 20,
-          "state" to 1
+          "status" to 1
         )
       ),
       "latitude" to 2.3,
@@ -540,14 +541,14 @@ class TestRelaysCommunicationVerticle {
           "rssi" to -60.0,
           "battery" to -10,
           "temperature" to 25,
-          "state" to 0
+          "status" to 0
         ),
         jsonObjectOf(
           "mac" to "bb:aa:aa:aa:aa:aa",
           "rssi" to -59.0,
           "battery" to 100,
           "temperature" to 20,
-          "state" to 1
+          "status" to 1
         )
       ),
       "latitude" to 2.3,
@@ -578,8 +579,8 @@ class TestRelaysCommunicationVerticle {
   }
 
   @Test
-  @DisplayName("An invalid MQTT JSON message is not ingested because a beacon has an invalid state")
-  fun invalidMqttMessageIsNotIngestedInvalidState(testContext: VertxTestContext) {
+  @DisplayName("An invalid MQTT JSON message is not ingested because a beacon has an invalid status")
+  fun invalidMqttMessageIsNotIngestedInvalidStatus(testContext: VertxTestContext) {
     val message = jsonObjectOf(
       "relayID" to "abc",
       "beacons" to jsonArrayOf(
@@ -588,14 +589,14 @@ class TestRelaysCommunicationVerticle {
           "rssi" to -60.0,
           "battery" to -10,
           "temperature" to 25,
-          "state" to -1
+          "status" to -1
         ),
         jsonObjectOf(
           "mac" to "bb:aa:aa:aa:aa:aa",
           "rssi" to -59.0,
           "battery" to 100,
           "temperature" to 20,
-          "state" to 2
+          "status" to 2
         )
       ),
       "latitude" to 2.3,

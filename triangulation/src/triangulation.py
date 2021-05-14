@@ -120,7 +120,7 @@ class Triangulator:
             stmt = await conn.prepare(
                 f"""UPDATE {table_name} SET status = $1 WHERE mac = $2 AND time = (SELECT MAX(time) FROM {table_name} WHERE mac = $2);"""
             )
-            await stmt.execute((status, mac))
+            await stmt.executemany([(status, mac)])
             logger.info(
                 "Updated beacon '{}' status in DB {table_name} to '{}'", mac, status
             )
@@ -301,7 +301,8 @@ class Triangulator:
                         mac,
                         beacon_data["battery"],
                         self.TO_REPAIR
-                        if beacon_data["status"] == self.MOVEMENT_DETECTED_AND_BUTTON_PRESSED
+                        if beacon_data["status"]
+                        == self.MOVEMENT_DETECTED_AND_BUTTON_PRESSED
                         else "available",
                         weighted_latitude,
                         weighted_longitude,

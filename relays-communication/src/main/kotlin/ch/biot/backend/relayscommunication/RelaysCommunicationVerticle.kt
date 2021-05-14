@@ -232,7 +232,7 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
 
       val containsAllKeys = Future.future<Boolean> { promise ->
         val keysToContain = listOf("relayID", "beacons", "latitude", "longitude", "floor")
-        val keysToContainBeacons = listOf("mac", "rssi", "battery", "temperature", "state")
+        val keysToContainBeacons = listOf("mac", "rssi", "battery", "temperature", "status")
         validateWithFuture(promise, "Fields are missing") {
           val areFieldsValid = keysToContain.fold(true) { acc, curr ->
             acc && json.containsKey(curr)
@@ -260,8 +260,8 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
             val beacon = it as JsonObject
             val nonEmptyMac = beacon.getString("mac").isNotEmpty()
             val validBattery = beacon.getInteger("battery") in 0..100
-            val validState = beacon.getInteger("state") in setOf(0, 1, 2)
-            nonEmptyMac && validBattery && validState
+            val validStatus = beacon.getInteger("status") in setOf(0, 1, 2)
+            nonEmptyMac && validBattery && validStatus
           }
         }
       }
