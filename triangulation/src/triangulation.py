@@ -75,6 +75,14 @@ class Triangulator:
     MOVEMENT_DETECTED_AND_BUTTON_PRESSED = 2
 
     TO_REPAIR = "toRepair"
+    AVAILABLE = "available"
+
+    INSERT_QUERY = staticmethod(
+        lambda table: f"""INSERT INTO {table} (time, mac, battery, status, latitude, longitude, floor, temperature) VALUES (NOW(), $1, $2, $3, $4, $5, $6, $7);"""
+    )
+    FETCH_BEACON_QUERY = staticmethod(
+        lambda table: f"""SELECT * from {table} WHERE mac = $1 ORDER BY time DESC LIMIT 1;"""
+    )
 
     @classmethod
     async def create(cls):
@@ -94,36 +102,65 @@ class Triangulator:
 
         return self
 
+    def _get_table_name(self, company: str) -> str:
+        """
+        Gets the beacon_data table name for the given company.
+        """
+        return f"beacon_data_{company}" if company != "biot" else "beacon_data"
+
     async def _store_beacons_data(self, company: str, data: list):
         """
         Stores the beacons' data in TimescaleDB.
         Data must be an array of tuples of the following form: ("aa:aa:aa:aa:aa:aa", 10, "available", 2.3, 3.2, 1, 25).
         """
         async with self.db_pool.acquire() as conn:
-            table_name = (
-                f"beacon_data_{company}" if company != "biot" else "beacon_data"
-            )
-            stmt = await conn.prepare(
-                f"""INSERT INTO {table_name} (time, mac, battery, status, latitude, longitude, floor, temperature) VALUES (NOW(), $1, $2, $3, $4, $5, $6, $7);"""
-            )
+            table_name = self._get_table_name(company)
+            stmt = await conn.prepare(self.INSERT_QUERY(table_name))
             await stmt.executemany(data)
-            logger.info("New beacons' data inserted in DB {table_name}: {}", data)
+            logger.info("New beacons' data inserted in DB '{}': {}", table_name, data)
 
     async def _update_beacon_status(self, company: str, mac: str, status: str):
         """
         Updates the status of the given beacon.
         """
         async with self.db_pool.acquire() as conn:
-            table_name = (
-                f"beacon_data_{company}" if company != "biot" else "beacon_data"
-            )
-            stmt = await conn.prepare(
-                f"""UPDATE {table_name} SET status = $1 WHERE mac = $2 AND time = (SELECT MAX(time) FROM {table_name} WHERE mac = $2);"""
-            )
-            await stmt.executemany([(status, mac)])
-            logger.info(
-                "Updated beacon '{}' status in DB {table_name} to '{}'", mac, status
-            )
+            table_name = self._get_table_name(company)
+
+            fetch_stmt = await conn.prepare(self.FETCH_BEACON_QUERY(table_name))
+            beacon = await fetch_stmt.fetchrow(mac)
+
+            if not beacon:
+                logger.warning(
+                    "Skipping status update for beacon '{}', as it does not exist."
+                )
+                return
+
+            if beacon["status"] != status:
+                new_beacon = (
+                    beacon["mac"],
+                    beacon["battery"],
+                    status,
+                    beacon["latitude"],
+                    beacon["longitude"],
+                    beacon["floor"],
+                    beacon["temperature"],
+                )
+
+                stmt = await conn.prepare(self.INSERT_QUERY(table_name))
+                await stmt.executemany([new_beacon])
+                logger.info(
+                    "Updated beacon '{}' status in DB '{}' to '{}'",
+                    mac,
+                    table_name,
+                    status,
+                )
+            else:
+                logger.warning(
+                    "Skipping status update for beacon '{}', as it has already status '{}' in DB '{}'",
+                    mac,
+                    status,
+                    table_name,
+                )
 
     def _lat_to_meters(self, lat1, lon1, lat2, lon2):
         """
@@ -165,7 +202,7 @@ class Triangulator:
 
         # Filter out empty arrays
         if not beacons:
-            logger.info("No beacon detected, skipping!")
+            logger.warning("No beacon detected, skipping!")
             return
 
         # Filter out empty MAC addresses
@@ -216,7 +253,8 @@ class Triangulator:
             if mac not in self.connectivity_df.index:
                 continue
 
-            if beacon_data["status"] == self.BUTTON_PRESSED:
+            status = beacon_data["status"]
+            if status == self.BUTTON_PRESSED:
                 await self._update_beacon_status(company, mac, self.TO_REPAIR)
                 continue
 
@@ -254,7 +292,7 @@ class Triangulator:
                             - self.relay_df.loc["long", rel_1]
                         )
 
-                        # Calculating the distance between the 2 gateways in meter
+                        # Calculating the distance between the 2 gateways in meters
                         dist = self._lat_to_meters(
                             self.relay_df.loc["lat", rel_1],
                             self.relay_df.loc["long", rel_1],
@@ -296,14 +334,16 @@ class Triangulator:
                     weighted_longitude,
                 ) = self.coordinates_history.weighted_moving_average(mac)
 
+                new_beacon_status = (
+                    self.TO_REPAIR
+                    if status == self.MOVEMENT_DETECTED_AND_BUTTON_PRESSED
+                    else self.AVAILABLE
+                )
                 coordinates.append(
                     (
                         mac,
                         beacon_data["battery"],
-                        self.TO_REPAIR
-                        if beacon_data["status"]
-                        == self.MOVEMENT_DETECTED_AND_BUTTON_PRESSED
-                        else "available",
+                        new_beacon_status,
                         weighted_latitude,
                         weighted_longitude,
                         floor,
@@ -313,11 +353,20 @@ class Triangulator:
 
                 del temp_df
 
-                logger.info("Triangulation done")
+                status_updated_message = (
+                    ""
+                    if status != self.MOVEMENT_DETECTED_AND_BUTTON_PRESSED
+                    else f" and status updated to '{self.TO_REPAIR}'"
+                )
+                logger.info("Triangulation done{}", status_updated_message)
             elif len(temp_df) == 1:
-                logger.info("Beacon '{}' detected by only one relay, skipping!", mac)
+                if status == self.MOVEMENT_DETECTED_AND_BUTTON_PRESSED:
+                    # Even if we didn't triangulate, we still need to update the status
+                    await self._update_beacon_status(company, mac, self.TO_REPAIR)
+
+                logger.warning("Beacon '{}' detected by only one relay, skipping!", mac)
             else:
-                logger.info("Beacon '{}' not detected by any relay, skipping!", mac)
+                logger.warning("Beacon '{}' not detected by any relay, skipping!", mac)
 
         if coordinates:
             await self._store_beacons_data(company, coordinates)
