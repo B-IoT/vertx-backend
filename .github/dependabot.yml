@@ -1,0 +1,20 @@
+version: 2
+updates:
+- package-ecosystem: gradle
+  directory: "/"
+  schedule:
+    interval: daily
+  open-pull-requests-limit: 10
+  ignore:
+  - dependency-name: com.github.johnrengelman.shadow
+    versions:
+    - 7.0.0
+  - dependency-name: jvm
+    versions:
+    - 1.5.0
+  - dependency-name: io.micrometer:micrometer-registry-prometheus
+    versions:
+    - 1.6.5
+  - dependency-name: com.google.cloud.tools.jib
+    versions:
+    - 2.7.1

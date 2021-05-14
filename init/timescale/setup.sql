@@ -1,3 +1,5 @@
+-- Copyright (c) 2021 BioT. All rights reserved.
+
 CREATE USER biot WITH PASSWORD 'biot';
 CREATE DATABASE biot OWNER biot;
 ALTER USER biot WITH SUPERUSER;
@@ -13,9 +15,20 @@ CREATE EXTENSION IF NOT EXISTS postgis;
 CREATE TABLE IF NOT EXISTS items
 (
     id SERIAL PRIMARY KEY,
-    beacon VARCHAR(17) NOT NULL UNIQUE,
-    category VARCHAR(100) NOT NULL,
-    service VARCHAR(100)
+    beacon VARCHAR(17) UNIQUE,
+    category VARCHAR(100),
+    service VARCHAR(100),
+    itemID VARCHAR(50),
+    brand VARCHAR(100),
+    model VARCHAR(100),
+    supplier VARCHAR(100),
+    purchaseDate DATE,
+    purchasePrice DECIMAL(15, 6),
+    originLocation VARCHAR(100),
+    currentLocation VARCHAR(100),
+    room VARCHAR(100),
+    contact VARCHAR(100),
+    owner VARCHAR(100)
 );
 
 CREATE TABLE IF NOT EXISTS beacon_data

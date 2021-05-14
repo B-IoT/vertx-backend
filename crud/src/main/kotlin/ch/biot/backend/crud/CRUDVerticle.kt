@@ -1,9 +1,10 @@
 /*
- * Copyright (c) 2020 BIoT. All rights reserved.
+ * Copyright (c) 2021 BioT. All rights reserved.
  */
 
 package ch.biot.backend.crud
 
+import ch.biot.backend.crud.queries.*
 import io.vertx.core.Vertx
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
@@ -14,7 +15,12 @@ import io.vertx.ext.web.Router
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.openapi.Operation
 import io.vertx.ext.web.openapi.RouterBuilder
+import io.vertx.ext.web.validation.BadRequestException
+import io.vertx.ext.web.validation.BodyProcessorException
+import io.vertx.ext.web.validation.ParameterProcessorException
+import io.vertx.ext.web.validation.RequestPredicateException
 import io.vertx.kotlin.core.eventbus.eventBusOptionsOf
+import io.vertx.kotlin.core.http.httpServerOptionsOf
 import io.vertx.kotlin.core.json.get
 import io.vertx.kotlin.core.json.json
 import io.vertx.kotlin.core.json.jsonObjectOf
@@ -37,6 +43,7 @@ import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
 import java.net.InetAddress
 
+
 class CRUDVerticle : CoroutineVerticle() {
 
   companion object {
@@ -53,14 +60,17 @@ class CRUDVerticle : CoroutineVerticle() {
 
     internal const val INTERNAL_SERVER_ERROR_CODE = 500
     private const val UNAUTHORIZED_CODE = 401
+    const val BAD_REQUEST_CODE = 400
+
+    private const val SERVER_COMPRESSION_LEVEL = 4
 
     private val environment = System.getenv()
-    internal val HTTP_PORT = environment.getOrDefault("HTTP_PORT", "8080").toInt()
+    val HTTP_PORT = environment.getOrDefault("HTTP_PORT", "8080").toInt()
 
-    internal val MONGO_PORT = environment.getOrDefault("MONGO_PORT", "27017").toInt()
+    val MONGO_PORT = environment.getOrDefault("MONGO_PORT", "27017").toInt()
     private val MONGO_HOST: String = environment.getOrDefault("MONGO_HOST", "localhost")
 
-    internal val TIMESCALE_PORT = environment.getOrDefault("TIMESCALE_PORT", "5432").toInt()
+    val TIMESCALE_PORT = environment.getOrDefault("TIMESCALE_PORT", "5432").toInt()
     private val TIMESCALE_HOST: String = environment.getOrDefault("TIMESCALE_HOST", "localhost")
 
     internal val LOGGER = LoggerFactory.getLogger(CRUDVerticle::class.java)
@@ -166,13 +176,21 @@ class CRUDVerticle : CoroutineVerticle() {
       // Analytics
       routerBuilder.operation("analyticsGetStatus").coroutineHandler(::analyticsGetStatusHandler)
 
-      // Health checks
+      // Health checks and error handling
       val router: Router = routerBuilder.createRouter()
+      router.errorHandler(BAD_REQUEST_CODE, ::badRequestErrorHandler)
       router.get("/health/live").handler(::livenessCheckHandler)
       router.get("/health/ready").handler(::readinessCheckHandler)
 
       try {
-        vertx.createHttpServer().requestHandler(router)
+        vertx.createHttpServer(
+          httpServerOptionsOf(
+            compressionSupported = true,
+            compressionLevel = SERVER_COMPRESSION_LEVEL,
+            decompressionSupported = true
+          )
+        )
+          .requestHandler(router)
           .listen(HTTP_PORT)
           .await()
         LOGGER.info("HTTP server listening on port $HTTP_PORT")
@@ -182,6 +200,38 @@ class CRUDVerticle : CoroutineVerticle() {
     } catch (error: Throwable) {
       // Something went wrong during router builder initialization
       LOGGER.error("Could not initialize router builder", error)
+    }
+  }
+
+  /**
+   * Handles a bad request error.
+   */
+  private fun badRequestErrorHandler(ctx: RoutingContext) {
+    val statusCode: Int = ctx.statusCode()
+    val response = ctx.response()
+
+    val failure = ctx.failure()
+    if (failure is BadRequestException) {
+      when (failure) {
+        is ParameterProcessorException -> {
+          // Something went wrong while parsing/validating a parameter
+          val errorMessage = "Something went wrong while parsing/validating a parameter."
+          LOGGER.error(errorMessage, failure)
+          response.setStatusCode(statusCode).end(errorMessage)
+        }
+        is BodyProcessorException -> {
+          // Something went wrong while parsing/validating the body
+          val errorMessage = "Something went while parsing/validating the body."
+          LOGGER.error(errorMessage, failure)
+          response.setStatusCode(statusCode).end(errorMessage)
+        }
+        is RequestPredicateException -> {
+          // A request predicate is unsatisfied
+          val errorMessage = "A request predicate is unsatisfied."
+          LOGGER.error(errorMessage, failure)
+          response.setStatusCode(statusCode).end(errorMessage)
+        }
+      }
     }
   }
 
@@ -516,14 +566,12 @@ class CRUDVerticle : CoroutineVerticle() {
     json.validateAndThen(ctx) {
       // Extract the information from the payload and insert the item in TimescaleDB
       val id: Int? = json["id"]
-      val beacon: String = json["beacon"]
-      val category: String = json["category"]
-      val service: String = json["service"]
+      val info = extractItemInformation(json)
       val table = ctx.getCollection(ITEMS_TABLE)
 
       val executedQuery =
-        if (id != null) pgPool.preparedQuery(insertItem(table, true)).execute(Tuple.of(id, beacon, category, service))
-        else pgPool.preparedQuery(insertItem(table, false)).execute(Tuple.of(beacon, category, service))
+        if (id != null) pgPool.preparedQuery(insertItem(table, true)).execute(Tuple.of(id, *info.toTypedArray()))
+        else pgPool.preparedQuery(insertItem(table, false)).execute(Tuple.tuple(info))
 
       executeWithErrorHandling("Could not register item", ctx) {
         val queryResult = executedQuery.await()
@@ -632,20 +680,17 @@ class CRUDVerticle : CoroutineVerticle() {
    * Handles an updateItem request.
    */
   private suspend fun updateItemHandler(ctx: RoutingContext) {
-    val itemID = ctx.pathParam("id")
-    LOGGER.info("New updateItem request for item $itemID")
+    val id = ctx.pathParam("id")
+    LOGGER.info("New updateItem request for item $id")
 
     val json = ctx.bodyAsJson
     json.validateAndThen(ctx) {
       // Extract the information from the payload and update the item in TimescaleDB
-      val beacon: String = json["beacon"]
-      val category: String = json["category"]
-      val service: String = json["service"]
-
+      val info = listOf(id.toInt(), *extractItemInformation(json).toTypedArray())
       val table = ctx.getCollection(ITEMS_TABLE)
-      executeWithErrorHandling("Could not update item $itemID", ctx) {
-        pgPool.preparedQuery(updateItem(table)).execute(Tuple.of(beacon, category, service, itemID.toInt())).await()
-        LOGGER.info("Successfully updated item $itemID")
+      executeWithErrorHandling("Could not update item $id", ctx) {
+        pgPool.preparedQuery(updateItem(table)).execute(Tuple.tuple(info)).await()
+        LOGGER.info("Successfully updated item $id")
         ctx.end()
       }
     }

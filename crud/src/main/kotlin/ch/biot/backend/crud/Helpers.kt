@@ -1,5 +1,10 @@
+/*
+ * Copyright (c) 2021 BioT. All rights reserved.
+ */
+
 package ch.biot.backend.crud
 
+import ch.biot.backend.crud.CRUDVerticle.Companion.BAD_REQUEST_CODE
 import ch.biot.backend.crud.CRUDVerticle.Companion.INTERNAL_SERVER_ERROR_CODE
 import ch.biot.backend.crud.CRUDVerticle.Companion.LOGGER
 import io.vertx.core.json.JsonObject
@@ -9,6 +14,7 @@ import io.vertx.kotlin.core.json.get
 import io.vertx.kotlin.core.json.jsonObjectOf
 import io.vertx.sqlclient.Row
 import java.security.SecureRandom
+import java.time.LocalDate
 import java.util.*
 
 /**
@@ -22,15 +28,15 @@ internal suspend fun JsonObject?.validateAndThen(ctx: RoutingContext, block: sus
   when {
     this == null -> {
       LOGGER.warn("Bad request with null body")
-      ctx.fail(400)
+      ctx.fail(BAD_REQUEST_CODE)
     }
     this.isEmpty -> {
       LOGGER.warn("Bad request with empty body")
-      ctx.fail(400)
+      ctx.fail(BAD_REQUEST_CODE)
     }
     this.containsKey("company") && !this.getString("company").matches("^[a-zA-Z]+$".toRegex()) -> {
       LOGGER.warn("Bad request with wrongly formatted company")
-      ctx.fail(400)
+      ctx.fail(BAD_REQUEST_CODE)
     }
     else -> block(this)
   }
@@ -73,7 +79,7 @@ internal fun JsonObject.cleanLastModified() {
  * @param mongoAuth the [MongoAuthentication] object used to hash the string
  * @return the salted and hashed string
  */
-internal fun String.saltAndHash(mongoAuth: MongoAuthentication): String {
+fun String.saltAndHash(mongoAuth: MongoAuthentication): String {
   val salt = ByteArray(16)
   SecureRandom().nextBytes(salt)
   return mongoAuth.hash("pbkdf2", String(Base64.getEncoder().encode(salt)), this)
@@ -82,11 +88,22 @@ internal fun String.saltAndHash(mongoAuth: MongoAuthentication): String {
 /**
  * Converts the row to a JSON representation corresponding to an item.
  */
-internal fun Row.toItemJson(): JsonObject = jsonObjectOf(
+fun Row.toItemJson(): JsonObject = jsonObjectOf(
   "id" to getInteger("id"),
   "beacon" to getString("beacon"),
   "category" to getString("category"),
   "service" to getString("service"),
+  "itemID" to getString("itemid"),
+  "brand" to getString("brand"),
+  "model" to getString("model"),
+  "supplier" to getString("supplier"),
+  "purchaseDate" to getLocalDate("purchasedate")?.toString(),
+  "purchasePrice" to getDouble("purchaseprice"),
+  "originLocation" to getString("originlocation"),
+  "currentLocation" to getString("currentlocation"),
+  "room" to getString("room"),
+  "contact" to getString("contact"),
+  "owner" to getString("owner"),
   "timestamp" to getOffsetDateTime("time")?.toString(),
   "battery" to getInteger("battery"),
   "status" to getString("status"),
@@ -95,6 +112,43 @@ internal fun Row.toItemJson(): JsonObject = jsonObjectOf(
   "floor" to getInteger("floor"),
   "temperature" to getDouble("temperature")
 )
+
+/**
+ * Extracts the relevant item information from a given json.
+ */
+internal fun extractItemInformation(json: JsonObject): List<Any?> {
+  val beacon: String = json["beacon"]
+  val category: String = json["category"]
+  val service: String? = json["service"]
+  val itemID: String? = json["itemID"]
+  val brand: String? = json["brand"]
+  val model: String? = json["model"]
+  val supplier: String? = json["supplier"]
+  val purchaseDate: String? = json["purchaseDate"]
+  val purchasePrice: Double? = json.getDouble("purchasePrice")
+  val originLocation: String? = json["originLocation"]
+  val currentLocation: String? = json["currentLocation"]
+  val room: String? = json["room"]
+  val contact: String? = json["contact"]
+  val owner: String? = json["owner"]
+
+  return listOf(
+    beacon,
+    category,
+    service,
+    itemID,
+    brand,
+    model,
+    supplier,
+    purchaseDate?.let(LocalDate::parse),
+    purchasePrice,
+    originLocation,
+    currentLocation,
+    room,
+    contact,
+    owner
+  )
+}
 
 /**
  * Returns the right collection (or table) to use based on the user's company and baseCollectionName provided.

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 BIoT. All rights reserved.
+ * Copyright (c) 2021 BioT. All rights reserved.
  */
 
 package ch.biot.backend.publicapi
@@ -29,6 +29,7 @@ import io.vertx.kotlin.coroutines.dispatcher
 import io.vertx.kotlin.ext.auth.jwt.jwtAuthOptionsOf
 import io.vertx.kotlin.ext.auth.jwtOptionsOf
 import io.vertx.kotlin.ext.auth.pubSecKeyOptionsOf
+import io.vertx.kotlin.ext.web.client.webClientOptionsOf
 import io.vertx.kotlin.micrometer.micrometerMetricsOptionsOf
 import io.vertx.kotlin.micrometer.vertxPrometheusOptionsOf
 import io.vertx.micrometer.PrometheusScrapingHandler
@@ -51,6 +52,8 @@ class PublicApiVerticle : CoroutineVerticle() {
     private const val ANALYTICS_ENDPOINT = "analytics"
 
     private const val UNAUTHORIZED_CODE = 401
+
+    private const val SERVER_COMPRESSION_LEVEL = 4
 
     private const val API_PREFIX = "/api"
     private const val OAUTH_PREFIX = "/oauth"
@@ -170,13 +173,16 @@ class PublicApiVerticle : CoroutineVerticle() {
     router.get("/health/ready").coroutineHandler(::readinessCheckHandler)
     router.get("/health/live").handler(::livenessCheckHandler)
 
-    webClient = WebClient.create(vertx)
+    webClient = WebClient.create(vertx, webClientOptionsOf(tryUseCompression = true))
 
     try {
       vertx.createHttpServer(
         httpServerOptionsOf(
           ssl = CRUD_HOST != "localhost", // disabled when testing
-          pemKeyCertOptions = pemKeyCertOptionsOf(certPath = "certificate.pem", keyPath = "certificate_key.pem")
+          pemKeyCertOptions = pemKeyCertOptionsOf(certPath = "certificate.pem", keyPath = "certificate_key.pem"),
+          compressionSupported = true,
+          compressionLevel = SERVER_COMPRESSION_LEVEL,
+          decompressionSupported = true
         )
       )
         .requestHandler(router)
