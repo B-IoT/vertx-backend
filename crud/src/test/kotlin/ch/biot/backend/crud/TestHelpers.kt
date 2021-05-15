@@ -16,6 +16,8 @@ import io.vertx.ext.web.RoutingContext
 import io.vertx.junit5.VertxExtension
 import io.vertx.junit5.VertxTestContext
 import io.vertx.kotlin.core.json.jsonObjectOf
+import io.vertx.kotlin.coroutines.await
+import io.vertx.kotlin.coroutines.dispatcher
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeAll
@@ -31,14 +33,17 @@ import java.io.File
 class TestHelpers {
 
   @BeforeEach
-  fun setup(vertx: Vertx, testContext: VertxTestContext) {
-    vertx.deployVerticle(CRUDVerticle())
-      .onSuccess { testContext.completeNow() }
-      .onFailure(testContext::failNow)
+  fun setup(vertx: Vertx, testContext: VertxTestContext) = runBlocking(vertx.dispatcher()) {
+    try {
+      vertx.deployVerticle(CRUDVerticle()).await()
+      testContext.completeNow()
+    } catch (error: Throwable) {
+      testContext.failNow(error)
+    }
   }
 
   @Test
-  fun executeWithErrorHandlingHandlesErrors(): Unit = runBlocking {
+  fun executeWithErrorHandlingHandlesErrors(vertx: Vertx): Unit = runBlocking(vertx.dispatcher()) {
     val routingContext = mockk<RoutingContext>()
     val suspendBlock = suspend {
       throw Throwable("throwable")
@@ -52,7 +57,7 @@ class TestHelpers {
   }
 
   @Test
-  fun validateAndThenFailsOnNullJson(): Unit = runBlocking {
+  fun validateAndThenFailsOnNullJson(vertx: Vertx): Unit = runBlocking(vertx.dispatcher()) {
     val routingContext = mockk<RoutingContext>()
     every { routingContext.fail(BAD_REQUEST_CODE) } returns Unit
 
@@ -67,7 +72,7 @@ class TestHelpers {
   }
 
   @Test
-  fun validateAndThenFailsOnEmptyJson(): Unit = runBlocking {
+  fun validateAndThenFailsOnEmptyJson(vertx: Vertx): Unit = runBlocking(vertx.dispatcher()) {
     val routingContext = mockk<RoutingContext>()
     every { routingContext.fail(BAD_REQUEST_CODE) } returns Unit
 
