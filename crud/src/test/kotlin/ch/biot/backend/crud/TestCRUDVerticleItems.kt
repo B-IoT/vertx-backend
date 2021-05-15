@@ -244,7 +244,7 @@ class TestCRUDVerticleItems {
             existingBeaconData.getDouble("latitude"),
             existingBeaconData.getDouble("longitude"),
             existingBeaconData.getInteger("floor"),
-              existingBeaconData.getDouble("temperature")
+            existingBeaconData.getDouble("temperature")
           )
         )
     }.compose {
@@ -659,6 +659,27 @@ class TestCRUDVerticleItems {
       expectThat(response).isEqualTo(expected)
       expectThat(id).isEqualTo(existingItemID)
       expectThat(timestamp).isNotEmpty()
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("getItem returns not found on non existing item")
+  fun getItemReturnsNotFoundOnNonExistingItem(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      accept(ContentType.JSON)
+    } When {
+      queryParam("company", "biot")
+      get("/items/100")
+    } Then {
+      statusCode(404)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEmpty()
       testContext.completeNow()
     }
   }

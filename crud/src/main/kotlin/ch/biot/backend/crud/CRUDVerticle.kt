@@ -58,7 +58,7 @@ class CRUDVerticle : CoroutineVerticle() {
 
     private const val RELAYS_UPDATE_ADDRESS = "relays.update"
 
-    internal const val INTERNAL_SERVER_ERROR_CODE = 500
+    const val INTERNAL_SERVER_ERROR_CODE = 500
     private const val UNAUTHORIZED_CODE = 401
     const val BAD_REQUEST_CODE = 400
 

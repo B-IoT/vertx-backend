@@ -682,7 +682,18 @@ class TestPublicApiVerticle {
     val updateJson = jsonObjectOf(
       "beacon" to "ad:ab:ab:ab:ab:ab",
       "category" to "Lit",
-      "service" to "Bloc 42"
+      "service" to "Bloc 42",
+      "itemID" to "new",
+      "brand" to "fiat",
+      "model" to "panda",
+      "supplier" to "rossi",
+      "purchaseDate" to LocalDate.of(2020, 11, 24).toString(),
+      "purchasePrice" to 1007.8,
+      "originLocation" to "center5",
+      "currentLocation" to "center6",
+      "room" to "17",
+      "contact" to "Jimmy",
+      "owner" to "Bob"
     )
 
     val response = Given {
@@ -814,6 +825,75 @@ class TestPublicApiVerticle {
 
     testContext.verify {
       expectThat(response.isEmpty).isFalse()
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @Order(24)
+  @DisplayName("Errors are handled in getOneHandler")
+  fun errorIsHandledGetOneRequest(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      header("Authorization", "Bearer $token")
+    } When {
+      get("/api/items/100")
+    } Then {
+      statusCode(404)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEmpty()
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @Order(25)
+  @DisplayName("Errors are handled in updateHandler")
+  fun errorIsHandledUpdateRequest(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      header("Authorization", "Bearer $token")
+      body("A body")
+    } When {
+      put("/api/items/100")
+    } Then {
+      statusCode(502)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Bad Gateway")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @Order(26)
+  @DisplayName("Errors are handled in registerHandler")
+  fun errorIsHandledRegisterRequest(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      header("Authorization", "Bearer $token")
+      body("A body")
+    } When {
+      post("/api/items")
+    } Then {
+      statusCode(502)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Bad Gateway")
       testContext.completeNow()
     }
   }

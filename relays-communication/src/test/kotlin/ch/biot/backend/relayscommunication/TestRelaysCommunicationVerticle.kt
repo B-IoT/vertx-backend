@@ -189,6 +189,41 @@ class TestRelaysCommunicationVerticle {
   }
 
   @Test
+  @DisplayName("A MQTT client without authentication is refused connection")
+  fun clientWithoutAuthIsRefusedConnection(vertx: Vertx, testContext: VertxTestContext) {
+    val client = MqttClient.create(vertx)
+
+    client
+      .rxConnect(RelaysCommunicationVerticle.MQTT_PORT, "localhost")
+      .subscribeBy(
+        onError = { testContext.completeNow() },
+        onSuccess = { testContext.failNow("The client was able to connect without authentication") }
+      )
+  }
+
+  @Test
+  @DisplayName("A MQTT client with a wrong password is refused connection")
+  fun clientWithWrongPasswordIsRefusedConnection(vertx: Vertx, testContext: VertxTestContext) {
+    val client = MqttClient.create(
+      vertx,
+      mqttClientOptionsOf(
+        clientId = configuration["mqttID"],
+        username = configuration["mqttUsername"],
+        password = "wrongPassword",
+        willFlag = true,
+        willMessage = jsonObjectOf("company" to "biot").encode()
+      )
+    )
+
+    client
+      .rxConnect(RelaysCommunicationVerticle.MQTT_PORT, "localhost")
+      .subscribeBy(
+        onError = { testContext.completeNow() },
+        onSuccess = { testContext.failNow("The client was able to connect with a wrong password") }
+      )
+  }
+
+  @Test
   @DisplayName("A MQTT client receives updates")
   fun clientReceivesUpdate(vertx: Vertx, testContext: VertxTestContext) {
     val message = jsonObjectOf("latitude" to 42.3, "mqttID" to "mqtt")
