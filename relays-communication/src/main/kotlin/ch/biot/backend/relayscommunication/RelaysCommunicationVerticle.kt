@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020 BIoT. All rights reserved.
+ * Copyright (c) 2021 BioT. All rights reserved.
  */
 
 package ch.biot.backend.relayscommunication
@@ -8,6 +8,9 @@ import io.netty.handler.codec.mqtt.MqttConnectReturnCode
 import io.netty.handler.codec.mqtt.MqttQoS
 import io.reactivex.Completable
 import io.reactivex.rxkotlin.subscribeBy
+import io.vertx.core.CompositeFuture
+import io.vertx.core.Future
+import io.vertx.core.Promise
 import io.vertx.core.Vertx
 import io.vertx.core.http.ClientAuth
 import io.vertx.core.json.DecodeException
@@ -32,7 +35,6 @@ import io.vertx.spi.cluster.hazelcast.HazelcastClusterManager
 import org.slf4j.LoggerFactory
 import java.net.InetAddress
 import java.time.Instant
-
 
 class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
 
@@ -81,7 +83,8 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
   override fun rxStart(): Completable {
     // Initialize the Kafka producer
     kafkaProducer = KafkaProducer.create(
-      vertx, mapOf(
+      vertx,
+      mapOf(
         "bootstrap.servers" to "$KAFKA_HOST:$KAFKA_PORT",
         "key.serializer" to "org.apache.kafka.common.serialization.StringSerializer",
         "value.serializer" to "io.vertx.kafka.client.serialization.JsonObjectSerializer",
@@ -91,7 +94,8 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
 
     // Initialize MongoDB
     mongoClient = MongoClient.createShared(
-      vertx, jsonObjectOf(
+      vertx,
+      jsonObjectOf(
         "host" to MONGO_HOST, "port" to MONGO_PORT, "db_name" to "clients", "username" to "biot",
         "password" to "biot"
       )
@@ -100,7 +104,8 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
     val usernameField = "mqttUsername"
     val passwordField = "mqttPassword"
     mongoAuth = MongoAuthentication.create(
-      mongoClient, mongoAuthenticationOptionsOf(
+      mongoClient,
+      mongoAuthenticationOptionsOf(
         collectionName = RELAYS_COLLECTION,
         passwordCredentialField = passwordField,
         passwordField = passwordField,
@@ -111,36 +116,42 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
 
     // Add an event bus consumer to handle the JSON received from CRUDVerticle, which needs to be forwarded to the right
     // relay
-    vertx.eventBus().consumer<JsonObject>(RELAYS_UPDATE_ADDRESS) { message ->
-      val json = message.body()
-      logger.info("Received relay update $json on event bus address $RELAYS_UPDATE_ADDRESS, sending it to client...")
-      val mqttID: String = json["mqttID"]
+    vertx.eventBus().consumer<JsonObject>(RELAYS_UPDATE_ADDRESS)
+      .bodyStream()
+      .toFlowable()
+      .subscribe { json ->
+        logger.info("Received relay update $json on event bus address $RELAYS_UPDATE_ADDRESS, sending it to client...")
 
-      // Clean the json from useless fields
-      val jsonClean = json.clean()
+        val mqttID: String = json["mqttID"]
 
-      // Send the message to the right relay on the MQTT topic "update.parameters"
-      clients[mqttID]?.let { client -> sendMessageTo(client, jsonClean) }
-    }
+        // Clean the json from useless fields
+        val cleanJson = json.clean()
+
+        // Send the message to the right relay on the MQTT topic "update.parameters"
+        clients[mqttID]?.let { client -> sendMessageTo(client, cleanJson) }
+      }
 
     // Certificate for TLS
     val pemKeyCertOptions = pemKeyCertOptionsOf(certPath = "certificate.pem", keyPath = "certificate_key.pem")
     val netServerOptions = netServerOptionsOf(ssl = true, pemKeyCertOptions = pemKeyCertOptions)
 
     // TCP server for liveness checks
-    vertx.createNetServer(netServerOptions).connectHandler {
+    return vertx.createNetServer(netServerOptions).connectHandler {
       logger.info("Liveness check")
-    }.rxListen(LIVENESS_PORT).subscribe()
-
-    return MqttServer.create(
-      vertx,
-      mqttServerOptionsOf(ssl = true, pemKeyCertOptions = pemKeyCertOptions, clientAuth = ClientAuth.REQUEST)
-    )
-      .endpointHandler(::handleClient).rxListen(MQTT_PORT).doOnSuccess {
+    }
+      .rxListen(LIVENESS_PORT)
+      .flatMap {
+        MqttServer.create(
+          vertx,
+          mqttServerOptionsOf(ssl = true, pemKeyCertOptions = pemKeyCertOptions, clientAuth = ClientAuth.REQUEST)
+        )
+          .endpointHandler(::handleClient).rxListen(MQTT_PORT)
+      }
+      .flatMap {
         logger.info("MQTT server listening on port $MQTT_PORT")
         vertx.createNetServer(netServerOptions).connectHandler {
           logger.info("Readiness check complete")
-        }.rxListen(READINESS_PORT).subscribe()
+        }.rxListen(READINESS_PORT)
       }.ignoreElement()
   }
 
@@ -209,11 +220,40 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
     /**
      * Validates the JSON, returning true iff it contains all required fields.
      */
-    fun validateJson(json: JsonObject): Boolean {
-      val keysToContain = listOf("relayID", "rssi", "mac", "latitude", "longitude", "floor")
-      return keysToContain.fold(true) { acc, curr ->
-        acc && json.containsKey(curr)
+    fun validateJson(json: JsonObject): CompositeFuture {
+      fun validateWithFuture(promise: Promise<Boolean>, errorMessage: String, validatingFunction: () -> Boolean) {
+        val isValid = validatingFunction()
+        if (isValid) promise.complete(isValid) else promise.fail(errorMessage)
       }
+
+      val containsAllKeys = Future.future<Boolean> { promise ->
+        val keysToContain = listOf("relayID", "rssi", "mac", "latitude", "longitude", "floor")
+        validateWithFuture(promise, "Fields are missing") {
+          keysToContain.fold(true) { acc, curr ->
+            acc && json.containsKey(curr)
+          }
+        }
+      }
+
+      val validCoordinates = Future.future<Boolean> { promise ->
+        validateWithFuture(promise, "One or both coordinates are 0") {
+          json.getDouble("latitude") != 0.0 && json.getDouble("longitude") != 0.0
+        }
+      }
+
+      val nonEmptyArrays = Future.future<Boolean> { promise ->
+        validateWithFuture(promise, "One or both arrays are empty") {
+          !json.getJsonArray("rssi").isEmpty && !json.getJsonArray("mac").isEmpty
+        }
+      }
+
+      val sameLengthArrays = Future.future<Boolean> { promise ->
+        validateWithFuture(promise, "The mac and rssi arrays do not have the same length") {
+          json.getJsonArray("rssi").size() == json.getJsonArray("mac").size()
+        }
+      }
+
+      return CompositeFuture.all(containsAllKeys, validCoordinates, nonEmptyArrays, sameLengthArrays)
     }
 
     try {
@@ -225,28 +265,32 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
         client.publishAcknowledge(m.messageId())
       }
 
-      if (m.topicName() == INGESTION_TOPIC && validateJson(message)) {
-        // The message contains data to ingest and is valid
-        val kafkaMessage = message.copy().apply {
-          // Add a timestamp to the message to send to Kafka
-          put("timestamp", Instant.now())
-        }
-
-        val relayID: String = message["relayID"]
-
-        // Send the message to Kafka on the "incoming.update" topic
-        val record = KafkaProducerRecord.create(INGESTION_TOPIC, relayID, kafkaMessage)
-        kafkaProducer.rxSend(record).subscribeBy(
-          onSuccess = {
-            logger.info("Sent message $kafkaMessage with key '$relayID' on topic '$INGESTION_TOPIC'")
-          },
-          onError = { error ->
-            logger.error(
-              "Could not send message $kafkaMessage with key '$relayID' on topic '$INGESTION_TOPIC'",
-              error
-            )
+      if (m.topicName() == INGESTION_TOPIC) {
+        validateJson(message).onSuccess {
+          // The message contains data to ingest and is valid
+          val kafkaMessage = message.copy().apply {
+            // Add a timestamp to the message to send to Kafka
+            put("timestamp", Instant.now())
           }
-        )
+
+          val relayID: String = message["relayID"]
+
+          // Send the message to Kafka on the "incoming.update" topic
+          val record = KafkaProducerRecord.create(INGESTION_TOPIC, relayID, kafkaMessage)
+          kafkaProducer.rxSend(record).subscribeBy(
+            onSuccess = {
+              logger.info("Sent message $kafkaMessage with key '$relayID' on topic '$INGESTION_TOPIC'")
+            },
+            onError = { error ->
+              logger.error(
+                "Could not send message $kafkaMessage with key '$relayID' on topic '$INGESTION_TOPIC'",
+                error
+              )
+            }
+          )
+        }.onFailure { error ->
+          logger.error("Invalid JSON received", error)
+        }
       }
     } catch (e: DecodeException) {
       logger.error("Could not decode MQTT message $m", e)

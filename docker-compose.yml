@@ -11,7 +11,7 @@ services:
       - ./init/mongo:/docker-entrypoint-initdb.d
 
   timescale:
-    image: timescale/timescaledb:1.7.4-pg12
+    image: timescale/timescaledb-postgis:1.7.4-pg12
     ports:
       - "5432:5432"
     environment:

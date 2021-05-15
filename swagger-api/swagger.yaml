@@ -1,9 +1,10 @@
 openapi: 3.0.0
 info:
   title: Vert.x API
-  version: "1"
+  description: BIoT Vert.x API
+  version: "2.2"
 servers:
-- url: https://virtserver.swaggerhub.com/b-iot/Vert.x/1
+- url: https://virtserver.swaggerhub.com/b-iot/Vert.x/2.2
   description: SwaggerHub API Auto Mocking
 paths:
   /relays:
@@ -275,6 +276,14 @@ paths:
         schema:
           type: integer
           format: int32
+      - name: category
+        in: query
+        description: item category
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
       responses:
         "200":
           description: All the items
@@ -300,6 +309,61 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Item'
+  /items/categories:
+    get:
+      tags:
+      - Item
+      description: returns all items's categories
+      operationId: getCategories
+      responses:
+        "200":
+          description: All the categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+  /items/closest:
+    get:
+      tags:
+      - Item
+      description: returns the 5 closest items per floor
+      operationId: getClosestItems
+      parameters:
+      - name: latitude
+        in: query
+        description: user latitude
+        required: true
+        style: form
+        explode: true
+        schema:
+          type: number
+          format: double
+      - name: longitude
+        in: query
+        description: user longitude
+        required: true
+        style: form
+        explode: true
+        schema:
+          type: number
+          format: double
+      - name: category
+        in: query
+        description: item category
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The 5 closest items per floor
+          content:
+            application/json:
+              schema:
+                type: object
   /items/{id}:
     get:
       tags:
@@ -364,6 +428,19 @@ paths:
       responses:
         "200":
           description: successfully deleted item
+  /analytics/status:
+    get:
+      tags:
+      - Analytics
+      description: returns the items' status
+      operationId: analyticsGetStatus
+      responses:
+        "200":
+          description: the status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusAgg'
 components:
   schemas:
     Relay:
@@ -460,8 +537,9 @@ components:
     UserUpdateInfo:
       type: object
       properties:
-        company:
+        password:
           type: string
+          format: password
       description: Update information for a user
     UserAuthenticateInfo:
       type: object
@@ -483,6 +561,30 @@ components:
           type: string
         service:
           type: string
+        itemID:
+          type: string
+        brand:
+          type: string
+        model:
+          type: string
+        supplier:
+          type: string
+        purchaseDate:
+          type: string
+          format: date
+        purchasePrice:
+          minimum: 0
+          type: number
+        originLocation:
+          type: string
+        currentLocation:
+          type: string
+        room:
+          type: string
+        contact:
+          type: string
+        owner:
+          type: string
         timestamp:
           type: string
           format: date-time
@@ -499,15 +601,45 @@ components:
         longitude:
           type: number
           format: double
+        floor:
+          type: integer
+          format: int32
       description: An item
     ItemRegisterInfo:
       type: object
       properties:
+        id:
+          type: integer
+          format: int32
         beacon:
           type: string
         category:
           type: string
         service:
+          type: string
+        itemID:
+          type: string
+        brand:
+          type: string
+        model:
+          type: string
+        supplier:
+          type: string
+        purchaseDate:
+          type: string
+          format: date
+        purchasePrice:
+          minimum: 0
+          type: number
+        originLocation:
+          type: string
+        currentLocation:
+          type: string
+        room:
+          type: string
+        contact:
+          type: string
+        owner:
           type: string
       description: An item to register
     ItemUpdateInfo:
@@ -519,7 +651,50 @@ components:
           type: string
         service:
           type: string
+        itemID:
+          type: string
+        brand:
+          type: string
+        model:
+          type: string
+        supplier:
+          type: string
+        purchaseDate:
+          type: string
+          format: date
+        purchasePrice:
+          minimum: 0
+          type: number
+        originLocation:
+          type: string
+        currentLocation:
+          type: string
+        room:
+          type: string
+        contact:
+          type: string
+        owner:
+          type: string
       description: Update information for an item
+    Status:
+      type: object
+      properties:
+        available:
+          type: integer
+          format: int32
+        unavailable:
+          type: integer
+          format: int32
+        toRepair:
+          type: integer
+          format: int32
+      description: Item's status
+    StatusAgg:
+      type: object
+      properties:
+        overall:
+          $ref: '#/components/schemas/Status'
+      description: The status of the items
     Relay_wifi:
       type: object
       properties:

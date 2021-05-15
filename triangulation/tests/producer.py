@@ -1,3 +1,5 @@
+# Used only for testing
+
 from confluent_kafka import Producer
 import socket
 import orjson
@@ -26,6 +28,7 @@ if __name__ == "__main__":
             "latitude": 42.34,
             "longitude": 2.32,
             "timestamp": "timestamp",
+            "floor": 1
         }
     )
     msg2 = orjson.dumps(
@@ -36,6 +39,7 @@ if __name__ == "__main__":
             "latitude": 42.33,
             "longitude": 2.33,
             "timestamp": "timestamp",
+            "floor": 1
         }
     )
     producer.produce("incoming.update", key="123", value=msg1, callback=acked)

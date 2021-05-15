@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) 2021 BioT. All rights reserved.
+ */
+
 db.createUser({
     user: "biot",
     pwd: "biot",

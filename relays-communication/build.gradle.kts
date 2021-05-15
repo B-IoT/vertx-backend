@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2020 BIoT. All rights reserved.
+ * Copyright (c) 2021 BioT. All rights reserved.
  */
 
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import org.gradle.api.tasks.testing.logging.TestLogEvent.*
 
-version = "1.0.0-SNAPSHOT"
+version = "1.0.1-SNAPSHOT"
 
 val mainVerticleName = "ch.biot.backend.relayscommunication.RelaysCommunicationVerticle"
 val watchForChange = "src/**/*"
@@ -79,7 +79,7 @@ jib {
   }
   to {
     image = "vertx-backend/relays-communication"
-    tags = setOf("v1", "latest")
+    tags = setOf("v1.0.1", "latest")
   }
   container {
     mainClass = mainVerticleName

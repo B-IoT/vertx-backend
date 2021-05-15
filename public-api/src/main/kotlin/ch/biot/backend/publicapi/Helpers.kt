@@ -1,9 +1,18 @@
+/*
+ * Copyright (c) 2021 BioT. All rights reserved.
+ */
+
 package ch.biot.backend.publicapi
 
+import arrow.core.Either
+import io.vertx.core.buffer.Buffer
+import io.vertx.core.file.FileSystem
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.client.HttpRequest
 import io.vertx.ext.web.client.HttpResponse
+import io.vertx.kotlin.coroutines.await
 
 /**
  * Sends the given status code through the given routing context.
@@ -52,6 +61,34 @@ internal fun forwardJsonArrayOrStatusCode(ctx: RoutingContext, resp: HttpRespons
  * @param error the error that occurred
  */
 internal fun sendBadGateway(ctx: RoutingContext, error: Throwable) {
-  PublicApiVerticle.logger.error("Oops... an error occurred!", error)
-  ctx.fail(502)
+  PublicApiVerticle.LOGGER.error("Oops... an error occurred!", error)
+  ctx.fail(502, error)
 }
+
+/**
+ * Suspend equivalent of [FileSystem.readFile].
+ */
+internal suspend fun FileSystem.coroutineReadFile(path: String): Buffer = readFile(path).await()
+
+/**
+ * Suspend equivalent of [HttpRequest.send].
+ */
+internal suspend fun <T> HttpRequest<T>.coroutineSend(): Either<InternalErrorException, HttpResponse<T>> =
+  try {
+    val result = send().await()
+    Either.Right(result)
+  } catch (error: Throwable) {
+    Either.Left(InternalErrorException("Internal server error", error.cause))
+  }
+
+/**
+ * Suspend equivalent of [HttpRequest.sendBuffer].
+ */
+internal suspend fun <T> HttpRequest<T>.coroutineSendBuffer(buffer: Buffer): Either<InternalErrorException, HttpResponse<T>> =
+  try {
+    val result = sendBuffer(buffer).await()
+    Either.Right(result)
+  } catch (error: Throwable) {
+    Either.Left(InternalErrorException("Internal server error:\n${error.message}", error.cause))
+  }
+

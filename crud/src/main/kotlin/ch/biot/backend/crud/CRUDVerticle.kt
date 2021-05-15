@@ -1,11 +1,10 @@
 /*
- * Copyright (c) 2020 BIoT. All rights reserved.
+ * Copyright (c) 2021 BioT. All rights reserved.
  */
 
 package ch.biot.backend.crud
 
-import io.vertx.core.AbstractVerticle
-import io.vertx.core.Promise
+import ch.biot.backend.crud.queries.*
 import io.vertx.core.Vertx
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
@@ -14,13 +13,22 @@ import io.vertx.ext.auth.mongo.MongoUserUtil
 import io.vertx.ext.mongo.MongoClient
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.openapi.Operation
 import io.vertx.ext.web.openapi.RouterBuilder
+import io.vertx.ext.web.validation.BadRequestException
+import io.vertx.ext.web.validation.BodyProcessorException
+import io.vertx.ext.web.validation.ParameterProcessorException
+import io.vertx.ext.web.validation.RequestPredicateException
 import io.vertx.kotlin.core.eventbus.eventBusOptionsOf
+import io.vertx.kotlin.core.http.httpServerOptionsOf
 import io.vertx.kotlin.core.json.get
 import io.vertx.kotlin.core.json.json
 import io.vertx.kotlin.core.json.jsonObjectOf
 import io.vertx.kotlin.core.json.obj
 import io.vertx.kotlin.core.vertxOptionsOf
+import io.vertx.kotlin.coroutines.CoroutineVerticle
+import io.vertx.kotlin.coroutines.await
+import io.vertx.kotlin.coroutines.dispatcher
 import io.vertx.kotlin.ext.auth.mongo.mongoAuthenticationOptionsOf
 import io.vertx.kotlin.ext.auth.mongo.mongoAuthorizationOptionsOf
 import io.vertx.kotlin.ext.mongo.findOptionsOf
@@ -31,28 +39,40 @@ import io.vertx.pgclient.PgPool
 import io.vertx.pgclient.SslMode
 import io.vertx.spi.cluster.hazelcast.HazelcastClusterManager
 import io.vertx.sqlclient.Tuple
+import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
 import java.net.InetAddress
-import java.util.*
 
 
-class CRUDVerticle : AbstractVerticle() {
+class CRUDVerticle : CoroutineVerticle() {
 
   companion object {
+    private const val APPLICATION_JSON = "application/json"
+    private const val CONTENT_TYPE = "Content-Type"
+
     private const val RELAYS_COLLECTION = "relays"
     private const val USERS_COLLECTION = "users"
 
+    private const val ITEMS_TABLE = "items"
+    private const val BEACON_DATA_TABLE = "beacon_data"
+
     private const val RELAYS_UPDATE_ADDRESS = "relays.update"
 
-    internal val HTTP_PORT = System.getenv().getOrDefault("HTTP_PORT", "8080").toInt()
+    internal const val INTERNAL_SERVER_ERROR_CODE = 500
+    private const val UNAUTHORIZED_CODE = 401
+    const val BAD_REQUEST_CODE = 400
 
-    internal val MONGO_PORT = System.getenv().getOrDefault("MONGO_PORT", "27017").toInt()
+    private const val SERVER_COMPRESSION_LEVEL = 4
+
+    val HTTP_PORT = System.getenv().getOrDefault("HTTP_PORT", "8080").toInt()
+
+    val MONGO_PORT = System.getenv().getOrDefault("MONGO_PORT", "27017").toInt()
     private val MONGO_HOST: String = System.getenv().getOrDefault("MONGO_HOST", "localhost")
 
-    internal val TIMESCALE_PORT = System.getenv().getOrDefault("TIMESCALE_PORT", "5432").toInt()
+    val TIMESCALE_PORT = System.getenv().getOrDefault("TIMESCALE_PORT", "5432").toInt()
     private val TIMESCALE_HOST: String = System.getenv().getOrDefault("TIMESCALE_HOST", "localhost")
 
-    internal val logger = LoggerFactory.getLogger(CRUDVerticle::class.java)
+    internal val LOGGER = LoggerFactory.getLogger(CRUDVerticle::class.java)
 
     @JvmStatic
     fun main(args: Array<String>) {
@@ -65,20 +85,22 @@ class CRUDVerticle : AbstractVerticle() {
       Vertx.clusteredVertx(options).onSuccess {
         it.deployVerticle(CRUDVerticle())
       }.onFailure { error ->
-        logger.error("Could not start", error)
+        LOGGER.error("Could not start", error)
       }
     }
   }
 
   private lateinit var mongoClient: MongoClient
-  private lateinit var mongoUserUtilRelays: MongoUserUtil
-  private lateinit var mongoAuthRelays: MongoAuthentication
   private lateinit var mongoUserUtilUsers: MongoUserUtil
   private lateinit var mongoAuthUsers: MongoAuthentication
 
+  // Map from Collection name to Pair of MongoDB authentication utils
+  // It is used since there is a collection per company
+  private val mongoAuthRelaysCache: MutableMap<String, Pair<MongoUserUtil, MongoAuthentication>> = mutableMapOf()
+
   private lateinit var pgPool: PgPool
 
-  override fun start(startPromise: Promise<Void>?) {
+  override suspend fun start() {
     // Initialize MongoDB
     mongoClient =
       MongoClient.createShared(
@@ -91,21 +113,6 @@ class CRUDVerticle : AbstractVerticle() {
           "password" to "biot"
         )
       )
-
-    val usernameFieldRelays = "mqttUsername"
-    val passwordFieldRelays = "mqttPassword"
-    val mongoAuthRelaysOptions = mongoAuthenticationOptionsOf(
-      collectionName = RELAYS_COLLECTION,
-      passwordCredentialField = passwordFieldRelays,
-      passwordField = passwordFieldRelays,
-      usernameCredentialField = usernameFieldRelays,
-      usernameField = usernameFieldRelays
-    )
-
-    mongoUserUtilRelays = MongoUserUtil.create(
-      mongoClient, mongoAuthRelaysOptions, mongoAuthorizationOptionsOf()
-    )
-    mongoAuthRelays = MongoAuthentication.create(mongoClient, mongoAuthRelaysOptions)
 
     val usernameFieldUsers = "username"
     val passwordFieldUsers = "password"
@@ -136,65 +143,153 @@ class CRUDVerticle : AbstractVerticle() {
       )
     pgPool = PgPool.pool(vertx, pgConnectOptions, poolOptionsOf())
 
-    // Initialize OpenAPI router
-    RouterBuilder.create(vertx, "swagger.yaml").onComplete { ar ->
-      if (ar.succeeded()) {
-        // Spec loaded with success
-        val routerBuilder = ar.result()
+    try {
+      // Initialize OpenAPI router
+      val routerBuilder = RouterBuilder.create(vertx, "swagger.yaml").await()
+      // Spec loaded with success
 
-        // Relays
-        routerBuilder.operation("registerRelay").handler(::registerRelayHandler)
-        routerBuilder.operation("getRelays").handler(::getRelaysHandler)
-        routerBuilder.operation("getRelay").handler(::getRelayHandler)
-        routerBuilder.operation("updateRelay").handler(::updateRelayHandler)
-        routerBuilder.operation("deleteRelay").handler(::deleteRelayHandler)
+      // Relays
+      routerBuilder.operation("registerRelay").coroutineHandler(::registerRelayHandler)
+      routerBuilder.operation("getRelays").coroutineHandler(::getRelaysHandler)
+      routerBuilder.operation("getRelay").coroutineHandler(::getRelayHandler)
+      routerBuilder.operation("updateRelay").coroutineHandler(::updateRelayHandler)
+      routerBuilder.operation("deleteRelay").coroutineHandler(::deleteRelayHandler)
 
-        // Users
-        routerBuilder.operation("registerUser").handler(::registerUserHandler)
-        routerBuilder.operation("getUsers").handler(::getUsersHandler)
-        routerBuilder.operation("getUser").handler(::getUserHandler)
-        routerBuilder.operation("updateUser").handler(::updateUserHandler)
-        routerBuilder.operation("deleteUser").handler(::deleteUserHandler)
-        routerBuilder.operation("authenticate").handler(::authenticateHandler)
+      // Users
+      routerBuilder.operation("registerUser").coroutineHandler(::registerUserHandler)
+      routerBuilder.operation("getUsers").coroutineHandler(::getUsersHandler)
+      routerBuilder.operation("getUser").coroutineHandler(::getUserHandler)
+      routerBuilder.operation("updateUser").coroutineHandler(::updateUserHandler)
+      routerBuilder.operation("deleteUser").coroutineHandler(::deleteUserHandler)
+      routerBuilder.operation("authenticate").coroutineHandler(::authenticateHandler)
 
-        // Items
-        routerBuilder.operation("registerItem").handler(::registerItemHandler)
-        routerBuilder.operation("getItems").handler(::getItemsHandler)
-        routerBuilder.operation("getItem").handler(::getItemHandler)
-        routerBuilder.operation("deleteItem").handler(::deleteItemHandler)
-        routerBuilder.operation("updateItem").handler(::updateItemHandler)
+      // Items
+      routerBuilder.operation("registerItem").coroutineHandler(::registerItemHandler)
+      routerBuilder.operation("getItems").coroutineHandler(::getItemsHandler)
+      routerBuilder.operation("getItem").coroutineHandler(::getItemHandler)
+      routerBuilder.operation("getClosestItems").coroutineHandler(::getClosestItemsHandler)
+      routerBuilder.operation("deleteItem").coroutineHandler(::deleteItemHandler)
+      routerBuilder.operation("updateItem").coroutineHandler(::updateItemHandler)
+      routerBuilder.operation("getCategories").coroutineHandler(::getCategoriesHandler)
 
-        val router: Router = routerBuilder.createRouter()
-        router.get("/health/live").handler(::livenessCheck)
-        router.get("/health/ready").handler(::readinessCheck)
+      // Analytics
+      routerBuilder.operation("analyticsGetStatus").coroutineHandler(::analyticsGetStatusHandler)
 
-        vertx.createHttpServer().requestHandler(router).listen(HTTP_PORT)
-          .onSuccess {
-            logger.info("HTTP server listening on port $HTTP_PORT")
-            startPromise?.complete()
-          }.onFailure { error ->
-            startPromise?.fail(error.cause)
-          }
-      } else {
-        // Something went wrong during router builder initialization
-        logger.error("Could not initialize router builder", ar.cause())
+      // Health checks and error handling
+      val router: Router = routerBuilder.createRouter()
+      router.errorHandler(BAD_REQUEST_CODE, ::badRequestErrorHandler)
+      router.get("/health/live").handler(::livenessCheckHandler)
+      router.get("/health/ready").handler(::readinessCheckHandler)
+
+      try {
+        vertx.createHttpServer(
+          httpServerOptionsOf(
+            compressionSupported = true,
+            compressionLevel = SERVER_COMPRESSION_LEVEL,
+            decompressionSupported = true
+          )
+        )
+          .requestHandler(router)
+          .listen(HTTP_PORT)
+          .await()
+        LOGGER.info("HTTP server listening on port $HTTP_PORT")
+      } catch (error: Throwable) {
+        LOGGER.error("Could not start HTTP server", error)
+      }
+    } catch (error: Throwable) {
+      // Something went wrong during router builder initialization
+      LOGGER.error("Could not initialize router builder", error)
+    }
+  }
+
+  /**
+   * Handles a bad request error.
+   */
+  private fun badRequestErrorHandler(ctx: RoutingContext) {
+    val statusCode: Int = ctx.statusCode()
+    val response = ctx.response()
+
+    val failure = ctx.failure()
+    if (failure is BadRequestException) {
+      when (failure) {
+        is ParameterProcessorException -> {
+          // Something went wrong while parsing/validating a parameter
+          val errorMessage = "Something went wrong while parsing/validating a parameter."
+          LOGGER.error(errorMessage, failure)
+          response.setStatusCode(statusCode).end(errorMessage)
+        }
+        is BodyProcessorException -> {
+          // Something went wrong while parsing/validating the body
+          val errorMessage = "Something went while parsing/validating the body."
+          LOGGER.error(errorMessage, failure)
+          response.setStatusCode(statusCode).end(errorMessage)
+        }
+        is RequestPredicateException -> {
+          // A request predicate is unsatisfied
+          val errorMessage = "A request predicate is unsatisfied."
+          LOGGER.error(errorMessage, failure)
+          response.setStatusCode(statusCode).end(errorMessage)
+        }
       }
     }
   }
 
-  // Health checks
+  // Analytics handlers
 
-  private fun livenessCheck(ctx: RoutingContext) {
-    logger.info("Liveness check")
+  /**
+   * Handles a getStatus request.
+   */
+  private suspend fun analyticsGetStatusHandler(ctx: RoutingContext) {
+    LOGGER.info("New analytics get status request")
+
+    val itemsTable = ctx.getCollection(ITEMS_TABLE)
+    val beaconDataTable = ctx.getCollection(BEACON_DATA_TABLE)
+
+    executeWithErrorHandling("Could not get items' status", ctx) {
+      val queryResult = pgPool.preparedQuery(getStatus(itemsTable, beaconDataTable)).execute().await()
+      val result =
+        if (queryResult.size() == 0) jsonObjectOf()
+        else {
+          // For each service, count the number of available, unavailable and toRepair objects
+          queryResult.groupBy { it.getString("service") }.toList().fold(jsonObjectOf()) { json, (service, statuses) ->
+            val statusesJson = statuses.fold(jsonObjectOf()) { obj, row ->
+              val status = row.getString("status")
+              val count = row.getInteger("count")
+              if (status != null && count != null) {
+                obj.put(status, count)
+              }
+              obj
+            }.apply {
+              // Set the missing values to 0
+              listOf("available", "unavailable", "toRepair").forEach {
+                if (!containsKey(it)) {
+                  put(it, 0)
+                }
+              }
+            }
+            json.put(service, statusesJson)
+          }
+        }
+
+      ctx.response()
+        .putHeader(CONTENT_TYPE, APPLICATION_JSON)
+        .end(result.encode())
+    }
+  }
+
+  // Health checks handlers
+
+  private fun livenessCheckHandler(ctx: RoutingContext) {
+    LOGGER.info("Liveness check")
     ctx.response()
-      .putHeader("Content-Type", "application/json")
+      .putHeader(CONTENT_TYPE, APPLICATION_JSON)
       .end(jsonObjectOf("status" to "UP").encode())
   }
 
-  private fun readinessCheck(ctx: RoutingContext) {
-    logger.info("Readiness check complete")
+  private fun readinessCheckHandler(ctx: RoutingContext) {
+    LOGGER.info("Readiness check complete")
     ctx.response()
-      .putHeader("Content-Type", "application/json")
+      .putHeader(CONTENT_TYPE, APPLICATION_JSON)
       .end(jsonObjectOf("status" to "UP").encode())
   }
 
@@ -203,14 +298,43 @@ class CRUDVerticle : AbstractVerticle() {
   /**
    * Handles a registerRelay request.
    */
-  private fun registerRelayHandler(ctx: RoutingContext) {
-    logger.info("New register request")
+  private suspend fun registerRelayHandler(ctx: RoutingContext) {
+    fun createMongoAuthUtils(collection: String): Pair<MongoUserUtil, MongoAuthentication> {
+      val usernameFieldRelays = "mqttUsername"
+      val passwordFieldRelays = "mqttPassword"
+      val mongoAuthRelaysOptions = mongoAuthenticationOptionsOf(
+        collectionName = collection,
+        passwordCredentialField = passwordFieldRelays,
+        passwordField = passwordFieldRelays,
+        usernameCredentialField = usernameFieldRelays,
+        usernameField = usernameFieldRelays
+      )
+
+      return MongoUserUtil.create(
+        mongoClient,
+        mongoAuthRelaysOptions,
+        mongoAuthorizationOptionsOf()
+      ) to MongoAuthentication.create(mongoClient, mongoAuthRelaysOptions)
+    }
+
+    LOGGER.info("New register request")
     val json = ctx.bodyAsJson
     json.validateAndThen(ctx) {
-      // Create the relay
-      val password: String = json["mqttPassword"]
-      val hashedPassword = password.saltAndHash(mongoAuthRelays)
-      mongoUserUtilRelays.createHashedUser(json["mqttUsername"], hashedPassword).compose { docID ->
+      // Get the MongoDB authentication utils associated to the right collection, based on the user's company
+      val collection = ctx.getCollection(RELAYS_COLLECTION)
+      val (mongoUserUtilRelays, mongoAuthRelays) = if (mongoAuthRelaysCache.containsKey(collection)) {
+        mongoAuthRelaysCache[collection]!!
+      } else {
+        val helpers = createMongoAuthUtils(collection)
+        mongoAuthRelaysCache[collection] = helpers
+        helpers
+      }
+
+      executeWithErrorHandling("Could not register relay", ctx) {
+        // Create the relay
+        val password: String = json["mqttPassword"]
+        val hashedPassword = password.saltAndHash(mongoAuthRelays)
+        val docID = mongoUserUtilRelays.createHashedUser(json["mqttUsername"], hashedPassword).await()
         // Update the relay with the data specified in the HTTP request
         val query = jsonObjectOf("_id" to docID)
         val extraInfo = jsonObjectOf(
@@ -218,13 +342,9 @@ class CRUDVerticle : AbstractVerticle() {
             remove("mqttPassword")
           }
         )
-        mongoClient.findOneAndUpdate(RELAYS_COLLECTION, query, extraInfo)
-      }.onSuccess {
-        logger.info("New relay registered")
+        mongoClient.findOneAndUpdate(collection, query, extraInfo).await()
+        LOGGER.info("New relay registered")
         ctx.end()
-      }.onFailure { error ->
-        logger.error("Could not register relay", error)
-        ctx.fail(500, error)
       }
     }
   }
@@ -232,41 +352,40 @@ class CRUDVerticle : AbstractVerticle() {
   /**
    * Handles a getRelays request.
    */
-  private fun getRelaysHandler(ctx: RoutingContext) {
-    logger.info("New getRelays request")
-    // TODO use offset and limit parameters
-    mongoClient.find(RELAYS_COLLECTION, jsonObjectOf()).onSuccess { relays ->
+  private suspend fun getRelaysHandler(ctx: RoutingContext) {
+    LOGGER.info("New getRelays request")
+
+    val collection = ctx.getCollection(RELAYS_COLLECTION)
+    executeWithErrorHandling("Could not get relays", ctx) {
+      val relays = mongoClient.find(collection, jsonObjectOf()).await()
       ctx.response()
-        .putHeader("Content-Type", "application/json")
+        .putHeader(CONTENT_TYPE, APPLICATION_JSON)
         .end(JsonArray(relays.map { it.clean() }).encode())
-    }.onFailure { error ->
-      logger.error("Could not get relays", error)
-      ctx.fail(500, error)
     }
   }
 
   /**
    * Handles a getRelay request.
    */
-  private fun getRelayHandler(ctx: RoutingContext) {
+  private suspend fun getRelayHandler(ctx: RoutingContext) {
     val relayID = ctx.pathParam("id")
-    logger.info("New getRelay request for relay $relayID")
+    LOGGER.info("New getRelay request for relay $relayID")
+
     val query = jsonObjectOf("relayID" to relayID)
-    mongoClient.findOne(RELAYS_COLLECTION, query, jsonObjectOf()).onSuccess { relay ->
+    val collection = ctx.getCollection(RELAYS_COLLECTION)
+    executeWithErrorHandling("Could not get relay", ctx) {
+      val relay = mongoClient.findOne(collection, query, jsonObjectOf()).await()
       ctx.response()
-        .putHeader("Content-Type", "application/json")
+        .putHeader(CONTENT_TYPE, APPLICATION_JSON)
         .end(relay.clean().encode())
-    }.onFailure { error ->
-      logger.error("Could not get relay", error)
-      ctx.fail(500, error)
     }
   }
 
   /**
    * Handles an updateRelay request.
    */
-  private fun updateRelayHandler(ctx: RoutingContext) {
-    logger.info("New updateRelay request")
+  private suspend fun updateRelayHandler(ctx: RoutingContext) {
+    LOGGER.info("New updateRelay request")
     val json = ctx.bodyAsJson
     json.validateAndThen(ctx) {
       // Update MongoDB
@@ -279,25 +398,24 @@ class CRUDVerticle : AbstractVerticle() {
           "\$currentDate" to obj("lastModified" to true)
         )
       }
-      mongoClient.findOneAndUpdateWithOptions(
-        RELAYS_COLLECTION,
-        query,
-        update,
-        findOptionsOf(),
-        updateOptionsOf(returningNewDocument = true)
-      ).onSuccess { result ->
-        logger.info("Successfully updated MongoDB collection $RELAYS_COLLECTION with update JSON $update")
+      val collection = ctx.getCollection(RELAYS_COLLECTION)
+      executeWithErrorHandling("Could not update MongoDB collection $collection with update JSON $update", ctx) {
+        val updatedRelay = mongoClient.findOneAndUpdateWithOptions(
+          collection,
+          query,
+          update,
+          findOptionsOf(),
+          updateOptionsOf(returningNewDocument = true)
+        ).await()
+        LOGGER.info("Successfully updated MongoDB collection $collection with update JSON $update")
         // Put the beacon information in the JSON to send to the relay
-        val cleanEntry = result.cleanForRelay().apply {
+        val cleanEntry = updatedRelay.cleanForRelay().apply {
           put("beacon", json["beacon"])
         }
         // Send to the RelaysCommunicationVerticle the entry to update the relay
         vertx.eventBus().send(RELAYS_UPDATE_ADDRESS, cleanEntry)
-        logger.info("Update sent to the event bus address $RELAYS_UPDATE_ADDRESS")
+        LOGGER.info("Update sent to the event bus address $RELAYS_UPDATE_ADDRESS")
         ctx.end()
-      }.onFailure { error ->
-        logger.error("Could not update MongoDB collection $RELAYS_COLLECTION with update JSON $update", error)
-        ctx.fail(500)
       }
     }
   }
@@ -305,15 +423,14 @@ class CRUDVerticle : AbstractVerticle() {
   /**
    * Handles a deleteRelay request.
    */
-  private fun deleteRelayHandler(ctx: RoutingContext) {
+  private suspend fun deleteRelayHandler(ctx: RoutingContext) {
     val relayID = ctx.pathParam("id")
-    logger.info("New deleteRelay request for relay $relayID")
+    LOGGER.info("New deleteRelay request for relay $relayID")
     val query = jsonObjectOf("relayID" to relayID)
-    mongoClient.removeDocument(RELAYS_COLLECTION, query).onSuccess {
+    val collection = ctx.getCollection(RELAYS_COLLECTION)
+    executeWithErrorHandling("Could not delete relay", ctx) {
+      mongoClient.removeDocument(collection, query).await()
       ctx.end()
-    }.onFailure { error ->
-      logger.error("Could not delete relay", error)
-      ctx.fail(500, error)
     }
   }
 
@@ -322,14 +439,16 @@ class CRUDVerticle : AbstractVerticle() {
   /**
    * Handles a registerUser request.
    */
-  private fun registerUserHandler(ctx: RoutingContext) {
-    logger.info("New user request")
+  private suspend fun registerUserHandler(ctx: RoutingContext) {
+    LOGGER.info("New user request")
     val json = ctx.bodyAsJson
     json.validateAndThen(ctx) {
       // Create the user
       val password: String = json["password"]
       val hashedPassword = password.saltAndHash(mongoAuthUsers)
-      mongoUserUtilUsers.createHashedUser(json["username"], hashedPassword).compose { docID ->
+      executeWithErrorHandling("Could not register user", ctx) {
+        val docID = mongoUserUtilUsers.createHashedUser(json["username"], hashedPassword).await()
+
         // Update the user with the data specified in the HTTP request
         val query = jsonObjectOf("_id" to docID)
         val extraInfo = jsonObjectOf(
@@ -337,13 +456,9 @@ class CRUDVerticle : AbstractVerticle() {
             remove("password")
           }
         )
-        mongoClient.findOneAndUpdate(USERS_COLLECTION, query, extraInfo)
-      }.onSuccess {
-        logger.info("New user registered")
+        mongoClient.findOneAndUpdate(USERS_COLLECTION, query, extraInfo).await()
+        LOGGER.info("New user registered")
         ctx.end()
-      }.onFailure { error ->
-        logger.error("Could not register user", error)
-        ctx.fail(500, error)
       }
     }
   }
@@ -351,62 +466,55 @@ class CRUDVerticle : AbstractVerticle() {
   /**
    * Handles a getUsers request.
    */
-  private fun getUsersHandler(ctx: RoutingContext) {
-    logger.info("New getUsers request")
-    // TODO use offset and limit parameters
-    mongoClient.find(USERS_COLLECTION, jsonObjectOf())
-      .onSuccess { users ->
-        ctx.response()
-          .putHeader("Content-Type", "application/json")
-          .end(JsonArray(users.map { it.clean() }).encode())
-      }.onFailure { error ->
-        logger.error("Could not get users", error)
-        ctx.fail(500, error)
-      }
+  private suspend fun getUsersHandler(ctx: RoutingContext) {
+    LOGGER.info("New getUsers request")
+
+    executeWithErrorHandling("Could not get users", ctx) {
+      val users = mongoClient.find(USERS_COLLECTION, jsonObjectOf()).await()
+      ctx.response()
+        .putHeader(CONTENT_TYPE, APPLICATION_JSON)
+        .end(JsonArray(users.map { it.clean() }).encode())
+    }
   }
 
   /**
    * Handles a getUser request.
    */
-  private fun getUserHandler(ctx: RoutingContext) {
+  private suspend fun getUserHandler(ctx: RoutingContext) {
     val userID = ctx.pathParam("id")
-    logger.info("New getUser request for relay $userID")
+    LOGGER.info("New getUser request for relay $userID")
     val query = jsonObjectOf("userID" to userID)
-    mongoClient.findOne(USERS_COLLECTION, query, jsonObjectOf()).onSuccess { user ->
+    executeWithErrorHandling("Could not get user", ctx) {
+      val user = mongoClient.findOne(USERS_COLLECTION, query, jsonObjectOf()).await()
       ctx.response()
-        .putHeader("Content-Type", "application/json")
+        .putHeader(CONTENT_TYPE, APPLICATION_JSON)
         .end(user.clean().encode())
-    }.onFailure { error ->
-      logger.error("Could not get user", error)
-      ctx.fail(500, error)
     }
   }
 
   /**
    * Handles an updateUser request.
    */
-  private fun updateUserHandler(ctx: RoutingContext) {
-    logger.info("New updateUser request")
+  private suspend fun updateUserHandler(ctx: RoutingContext) {
+    LOGGER.info("New updateUser request")
     val json = ctx.bodyAsJson
     json.validateAndThen(ctx) {
       // Update MongoDB
-      val query = jsonObjectOf("userID" to ctx.pathParam("id"))
+      val jsonWithSaltedPassword = json.copy().apply {
+        put("password", getString("password").saltAndHash(mongoAuthUsers))
+      }
       val update = json {
         obj(
-          "\$set" to json,
+          "\$set" to jsonWithSaltedPassword,
           "\$currentDate" to obj("lastModified" to true)
         )
       }
-      mongoClient.findOneAndUpdate(
-        USERS_COLLECTION,
-        query,
-        update
-      ).onSuccess {
-        logger.info("Successfully updated MongoDB collection $USERS_COLLECTION with update JSON $update")
+
+      val query = jsonObjectOf("userID" to ctx.pathParam("id"))
+      executeWithErrorHandling("Could not update MongoDB collection $USERS_COLLECTION with update JSON $update", ctx) {
+        mongoClient.findOneAndUpdate(USERS_COLLECTION, query, update).await()
+        LOGGER.info("Successfully updated MongoDB collection $USERS_COLLECTION with update JSON $update")
         ctx.end()
-      }.onFailure { error ->
-        logger.error("Could not update MongoDB collection $USERS_COLLECTION with update JSON $update", error)
-        ctx.fail(500)
       }
     }
   }
@@ -414,35 +522,34 @@ class CRUDVerticle : AbstractVerticle() {
   /**
    * Handles a deleteUser request.
    */
-  private fun deleteUserHandler(ctx: RoutingContext) {
+  private suspend fun deleteUserHandler(ctx: RoutingContext) {
     val userID = ctx.pathParam("id")
-    logger.info("New deleteUser request for user $userID")
+    LOGGER.info("New deleteUser request for user $userID")
     val query = jsonObjectOf("userID" to userID)
-    mongoClient.removeDocument(USERS_COLLECTION, query).onSuccess {
+    executeWithErrorHandling("Could not delete user", ctx) {
+      mongoClient.removeDocument(USERS_COLLECTION, query).await()
       ctx.end()
-    }.onFailure { error ->
-      logger.error("Could not delete user", error)
-      ctx.fail(500, error)
     }
   }
 
   /**
    * Handles an authenticate request.
    */
-  private fun authenticateHandler(ctx: RoutingContext) {
-    logger.info("New authenticate request")
+  private suspend fun authenticateHandler(ctx: RoutingContext) {
+    LOGGER.info("New authenticate request")
     val body = if (ctx.body.length() == 0) {
       jsonObjectOf()
     } else {
       ctx.bodyAsJson
     }
 
-    mongoAuthUsers.authenticate(body).onSuccess { user ->
+    try {
+      val user = mongoAuthUsers.authenticate(body).await()
       val company: String = user["company"]
       ctx.end(company)
-    }.onFailure { error ->
-      logger.error("Authentication error: ", error)
-      ctx.fail(401, error)
+    } catch (error: Throwable) {
+      LOGGER.error("Authentication error: ", error)
+      ctx.fail(UNAUTHORIZED_CODE, error)
     }
   }
 
@@ -451,114 +558,185 @@ class CRUDVerticle : AbstractVerticle() {
   /**
    * Handles a registerItem request.
    */
-  private fun registerItemHandler(ctx: RoutingContext) {
-    logger.info("New registerItem request")
+  private suspend fun registerItemHandler(ctx: RoutingContext) {
+    LOGGER.info("New registerItem request")
 
     val json = ctx.bodyAsJson
     json.validateAndThen(ctx) {
       // Extract the information from the payload and insert the item in TimescaleDB
-      val beacon: String = json["beacon"]
-      val category: String = json["category"]
-      val service: String = json["service"]
-      pgPool.preparedQuery(INSERT_ITEM)
-        .execute(Tuple.of(beacon, category, service))
-        .onSuccess {
-          logger.info("New item registered")
-          val row = it.iterator().next()
-          ctx.end(row.getInteger("id").toString())
-        }.onFailure { error ->
-          logger.error("Could not register item", error)
-          ctx.fail(500, error)
-        }
+      val id: Int? = json["id"]
+      val info = extractItemInformation(json)
+      val table = ctx.getCollection(ITEMS_TABLE)
+
+      val executedQuery =
+        if (id != null) pgPool.preparedQuery(insertItem(table, true)).execute(Tuple.of(id, *info.toTypedArray()))
+        else pgPool.preparedQuery(insertItem(table, false)).execute(Tuple.tuple(info))
+
+      executeWithErrorHandling("Could not register item", ctx) {
+        val queryResult = executedQuery.await()
+        LOGGER.info("New item registered")
+        val row = queryResult.iterator().next()
+        ctx.end(row.getInteger("id").toString())
+      }
     }
   }
 
   /**
    * Handles a getItems request.
    */
-  private fun getItemsHandler(ctx: RoutingContext) {
-    logger.info("New getItems request")
-    pgPool.preparedQuery(GET_ITEMS)
-      .execute()
-      .onSuccess { res ->
-        val result = if (res.size() == 0) listOf() else res.map { it.toItemJson() }
+  private suspend fun getItemsHandler(ctx: RoutingContext) {
+    LOGGER.info("New getItems request")
+    val params = ctx.queryParams()
 
-        ctx.response()
-          .putHeader("Content-Type", "application/json")
-          .end(JsonArray(result).encode())
-      }.onFailure { error ->
-        logger.error("Could not get items", error)
-        ctx.fail(500, error)
+    val itemsTable = ctx.getCollection(ITEMS_TABLE)
+    val beaconDataTable = ctx.getCollection(BEACON_DATA_TABLE)
+
+    val executedQuery = if (params.contains("category")) {
+      pgPool.preparedQuery(getItemsWithCategory(itemsTable, beaconDataTable)).execute(Tuple.of(params["category"]))
+    } else {
+      pgPool.preparedQuery(getItems(itemsTable, beaconDataTable)).execute()
+    }
+
+    executeWithErrorHandling("Could not get items", ctx) {
+      val queryResult = executedQuery.await()
+      val result = if (queryResult.size() == 0) listOf() else queryResult.map { it.toItemJson() }
+
+      ctx.response()
+        .putHeader(CONTENT_TYPE, APPLICATION_JSON)
+        .end(JsonArray(result).encode())
+    }
+  }
+
+  private suspend fun getClosestItemsHandler(ctx: RoutingContext) {
+    LOGGER.info("New getClosestItems request")
+
+    val params = ctx.queryParams()
+    val latitude = params["latitude"].toDouble()
+    val longitude = params["longitude"].toDouble()
+
+    val itemsTable = ctx.getCollection(ITEMS_TABLE)
+    val beaconDataTable = ctx.getCollection(BEACON_DATA_TABLE)
+
+    val executedQuery = if (params.contains("category")) {
+      pgPool.preparedQuery(getClosestItemsWithCategory(itemsTable, beaconDataTable))
+        .execute(Tuple.of(params["category"], latitude, longitude))
+    } else {
+      pgPool.preparedQuery(getClosestItems(itemsTable, beaconDataTable))
+        .execute(Tuple.of(latitude, longitude))
+    }
+
+    executeWithErrorHandling("Could not get closest items", ctx) {
+      val queryResult = executedQuery.await()
+      val result = if (queryResult.size() == 0) jsonObjectOf() else {
+        queryResult.fold(jsonObjectOf()) { json, row ->
+          val floor = row.getInteger("floor")?.toString() ?: "unknown"
+          val closestItems = row.getJsonArray("closest_items")
+            .take(5)
+            .map {
+              (it as JsonObject).apply {
+                put("timestamp", getString("time"))
+                remove("time")
+                remove("mac")
+              }
+            } // only the 5 closest
+          json.put(floor, closestItems)
+        }
       }
+
+      ctx.response()
+        .putHeader(CONTENT_TYPE, APPLICATION_JSON)
+        .end(result.encode())
+    }
   }
 
   /**
    * Handles a getItem request.
    */
-  private fun getItemHandler(ctx: RoutingContext) {
-    val itemID = ctx.pathParam("id")
-    logger.info("New getItem request for item $itemID")
+  private suspend fun getItemHandler(ctx: RoutingContext) {
+    val itemID = ctx.pathParam("id").toInt() // the id needs to be converted to Int, as the DB stores it as an integer
+    LOGGER.info("New getItem request for item $itemID")
 
-    pgPool.preparedQuery(GET_ITEM)
-      .execute(Tuple.of(itemID.toInt())) // the id needs to be converted to Int, as the DB stores it as an integer
-      .onSuccess { res ->
-        if (res.size() == 0) {
-          // No item found, fail
-          ctx.fail(404)
-          return@onSuccess
-        }
-
-        val result: JsonObject = res.iterator().next().toItemJson()
-
-        ctx.response()
-          .putHeader("Content-Type", "application/json")
-          .end(result.encode())
-      }.onFailure { error ->
-        logger.error("Could not get item", error)
-        ctx.fail(500, error)
+    val itemsTable = ctx.getCollection(ITEMS_TABLE)
+    val beaconDataTable = ctx.getCollection(BEACON_DATA_TABLE)
+    executeWithErrorHandling("Could not get item", ctx) {
+      val queryResult = pgPool.preparedQuery(getItem(itemsTable, beaconDataTable)).execute(Tuple.of(itemID)).await()
+      if (queryResult.size() == 0) {
+        // No item found, answer with 404
+        ctx.response().statusCode = 404
+        ctx.end()
+        return@executeWithErrorHandling
       }
+
+      val result: JsonObject = queryResult.iterator().next().toItemJson()
+
+      ctx.response()
+        .putHeader(CONTENT_TYPE, APPLICATION_JSON)
+        .end(result.encode())
+    }
   }
 
   /**
    * Handles an updateItem request.
    */
-  private fun updateItemHandler(ctx: RoutingContext) {
-    val itemID = ctx.pathParam("id")
-    logger.info("New updateItem request for item $itemID")
+  private suspend fun updateItemHandler(ctx: RoutingContext) {
+    val id = ctx.pathParam("id")
+    LOGGER.info("New updateItem request for item $id")
 
     val json = ctx.bodyAsJson
     json.validateAndThen(ctx) {
       // Extract the information from the payload and update the item in TimescaleDB
-      val beacon: String = json["beacon"]
-      val category: String = json["category"]
-      val service: String = json["service"]
-      pgPool.preparedQuery(UPDATE_ITEM)
-        .execute(Tuple.of(beacon, category, service, itemID.toInt()))
-        .onSuccess {
-          logger.info("Successfully updated item $itemID")
-          ctx.end()
-        }
-        .onFailure { error ->
-          logger.error("Could not update item $itemID", error)
-          ctx.fail(500)
-        }
+      val info = listOf(id.toInt(), *extractItemInformation(json).toTypedArray())
+      val table = ctx.getCollection(ITEMS_TABLE)
+      executeWithErrorHandling("Could not update item $id", ctx) {
+        pgPool.preparedQuery(updateItem(table)).execute(Tuple.tuple(info)).await()
+        LOGGER.info("Successfully updated item $id")
+        ctx.end()
+      }
     }
   }
 
   /**
    * Handles a deleteItem request.
    */
-  private fun deleteItemHandler(ctx: RoutingContext) {
-    val itemID = ctx.pathParam("id")
-    logger.info("New deleteItem request for item $itemID")
+  private suspend fun deleteItemHandler(ctx: RoutingContext) {
+    val itemID = ctx.pathParam("id").toInt() // the id needs to be converted to Int, as the DB stores it as an integer
+    LOGGER.info("New deleteItem request for item $itemID")
 
-    pgPool.preparedQuery(DELETE_ITEM)
-      .execute(Tuple.of(itemID.toInt())) // the id needs to be converted to Int, as the DB stores it as an integer
-      .onSuccess {
-        ctx.end()
-      }.onFailure { error ->
-        logger.error("Could not delete item", error)
-        ctx.fail(500, error)
-      }
+    val table = ctx.getCollection(ITEMS_TABLE)
+    executeWithErrorHandling("Could not delete item", ctx) {
+      pgPool.preparedQuery(deleteItem(table)).execute(Tuple.of(itemID)).await()
+      ctx.end()
+    }
   }
+
+  /**
+   * Handles a getCategories request.
+   */
+  private suspend fun getCategoriesHandler(ctx: RoutingContext) {
+    LOGGER.info("New getCategories request")
+
+    val table = ctx.getCollection(ITEMS_TABLE)
+    executeWithErrorHandling("Could not get categories", ctx) {
+      val queryResult = pgPool.preparedQuery(getCategories(table)).execute().await()
+      val result = if (queryResult.size() == 0) listOf() else queryResult.map { it.getString("category") }
+
+      ctx.response()
+        .putHeader(CONTENT_TYPE, APPLICATION_JSON)
+        .end(JsonArray(result).encode())
+    }
+  }
+
+  /**
+   * An extension method for simplifying coroutines usage with Vert.x Web routers.
+   */
+  private fun Operation.coroutineHandler(fn: suspend (RoutingContext) -> Unit): Operation =
+    handler { ctx ->
+      launch(ctx.vertx().dispatcher()) {
+        try {
+          fn(ctx)
+        } catch (e: Exception) {
+          ctx.fail(e)
+        }
+      }
+    }
 }

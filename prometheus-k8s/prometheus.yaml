@@ -1,0 +1,28 @@
+apiVersion: monitoring.coreos.com/v1
+kind: Prometheus
+metadata:
+  name: prometheus
+  labels:
+    app: prometheus
+spec:
+  image: quay.io/prometheus/prometheus:v2.22.1
+  replicas: 1
+  resources:
+    requests:
+      memory: 400Mi
+  securityContext:
+    fsGroup: 2000
+    runAsNonRoot: true
+    runAsUser: 1000
+  serviceAccountName: prometheus
+  version: v2.22.1
+  serviceMonitorSelector: {}
+  remoteWrite:
+    - url: 'https://prometheus-us-central1.grafana.net/api/prom/push'
+      basicAuth:
+        username:
+          name: kubepromsecret
+          key: username
+        password:
+          name: kubepromsecret
+          key: password

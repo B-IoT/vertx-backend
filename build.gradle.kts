@@ -1,12 +1,12 @@
 /*
- * Copyright (c) 2020 BIoT. All rights reserved.
+ * Copyright (c) 2021 BioT. All rights reserved.
  */
 
 plugins {
-    kotlin("jvm") version "1.4.30"
-    id("com.github.johnrengelman.shadow") version "5.2.0" apply false
-    id("com.google.cloud.tools.jib") version "2.4.0" apply false
-    id("com.github.ben-manes.versions") version "0.36.0"
+    kotlin("jvm") version "1.4.32"
+    id("com.github.johnrengelman.shadow") version "6.1.0" apply false
+    id("com.google.cloud.tools.jib") version "3.0.0" apply false
+    id("com.github.ben-manes.versions") version "0.38.0"
     jacoco
 }
 
@@ -16,14 +16,16 @@ repositories {
 }
 
 allprojects {
-    extra["vertxVersion"] = if (project.hasProperty("vertxVersion")) project.property("vertxVersion") else "4.0.2"
+    extra["vertxVersion"] = if (project.hasProperty("vertxVersion")) project.property("vertxVersion") else "4.0.3"
     extra["junitJupiterVersion"] = "5.7.1"
     extra["logbackClassicVersion"] = "1.2.3"
-    extra["testContainersVersion"] = "1.15.2"
-    extra["restAssuredVersion"] = "4.3.2"
-    extra["striktVersion"] = "0.29.0"
+    extra["testContainersVersion"] = "1.15.3"
+    extra["restAssuredVersion"] = "4.3.3"
+    extra["striktVersion"] = "0.31.0"
     extra["rxKotlinVersion"] = "2.4.0"
-    extra["hazelcastVersion"] = "2.0.1"
+    extra["hazelcastVersion"] = "2.2.2"
+    extra["micrometerPrometheusVersion"] = "1.7.0"
+    extra["arrowVersion"] = "0.13.2"
 }
 
 subprojects {
@@ -118,4 +120,3 @@ tasks.wrapper {
     distributionType = Wrapper.DistributionType.ALL
     gradleVersion = "6.7.1"
 }
-
