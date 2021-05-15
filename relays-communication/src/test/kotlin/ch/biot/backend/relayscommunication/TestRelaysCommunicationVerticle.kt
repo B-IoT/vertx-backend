@@ -89,7 +89,8 @@ class TestRelaysCommunicationVerticle {
       mqttClientOptionsOf(
         clientId = configuration["mqttID"],
         username = configuration["mqttUsername"],
-        password = mqttPassword
+        password = mqttPassword,
+        ssl = true
       )
     )
 
