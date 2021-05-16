@@ -6,33 +6,34 @@ package ch.biot.backend.relayscommunication
 
 import io.netty.handler.codec.mqtt.MqttConnectReturnCode
 import io.netty.handler.codec.mqtt.MqttQoS
-import io.reactivex.Completable
-import io.reactivex.rxkotlin.subscribeBy
 import io.vertx.core.CompositeFuture
 import io.vertx.core.Future
 import io.vertx.core.Promise
 import io.vertx.core.Vertx
 import io.vertx.core.json.DecodeException
 import io.vertx.core.json.JsonObject
+import io.vertx.ext.auth.mongo.MongoAuthentication
+import io.vertx.ext.mongo.MongoClient
+import io.vertx.kafka.client.producer.KafkaProducer
+import io.vertx.kafka.client.producer.KafkaProducerRecord
 import io.vertx.kotlin.core.eventbus.eventBusOptionsOf
 import io.vertx.kotlin.core.json.get
 import io.vertx.kotlin.core.json.jsonObjectOf
 import io.vertx.kotlin.core.vertxOptionsOf
+import io.vertx.kotlin.coroutines.CoroutineVerticle
+import io.vertx.kotlin.coroutines.await
+import io.vertx.kotlin.coroutines.dispatcher
 import io.vertx.kotlin.ext.auth.mongo.mongoAuthenticationOptionsOf
-import io.vertx.reactivex.core.buffer.Buffer
-import io.vertx.reactivex.ext.auth.mongo.MongoAuthentication
-import io.vertx.reactivex.ext.mongo.MongoClient
-import io.vertx.reactivex.kafka.client.producer.KafkaProducer
-import io.vertx.reactivex.kafka.client.producer.KafkaProducerRecord
-import io.vertx.reactivex.mqtt.MqttEndpoint
-import io.vertx.reactivex.mqtt.MqttServer
-import io.vertx.reactivex.mqtt.messages.MqttPublishMessage
+import io.vertx.mqtt.MqttEndpoint
+import io.vertx.mqtt.MqttServer
+import io.vertx.mqtt.messages.MqttPublishMessage
 import io.vertx.spi.cluster.hazelcast.HazelcastClusterManager
+import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
 import java.net.InetAddress
 import java.time.Instant
 
-class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
+class RelaysCommunicationVerticle : CoroutineVerticle() {
 
   companion object {
     internal const val RELAYS_COLLECTION = "relays"
@@ -52,7 +53,7 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
     private const val LIVENESS_PORT = 1884
     private const val READINESS_PORT = 1885
 
-    private val logger = LoggerFactory.getLogger(RelaysCommunicationVerticle::class.java)
+    private val LOGGER = LoggerFactory.getLogger(RelaysCommunicationVerticle::class.java)
 
     @JvmStatic
     fun main(args: Array<String>) {
@@ -65,7 +66,7 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
       Vertx.clusteredVertx(options).onSuccess {
         it.deployVerticle(RelaysCommunicationVerticle())
       }.onFailure { error ->
-        logger.error("Could not start", error)
+        LOGGER.error("Could not start", error)
       }
     }
   }
@@ -80,7 +81,7 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
 
   private lateinit var mongoClient: MongoClient
 
-  override fun rxStart(): Completable {
+  override suspend fun start() {
     // Initialize the Kafka producer
     kafkaProducer = KafkaProducer.create(
       vertx,
@@ -96,58 +97,54 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
     mongoClient = MongoClient.createShared(
       vertx,
       jsonObjectOf(
-        "host" to MONGO_HOST, "port" to MONGO_PORT, "db_name" to "clients", "username" to "biot",
+        "host" to MONGO_HOST, "port" to MONGO_PORT, "db_name" to "clients",
+        "username" to "biot",
         "password" to "biot"
       )
     )
 
     // Add an event bus consumer to handle the JSON received from CRUDVerticle, which needs to be forwarded to the right
     // relay
-    vertx.eventBus().consumer<JsonObject>(RELAYS_UPDATE_ADDRESS)
-      .bodyStream()
-      .toFlowable()
-      .subscribe { json ->
-        logger.info("Received relay update $json on event bus address $RELAYS_UPDATE_ADDRESS, sending it to client...")
+    vertx.eventBus().consumer<JsonObject>(RELAYS_UPDATE_ADDRESS) { message ->
+      val json = message.body()
+      LOGGER.info("Received relay update $json on event bus address $RELAYS_UPDATE_ADDRESS, sending it to client...")
 
-        val mqttID: String = json["mqttID"]
+      val mqttID: String = json["mqttID"]
 
-        // Clean the json from useless fields
-        val cleanJson = json.clean()
+      // Clean the json from useless fields
+      val cleanJson = json.clean()
 
-        // Send the message to the right relay on the MQTT topic "update.parameters"
-        clients[mqttID]?.let { client -> sendMessageTo(client, cleanJson) }
-      }
+      // Send the message to the right relay on the MQTT topic "update.parameters"
+      clients[mqttID]?.let { client -> launch(vertx.dispatcher()) { sendMessageTo(client, cleanJson) } }
+    }
 
 //    // Certificate for TLS
 //    val pemKeyCertOptions = pemKeyCertOptionsOf(certPath = "certificate.pem", keyPath = "certificate_key.pem")
 //    val netServerOptions = netServerOptionsOf(ssl = true, pemKeyCertOptions = pemKeyCertOptions)
 
-    // TCP server for liveness checks
-    return vertx.createNetServer().connectHandler {
-      logger.info("Liveness check")
+    try {
+      // TCP server for liveness checks
+      vertx.createNetServer().connectHandler { LOGGER.info("Liveness check") }.listen(LIVENESS_PORT).await()
+      MqttServer.create(vertx).endpointHandler { client ->
+        launch(vertx.dispatcher()) { handleClient(client) }
+      }.listen(MQTT_PORT).await()
+
+      LOGGER.info("MQTT server listening on port $MQTT_PORT")
+      vertx.createNetServer().connectHandler { LOGGER.info("Readiness check complete") }.listen(READINESS_PORT).await()
+    } catch (error: Throwable) {
+      LOGGER.error("An error occurred while creating the server", error)
     }
-      .rxListen(LIVENESS_PORT)
-      .flatMap {
-        MqttServer.create(vertx)
-          .endpointHandler(::handleClient).rxListen(MQTT_PORT)
-      }
-      .flatMap {
-        logger.info("MQTT server listening on port $MQTT_PORT")
-        vertx.createNetServer().connectHandler {
-          logger.info("Readiness check complete")
-        }.rxListen(READINESS_PORT)
-      }.ignoreElement()
   }
 
-  private fun handleClient(client: MqttEndpoint) {
+  private suspend fun handleClient(client: MqttEndpoint) {
     val clientIdentifier = client.clientIdentifier()
     val isCleanSession = client.isCleanSession
-    logger.info("Client [$clientIdentifier] request to connect, clean session = $isCleanSession")
+    LOGGER.info("Client [$clientIdentifier] request to connect, clean session = $isCleanSession")
 
     val mqttAuth = client.auth()
     if (mqttAuth == null) {
       // No auth information, reject
-      logger.info("Client [$clientIdentifier] rejected")
+      LOGGER.error("Client [$clientIdentifier] rejected")
       client.reject(MqttConnectReturnCode.CONNECTION_REFUSED_NOT_AUTHORIZED)
       return
     }
@@ -177,50 +174,50 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
       mongoAuthRelaysCache[collection] = mongoAuth
       mongoAuth
     }
-    mongoAuthRelays.rxAuthenticate(credentialsJson).subscribeBy(
-      onSuccess = {
-        // Accept connection from the remote client
-        logger.info("Client [$clientIdentifier] connected")
 
-        val sessionPresent = !client.isCleanSession
-        client.accept(sessionPresent)
-          .disconnectHandler {
-            logger.info("Client [$clientIdentifier] disconnected")
-            clients.remove(clientIdentifier)
-          }.subscribeHandler { subscribe ->
-            // Extract the QoS levels to be used to acknowledge
-            val grantedQosLevels = subscribe.topicSubscriptions().map { s ->
-              logger.info("Subscription for [${s.topicName()}] with QoS [${s.qualityOfService()}] by client [$clientIdentifier]")
-              s.qualityOfService()
-            }
+    try {
+      mongoAuthRelays.authenticate(credentialsJson).await()
 
-            // Ack the subscriptions request
-            client.subscribeAcknowledge(subscribe.messageId(), grantedQosLevels)
-            clients[clientIdentifier] = client
+      LOGGER.info("Client [$clientIdentifier] connected")
 
-            // Send last configuration to client
-            sendLastConfiguration(client)
-          }.unsubscribeHandler { unsubscribe ->
-            unsubscribe.topics().forEach { topic ->
-              logger.info("Unsubscription for [$topic] by client [$clientIdentifier]")
-            }
-            clients.remove(clientIdentifier)
-          }.publishHandler { m ->
-            handleMessage(m, client, company)
+      // Accept connection from the remote client
+      val sessionPresent = !client.isCleanSession
+      client.accept(sessionPresent)
+        .disconnectHandler {
+          LOGGER.info("Client [$clientIdentifier] disconnected")
+          clients.remove(clientIdentifier)
+        }.subscribeHandler { subscribe ->
+          // Extract the QoS levels to be used to acknowledge
+          val grantedQosLevels = subscribe.topicSubscriptions().map { s ->
+            LOGGER.info("Subscription for [${s.topicName()}] with QoS [${s.qualityOfService()}] by client [$clientIdentifier]")
+            s.qualityOfService()
           }
-      },
-      onError = {
-        // Wrong username or password, reject
-        logger.info("Client [$clientIdentifier] rejected", it)
-        client.reject(MqttConnectReturnCode.CONNECTION_REFUSED_BAD_USER_NAME_OR_PASSWORD)
-      }
-    )
+
+          // Ack the subscriptions request
+          client.subscribeAcknowledge(subscribe.messageId(), grantedQosLevels)
+          clients[clientIdentifier] = client
+
+          // Send last configuration to client
+          launch(vertx.dispatcher()) { sendLastConfiguration(client) }
+        }.unsubscribeHandler { unsubscribe ->
+          unsubscribe.topics().forEach { topic ->
+            LOGGER.info("Unsubscription for [$topic] by client [$clientIdentifier]")
+          }
+          clients.remove(clientIdentifier)
+        }.publishHandler { m ->
+          launch(vertx.dispatcher()) { handleMessage(m, client, company) }
+        }
+    } catch (error: Throwable) {
+      // Wrong username or password, reject
+      LOGGER.error("Client [$clientIdentifier] rejected", error)
+      client.reject(MqttConnectReturnCode.CONNECTION_REFUSED_BAD_USER_NAME_OR_PASSWORD)
+    }
   }
 
   /**
    * Handles a MQTT message received by the given client.
    */
-  private fun handleMessage(m: MqttPublishMessage, client: MqttEndpoint, company: String) {
+  private suspend fun handleMessage(m: MqttPublishMessage, client: MqttEndpoint, company: String) {
     /**
      * Validates the JSON, returning true iff it contains all required fields.
      */
@@ -271,7 +268,7 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
 
     try {
       val message = m.payload().toJsonObject()
-      logger.info("Received message $message from client ${client.clientIdentifier()}")
+      LOGGER.info("Received message $message from client ${client.clientIdentifier()}")
 
       if (m.qosLevel() == MqttQoS.AT_LEAST_ONCE) {
         // Acknowledge the message
@@ -279,8 +276,10 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
       }
 
       if (m.topicName() == INGESTION_TOPIC) {
-        validateJson(message).onSuccess {
+        try {
+          validateJson(message).await()
           // The message contains data to ingest and is valid
+
           val kafkaMessage = message.copy().apply {
             // Add a timestamp to the message to send to Kafka
             put("timestamp", Instant.now())
@@ -288,65 +287,56 @@ class RelaysCommunicationVerticle : io.vertx.reactivex.core.AbstractVerticle() {
           }
 
           val relayID: String = message["relayID"]
-
-          // Send the message to Kafka on the "incoming.update" topic
-          val record = KafkaProducerRecord.create(INGESTION_TOPIC, relayID, kafkaMessage)
-          kafkaProducer.rxSend(record).subscribeBy(
-            onSuccess = {
-              logger.info("Sent message $kafkaMessage with key '$relayID' on topic '$INGESTION_TOPIC'")
-            },
-            onError = { error ->
-              logger.error(
-                "Could not send message $kafkaMessage with key '$relayID' on topic '$INGESTION_TOPIC'",
-                error
-              )
-            }
-          )
-        }.onFailure { error ->
-          logger.error("Invalid JSON received", error)
+          try {
+            // Send the message to Kafka on the "incoming.update" topic
+            val record = KafkaProducerRecord.create(INGESTION_TOPIC, relayID, kafkaMessage)
+            kafkaProducer.send(record).await()
+            LOGGER.info("Sent message $kafkaMessage with key '$relayID' on topic '$INGESTION_TOPIC'")
+          } catch (sendError: Throwable) {
+            LOGGER.error(
+              "Could not send message $kafkaMessage with key '$relayID' on topic '$INGESTION_TOPIC'",
+              sendError
+            )
+          }
+        } catch (invalidJsonError: Throwable) {
+          LOGGER.error("Invalid JSON received", invalidJsonError)
         }
       }
     } catch (e: DecodeException) {
-      logger.error("Could not decode MQTT message $m", e)
+      LOGGER.error("Could not decode MQTT message $m", e)
     }
   }
 
   /**
    * Sends the last relay configuration to the given client.
    */
-  private fun sendLastConfiguration(client: MqttEndpoint) {
+  private suspend fun sendLastConfiguration(client: MqttEndpoint) {
     val query = jsonObjectOf("mqttID" to client.clientIdentifier())
-    // Find the last configuration in MongoDB
-    mongoClient.rxFindOne(RELAYS_COLLECTION, query, jsonObjectOf()).subscribeBy(
-      onSuccess = { config ->
-        if (config != null && !config.isEmpty) {
-          // The configuration exists
-
-          // Remove useless fields and clean lastModified, then send
-          val cleanConfig = config.clean()
-          sendMessageTo(client, cleanConfig)
-        }
-      },
-      onError = { error ->
-        logger.error("Could not send last configuration to client ${client.clientIdentifier()}", error)
+    try {
+      // Find the last configuration in MongoDB
+      val config = mongoClient.findOne(RELAYS_COLLECTION, query, jsonObjectOf()).await()
+      if (config != null && !config.isEmpty) {
+        // The configuration exists
+        // Remove useless fields and clean lastModified, then send
+        val cleanConfig = config.clean()
+        sendMessageTo(client, cleanConfig)
       }
-    )
+    } catch (error: Throwable) {
+      LOGGER.error("Could not send last configuration to client ${client.clientIdentifier()}", error)
+    }
   }
 
   /**
    * Sends the given message to the given client on the "update.parameters" MQTT topic.
    */
-  private fun sendMessageTo(client: MqttEndpoint, message: JsonObject) {
-    client.publishAcknowledgeHandler { messageId ->
-      logger.info("Received ack for message $messageId")
-    }.rxPublish(UPDATE_PARAMETERS_TOPIC, Buffer.newInstance(message.toBuffer()), MqttQoS.AT_LEAST_ONCE, false, false)
-      .subscribeBy(
-        onSuccess = { messageId ->
-          logger.info("Published message $message with id $messageId to client ${client.clientIdentifier()} on topic $UPDATE_PARAMETERS_TOPIC")
-        },
-        onError = { error ->
-          logger.error("Could not send message $message on topic $UPDATE_PARAMETERS_TOPIC", error)
-        }
-      )
+  private suspend fun sendMessageTo(client: MqttEndpoint, message: JsonObject) {
+    try {
+      val messageId = client
+        .publishAcknowledgeHandler { messageId -> LOGGER.info("Received ack for message $messageId") }
+        .publish(UPDATE_PARAMETERS_TOPIC, message.toBuffer(), MqttQoS.AT_LEAST_ONCE, false, false).await()
+      LOGGER.info("Published message $message with id $messageId to client ${client.clientIdentifier()} on topic $UPDATE_PARAMETERS_TOPIC")
+    } catch (error: Throwable) {
+      LOGGER.error("Could not send message $message on topic $UPDATE_PARAMETERS_TOPIC", error)
+    }
   }
 }

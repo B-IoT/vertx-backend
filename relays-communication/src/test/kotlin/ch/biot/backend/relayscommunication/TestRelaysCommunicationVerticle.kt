@@ -11,27 +11,28 @@ import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.RELAYS_UPDATE_ADDRESS
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.UPDATE_PARAMETERS_TOPIC
 import io.netty.handler.codec.mqtt.MqttQoS
-import io.reactivex.Maybe
-import io.reactivex.rxkotlin.subscribeBy
+import io.vertx.core.Future
+import io.vertx.core.Vertx
 import io.vertx.core.json.JsonObject
+import io.vertx.ext.auth.mongo.MongoAuthentication
+import io.vertx.ext.auth.mongo.MongoUserUtil
+import io.vertx.ext.mongo.MongoClient
 import io.vertx.junit5.VertxExtension
 import io.vertx.junit5.VertxTestContext
+import io.vertx.kafka.client.consumer.KafkaConsumer
 import io.vertx.kotlin.core.json.get
 import io.vertx.kotlin.core.json.jsonArrayOf
 import io.vertx.kotlin.core.json.jsonObjectOf
+import io.vertx.kotlin.coroutines.await
+import io.vertx.kotlin.coroutines.dispatcher
+import io.vertx.kotlin.coroutines.toChannel
 import io.vertx.kotlin.ext.auth.mongo.mongoAuthenticationOptionsOf
 import io.vertx.kotlin.ext.auth.mongo.mongoAuthorizationOptionsOf
 import io.vertx.kotlin.ext.mongo.indexOptionsOf
 import io.vertx.kotlin.mqtt.mqttClientOptionsOf
-import io.vertx.reactivex.core.RxHelper
-import io.vertx.reactivex.core.Vertx
-import io.vertx.reactivex.core.buffer.Buffer
-import io.vertx.reactivex.ext.auth.mongo.MongoAuthentication
-import io.vertx.reactivex.ext.auth.mongo.MongoUserUtil
-import io.vertx.reactivex.ext.mongo.MongoClient
-import io.vertx.reactivex.kafka.admin.KafkaAdminClient
-import io.vertx.reactivex.kafka.client.consumer.KafkaConsumer
-import io.vertx.reactivex.mqtt.MqttClient
+import io.vertx.mqtt.MqttClient
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.*
 import org.junit.jupiter.api.extension.ExtendWith
 import org.testcontainers.containers.DockerComposeContainer
@@ -43,7 +44,6 @@ import strikt.assertions.isNotNull
 import java.io.File
 import java.security.SecureRandom
 import java.util.*
-import java.util.concurrent.TimeUnit
 
 @ExtendWith(VertxExtension::class)
 @Testcontainers
@@ -71,7 +71,7 @@ class TestRelaysCommunicationVerticle {
   )
 
   @BeforeEach
-  fun setup(vertx: Vertx, testContext: VertxTestContext) {
+  fun setup(vertx: Vertx, testContext: VertxTestContext) = runBlocking(vertx.dispatcher()) {
     val kafkaConfig = mapOf(
       "bootstrap.servers" to "localhost:$KAFKA_PORT",
       "key.deserializer" to "org.apache.kafka.common.serialization.StringDeserializer",
@@ -82,7 +82,6 @@ class TestRelaysCommunicationVerticle {
     )
 
     kafkaConsumer = KafkaConsumer.create(vertx, kafkaConfig)
-    val kafkaAdminClient = KafkaAdminClient.create(vertx, kafkaConfig)
 
     mqttClient = MqttClient.create(
       vertx,
@@ -113,63 +112,61 @@ class TestRelaysCommunicationVerticle {
     )
     mongoAuth = MongoAuthentication.create(mongoClient, mongoAuthOptions)
 
-    mongoClient
-      .rxCreateIndexWithOptions(RELAYS_COLLECTION, jsonObjectOf("relayID" to 1), indexOptionsOf().unique(true))
-      .andThen(
-        mongoClient.rxCreateIndexWithOptions(
-          RELAYS_COLLECTION,
-          jsonObjectOf("mqttID" to 1),
-          indexOptionsOf().unique(true)
-        )
-      )
-      .andThen(
-        mongoClient.rxCreateIndexWithOptions(
-          RELAYS_COLLECTION, jsonObjectOf("mqttUsername" to 1),
-          indexOptionsOf().unique(true)
-        )
-      )
-      .andThen(dropAllRelays())
-      .flatMap { insertRelay() }
-      .flatMapSingle { vertx.rxDeployVerticle(RelaysCommunicationVerticle()) }
-      .delay(500, TimeUnit.MILLISECONDS, RxHelper.scheduler(vertx))
-      .flatMapCompletable { kafkaAdminClient.rxDeleteTopics(listOf(INGESTION_TOPIC)) }
-      .onErrorComplete()
-      .subscribe(testContext::completeNow, testContext::failNow)
+    try {
+      mongoClient
+        .createIndexWithOptions(RELAYS_COLLECTION, jsonObjectOf("relayID" to 1), indexOptionsOf().unique(true)).await()
+
+      mongoClient.createIndexWithOptions(
+        RELAYS_COLLECTION,
+        jsonObjectOf("mqttID" to 1),
+        indexOptionsOf().unique(true)
+      ).await()
+
+      mongoClient.createIndexWithOptions(
+        RELAYS_COLLECTION, jsonObjectOf("mqttUsername" to 1),
+        indexOptionsOf().unique(true)
+      ).await()
+
+      dropAllRelays().await()
+      insertRelay().await()
+      vertx.deployVerticle(RelaysCommunicationVerticle()).await()
+      testContext.completeNow()
+    } catch (error: Throwable) {
+      testContext.failNow(error)
+    }
   }
 
-  private fun dropAllRelays() = mongoClient.rxRemoveDocuments(RELAYS_COLLECTION, jsonObjectOf())
+  private fun dropAllRelays() = mongoClient.removeDocuments(RELAYS_COLLECTION, jsonObjectOf())
 
-  private fun insertRelay(): Maybe<JsonObject> {
+  private suspend fun insertRelay(): Future<JsonObject> {
     val salt = ByteArray(16)
     SecureRandom().nextBytes(salt)
     val hashedPassword = mongoAuth.hash("pbkdf2", String(Base64.getEncoder().encode(salt)), mqttPassword)
-    return mongoUserUtil
-      .rxCreateHashedUser("test", hashedPassword)
-      .flatMapMaybe { docID ->
-        val query = jsonObjectOf("_id" to docID)
-        val extraInfo = jsonObjectOf(
-          "\$set" to configuration
-        )
-        mongoClient.rxFindOneAndUpdate(RELAYS_COLLECTION, query, extraInfo)
-      }
+    val docID = mongoUserUtil.createHashedUser("test", hashedPassword).await()
+    val query = jsonObjectOf("_id" to docID)
+    val extraInfo = jsonObjectOf(
+      "\$set" to configuration
+    )
+    return mongoClient.findOneAndUpdate(RELAYS_COLLECTION, query, extraInfo)
   }
 
   @AfterEach
-  fun cleanup(testContext: VertxTestContext) {
-    dropAllRelays()
-      .doFinally { mongoClient.rxClose() }
-      .subscribe(
-        { testContext.completeNow() },
-        testContext::failNow
-      )
+  fun cleanup(vertx: Vertx, testContext: VertxTestContext) = runBlocking(vertx.dispatcher()) {
+    try {
+      dropAllRelays().await()
+      mongoClient.close().await()
+      testContext.completeNow()
+    } catch (error: Throwable) {
+      testContext.failNow(error)
+    }
   }
 
   @Test
   @DisplayName("A MQTT client upon subscription receives the last configuration")
-  fun clientSubscribesAndReceivesLastConfig(testContext: VertxTestContext) {
-    mqttClient
-      .rxConnect(RelaysCommunicationVerticle.MQTT_PORT, "localhost")
-      .flatMap {
+  fun clientSubscribesAndReceivesLastConfig(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      try {
+        mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
         mqttClient.publishHandler { msg ->
           if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
             testContext.verify {
@@ -182,77 +179,77 @@ class TestRelaysCommunicationVerticle {
               testContext.completeNow()
             }
           }
-        }.rxSubscribe(UPDATE_PARAMETERS_TOPIC, MqttQoS.AT_LEAST_ONCE.value())
-      }.subscribeBy(
-        onError = testContext::failNow
-      )
-  }
+        }.subscribe(UPDATE_PARAMETERS_TOPIC, MqttQoS.AT_LEAST_ONCE.value()).await()
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
 
   @Test
   @DisplayName("A MQTT client without authentication is refused connection")
-  fun clientWithoutAuthIsRefusedConnection(vertx: Vertx, testContext: VertxTestContext) {
-    val client = MqttClient.create(vertx)
+  fun clientWithoutAuthIsRefusedConnection(vertx: Vertx, testContext: VertxTestContext) =
+    runBlocking(vertx.dispatcher()) {
+      val client = MqttClient.create(vertx)
 
-    client
-      .rxConnect(RelaysCommunicationVerticle.MQTT_PORT, "localhost")
-      .subscribeBy(
-        onError = { testContext.completeNow() },
-        onSuccess = { testContext.failNow("The client was able to connect without authentication") }
-      )
-  }
+      try {
+        client.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+        testContext.failNow("The client was able to connect without authentication")
+      } catch (error: Throwable) {
+        testContext.completeNow()
+      }
+    }
 
   @Test
   @DisplayName("A MQTT client with a wrong password is refused connection")
-  fun clientWithWrongPasswordIsRefusedConnection(vertx: Vertx, testContext: VertxTestContext) {
-    val client = MqttClient.create(
-      vertx,
-      mqttClientOptionsOf(
-        clientId = configuration["mqttID"],
-        username = configuration["mqttUsername"],
-        password = "wrongPassword",
-        willFlag = true,
-        willMessage = jsonObjectOf("company" to "biot").encode()
+  fun clientWithWrongPasswordIsRefusedConnection(vertx: Vertx, testContext: VertxTestContext) =
+    runBlocking(vertx.dispatcher()) {
+      val client = MqttClient.create(
+        vertx,
+        mqttClientOptionsOf(
+          clientId = configuration["mqttID"],
+          username = configuration["mqttUsername"],
+          password = "wrongPassword",
+          willFlag = true,
+          willMessage = jsonObjectOf("company" to "biot").encode()
+        )
       )
-    )
 
-    client
-      .rxConnect(RelaysCommunicationVerticle.MQTT_PORT, "localhost")
-      .subscribeBy(
-        onError = { testContext.completeNow() },
-        onSuccess = { testContext.failNow("The client was able to connect with a wrong password") }
-      )
-  }
+      try {
+        client.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+        testContext.failNow("The client was able to connect with a wrong password")
+      } catch (error: Throwable) {
+        testContext.completeNow()
+      }
+    }
 
   @Test
   @DisplayName("A MQTT client receives updates")
-  fun clientReceivesUpdate(vertx: Vertx, testContext: VertxTestContext) {
-    val message = jsonObjectOf("latitude" to 42.3, "mqttID" to "mqtt")
-    mqttClient.publishHandler { msg ->
-      if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
-        val json = msg.payload().toJsonObject()
-        if (!json.containsKey("relayID")) { // only handle received message, not the one for the last configuration
-          testContext.verify {
-            val messageWithoutMqttID = message.copy().apply { remove("mqttID") }
-            expectThat(json).isEqualTo(messageWithoutMqttID)
-            testContext.completeNow()
+  fun clientReceivesUpdate(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
+    try {
+      val message = jsonObjectOf("latitude" to 42.3, "mqttID" to "mqtt")
+      mqttClient.publishHandler { msg ->
+        if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
+          val json = msg.payload().toJsonObject()
+          if (!json.containsKey("relayID")) { // only handle received message, not the one for the last configuration
+            testContext.verify {
+              val messageWithoutMqttID = message.copy().apply { remove("mqttID") }
+              expectThat(json).isEqualTo(messageWithoutMqttID)
+              testContext.completeNow()
+            }
           }
         }
-      }
-    }.rxConnect(RelaysCommunicationVerticle.MQTT_PORT, "localhost")
-      .flatMap {
-        mqttClient.rxSubscribe(UPDATE_PARAMETERS_TOPIC, MqttQoS.AT_LEAST_ONCE.value())
-      }
-      .subscribeBy(
-        onSuccess = {
-          vertx.eventBus().send(RELAYS_UPDATE_ADDRESS, message)
-        },
-        onError = testContext::failNow
-      )
+      }.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+
+      mqttClient.subscribe(UPDATE_PARAMETERS_TOPIC, MqttQoS.AT_LEAST_ONCE.value()).await()
+      vertx.eventBus().send(RELAYS_UPDATE_ADDRESS, message)
+    } catch (error: Throwable) {
+      testContext.failNow(error)
+    }
   }
 
   @Test
   @DisplayName("A well-formed MQTT JSON message is ingested and streamed to Kafka")
-  fun mqttMessageIsIngested(testContext: VertxTestContext) {
+  fun mqttMessageIsIngested(vertx: Vertx, testContext: VertxTestContext) = runBlocking(vertx.dispatcher()) {
     val message = jsonObjectOf(
       "relayID" to "abc",
       "beacons" to jsonArrayOf(
@@ -276,396 +273,345 @@ class TestRelaysCommunicationVerticle {
       "floor" to 1
     )
 
-    mqttClient
-      .rxConnect(RelaysCommunicationVerticle.MQTT_PORT, "localhost")
-      .flatMap {
-        mqttClient.rxPublish(
-          INGESTION_TOPIC,
-          Buffer.newInstance(message.toBuffer()),
-          MqttQoS.AT_LEAST_ONCE,
-          false,
-          false
-        )
-      }
-      .subscribeBy(onError = testContext::failNow)
-
-    kafkaConsumer
-      .rxSubscribe(INGESTION_TOPIC)
-      .andThen(
-        kafkaConsumer.toFlowable()
-      )
-      .subscribe(
-        { record ->
-          testContext.verify {
-            val relayID = message.getString("relayID")
-            expectThat(record.key()).isEqualTo(relayID)
-            val json = record.value()
-            expect {
-              that(json.getString("relayID")).isEqualTo(relayID)
-              that(json.getString("timestamp")).isNotNull()
-              that(json.getJsonArray("beacons")).isEqualTo(message.getJsonArray("beacons"))
-              that(json.getDouble("latitude")).isEqualTo(message.getDouble("latitude"))
-              that(json.getDouble("longitude")).isEqualTo(message.getDouble("longitude"))
-              that(json.getInteger("floor")).isEqualTo(message.getInteger("floor"))
-              that(json.getDouble("temperature")).isEqualTo(message.getDouble("temperature"))
-            }
-            testContext.completeNow()
+    try {
+      mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+      mqttClient.publish(INGESTION_TOPIC, message.toBuffer(), MqttQoS.AT_LEAST_ONCE, false, false).await()
+      kafkaConsumer.subscribe(INGESTION_TOPIC).await()
+      val stream = kafkaConsumer.asStream().toChannel(vertx)
+      for (record in stream) {
+        testContext.verify {
+          val relayID = message.getString("relayID")
+          expectThat(record.key()).isEqualTo(relayID)
+          val json = record.value()
+          expect {
+            that(json.getString("relayID")).isEqualTo(relayID)
+            that(json.getString("timestamp")).isNotNull()
+            that(json.getJsonArray("beacons")).isEqualTo(message.getJsonArray("beacons"))
+            that(json.getDouble("latitude")).isEqualTo(message.getDouble("latitude"))
+            that(json.getDouble("longitude")).isEqualTo(message.getDouble("longitude"))
+            that(json.getInteger("floor")).isEqualTo(message.getInteger("floor"))
+            that(json.getDouble("temperature")).isEqualTo(message.getDouble("temperature"))
           }
-        },
-        testContext::failNow
-      )
+          testContext.completeNow()
+          stream.cancel()
+        }
+      }
+    } catch (error: Throwable) {
+      testContext.failNow(error)
+    }
   }
 
+  @ExperimentalCoroutinesApi // for channel.isEmpty
   @Test
   @DisplayName("An invalid MQTT JSON message is not ingested because it is missing fields")
-  fun invalidMqttMessageIsNotIngestedWrongFields(testContext: VertxTestContext) {
-    val message = jsonObjectOf(
-      "relayID" to "abc",
-      "beacons" to jsonArrayOf(
-        jsonObjectOf(
-          "mac" to "aa:aa:aa:aa:aa:aa",
-          "rssi" to -60.0,
-          "battery" to 42,
-          "temperature" to 25,
-          "status" to 0
+  fun invalidMqttMessageIsNotIngestedWrongFields(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      val message = jsonObjectOf(
+        "relayID" to "abc",
+        "beacons" to jsonArrayOf(
+          jsonObjectOf(
+            "mac" to "aa:aa:aa:aa:aa:aa",
+            "rssi" to -60.0,
+            "battery" to 42,
+            "temperature" to 25,
+            "status" to 0
+          ),
+          jsonObjectOf(
+            "mac" to "bb:aa:aa:aa:aa:aa",
+            "rssi" to -59.0,
+            "battery" to 100,
+            "temperature" to 20,
+            "status" to 1
+          )
         ),
-        jsonObjectOf(
-          "mac" to "bb:aa:aa:aa:aa:aa",
-          "rssi" to -59.0,
-          "battery" to 100,
-          "temperature" to 20,
-          "status" to 1
-        )
-      ),
-      "longitude" to 2.3,
-      "floor" to 1
-    )
-
-    mqttClient.rxConnect(RelaysCommunicationVerticle.MQTT_PORT, "localhost")
-      .flatMap {
-        mqttClient.rxPublish(
-          INGESTION_TOPIC,
-          Buffer.newInstance(message.toBuffer()),
-          MqttQoS.AT_LEAST_ONCE,
-          false,
-          false
-        )
-      }.subscribeBy(onError = testContext::failNow)
-
-    kafkaConsumer
-      .rxSubscribe(INGESTION_TOPIC).subscribe()
-
-    testContext.verify {
-      kafkaConsumer.toFlowable().timeout(5, TimeUnit.SECONDS).firstOrError().subscribeBy(
-        onSuccess = { testContext.failNow("The message was ingested") },
-        onError = { testContext.completeNow() }
+        "longitude" to 2.3,
+        "floor" to 1
       )
-    }
-  }
 
+      try {
+        mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+        mqttClient.publish(INGESTION_TOPIC, message.toBuffer(), MqttQoS.AT_LEAST_ONCE, false, false).await()
+        kafkaConsumer.subscribe(INGESTION_TOPIC).await()
+        val stream = kafkaConsumer.asStream().toChannel(vertx)
+        testContext.verify {
+          if (stream.isEmpty) {
+            testContext.completeNow()
+          } else {
+            testContext.failNow("The message was ingested")
+          }
+        }
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+
+  @ExperimentalCoroutinesApi
   @Test
   @DisplayName("An invalid MQTT JSON message is not ingested because it is missing fields in the beacons field")
-  fun invalidMqttMessageIsNotIngestedWrongBeaconsFields(testContext: VertxTestContext) {
-    val message = jsonObjectOf(
-      "relayID" to "abc",
-      "beacons" to jsonArrayOf(
-        jsonObjectOf(
-          "mac" to "aa:aa:aa:aa:aa:aa",
-          "rssi" to -60.0,
-          "temperature" to 25,
-          "status" to 0
+  fun invalidMqttMessageIsNotIngestedWrongBeaconsFields(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      val message = jsonObjectOf(
+        "relayID" to "abc",
+        "beacons" to jsonArrayOf(
+          jsonObjectOf(
+            "mac" to "aa:aa:aa:aa:aa:aa",
+            "rssi" to -60.0,
+            "temperature" to 25,
+            "status" to 0
+          ),
+          jsonObjectOf(
+            "mac" to "bb:aa:aa:aa:aa:aa",
+            "rssi" to -59.0,
+            "battery" to 100,
+            "temperature" to 20,
+            "status" to 1
+          )
         ),
-        jsonObjectOf(
-          "mac" to "bb:aa:aa:aa:aa:aa",
-          "rssi" to -59.0,
-          "battery" to 100,
-          "temperature" to 20,
-          "status" to 1
-        )
-      ),
-      "longitude" to 2.3,
-      "floor" to 1
-    )
+        "longitude" to 2.3,
+        "floor" to 1
+      )
 
-    mqttClient
-      .rxConnect(RelaysCommunicationVerticle.MQTT_PORT, "localhost")
-      .flatMap {
-        mqttClient.rxPublish(
-          INGESTION_TOPIC,
-          Buffer.newInstance(message.toBuffer()),
-          MqttQoS.AT_LEAST_ONCE,
-          false,
-          false
-        )
-      }.subscribeBy(onError = testContext::failNow)
-
-    testContext.verify {
-      kafkaConsumer
-        .rxSubscribe(INGESTION_TOPIC)
-        .andThen(kafkaConsumer.toFlowable())
-        .timeout(5, TimeUnit.SECONDS)
-        .firstOrError()
-        .subscribeBy(
-          onSuccess = { testContext.failNow("The message was ingested") },
-          onError = { testContext.completeNow() }
-        )
+      try {
+        mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+        mqttClient.publish(INGESTION_TOPIC, message.toBuffer(), MqttQoS.AT_LEAST_ONCE, false, false).await()
+        kafkaConsumer.subscribe(INGESTION_TOPIC).await()
+        val stream = kafkaConsumer.asStream().toChannel(vertx)
+        testContext.verify {
+          if (stream.isEmpty) {
+            testContext.completeNow()
+          } else {
+            testContext.failNow("The message was ingested")
+          }
+        }
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
     }
-  }
 
+  @ExperimentalCoroutinesApi
   @Test
   @DisplayName("An invalid MQTT JSON message is not ingested because it has zero coordinates")
-  fun invalidMqttMessageIsNotIngestedWrongCoordinates(testContext: VertxTestContext) {
-    val message = jsonObjectOf(
-      "relayID" to "abc",
-      "beacons" to jsonArrayOf(
-        jsonObjectOf(
-          "mac" to "aa:aa:aa:aa:aa:aa",
-          "rssi" to -60.0,
-          "battery" to 42,
-          "temperature" to 25,
-          "status" to 0
+  fun invalidMqttMessageIsNotIngestedWrongCoordinates(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      val message = jsonObjectOf(
+        "relayID" to "abc",
+        "beacons" to jsonArrayOf(
+          jsonObjectOf(
+            "mac" to "aa:aa:aa:aa:aa:aa",
+            "rssi" to -60.0,
+            "battery" to 42,
+            "temperature" to 25,
+            "status" to 0
+          ),
+          jsonObjectOf(
+            "mac" to "bb:aa:aa:aa:aa:aa",
+            "rssi" to -59.0,
+            "battery" to 100,
+            "temperature" to 20,
+            "status" to 1
+          )
         ),
-        jsonObjectOf(
-          "mac" to "bb:aa:aa:aa:aa:aa",
-          "rssi" to -59.0,
-          "battery" to 100,
-          "temperature" to 20,
-          "status" to 1
-        )
-      ),
-      "latitude" to 2.3,
-      "longitude" to 0,
-      "floor" to 1
-    )
-
-    mqttClient.rxConnect(RelaysCommunicationVerticle.MQTT_PORT, "localhost")
-      .flatMap {
-        mqttClient.rxPublish(
-          INGESTION_TOPIC,
-          Buffer.newInstance(message.toBuffer()),
-          MqttQoS.AT_LEAST_ONCE,
-          false,
-          false
-        )
-      }.subscribeBy(onError = testContext::failNow)
-
-    kafkaConsumer
-      .rxSubscribe(INGESTION_TOPIC).subscribe()
-
-    testContext.verify {
-      kafkaConsumer.toFlowable().timeout(5, TimeUnit.SECONDS).firstOrError().subscribeBy(
-        onSuccess = { testContext.failNow("The message was ingested") },
-        onError = { testContext.completeNow() }
+        "latitude" to 2.3,
+        "longitude" to 0,
+        "floor" to 1
       )
-    }
-  }
 
+      try {
+        mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+        mqttClient.publish(INGESTION_TOPIC, message.toBuffer(), MqttQoS.AT_LEAST_ONCE, false, false).await()
+        kafkaConsumer.subscribe(INGESTION_TOPIC).await()
+        val stream = kafkaConsumer.asStream().toChannel(vertx)
+        testContext.verify {
+          if (stream.isEmpty) {
+            testContext.completeNow()
+          } else {
+            testContext.failNow("The message was ingested")
+          }
+        }
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+
+  @ExperimentalCoroutinesApi
   @Test
   @DisplayName("An invalid MQTT JSON message is not ingested because it has empty MACs")
-  fun invalidMqttMessageIsNotIngestedEmptyMac(testContext: VertxTestContext) {
-    val message = jsonObjectOf(
-      "relayID" to "abc",
-      "beacons" to jsonArrayOf(
-        jsonObjectOf(
-          "mac" to "",
-          "rssi" to -60.0,
-          "battery" to 42,
-          "temperature" to 25,
-          "status" to 0
+  fun invalidMqttMessageIsNotIngestedEmptyMac(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      val message = jsonObjectOf(
+        "relayID" to "abc",
+        "beacons" to jsonArrayOf(
+          jsonObjectOf(
+            "mac" to "",
+            "rssi" to -60.0,
+            "battery" to 42,
+            "temperature" to 25,
+            "status" to 0
+          ),
+          jsonObjectOf(
+            "mac" to "bb:aa:aa:aa:aa:aa",
+            "rssi" to -59.0,
+            "battery" to 0,
+            "temperature" to 20,
+            "status" to 1
+          )
         ),
-        jsonObjectOf(
-          "mac" to "bb:aa:aa:aa:aa:aa",
-          "rssi" to -59.0,
-          "battery" to 0,
-          "temperature" to 20,
-          "status" to 1
-        )
-      ),
-      "latitude" to 2.3,
-      "longitude" to 2.3,
-      "floor" to 1
-    )
+        "latitude" to 2.3,
+        "longitude" to 2.3,
+        "floor" to 1
+      )
 
-    mqttClient
-      .rxConnect(RelaysCommunicationVerticle.MQTT_PORT, "localhost")
-      .flatMap {
-        mqttClient.rxPublish(
-          INGESTION_TOPIC,
-          Buffer.newInstance(message.toBuffer()),
-          MqttQoS.AT_LEAST_ONCE,
-          false,
-          false
-        )
-      }.subscribeBy(onError = testContext::failNow)
-
-    kafkaConsumer
-      .rxSubscribe(INGESTION_TOPIC).subscribe()
-
-    testContext.verify {
-      kafkaConsumer
-        .rxSubscribe(INGESTION_TOPIC)
-        .andThen(kafkaConsumer.toFlowable())
-        .timeout(5, TimeUnit.SECONDS)
-        .firstOrError()
-        .subscribeBy(
-          onSuccess = { testContext.failNow("The message was ingested") },
-          onError = { testContext.completeNow() }
-        )
+      try {
+        mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+        mqttClient.publish(INGESTION_TOPIC, message.toBuffer(), MqttQoS.AT_LEAST_ONCE, false, false).await()
+        kafkaConsumer.subscribe(INGESTION_TOPIC).await()
+        val stream = kafkaConsumer.asStream().toChannel(vertx)
+        testContext.verify {
+          if (stream.isEmpty) {
+            testContext.completeNow()
+          } else {
+            testContext.failNow("The message was ingested")
+          }
+        }
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
     }
-  }
 
+  @ExperimentalCoroutinesApi
   @Test
   @DisplayName("An invalid MQTT JSON message is not ingested because a beacon has a too large battery level")
-  fun invalidMqttMessageIsNotIngestedInvalidBatteryTooLarge(testContext: VertxTestContext) {
-    val message = jsonObjectOf(
-      "relayID" to "abc",
-      "beacons" to jsonArrayOf(
-        jsonObjectOf(
-          "mac" to "aa:aa:aa:aa:aa:aa",
-          "rssi" to -60.0,
-          "battery" to 101,
-          "temperature" to 25,
-          "status" to 0
+  fun invalidMqttMessageIsNotIngestedInvalidBatteryTooLarge(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      val message = jsonObjectOf(
+        "relayID" to "abc",
+        "beacons" to jsonArrayOf(
+          jsonObjectOf(
+            "mac" to "aa:aa:aa:aa:aa:aa",
+            "rssi" to -60.0,
+            "battery" to 101,
+            "temperature" to 25,
+            "status" to 0
+          ),
+          jsonObjectOf(
+            "mac" to "bb:aa:aa:aa:aa:aa",
+            "rssi" to -59.0,
+            "battery" to 100,
+            "temperature" to 20,
+            "status" to 1
+          )
         ),
-        jsonObjectOf(
-          "mac" to "bb:aa:aa:aa:aa:aa",
-          "rssi" to -59.0,
-          "battery" to 100,
-          "temperature" to 20,
-          "status" to 1
-        )
-      ),
-      "latitude" to 2.3,
-      "longitude" to 2.3,
-      "floor" to 1
-    )
+        "latitude" to 2.3,
+        "longitude" to 2.3,
+        "floor" to 1
+      )
 
-    mqttClient
-      .rxConnect(RelaysCommunicationVerticle.MQTT_PORT, "localhost")
-      .flatMap {
-        mqttClient.rxPublish(
-          INGESTION_TOPIC,
-          Buffer.newInstance(message.toBuffer()),
-          MqttQoS.AT_LEAST_ONCE,
-          false,
-          false
-        )
-      }.subscribeBy(onError = testContext::failNow)
-
-    testContext.verify {
-      kafkaConsumer
-        .rxSubscribe(INGESTION_TOPIC)
-        .andThen(kafkaConsumer.toFlowable())
-        .timeout(5, TimeUnit.SECONDS)
-        .firstOrError()
-        .subscribeBy(
-          onSuccess = { testContext.failNow("The message was ingested") },
-          onError = { testContext.completeNow() }
-        )
+      try {
+        mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+        mqttClient.publish(INGESTION_TOPIC, message.toBuffer(), MqttQoS.AT_LEAST_ONCE, false, false).await()
+        kafkaConsumer.subscribe(INGESTION_TOPIC).await()
+        val stream = kafkaConsumer.asStream().toChannel(vertx)
+        testContext.verify {
+          if (stream.isEmpty) {
+            testContext.completeNow()
+          } else {
+            testContext.failNow("The message was ingested")
+          }
+        }
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
     }
-  }
 
+  @ExperimentalCoroutinesApi
   @Test
   @DisplayName("An invalid MQTT JSON message is not ingested because a beacon has a too small battery level")
-  fun invalidMqttMessageIsNotIngestedInvalidBatteryTooSmall(testContext: VertxTestContext) {
-    val message = jsonObjectOf(
-      "relayID" to "abc",
-      "beacons" to jsonArrayOf(
-        jsonObjectOf(
-          "mac" to "aa:aa:aa:aa:aa:aa",
-          "rssi" to -60.0,
-          "battery" to -10,
-          "temperature" to 25,
-          "status" to 0
+  fun invalidMqttMessageIsNotIngestedInvalidBatteryTooSmall(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      val message = jsonObjectOf(
+        "relayID" to "abc",
+        "beacons" to jsonArrayOf(
+          jsonObjectOf(
+            "mac" to "aa:aa:aa:aa:aa:aa",
+            "rssi" to -60.0,
+            "battery" to -10,
+            "temperature" to 25,
+            "status" to 0
+          ),
+          jsonObjectOf(
+            "mac" to "bb:aa:aa:aa:aa:aa",
+            "rssi" to -59.0,
+            "battery" to 100,
+            "temperature" to 20,
+            "status" to 1
+          )
         ),
-        jsonObjectOf(
-          "mac" to "bb:aa:aa:aa:aa:aa",
-          "rssi" to -59.0,
-          "battery" to 100,
-          "temperature" to 20,
-          "status" to 1
-        )
-      ),
-      "latitude" to 2.3,
-      "longitude" to 2.3,
-      "floor" to 1
-    )
-
-    mqttClient.rxConnect(RelaysCommunicationVerticle.MQTT_PORT, "localhost")
-      .flatMap {
-        mqttClient.rxPublish(
-          INGESTION_TOPIC,
-          Buffer.newInstance(message.toBuffer()),
-          MqttQoS.AT_LEAST_ONCE,
-          false,
-          false
-        )
-      }.subscribeBy(onError = testContext::failNow)
-
-    kafkaConsumer
-      .rxSubscribe(INGESTION_TOPIC).subscribe()
-
-    testContext.verify {
-      kafkaConsumer.toFlowable().timeout(5, TimeUnit.SECONDS).firstOrError().subscribeBy(
-        onSuccess = { testContext.failNow("The message was ingested") },
-        onError = { testContext.completeNow() }
+        "latitude" to 2.3,
+        "longitude" to 2.3,
+        "floor" to 1
       )
-    }
-  }
 
+      try {
+        mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+        mqttClient.publish(INGESTION_TOPIC, message.toBuffer(), MqttQoS.AT_LEAST_ONCE, false, false).await()
+        kafkaConsumer.subscribe(INGESTION_TOPIC).await()
+        val stream = kafkaConsumer.asStream().toChannel(vertx)
+        testContext.verify {
+          if (stream.isEmpty) {
+            testContext.completeNow()
+          } else {
+            testContext.failNow("The message was ingested")
+          }
+        }
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+
+  @ExperimentalCoroutinesApi
   @Test
   @DisplayName("An invalid MQTT JSON message is not ingested because a beacon has an invalid status")
-  fun invalidMqttMessageIsNotIngestedInvalidStatus(testContext: VertxTestContext) {
-    val message = jsonObjectOf(
-      "relayID" to "abc",
-      "beacons" to jsonArrayOf(
-        jsonObjectOf(
-          "mac" to "aa:aa:aa:aa:aa:aa",
-          "rssi" to -60.0,
-          "battery" to -10,
-          "temperature" to 25,
-          "status" to -1
+  fun invalidMqttMessageIsNotIngestedInvalidStatus(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      val message = jsonObjectOf(
+        "relayID" to "abc",
+        "beacons" to jsonArrayOf(
+          jsonObjectOf(
+            "mac" to "aa:aa:aa:aa:aa:aa",
+            "rssi" to -60.0,
+            "battery" to -10,
+            "temperature" to 25,
+            "status" to -1
+          ),
+          jsonObjectOf(
+            "mac" to "bb:aa:aa:aa:aa:aa",
+            "rssi" to -59.0,
+            "battery" to 100,
+            "temperature" to 20,
+            "status" to 2
+          )
         ),
-        jsonObjectOf(
-          "mac" to "bb:aa:aa:aa:aa:aa",
-          "rssi" to -59.0,
-          "battery" to 100,
-          "temperature" to 20,
-          "status" to 2
-        )
-      ),
-      "latitude" to 2.3,
-      "longitude" to 2.3,
-      "floor" to 1
-    )
+        "latitude" to 2.3,
+        "longitude" to 2.3,
+        "floor" to 1
+      )
 
-    mqttClient
-      .rxConnect(RelaysCommunicationVerticle.MQTT_PORT, "localhost")
-      .flatMap {
-        mqttClient.rxPublish(
-          INGESTION_TOPIC,
-          Buffer.newInstance(message.toBuffer()),
-          MqttQoS.AT_LEAST_ONCE,
-          false,
-          false
-        )
-      }.subscribeBy(onError = testContext::failNow)
-
-    kafkaConsumer
-      .rxSubscribe(INGESTION_TOPIC).subscribe()
-
-    testContext.verify {
-      kafkaConsumer
-        .rxSubscribe(INGESTION_TOPIC)
-        .andThen(kafkaConsumer.toFlowable())
-        .timeout(5, TimeUnit.SECONDS)
-        .firstOrError()
-        .subscribeBy(
-          onSuccess = { testContext.failNow("The message was ingested") },
-          onError = { testContext.completeNow() }
-        )
+      try {
+        mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+        mqttClient.publish(INGESTION_TOPIC, message.toBuffer(), MqttQoS.AT_LEAST_ONCE, false, false).await()
+        kafkaConsumer.subscribe(INGESTION_TOPIC).await()
+        val stream = kafkaConsumer.asStream().toChannel(vertx)
+        testContext.verify {
+          if (stream.isEmpty) {
+            testContext.completeNow()
+          } else {
+            testContext.failNow("The message was ingested")
+          }
+        }
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
     }
-  }
 
   companion object {
 
