@@ -24,9 +24,12 @@ import io.vertx.junit5.VertxExtension
 import io.vertx.junit5.VertxTestContext
 import io.vertx.kotlin.core.json.jsonArrayOf
 import io.vertx.kotlin.core.json.jsonObjectOf
+import io.vertx.kotlin.coroutines.await
+import io.vertx.kotlin.coroutines.dispatcher
 import io.vertx.kotlin.ext.auth.mongo.mongoAuthenticationOptionsOf
 import io.vertx.kotlin.ext.auth.mongo.mongoAuthorizationOptionsOf
 import io.vertx.kotlin.ext.mongo.indexOptionsOf
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.*
 import org.junit.jupiter.api.extension.ExtendWith
 import org.testcontainers.containers.DockerComposeContainer
@@ -77,7 +80,7 @@ class TestCRUDVerticleRelays {
   )
 
   @BeforeEach
-  fun setup(vertx: Vertx, testContext: VertxTestContext) {
+  fun setup(vertx: Vertx, testContext: VertxTestContext) = runBlocking(vertx.dispatcher()) {
     mongoClient =
       MongoClient.createShared(
         vertx,
@@ -99,39 +102,40 @@ class TestCRUDVerticleRelays {
     )
     mongoAuth = MongoAuthentication.create(mongoClient, mongoAuthOptions)
 
-    mongoClient.createIndexWithOptions("relays", jsonObjectOf("relayID" to 1), indexOptionsOf().unique(true))
-      .compose {
-        mongoClient.createIndexWithOptions("relays", jsonObjectOf("mqttID" to 1), indexOptionsOf().unique(true))
-      }.compose {
-        mongoClient.createIndexWithOptions("relays", jsonObjectOf("mqttUsername" to 1), indexOptionsOf().unique(true))
-      }.compose {
-        dropAllRelays()
-      }.compose {
-        insertRelay()
-      }.onSuccess {
-        vertx.deployVerticle(CRUDVerticle(), testContext.succeedingThenComplete())
-      }.onFailure(testContext::failNow)
+    try {
+      mongoClient.createIndexWithOptions("relays", jsonObjectOf("relayID" to 1), indexOptionsOf().unique(true)).await()
+      mongoClient.createIndexWithOptions("relays", jsonObjectOf("mqttID" to 1), indexOptionsOf().unique(true)).await()
+      mongoClient.createIndexWithOptions("relays", jsonObjectOf("mqttUsername" to 1), indexOptionsOf().unique(true))
+        .await()
+      dropAllRelays().await()
+      insertRelay().await()
+      vertx.deployVerticle(CRUDVerticle(), testContext.succeedingThenComplete())
+    } catch (error: Throwable) {
+      testContext.failNow(error)
+    }
   }
 
   private fun dropAllRelays() = mongoClient.removeDocuments("relays", jsonObjectOf())
 
-  private fun insertRelay(): Future<JsonObject> {
+  private suspend fun insertRelay(): Future<JsonObject> {
     val hashedPassword = mqttPassword.saltAndHash(mongoAuth)
-    return mongoUserUtil.createHashedUser("test", hashedPassword).compose { docID ->
-      val query = jsonObjectOf("_id" to docID)
-      val extraInfo = jsonObjectOf(
-        "\$set" to existingRelay
-      )
-      mongoClient.findOneAndUpdate("relays", query, extraInfo)
-    }
+    val docID = mongoUserUtil.createHashedUser("test", hashedPassword).await()
+    val query = jsonObjectOf("_id" to docID)
+    val extraInfo = jsonObjectOf(
+      "\$set" to existingRelay
+    )
+    return mongoClient.findOneAndUpdate("relays", query, extraInfo)
   }
 
   @AfterEach
-  fun cleanup(testContext: VertxTestContext) {
-    dropAllRelays().compose {
-      mongoClient.close()
-    }.onSuccess { testContext.completeNow() }
-      .onFailure(testContext::failNow)
+  fun cleanup(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
+    try {
+      dropAllRelays().await()
+      mongoClient.close().await()
+      testContext.completeNow()
+    } catch (error: Throwable) {
+      testContext.failNow(error)
+    }
   }
 
   @Test

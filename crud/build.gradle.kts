@@ -25,6 +25,7 @@ dependencies {
   val testContainersVersion = project.extra["testContainersVersion"]
   val hazelcastVersion = project.extra["hazelcastVersion"]
   val arrowVersion = project.extra["arrowVersion"]
+  val mockkVersion = project.extra["mockkVersion"]
 
   implementation("io.vertx:vertx-pg-client:$vertxVersion")
   implementation("io.vertx:vertx-mongo-client:$vertxVersion")
@@ -42,6 +43,7 @@ dependencies {
   testImplementation("io.vertx:vertx-junit5:$vertxVersion")
   testImplementation("org.junit.jupiter:junit-jupiter:$junitJupiterVersion")
   testImplementation("io.strikt:strikt-gradle:$striktVersion")
+  testImplementation("io.mockk:mockk:$mockkVersion")
   testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:$junitJupiterVersion")
 }
 

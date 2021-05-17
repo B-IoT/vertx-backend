@@ -70,6 +70,20 @@ class Triangulator:
     Beacons' triangulator.
     """
 
+    MOVEMENT_DETECTED = 0
+    BUTTON_PRESSED = 1
+    MOVEMENT_DETECTED_AND_BUTTON_PRESSED = 2
+
+    TO_REPAIR = "toRepair"
+    AVAILABLE = "available"
+
+    INSERT_QUERY = staticmethod(
+        lambda table: f"""INSERT INTO {table} (time, mac, battery, status, latitude, longitude, floor, temperature) VALUES (NOW(), $1, $2, $3, $4, $5, $6, $7);"""
+    )
+    FETCH_BEACON_QUERY = staticmethod(
+        lambda table: f"""SELECT * from {table} WHERE mac = $1 ORDER BY time DESC LIMIT 1;"""
+    )
+
     @classmethod
     async def create(cls):
         # We need to use this because it is impossible to call await inside __init__()
@@ -88,17 +102,65 @@ class Triangulator:
 
         return self
 
-    async def _store_beacons_data(self, data: list):
+    def _get_table_name(self, company: str) -> str:
+        """
+        Gets the beacon_data table name for the given company.
+        """
+        return f"beacon_data_{company}" if company != "biot" else "beacon_data"
+
+    async def _store_beacons_data(self, company: str, data: list):
         """
         Stores the beacons' data in TimescaleDB.
-        Data must be an array of tuples of the following form: ("aa:aa:aa:aa:aa:aa", 10, "available", 2.3, 3.2, 1).
+        Data must be an array of tuples of the following form: ("aa:aa:aa:aa:aa:aa", 10, "available", 2.3, 3.2, 1, 25).
         """
         async with self.db_pool.acquire() as conn:
-            stmt = await conn.prepare(
-                """INSERT INTO beacon_data (time, mac, battery, status, latitude, longitude, floor) VALUES (NOW(), $1, $2, $3, $4, $5, $6);"""
-            )
+            table_name = self._get_table_name(company)
+            stmt = await conn.prepare(self.INSERT_QUERY(table_name))
             await stmt.executemany(data)
-            logger.info("New beacons' data inserted in DB: {}", data)
+            logger.info("New beacons' data inserted in DB '{}': {}", table_name, data)
+
+    async def _update_beacon_status(self, company: str, mac: str, status: str):
+        """
+        Updates the status of the given beacon.
+        """
+        async with self.db_pool.acquire() as conn:
+            table_name = self._get_table_name(company)
+
+            fetch_stmt = await conn.prepare(self.FETCH_BEACON_QUERY(table_name))
+            beacon = await fetch_stmt.fetchrow(mac)
+
+            if not beacon:
+                logger.warning(
+                    "Skipping status update for beacon '{}', as it does not exist."
+                )
+                return
+
+            if beacon["status"] != status:
+                new_beacon = (
+                    beacon["mac"],
+                    beacon["battery"],
+                    status,
+                    beacon["latitude"],
+                    beacon["longitude"],
+                    beacon["floor"],
+                    beacon["temperature"],
+                )
+
+                stmt = await conn.prepare(self.INSERT_QUERY(table_name))
+                await stmt.executemany([new_beacon])
+                logger.info(
+                    "Updated beacon '{}' status in DB '{}' to '{}'",
+                    mac,
+                    table_name,
+                    status,
+                )
+            else:
+                logger.warning(
+                    "Skipping status update for beacon '{}', as it has already status '{}' in DB '{}'",
+                    mac,
+                    status,
+                    table_name,
+                )
 
     def _lat_to_meters(self, lat1, lon1, lat2, lon2):
         """
@@ -128,21 +190,29 @@ class Triangulator:
         Triangulates all beacons detected by the given relay, if enough information is available.
         """
 
-        self.relay_df[relay_id] = [data["latitude"], data["longitude"], int(data["floor"])]
+        self.relay_df[relay_id] = [
+            data["latitude"],
+            data["longitude"],
+            int(data["floor"]),
+        ]
 
-        beacons = data["mac"]
+        company = data["company"]
+
+        beacons = data["beacons"]
 
         # Filter out empty arrays
         if not beacons:
-            logger.info("No beacon detected, skipping!")
+            logger.warning("No beacon detected, skipping!")
             return
-        
+
         # Filter out empty MAC addresses
-        beacons, rssis = zip(*[(b, r) for b, r in zip(beacons, data["rssi"]) if b])
+        macs, rssis = zip(
+            *[(beacon["mac"], beacon["rssi"]) for beacon in beacons if beacon["mac"]]
+        )
 
         # Used to remove duplicates through averaging
         df_beacons = pd.DataFrame(columns=["beacon", "rssi"])
-        df_beacons["beacon"] = beacons
+        df_beacons["beacon"] = macs
         df_beacons["rssi"] = rssis
         averaged = df_beacons.groupby("beacon").agg("mean")
 
@@ -177,19 +247,23 @@ class Triangulator:
         # Triangulation of each beacon
         coordinates = []
         for i in range(len(updated_beacons)):
-            beacon = beacons[i]
+            mac = macs[i]
+            beacon_data = next(b for b in beacons if b["mac"] == mac)
 
-            if beacon not in self.connectivity_df.index:
+            if mac not in self.connectivity_df.index:
+                continue
+
+            status = beacon_data["status"]
+            if status == self.BUTTON_PRESSED:
+                await self._update_beacon_status(company, mac, self.TO_REPAIR)
                 continue
 
             # Temporary df for the data of the beacon
             temp_df = pd.DataFrame(
-                self.connectivity_df.loc[beacon, :][
-                    self.connectivity_df.loc[beacon, :] > 0
-                ]
+                self.connectivity_df.loc[mac, :][self.connectivity_df.loc[mac, :] > 0]
             )
             temp_df = temp_df.reset_index().rename(
-                columns={"index": "relay", beacon: "dist"}
+                columns={"index": "relay", mac: "dist"}
             )
             # Only use the 5 closest relays to the beacon
             temp_df = temp_df.sort_values("dist", axis=0, ascending=True).iloc[:5, :]
@@ -201,7 +275,7 @@ class Triangulator:
             if nb_relays > 1:
                 logger.info(
                     "Beacon '{}' detected by {} relays, starting triangulation...",
-                    beacon,
+                    mac,
                     nb_relays,
                 )
                 for relay_1 in range(nb_relays - 1):
@@ -218,7 +292,7 @@ class Triangulator:
                             - self.relay_df.loc["long", rel_1]
                         )
 
-                        # Calculating the distance between the 2 gateways in meter
+                        # Calculating the distance between the 2 gateways in meters
                         dist = self._lat_to_meters(
                             self.relay_df.loc["lat", rel_1],
                             self.relay_df.loc["long", rel_1],
@@ -238,52 +312,57 @@ class Triangulator:
                             + (dist_1 / dist) * vect_long
                         )
 
-                floor = np.around(np.mean(self.relay_df.loc["floor", temp_df.loc[0:2, "relay"]]))
-                
-                #Old method
-                #temp_relay = temp_df.loc[:, "relay"]
-                #floor = np.mean(self.relay_df.loc["floor", temp_relay])
-                
-                #if (floor - np.floor(floor)) - 0.5 <= 1e-5:
-                #    # Case where we're in the middle, eg: floor = 1.5
-                #    # Taking the floor of the closest relay
-                #    floor = self.relay_df.loc["floor", temp_df.loc[0, "relay"]]
-                #else:
-                #    # Otherwise taking the mean floor + rounding it
-                #    floor = np.around(np.mean(self.relay_df.loc["floor", temp_relay]))
+                floor = np.around(
+                    np.mean(self.relay_df.loc["floor", temp_df.loc[0:2, "relay"]])
+                )
 
                 # Add the computed coordinates to the beacon's history
                 self.coordinates_history.update_coordinates_history(
-                    beacon, (np.mean(lat), np.mean(long))
+                    mac, (np.mean(lat), np.mean(long))
                 )
 
                 # Use the weighted moving average for smoothing coordinates computation
                 (
                     weighted_latitude,
                     weighted_longitude,
-                ) = self.coordinates_history.weighted_moving_average(beacon)
+                ) = self.coordinates_history.weighted_moving_average(mac)
 
+                new_beacon_status = (
+                    self.TO_REPAIR
+                    if status == self.MOVEMENT_DETECTED_AND_BUTTON_PRESSED
+                    else self.AVAILABLE
+                )
                 coordinates.append(
                     (
-                        beacon,
-                        10,
-                        "available",
+                        mac,
+                        beacon_data["battery"],
+                        new_beacon_status,
                         weighted_latitude,
                         weighted_longitude,
                         floor,
+                        beacon_data["temperature"],
                     )
                 )
 
                 del temp_df
 
-                logger.info("Triangulation done")
+                status_updated_message = (
+                    ""
+                    if status != self.MOVEMENT_DETECTED_AND_BUTTON_PRESSED
+                    else f" and status updated to '{self.TO_REPAIR}'"
+                )
+                logger.info("Triangulation done{}", status_updated_message)
             elif len(temp_df) == 1:
-                logger.info("Beacon '{}' detected by only one relay, skipping!", beacon)
+                if status == self.MOVEMENT_DETECTED_AND_BUTTON_PRESSED:
+                    # Even if we didn't triangulate, we still need to update the status
+                    await self._update_beacon_status(company, mac, self.TO_REPAIR)
+
+                logger.warning("Beacon '{}' detected by only one relay, skipping!", mac)
             else:
-                logger.info("Beacon '{}' not detected by any relay, skipping!", beacon)
+                logger.warning("Beacon '{}' not detected by any relay, skipping!", mac)
 
         if coordinates:
-            await self._store_beacons_data(coordinates)
+            await self._store_beacons_data(company, coordinates)
 
         # Garbage collect
         del df_beacons

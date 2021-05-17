@@ -24,7 +24,7 @@ import java.util.*
  * @param ctx the routing context corresponding to the request handled
  * @param block the block of code to execute after validation. It takes this JSON object as argument
  */
-internal suspend fun JsonObject?.validateAndThen(ctx: RoutingContext, block: suspend (JsonObject) -> Unit) {
+suspend fun JsonObject?.validateAndThen(ctx: RoutingContext, block: suspend (JsonObject) -> Unit) {
   when {
     this == null -> {
       LOGGER.warn("Bad request with null body")
@@ -109,7 +109,8 @@ fun Row.toItemJson(): JsonObject = jsonObjectOf(
   "status" to getString("status"),
   "latitude" to getDouble("latitude"),
   "longitude" to getDouble("longitude"),
-  "floor" to getInteger("floor")
+  "floor" to getInteger("floor"),
+  "temperature" to getDouble("temperature")
 )
 
 /**
@@ -167,7 +168,7 @@ internal fun RoutingContext.getCollection(baseCollectionName: String): String {
  * @param ctx the context used to route the request
  * @param block the suspend block to execute, wrapped in a try-catch clause
  */
-internal suspend fun executeWithErrorHandling(errorMessage: String, ctx: RoutingContext, block: suspend () -> Unit) =
+suspend fun executeWithErrorHandling(errorMessage: String, ctx: RoutingContext, block: suspend () -> Unit) =
   try {
     block()
   } catch (error: Throwable) {

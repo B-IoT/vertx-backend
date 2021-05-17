@@ -22,10 +22,10 @@ allprojects {
     extra["testContainersVersion"] = "1.15.3"
     extra["restAssuredVersion"] = "4.3.3"
     extra["striktVersion"] = "0.31.0"
-    extra["rxKotlinVersion"] = "2.4.0"
     extra["hazelcastVersion"] = "2.2.2"
     extra["micrometerPrometheusVersion"] = "1.7.0"
     extra["arrowVersion"] = "0.13.2"
+    extra["mockkVersion"] = "1.10.6"
 }
 
 subprojects {

@@ -5,7 +5,7 @@
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import org.gradle.api.tasks.testing.logging.TestLogEvent.*
 
-version = "1.0.1-SNAPSHOT"
+version = "1.0.2-SNAPSHOT"
 
 val mainVerticleName = "ch.biot.backend.relayscommunication.RelaysCommunicationVerticle"
 val watchForChange = "src/**/*"
@@ -22,24 +22,23 @@ dependencies {
   val logbackClassicVersion = project.extra["logbackClassicVersion"]
   val striktVersion = project.extra["striktVersion"]
   val testContainersVersion = project.extra["testContainersVersion"]
-  val rxKotlinVersion = project.extra["rxKotlinVersion"]
   val hazelcastVersion = project.extra["hazelcastVersion"]
+  val arrowVersion = project.extra["arrowVersion"]
 
-  implementation("io.vertx:vertx-rx-java2:$vertxVersion")
-  implementation("io.reactivex.rxjava2:rxkotlin:$rxKotlinVersion")
   implementation("io.vertx:vertx-web:$vertxVersion")
   implementation("io.vertx:vertx-web-openapi:$vertxVersion")
   implementation("io.vertx:vertx-hazelcast:$vertxVersion")
   implementation("com.hazelcast:hazelcast-kubernetes:$hazelcastVersion")
   implementation("io.vertx:vertx-kafka-client:$vertxVersion")
   implementation("io.vertx:vertx-lang-kotlin:$vertxVersion")
+  implementation("io.vertx:vertx-lang-kotlin-coroutines:$vertxVersion")
+  implementation("io.arrow-kt:arrow-fx-coroutines:$arrowVersion")
   implementation("io.vertx:vertx-mqtt:$vertxVersion")
   implementation("io.vertx:vertx-mongo-client:$vertxVersion")
   implementation("io.vertx:vertx-auth-mongo:$vertxVersion")
   implementation("ch.qos.logback:logback-classic:$logbackClassicVersion")
   testImplementation("org.testcontainers:junit-jupiter:$testContainersVersion")
   testImplementation("io.vertx:vertx-junit5:$vertxVersion")
-  testImplementation("io.vertx:vertx-junit5-rx-java2:$vertxVersion")
   testImplementation("org.junit.jupiter:junit-jupiter:$junitJupiterVersion")
   testImplementation("io.strikt:strikt-gradle:$striktVersion")
   testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:$junitJupiterVersion")
@@ -79,7 +78,7 @@ jib {
   }
   to {
     image = "vertx-backend/relays-communication"
-    tags = setOf("v1.0.1", "latest")
+    tags = setOf("v1.0.2", "latest")
   }
   container {
     mainClass = mainVerticleName

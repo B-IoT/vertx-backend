@@ -57,9 +57,11 @@ class PublicApiVerticle : CoroutineVerticle() {
 
     private const val API_PREFIX = "/api"
     private const val OAUTH_PREFIX = "/oauth"
-    private val CRUD_HOST: String = System.getenv().getOrDefault("CRUD_HOST", "localhost")
-    private val CRUD_PORT: Int = System.getenv().getOrDefault("CRUD_PORT", "8080").toInt()
-    internal val PUBLIC_PORT = System.getenv().getOrDefault("PUBLIC_PORT", "8080").toInt()
+
+    private val environment = System.getenv()
+    val CRUD_HOST: String = environment.getOrDefault("CRUD_HOST", "localhost")
+    val CRUD_PORT: Int = environment.getOrDefault("CRUD_PORT", "8080").toInt()
+    internal val PUBLIC_PORT = environment.getOrDefault("PUBLIC_PORT", "8080").toInt()
 
     internal val LOGGER = LoggerFactory.getLogger(PublicApiVerticle::class.java)
 

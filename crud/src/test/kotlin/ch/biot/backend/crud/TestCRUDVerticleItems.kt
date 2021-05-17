@@ -19,6 +19,7 @@ import io.restassured.module.kotlin.extensions.Given
 import io.restassured.module.kotlin.extensions.Then
 import io.restassured.module.kotlin.extensions.When
 import io.restassured.specification.RequestSpecification
+import io.vertx.core.Future
 import io.vertx.core.Vertx
 import io.vertx.core.buffer.Buffer
 import io.vertx.core.json.JsonArray
@@ -27,10 +28,15 @@ import io.vertx.junit5.VertxExtension
 import io.vertx.junit5.VertxTestContext
 import io.vertx.kotlin.core.json.get
 import io.vertx.kotlin.core.json.jsonObjectOf
+import io.vertx.kotlin.coroutines.await
+import io.vertx.kotlin.coroutines.dispatcher
 import io.vertx.kotlin.pgclient.pgConnectOptionsOf
 import io.vertx.kotlin.sqlclient.poolOptionsOf
 import io.vertx.pgclient.PgPool
+import io.vertx.sqlclient.Row
+import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.Tuple
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.*
 import org.junit.jupiter.api.extension.ExtendWith
 import org.testcontainers.containers.DockerComposeContainer
@@ -88,7 +94,8 @@ class TestCRUDVerticleItems {
     "status" to "disponible",
     "latitude" to 2.333333,
     "longitude" to -2.333333,
-    "floor" to 1
+    "floor" to 1,
+    "temperature" to 42.3
   )
 
   private val updateItemJson = jsonObjectOf(
@@ -109,7 +116,7 @@ class TestCRUDVerticleItems {
   )
 
   @BeforeEach
-  fun setup(vertx: Vertx, testContext: VertxTestContext) {
+  fun setup(vertx: Vertx, testContext: VertxTestContext) = runBlocking(vertx.dispatcher()) {
     val pgConnectOptions =
       pgConnectOptionsOf(
         port = TIMESCALE_PORT,
@@ -121,208 +128,219 @@ class TestCRUDVerticleItems {
       )
     pgPool = PgPool.pool(vertx, pgConnectOptions, poolOptionsOf())
 
-    dropAllItems()
-      .compose {
-        insertItems()
-      }.onSuccess {
-        vertx.deployVerticle(CRUDVerticle(), testContext.succeedingThenComplete())
-      }.onFailure(testContext::failNow)
+    try {
+      dropAllItems().await()
+      insertItems().await()
+      vertx.deployVerticle(CRUDVerticle(), testContext.succeedingThenComplete())
+    } catch (error: Throwable) {
+      testContext.failNow(error)
+    }
   }
 
-  private fun dropAllItems() = pgPool.query("DELETE FROM items").execute()
-    .compose {
-      pgPool.query("DELETE FROM beacon_data").execute()
-    }
+  private suspend fun dropAllItems(): Future<RowSet<Row>> {
+    pgPool.query("DELETE FROM items").execute().await()
+    return pgPool.query("DELETE FROM beacon_data").execute()
+  }
 
-  private fun insertItems() = pgPool.preparedQuery(insertItem("items"))
-    .execute(
-      Tuple.of(
-        existingItem["beacon"], existingItem["category"], existingItem["service"],
-        existingItem["itemID"], existingItem["brand"], existingItem["model"], existingItem["supplier"],
-        LocalDate.parse(existingItem["purchaseDate"]), existingItem["purchasePrice"], existingItem["originLocation"],
-        existingItem["currentLocation"], existingItem["room"], existingItem["contact"], existingItem["owner"]
+  private suspend fun insertItems(): Future<RowSet<Row>> {
+    val result = pgPool.preparedQuery(insertItem("items"))
+      .execute(
+        Tuple.of(
+          existingItem["beacon"], existingItem["category"], existingItem["service"],
+          existingItem["itemID"], existingItem["brand"], existingItem["model"], existingItem["supplier"],
+          LocalDate.parse(existingItem["purchaseDate"]), existingItem["purchasePrice"], existingItem["originLocation"],
+          existingItem["currentLocation"], existingItem["room"], existingItem["contact"], existingItem["owner"]
+        )
+      ).await()
+
+    existingItemID = result.iterator().next().getInteger("id")
+    pgPool.preparedQuery(insertItem("items"))
+      .execute(
+        Tuple.of(
+          closestItem["beacon"], closestItem["category"], closestItem["service"],
+          closestItem["itemID"], closestItem["brand"], closestItem["model"], closestItem["supplier"],
+          LocalDate.parse(existingItem["purchaseDate"]), closestItem["purchasePrice"], closestItem["originLocation"],
+          closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["owner"]
+        )
+      ).await()
+
+    pgPool.preparedQuery(insertItem("items"))
+      .execute(
+        Tuple.of(
+          "fake1", closestItem["category"], closestItem["service"],
+          closestItem["itemID"], closestItem["brand"], closestItem["model"], closestItem["supplier"],
+          LocalDate.parse(closestItem["purchaseDate"]), closestItem["purchasePrice"], closestItem["originLocation"],
+          closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["owner"]
+        )
+      ).await()
+
+    pgPool.preparedQuery(insertItem("items"))
+      .execute(
+        Tuple.of(
+          "fake2", closestItem["category"], closestItem["service"],
+          closestItem["itemID"], closestItem["brand"], closestItem["model"], closestItem["supplier"],
+          LocalDate.parse(closestItem["purchaseDate"]), closestItem["purchasePrice"], closestItem["originLocation"],
+          closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["owner"]
+        )
+      ).await()
+
+    pgPool.preparedQuery(insertItem("items"))
+      .execute(
+        Tuple.of(
+          "fake3", closestItem["category"], closestItem["service"],
+          closestItem["itemID"], closestItem["brand"], closestItem["model"], closestItem["supplier"],
+          LocalDate.parse(closestItem["purchaseDate"]), closestItem["purchasePrice"], closestItem["originLocation"],
+          closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["owner"]
+        )
+      ).await()
+
+    pgPool.preparedQuery(insertItem("items"))
+      .execute(
+        Tuple.of(
+          "fake4", closestItem["category"], closestItem["service"],
+          closestItem["itemID"], closestItem["brand"], closestItem["model"], closestItem["supplier"],
+          LocalDate.parse(closestItem["purchaseDate"]), closestItem["purchasePrice"], closestItem["originLocation"],
+          closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["owner"]
+        )
+      ).await()
+
+    pgPool.preparedQuery(insertItem("items"))
+      .execute(
+        Tuple.of(
+          "fake5", closestItem["category"], closestItem["service"],
+          closestItem["itemID"], closestItem["brand"], closestItem["model"], closestItem["supplier"],
+          LocalDate.parse(closestItem["purchaseDate"]), closestItem["purchasePrice"], closestItem["originLocation"],
+          closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["owner"]
+        )
+      ).await()
+
+    pgPool.preparedQuery(INSERT_BEACON_DATA)
+      .execute(
+        Tuple.of(
+          existingBeaconData.getString("mac"),
+          existingBeaconData.getInteger("battery") + 5,
+          existingBeaconData.getString("status"),
+          existingBeaconData.getDouble("latitude"),
+          existingBeaconData.getDouble("longitude"),
+          existingBeaconData.getInteger("floor"),
+          existingBeaconData.getDouble("temperature")
+        )
+      ).await()
+
+    pgPool.preparedQuery(INSERT_BEACON_DATA)
+      .execute(
+        Tuple.of(
+          existingBeaconData.getString("mac"),
+          existingBeaconData.getInteger("battery"),
+          existingBeaconData.getString("status"),
+          existingBeaconData.getDouble("latitude"),
+          existingBeaconData.getDouble("longitude"),
+          existingBeaconData.getInteger("floor"),
+          existingBeaconData.getDouble("temperature")
+        )
+      ).await()
+
+    pgPool.preparedQuery(INSERT_BEACON_DATA)
+      .execute(
+        Tuple.of(
+          updateItemJson.getString("beacon"),
+          existingBeaconData.getInteger("battery"),
+          existingBeaconData.getString("status"),
+          existingBeaconData.getDouble("latitude"),
+          existingBeaconData.getDouble("longitude"),
+          existingBeaconData.getInteger("floor"),
+          existingBeaconData.getDouble("temperature")
+        )
+      ).await()
+
+    pgPool.preparedQuery(INSERT_BEACON_DATA)
+      .execute(
+        Tuple.of(
+          closestItem.getString("beacon"),
+          existingBeaconData.getInteger("battery"),
+          existingBeaconData.getString("status"),
+          42,
+          -8,
+          existingBeaconData.getInteger("floor"),
+          existingBeaconData.getDouble("temperature")
+        )
+      ).await()
+
+    pgPool.preparedQuery(INSERT_BEACON_DATA)
+      .execute(
+        Tuple.of(
+          "fake1",
+          existingBeaconData.getInteger("battery"),
+          existingBeaconData.getString("status"),
+          44,
+          -8,
+          existingBeaconData.getInteger("floor"),
+          existingBeaconData.getDouble("temperature")
+        )
+      ).await()
+
+    pgPool.preparedQuery(INSERT_BEACON_DATA)
+      .execute(
+        Tuple.of(
+          "fake2",
+          existingBeaconData.getInteger("battery"),
+          existingBeaconData.getString("status"),
+          45,
+          -8,
+          existingBeaconData.getInteger("floor"),
+          existingBeaconData.getDouble("temperature")
+        )
+      ).await()
+
+    pgPool.preparedQuery(INSERT_BEACON_DATA)
+      .execute(
+        Tuple.of(
+          "fake3",
+          existingBeaconData.getInteger("battery"),
+          existingBeaconData.getString("status"),
+          46,
+          -8,
+          existingBeaconData.getInteger("floor"),
+          existingBeaconData.getDouble("temperature")
+        )
+      ).await()
+
+    pgPool.preparedQuery(INSERT_BEACON_DATA)
+      .execute(
+        Tuple.of(
+          "fake4",
+          existingBeaconData.getInteger("battery"),
+          existingBeaconData.getString("status"),
+          47,
+          -8,
+          existingBeaconData.getInteger("floor"),
+          existingBeaconData.getDouble("temperature")
+        )
+      ).await()
+
+    return pgPool.preparedQuery(INSERT_BEACON_DATA)
+      .execute(
+        Tuple.of(
+          "fake5",
+          existingBeaconData.getInteger("battery"),
+          existingBeaconData.getString("status"),
+          47,
+          -8,
+          2,
+          3.3
+        )
       )
-    )
-    .compose {
-      existingItemID = it.iterator().next().getInteger("id")
-      pgPool.preparedQuery(insertItem("items"))
-        .execute(
-          Tuple.of(
-            closestItem["beacon"], closestItem["category"], closestItem["service"],
-            closestItem["itemID"], closestItem["brand"], closestItem["model"], closestItem["supplier"],
-            LocalDate.parse(existingItem["purchaseDate"]), closestItem["purchasePrice"], closestItem["originLocation"],
-            closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["owner"]
-          )
-        )
-    }.compose {
-      pgPool.preparedQuery(insertItem("items"))
-        .execute(
-          Tuple.of(
-            "fake1", closestItem["category"], closestItem["service"],
-            closestItem["itemID"], closestItem["brand"], closestItem["model"], closestItem["supplier"],
-            LocalDate.parse(closestItem["purchaseDate"]), closestItem["purchasePrice"], closestItem["originLocation"],
-            closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["owner"]
-          )
-        )
-    }.compose {
-      pgPool.preparedQuery(insertItem("items"))
-        .execute(
-          Tuple.of(
-            "fake2", closestItem["category"], closestItem["service"],
-            closestItem["itemID"], closestItem["brand"], closestItem["model"], closestItem["supplier"],
-            LocalDate.parse(closestItem["purchaseDate"]), closestItem["purchasePrice"], closestItem["originLocation"],
-            closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["owner"]
-          )
-        )
-    }.compose {
-      pgPool.preparedQuery(insertItem("items"))
-        .execute(
-          Tuple.of(
-            "fake3", closestItem["category"], closestItem["service"],
-            closestItem["itemID"], closestItem["brand"], closestItem["model"], closestItem["supplier"],
-            LocalDate.parse(closestItem["purchaseDate"]), closestItem["purchasePrice"], closestItem["originLocation"],
-            closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["owner"]
-          )
-        )
-    }
-    .compose {
-      pgPool.preparedQuery(insertItem("items"))
-        .execute(
-          Tuple.of(
-            "fake4", closestItem["category"], closestItem["service"],
-            closestItem["itemID"], closestItem["brand"], closestItem["model"], closestItem["supplier"],
-            LocalDate.parse(closestItem["purchaseDate"]), closestItem["purchasePrice"], closestItem["originLocation"],
-            closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["owner"]
-          )
-        )
-    }
-    .compose {
-      pgPool.preparedQuery(insertItem("items"))
-        .execute(
-          Tuple.of(
-            "fake5", closestItem["category"], closestItem["service"],
-            closestItem["itemID"], closestItem["brand"], closestItem["model"], closestItem["supplier"],
-            LocalDate.parse(closestItem["purchaseDate"]), closestItem["purchasePrice"], closestItem["originLocation"],
-            closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["owner"]
-          )
-        )
-    }
-    .compose {
-      pgPool.preparedQuery(INSERT_BEACON_DATA)
-        .execute(
-          Tuple.of(
-            existingBeaconData.getString("mac"),
-            existingBeaconData.getInteger("battery") + 5,
-            existingBeaconData.getString("status"),
-            existingBeaconData.getDouble("latitude"),
-            existingBeaconData.getDouble("longitude"),
-            existingBeaconData.getInteger("floor")
-          )
-        )
-    }.compose {
-      pgPool.preparedQuery(INSERT_BEACON_DATA)
-        .execute(
-          Tuple.of(
-            existingBeaconData.getString("mac"),
-            existingBeaconData.getInteger("battery"),
-            existingBeaconData.getString("status"),
-            existingBeaconData.getDouble("latitude"),
-            existingBeaconData.getDouble("longitude"),
-            existingBeaconData.getInteger("floor")
-          )
-        )
-    }.compose {
-      pgPool.preparedQuery(INSERT_BEACON_DATA)
-        .execute(
-          Tuple.of(
-            updateItemJson.getString("beacon"),
-            existingBeaconData.getInteger("battery"),
-            existingBeaconData.getString("status"),
-            existingBeaconData.getDouble("latitude"),
-            existingBeaconData.getDouble("longitude"),
-            existingBeaconData.getInteger("floor")
-          )
-        )
-    }.compose {
-      pgPool.preparedQuery(INSERT_BEACON_DATA)
-        .execute(
-          Tuple.of(
-            closestItem.getString("beacon"),
-            existingBeaconData.getInteger("battery"),
-            existingBeaconData.getString("status"),
-            42,
-            -8,
-            existingBeaconData.getInteger("floor")
-          )
-        )
-    }.compose {
-      pgPool.preparedQuery(INSERT_BEACON_DATA)
-        .execute(
-          Tuple.of(
-            "fake1",
-            existingBeaconData.getInteger("battery"),
-            existingBeaconData.getString("status"),
-            44,
-            -8,
-            existingBeaconData.getInteger("floor")
-          )
-        )
-    }.compose {
-      pgPool.preparedQuery(INSERT_BEACON_DATA)
-        .execute(
-          Tuple.of(
-            "fake2",
-            existingBeaconData.getInteger("battery"),
-            existingBeaconData.getString("status"),
-            45,
-            -8,
-            existingBeaconData.getInteger("floor")
-          )
-        )
-    }.compose {
-      pgPool.preparedQuery(INSERT_BEACON_DATA)
-        .execute(
-          Tuple.of(
-            "fake3",
-            existingBeaconData.getInteger("battery"),
-            existingBeaconData.getString("status"),
-            46,
-            -8,
-            existingBeaconData.getInteger("floor")
-          )
-        )
-    }.compose {
-      pgPool.preparedQuery(INSERT_BEACON_DATA)
-        .execute(
-          Tuple.of(
-            "fake4",
-            existingBeaconData.getInteger("battery"),
-            existingBeaconData.getString("status"),
-            47,
-            -8,
-            existingBeaconData.getInteger("floor")
-          )
-        )
-    }.compose {
-      pgPool.preparedQuery(INSERT_BEACON_DATA)
-        .execute(
-          Tuple.of(
-            "fake5",
-            existingBeaconData.getInteger("battery"),
-            existingBeaconData.getString("status"),
-            47,
-            -8,
-            2
-          )
-        )
-    }
+  }
 
   @AfterEach
-  fun cleanup(testContext: VertxTestContext) {
-    dropAllItems().compose {
+  fun cleanup(vertx: Vertx, testContext: VertxTestContext) = runBlocking(vertx.dispatcher()) {
+    try {
+      dropAllItems().await()
       pgPool.close()
-    }.onSuccess { testContext.completeNow() }
-      .onFailure(testContext::failNow)
+      testContext.completeNow()
+    } catch (error: Throwable) {
+      testContext.failNow(error)
+    }
   }
 
   @Test
@@ -626,6 +644,7 @@ class TestCRUDVerticleItems {
       put("latitude", existingBeaconData.getDouble("latitude"))
       put("longitude", existingBeaconData.getDouble("longitude"))
       put("floor", existingBeaconData.getInteger("floor"))
+      put("temperature", existingBeaconData.getDouble("temperature"))
     }
 
     val response = Buffer.buffer(
@@ -648,6 +667,27 @@ class TestCRUDVerticleItems {
       expectThat(response).isEqualTo(expected)
       expectThat(id).isEqualTo(existingItemID)
       expectThat(timestamp).isNotEmpty()
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("getItem returns not found on non existing item")
+  fun getItemReturnsNotFoundOnNonExistingItem(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      accept(ContentType.JSON)
+    } When {
+      queryParam("company", "biot")
+      get("/items/100")
+    } Then {
+      statusCode(404)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEmpty()
       testContext.completeNow()
     }
   }
@@ -696,6 +736,7 @@ class TestCRUDVerticleItems {
           that(json.getDouble("latitude")).isEqualTo(existingBeaconData.getDouble("latitude"))
           that(json.getDouble("longitude")).isEqualTo(existingBeaconData.getDouble("longitude"))
           that(json.getInteger("floor")).isEqualTo(existingBeaconData.getInteger("floor"))
+          that(json.getDouble("temperature")).isEqualTo(existingBeaconData.getDouble("temperature"))
         }
         testContext.completeNow()
       }
@@ -769,7 +810,7 @@ class TestCRUDVerticleItems {
   companion object {
 
     private const val INSERT_BEACON_DATA =
-      "INSERT INTO beacon_data(time, mac, battery, status, latitude, longitude, floor) values(NOW(), $1, $2, $3, $4, $5, $6)"
+      "INSERT INTO beacon_data(time, mac, battery, status, latitude, longitude, floor, temperature) values(NOW(), $1, $2, $3, $4, $5, $6, $7)"
 
     private val requestSpecification: RequestSpecification = RequestSpecBuilder()
       .addFilters(listOf(ResponseLoggingFilter(), RequestLoggingFilter()))
