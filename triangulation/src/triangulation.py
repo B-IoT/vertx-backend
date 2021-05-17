@@ -312,9 +312,8 @@ class Triangulator:
                             + (dist_1 / dist) * vect_long
                         )
 
-                floor = np.around(
-                    np.mean(self.relay_df.loc["floor", temp_df.loc[0:2, "relay"]])
-                )
+                temp_relay = temp_df.loc[:, "relay"]
+                floor = np.around(np.mean(self.relay_df.loc[0:3, "floor", temp_relay]))
 
                 # Add the computed coordinates to the beacon's history
                 self.coordinates_history.update_coordinates_history(
