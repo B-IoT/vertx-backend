@@ -10,7 +10,7 @@ CREATE EXTENSION IF NOT EXISTS timescaledb;
 CREATE EXTENSION IF NOT EXISTS postgis;
 
 -- Below commands should be used to create new tables for a new client, adding the company name to the tables' names
--- Do not forget to connect to the biot database first, with \c biot biot
+-- Do not forget to connect to the biot database first, with \c biot biot or through pgadmin
 
 CREATE TABLE IF NOT EXISTS items
 (
