@@ -28,7 +28,13 @@ CREATE TABLE IF NOT EXISTS items
     currentLocation VARCHAR(100),
     room VARCHAR(100),
     contact VARCHAR(100),
-    owner VARCHAR(100)
+    currentOwner VARCHAR(100),
+    previousOwner VARCHAR(100),
+    orderNumber VARCHAR(100),
+    color VARCHAR(100),
+    serialNumber VARCHAR(100),
+    expiryDate DATE,
+    status VARCHAR(100)
 );
 
 CREATE TABLE IF NOT EXISTS beacon_data
@@ -36,7 +42,7 @@ CREATE TABLE IF NOT EXISTS beacon_data
     time TIMESTAMPTZ NOT NULL,
     mac VARCHAR(17) NOT NULL,
     battery INTEGER,
-    status VARCHAR(50),
+    beaconStatus VARCHAR(50),
     latitude DECIMAL(9, 6),
     longitude DECIMAL(9, 6),
     floor INTEGER
@@ -53,5 +59,4 @@ CREATE INDEX ON beacon_data(mac, time DESC);
 --     timescaledb.compress,
 --     timescaledb.compress_segmentby = 'mac'
 -- );
---
 -- SELECT add_compression_policy('beacon_data', INTERVAL '7 days');
