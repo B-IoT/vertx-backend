@@ -62,7 +62,13 @@ class TestCRUDVerticleItems {
     "currentLocation" to "center2",
     "room" to "616",
     "contact" to "Monsieur Poirot",
-    "owner" to "Monsieur Dupont"
+    "currentOwner" to "Monsieur Dupont",
+    "previousOwner" to "Monsieur Dupond",
+    "orderNumber" to "abcdf",
+    "color" to "red",
+    "serialNumber" to "abcdf",
+    "expiryDate" to LocalDate.of(2021, 8, 8).toString(),
+    "status" to "In maintenance"
   )
 
   private val closestItem = jsonObjectOf(
@@ -79,13 +85,19 @@ class TestCRUDVerticleItems {
     "currentLocation" to "center4",
     "room" to "614",
     "contact" to "Monsieur Delacroix",
-    "owner" to "Monsieur Monet"
+    "currentOwner" to "Monsieur Dupont",
+    "previousOwner" to "Monsieur Dupond",
+    "orderNumber" to "abcdf",
+    "color" to "red",
+    "serialNumber" to "abcdf",
+    "expiryDate" to LocalDate.of(2021, 8, 8).toString(),
+    "status" to "In maintenance"
   )
 
   private val existingBeaconData = jsonObjectOf(
     "mac" to existingItem.getString("beacon"),
     "battery" to 50,
-    "status" to "disponible",
+    "beaconStatus" to "disponible",
     "latitude" to 2.333333,
     "longitude" to -2.333333,
     "floor" to 1
@@ -105,7 +117,13 @@ class TestCRUDVerticleItems {
     "currentLocation" to "center6",
     "room" to "17",
     "contact" to "Jimmy",
-    "owner" to "Bob"
+    "currentOwner" to "Monsieur Dupont",
+    "previousOwner" to "Monsieur Dupond",
+    "orderNumber" to "abcdf",
+    "color" to "red",
+    "serialNumber" to "abcdf",
+    "expiryDate" to LocalDate.of(2021, 8, 8).toString(),
+    "status" to "In maintenance"
   )
 
   @BeforeEach
@@ -140,7 +158,9 @@ class TestCRUDVerticleItems {
         existingItem["beacon"], existingItem["category"], existingItem["service"],
         existingItem["itemID"], existingItem["brand"], existingItem["model"], existingItem["supplier"],
         LocalDate.parse(existingItem["purchaseDate"]), existingItem["purchasePrice"], existingItem["originLocation"],
-        existingItem["currentLocation"], existingItem["room"], existingItem["contact"], existingItem["owner"]
+        existingItem["currentLocation"], existingItem["room"], existingItem["contact"], existingItem["currentOwner"],
+        existingItem["previousOwner"], existingItem["orderNumber"], existingItem["color"], existingItem["serialNumber"],
+        LocalDate.parse(existingItem["expiryDate"]), existingItem["status"]
       )
     )
     .compose {
@@ -150,8 +170,10 @@ class TestCRUDVerticleItems {
           Tuple.of(
             closestItem["beacon"], closestItem["category"], closestItem["service"],
             closestItem["itemID"], closestItem["brand"], closestItem["model"], closestItem["supplier"],
-            LocalDate.parse(existingItem["purchaseDate"]), closestItem["purchasePrice"], closestItem["originLocation"],
-            closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["owner"]
+            LocalDate.parse(closestItem["purchaseDate"]), closestItem["purchasePrice"], closestItem["originLocation"],
+            closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["currentOwner"],
+            closestItem["previousOwner"], closestItem["orderNumber"], closestItem["color"], closestItem["serialNumber"],
+            LocalDate.parse(closestItem["expiryDate"]), closestItem["status"]
           )
         )
     }.compose {
@@ -161,7 +183,9 @@ class TestCRUDVerticleItems {
             "fake1", closestItem["category"], closestItem["service"],
             closestItem["itemID"], closestItem["brand"], closestItem["model"], closestItem["supplier"],
             LocalDate.parse(closestItem["purchaseDate"]), closestItem["purchasePrice"], closestItem["originLocation"],
-            closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["owner"]
+            closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["currentOwner"],
+            closestItem["previousOwner"], closestItem["orderNumber"], closestItem["color"], closestItem["serialNumber"],
+            LocalDate.parse(closestItem["expiryDate"]), closestItem["status"]
           )
         )
     }.compose {
@@ -171,7 +195,9 @@ class TestCRUDVerticleItems {
             "fake2", closestItem["category"], closestItem["service"],
             closestItem["itemID"], closestItem["brand"], closestItem["model"], closestItem["supplier"],
             LocalDate.parse(closestItem["purchaseDate"]), closestItem["purchasePrice"], closestItem["originLocation"],
-            closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["owner"]
+            closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["currentOwner"],
+            closestItem["previousOwner"], closestItem["orderNumber"], closestItem["color"], closestItem["serialNumber"],
+            LocalDate.parse(closestItem["expiryDate"]), closestItem["status"]
           )
         )
     }.compose {
@@ -181,7 +207,9 @@ class TestCRUDVerticleItems {
             "fake3", closestItem["category"], closestItem["service"],
             closestItem["itemID"], closestItem["brand"], closestItem["model"], closestItem["supplier"],
             LocalDate.parse(closestItem["purchaseDate"]), closestItem["purchasePrice"], closestItem["originLocation"],
-            closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["owner"]
+            closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["currentOwner"],
+            closestItem["previousOwner"], closestItem["orderNumber"], closestItem["color"], closestItem["serialNumber"],
+            LocalDate.parse(closestItem["expiryDate"]), closestItem["status"]
           )
         )
     }
@@ -192,7 +220,9 @@ class TestCRUDVerticleItems {
             "fake4", closestItem["category"], closestItem["service"],
             closestItem["itemID"], closestItem["brand"], closestItem["model"], closestItem["supplier"],
             LocalDate.parse(closestItem["purchaseDate"]), closestItem["purchasePrice"], closestItem["originLocation"],
-            closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["owner"]
+            closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["currentOwner"],
+            closestItem["previousOwner"], closestItem["orderNumber"], closestItem["color"], closestItem["serialNumber"],
+            LocalDate.parse(closestItem["expiryDate"]), closestItem["status"]
           )
         )
     }
@@ -203,7 +233,9 @@ class TestCRUDVerticleItems {
             "fake5", closestItem["category"], closestItem["service"],
             closestItem["itemID"], closestItem["brand"], closestItem["model"], closestItem["supplier"],
             LocalDate.parse(closestItem["purchaseDate"]), closestItem["purchasePrice"], closestItem["originLocation"],
-            closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["owner"]
+            closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["currentOwner"],
+            closestItem["previousOwner"], closestItem["orderNumber"], closestItem["color"], closestItem["serialNumber"],
+            LocalDate.parse(closestItem["expiryDate"]), closestItem["status"]
           )
         )
     }
@@ -213,7 +245,7 @@ class TestCRUDVerticleItems {
           Tuple.of(
             existingBeaconData.getString("mac"),
             existingBeaconData.getInteger("battery") + 5,
-            existingBeaconData.getString("status"),
+            existingBeaconData.getString("beaconStatus"),
             existingBeaconData.getDouble("latitude"),
             existingBeaconData.getDouble("longitude"),
             existingBeaconData.getInteger("floor")
@@ -225,7 +257,7 @@ class TestCRUDVerticleItems {
           Tuple.of(
             existingBeaconData.getString("mac"),
             existingBeaconData.getInteger("battery"),
-            existingBeaconData.getString("status"),
+            existingBeaconData.getString("beaconStatus"),
             existingBeaconData.getDouble("latitude"),
             existingBeaconData.getDouble("longitude"),
             existingBeaconData.getInteger("floor")
@@ -237,7 +269,7 @@ class TestCRUDVerticleItems {
           Tuple.of(
             updateItemJson.getString("beacon"),
             existingBeaconData.getInteger("battery"),
-            existingBeaconData.getString("status"),
+            existingBeaconData.getString("beaconStatus"),
             existingBeaconData.getDouble("latitude"),
             existingBeaconData.getDouble("longitude"),
             existingBeaconData.getInteger("floor")
@@ -249,7 +281,7 @@ class TestCRUDVerticleItems {
           Tuple.of(
             closestItem.getString("beacon"),
             existingBeaconData.getInteger("battery"),
-            existingBeaconData.getString("status"),
+            existingBeaconData.getString("beaconStatus"),
             42,
             -8,
             existingBeaconData.getInteger("floor")
@@ -261,7 +293,7 @@ class TestCRUDVerticleItems {
           Tuple.of(
             "fake1",
             existingBeaconData.getInteger("battery"),
-            existingBeaconData.getString("status"),
+            existingBeaconData.getString("beaconStatus"),
             44,
             -8,
             existingBeaconData.getInteger("floor")
@@ -273,7 +305,7 @@ class TestCRUDVerticleItems {
           Tuple.of(
             "fake2",
             existingBeaconData.getInteger("battery"),
-            existingBeaconData.getString("status"),
+            existingBeaconData.getString("beaconStatus"),
             45,
             -8,
             existingBeaconData.getInteger("floor")
@@ -285,7 +317,7 @@ class TestCRUDVerticleItems {
           Tuple.of(
             "fake3",
             existingBeaconData.getInteger("battery"),
-            existingBeaconData.getString("status"),
+            existingBeaconData.getString("beaconStatus"),
             46,
             -8,
             existingBeaconData.getInteger("floor")
@@ -297,7 +329,7 @@ class TestCRUDVerticleItems {
           Tuple.of(
             "fake4",
             existingBeaconData.getInteger("battery"),
-            existingBeaconData.getString("status"),
+            existingBeaconData.getString("beaconStatus"),
             47,
             -8,
             existingBeaconData.getInteger("floor")
@@ -309,7 +341,7 @@ class TestCRUDVerticleItems {
           Tuple.of(
             "fake5",
             existingBeaconData.getInteger("battery"),
-            existingBeaconData.getString("status"),
+            existingBeaconData.getString("beaconStatus"),
             47,
             -8,
             2
@@ -342,7 +374,13 @@ class TestCRUDVerticleItems {
       "currentLocation" to "cur",
       "room" to "616",
       "contact" to "Monsieur Poirot",
-      "owner" to "Monsieur Dupont"
+      "currentOwner" to "Monsieur Dupont",
+      "previousOwner" to "Monsieur Dupond",
+      "orderNumber" to "abcdf",
+      "color" to "red",
+      "serialNumber" to "abcdf",
+      "expiryDate" to LocalDate.of(2021, 8, 8).toString(),
+      "status" to "In maintenance"
     )
 
     val response = Given {
@@ -382,7 +420,13 @@ class TestCRUDVerticleItems {
       "currentLocation" to "cur",
       "room" to "616",
       "contact" to "Monsieur Poirot",
-      "owner" to "Monsieur Dupont"
+      "currentOwner" to "Monsieur Dupont",
+      "previousOwner" to "Monsieur Dupond",
+      "orderNumber" to "abcdf",
+      "color" to "red",
+      "serialNumber" to "abcdf",
+      "expiryDate" to LocalDate.of(2021, 8, 8).toString(),
+      "status" to "In maintenance"
     )
 
     val response = Given {
@@ -435,9 +479,26 @@ class TestCRUDVerticleItems {
       """CREATE TABLE IF NOT EXISTS items_another
 (
     id SERIAL PRIMARY KEY,
-    beacon VARCHAR(17) NOT NULL UNIQUE,
-    category VARCHAR(100) NOT NULL,
-    service VARCHAR(100)
+    beacon VARCHAR(17) UNIQUE,
+    category VARCHAR(100),
+    service VARCHAR(100),
+    itemID VARCHAR(50),
+    brand VARCHAR(100),
+    model VARCHAR(100),
+    supplier VARCHAR(100),
+    purchaseDate DATE,
+    purchasePrice DECIMAL(15, 6),
+    originLocation VARCHAR(100),
+    currentLocation VARCHAR(100),
+    room VARCHAR(100),
+    contact VARCHAR(100),
+    currentOwner VARCHAR(100),
+    previousOwner VARCHAR(100),
+    orderNumber VARCHAR(100),
+    color VARCHAR(100),
+    serialNumber VARCHAR(100),
+    expiryDate DATE,
+    status VARCHAR(100)
 );"""
     ).execute().compose {
       pgPool.query(
@@ -446,7 +507,7 @@ class TestCRUDVerticleItems {
     time TIMESTAMPTZ NOT NULL,
     mac VARCHAR(17) NOT NULL,
     battery INTEGER,
-    status VARCHAR(50),
+    beaconStatus VARCHAR(50),
     latitude DECIMAL(9, 6),
     longitude DECIMAL(9, 6),
     floor INTEGER
@@ -622,7 +683,7 @@ class TestCRUDVerticleItems {
   fun getItemIsCorrect(testContext: VertxTestContext) {
     val expected = existingItem.copy().apply {
       put("battery", existingBeaconData.getInteger("battery"))
-      put("status", existingBeaconData.getString("status"))
+      put("beaconStatus", existingBeaconData.getString("beaconStatus"))
       put("latitude", existingBeaconData.getDouble("latitude"))
       put("longitude", existingBeaconData.getDouble("longitude"))
       put("floor", existingBeaconData.getInteger("floor"))
@@ -690,9 +751,15 @@ class TestCRUDVerticleItems {
           that(json.getString("currentLocation")).isEqualTo(updateItemJson.getString("currentLocation"))
           that(json.getString("room")).isEqualTo(updateItemJson.getString("room"))
           that(json.getString("contact")).isEqualTo(updateItemJson.getString("contact"))
-          that(json.getString("owner")).isEqualTo(updateItemJson.getString("owner"))
+          that(json.getString("currentOwner")).isEqualTo(updateItemJson.getString("currentOwner"))
+          that(json.getString("previousOwner")).isEqualTo(updateItemJson.getString("previousOwner"))
+          that(json.getString("orderNumber")).isEqualTo(updateItemJson.getString("orderNumber"))
+          that(json.getString("color")).isEqualTo(updateItemJson.getString("color"))
+          that(json.getString("serialNumber")).isEqualTo(updateItemJson.getString("serialNumber"))
+          that(json.getString("expiryDate")).isEqualTo(updateItemJson.getString("expiryDate"))
+          that(json.getString("status")).isEqualTo(updateItemJson.getString("status"))
           that(json.getInteger("battery")).isEqualTo(existingBeaconData.getInteger("battery"))
-          that(json.getString("status")).isEqualTo(existingBeaconData.getString("status"))
+          that(json.getString("beaconStatus")).isEqualTo(existingBeaconData.getString("beaconStatus"))
           that(json.getDouble("latitude")).isEqualTo(existingBeaconData.getDouble("latitude"))
           that(json.getDouble("longitude")).isEqualTo(existingBeaconData.getDouble("longitude"))
           that(json.getInteger("floor")).isEqualTo(existingBeaconData.getInteger("floor"))
@@ -769,7 +836,7 @@ class TestCRUDVerticleItems {
   companion object {
 
     private const val INSERT_BEACON_DATA =
-      "INSERT INTO beacon_data(time, mac, battery, status, latitude, longitude, floor) values(NOW(), $1, $2, $3, $4, $5, $6)"
+      "INSERT INTO beacon_data(time, mac, battery, beaconstatus, latitude, longitude, floor) values(NOW(), $1, $2, $3, $4, $5, $6)"
 
     private val requestSpecification: RequestSpecification = RequestSpecBuilder()
       .addFilters(listOf(ResponseLoggingFilter(), RequestLoggingFilter()))

@@ -77,7 +77,13 @@ class TestPublicApiVerticle {
     "currentLocation" to "center2",
     "room" to "616",
     "contact" to "Monsieur Poirot",
-    "owner" to "Monsieur Dupont"
+    "currentOwner" to "Monsieur Dupont",
+    "previousOwner" to "Monsieur Dupond",
+    "orderNumber" to "abcdf",
+    "color" to "red",
+    "serialNumber" to "abcdf",
+    "expiryDate" to LocalDate.of(2021, 8, 8).toString(),
+    "status" to "In maintenance"
   )
 
   private var itemID: Int = 1
@@ -530,9 +536,26 @@ class TestPublicApiVerticle {
         that(obj.getString("beacon")).isEqualTo(expected.getString("beacon"))
         that(obj.getString("category")).isEqualTo(expected.getString("category"))
         that(obj.getString("service")).isEqualTo(expected.getString("service"))
+        that(obj.getString("itemID")).isEqualTo(expected.getString("itemID"))
+        that(obj.getString("brand")).isEqualTo(expected.getString("brand"))
+        that(obj.getString("model")).isEqualTo(expected.getString("model"))
+        that(obj.getString("supplier")).isEqualTo(expected.getString("supplier"))
+        that(obj.getString("purchaseDate")).isEqualTo(expected.getString("purchaseDate"))
+        that(obj.getDouble("purchasePrice")).isEqualTo(expected.getDouble("purchasePrice"))
+        that(obj.getString("originLocation")).isEqualTo(expected.getString("originLocation"))
+        that(obj.getString("currentLocation")).isEqualTo(expected.getString("currentLocation"))
+        that(obj.getString("room")).isEqualTo(expected.getString("room"))
+        that(obj.getString("contact")).isEqualTo(expected.getString("contact"))
+        that(obj.getString("currentOwner")).isEqualTo(expected.getString("currentOwner"))
+        that(obj.getString("previousOwner")).isEqualTo(expected.getString("previousOwner"))
+        that(obj.getString("orderNumber")).isEqualTo(expected.getString("orderNumber"))
+        that(obj.getString("color")).isEqualTo(expected.getString("color"))
+        that(obj.getString("serialNumber")).isEqualTo(expected.getString("serialNumber"))
+        that(obj.getString("expiryDate")).isEqualTo(expected.getString("expiryDate"))
+        that(obj.getString("status")).isEqualTo(expected.getString("status"))
         that(obj.containsKey("timestamp")).isTrue()
         that(obj.containsKey("battery")).isTrue()
-        that(obj.containsKey("status")).isTrue()
+        that(obj.containsKey("beaconStatus")).isTrue()
         that(obj.containsKey("latitude")).isTrue()
         that(obj.containsKey("longitude")).isTrue()
         that(obj.containsKey("floor")).isTrue()
@@ -572,9 +595,26 @@ class TestPublicApiVerticle {
         that(obj.getString("beacon")).isEqualTo(item.getString("beacon"))
         that(obj.getString("category")).isEqualTo(item.getString("category"))
         that(obj.getString("service")).isEqualTo(item.getString("service"))
+        that(obj.getString("itemID")).isEqualTo(item.getString("itemID"))
+        that(obj.getString("brand")).isEqualTo(item.getString("brand"))
+        that(obj.getString("model")).isEqualTo(item.getString("model"))
+        that(obj.getString("supplier")).isEqualTo(item.getString("supplier"))
+        that(obj.getString("purchaseDate")).isEqualTo(item.getString("purchaseDate"))
+        that(obj.getDouble("purchasePrice")).isEqualTo(item.getDouble("purchasePrice"))
+        that(obj.getString("originLocation")).isEqualTo(item.getString("originLocation"))
+        that(obj.getString("currentLocation")).isEqualTo(item.getString("currentLocation"))
+        that(obj.getString("room")).isEqualTo(item.getString("room"))
+        that(obj.getString("contact")).isEqualTo(item.getString("contact"))
+        that(obj.getString("currentOwner")).isEqualTo(item.getString("currentOwner"))
+        that(obj.getString("previousOwner")).isEqualTo(item.getString("previousOwner"))
+        that(obj.getString("orderNumber")).isEqualTo(item.getString("orderNumber"))
+        that(obj.getString("color")).isEqualTo(item.getString("color"))
+        that(obj.getString("serialNumber")).isEqualTo(item.getString("serialNumber"))
+        that(obj.getString("expiryDate")).isEqualTo(item.getString("expiryDate"))
+        that(obj.getString("status")).isEqualTo(item.getString("status"))
         that(obj.containsKey("timestamp")).isTrue()
         that(obj.containsKey("battery")).isTrue()
-        that(obj.containsKey("status")).isTrue()
+        that(obj.containsKey("beaconStatus")).isTrue()
         that(obj.containsKey("latitude")).isTrue()
         that(obj.containsKey("longitude")).isTrue()
         that(obj.containsKey("floor")).isTrue()
@@ -638,9 +678,26 @@ class TestPublicApiVerticle {
         that(response.getString("beacon")).isEqualTo(expected.getString("beacon"))
         that(response.getString("category")).isEqualTo(expected.getString("category"))
         that(response.getString("service")).isEqualTo(expected.getString("service"))
+        that(response.getString("itemID")).isEqualTo(expected.getString("itemID"))
+        that(response.getString("brand")).isEqualTo(expected.getString("brand"))
+        that(response.getString("model")).isEqualTo(expected.getString("model"))
+        that(response.getString("supplier")).isEqualTo(expected.getString("supplier"))
+        that(response.getString("purchaseDate")).isEqualTo(expected.getString("purchaseDate"))
+        that(response.getDouble("purchasePrice")).isEqualTo(expected.getDouble("purchasePrice"))
+        that(response.getString("originLocation")).isEqualTo(expected.getString("originLocation"))
+        that(response.getString("currentLocation")).isEqualTo(expected.getString("currentLocation"))
+        that(response.getString("room")).isEqualTo(expected.getString("room"))
+        that(response.getString("contact")).isEqualTo(expected.getString("contact"))
+        that(response.getString("currentOwner")).isEqualTo(expected.getString("currentOwner"))
+        that(response.getString("previousOwner")).isEqualTo(expected.getString("previousOwner"))
+        that(response.getString("orderNumber")).isEqualTo(expected.getString("orderNumber"))
+        that(response.getString("color")).isEqualTo(expected.getString("color"))
+        that(response.getString("serialNumber")).isEqualTo(expected.getString("serialNumber"))
+        that(response.getString("expiryDate")).isEqualTo(expected.getString("expiryDate"))
+        that(response.getString("status")).isEqualTo(expected.getString("status"))
         that(response.containsKey("timestamp")).isTrue()
         that(response.containsKey("battery")).isTrue()
-        that(response.containsKey("status")).isTrue()
+        that(response.containsKey("beaconStatus")).isTrue()
         that(response.containsKey("latitude")).isTrue()
         that(response.containsKey("longitude")).isTrue()
         that(response.containsKey("floor")).isTrue()
@@ -682,7 +739,24 @@ class TestPublicApiVerticle {
     val updateJson = jsonObjectOf(
       "beacon" to "ad:ab:ab:ab:ab:ab",
       "category" to "Lit",
-      "service" to "Bloc 42"
+      "service" to "Bloc 42",
+      "itemID" to "sdsddsd",
+      "brand" to "maserati",
+      "model" to "wdwd",
+      "supplier" to "supplier",
+      "purchaseDate" to LocalDate.of(2020, 11, 8).toString(),
+      "purchasePrice" to 1000.3,
+      "originLocation" to "center6",
+      "currentLocation" to "center10",
+      "room" to "2",
+      "contact" to "Monsieur Poire",
+      "currentOwner" to "Monsieur Dupe",
+      "previousOwner" to "Monsieur Pistache",
+      "orderNumber" to "asasas",
+      "color" to "blue",
+      "serialNumber" to "aasasasa",
+      "expiryDate" to LocalDate.of(2022, 12, 25).toString(),
+      "status" to "Disponible"
     )
 
     val response = Given {
@@ -712,7 +786,24 @@ class TestPublicApiVerticle {
     val newItem = jsonObjectOf(
       "beacon" to "ab:cd:ef:aa:aa:aa",
       "category" to "Lit",
-      "service" to "Bloc 42"
+      "service" to "Bloc 42",
+      "itemID" to "abc",
+      "brand" to "ferrari",
+      "model" to "GT",
+      "supplier" to "sup",
+      "purchaseDate" to LocalDate.of(2021, 7, 8).toString(),
+      "purchasePrice" to 42.3,
+      "originLocation" to "center1",
+      "currentLocation" to "center2",
+      "room" to "616",
+      "contact" to "Monsieur Poirot",
+      "currentOwner" to "Monsieur Dupont",
+      "previousOwner" to "Monsieur Dupond",
+      "orderNumber" to "abcdf",
+      "color" to "red",
+      "serialNumber" to "abcdf",
+      "expiryDate" to LocalDate.of(2021, 8, 8).toString(),
+      "status" to "In maintenance"
     )
 
     // Register the item
