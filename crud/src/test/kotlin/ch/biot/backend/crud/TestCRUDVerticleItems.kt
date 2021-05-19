@@ -19,7 +19,7 @@ import io.restassured.module.kotlin.extensions.Given
 import io.restassured.module.kotlin.extensions.Then
 import io.restassured.module.kotlin.extensions.When
 import io.restassured.specification.RequestSpecification
-import io.vertx.core.Future
+import io.vertx.core.CompositeFuture
 import io.vertx.core.Vertx
 import io.vertx.core.buffer.Buffer
 import io.vertx.core.json.JsonArray
@@ -33,8 +33,6 @@ import io.vertx.kotlin.coroutines.dispatcher
 import io.vertx.kotlin.pgclient.pgConnectOptionsOf
 import io.vertx.kotlin.sqlclient.poolOptionsOf
 import io.vertx.pgclient.PgPool
-import io.vertx.sqlclient.Row
-import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.Tuple
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.*
@@ -155,213 +153,304 @@ class TestCRUDVerticleItems {
     }
   }
 
-  private suspend fun dropAllItems(): Future<RowSet<Row>> {
-    pgPool.query("DELETE FROM items").execute().await()
-    return pgPool.query("DELETE FROM beacon_data").execute()
+  private fun dropAllItems(): CompositeFuture {
+    return CompositeFuture.all(
+      pgPool.query("DELETE FROM items").execute(),
+      pgPool.query("DELETE FROM beacon_data").execute()
+    )
   }
 
-  private suspend fun insertItems(): Future<RowSet<Row>> {
+  private suspend fun insertItems(): CompositeFuture {
     val result = pgPool.preparedQuery(insertItem("items"))
       .execute(
         Tuple.of(
-          existingItem["beacon"], existingItem["category"], existingItem["service"],
-          existingItem["itemID"], existingItem["brand"], existingItem["model"], existingItem["supplier"],
-          LocalDate.parse(existingItem["purchaseDate"]), existingItem["purchasePrice"], existingItem["originLocation"],
-          existingItem["currentLocation"], existingItem["room"], existingItem["contact"], existingItem["currentOwner"],
-        existingItem["previousOwner"], existingItem["orderNumber"], existingItem["color"], existingItem["serialNumber"],
-        LocalDate.parse(existingItem["expiryDate"]), existingItem["status"]
+          existingItem["beacon"],
+          existingItem["category"],
+          existingItem["service"],
+          existingItem["itemID"],
+          existingItem["brand"],
+          existingItem["model"],
+          existingItem["supplier"],
+          LocalDate.parse(existingItem["purchaseDate"]),
+          existingItem["purchasePrice"],
+          existingItem["originLocation"],
+          existingItem["currentLocation"],
+          existingItem["room"],
+          existingItem["contact"],
+          existingItem["currentOwner"],
+          existingItem["previousOwner"],
+          existingItem["orderNumber"],
+          existingItem["color"],
+          existingItem["serialNumber"],
+          LocalDate.parse(existingItem["expiryDate"]),
+          existingItem["status"]
         )
       ).await()
 
     existingItemID = result.iterator().next().getInteger("id")
-    pgPool.preparedQuery(insertItem("items"))
-      .execute(
-        Tuple.of(
-          closestItem["beacon"], closestItem["category"], closestItem["service"],
-          closestItem["itemID"], closestItem["brand"], closestItem["model"], closestItem["supplier"],
-          LocalDate.parse(existingItem["purchaseDate"]), closestItem["purchasePrice"], closestItem["originLocation"],
-          closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["currentOwner"],
-            closestItem["previousOwner"], closestItem["orderNumber"], closestItem["color"], closestItem["serialNumber"],
-            LocalDate.parse(closestItem["expiryDate"]), closestItem["status"]
-        )
-      ).await()
 
-    pgPool.preparedQuery(insertItem("items"))
-      .execute(
-        Tuple.of(
-          "fake1", closestItem["category"], closestItem["service"],
-          closestItem["itemID"], closestItem["brand"], closestItem["model"], closestItem["supplier"],
-          LocalDate.parse(closestItem["purchaseDate"]), closestItem["purchasePrice"], closestItem["originLocation"],
-          closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["currentOwner"],
-            closestItem["previousOwner"], closestItem["orderNumber"], closestItem["color"], closestItem["serialNumber"],
-            LocalDate.parse(closestItem["expiryDate"]), closestItem["status"]
-        )
-      ).await()
-
-    pgPool.preparedQuery(insertItem("items"))
-      .execute(
-        Tuple.of(
-          "fake2", closestItem["category"], closestItem["service"],
-          closestItem["itemID"], closestItem["brand"], closestItem["model"], closestItem["supplier"],
-          LocalDate.parse(closestItem["purchaseDate"]), closestItem["purchasePrice"], closestItem["originLocation"],
-          closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["currentOwner"],
-            closestItem["previousOwner"], closestItem["orderNumber"], closestItem["color"], closestItem["serialNumber"],
-            LocalDate.parse(closestItem["expiryDate"]), closestItem["status"]
-        )
-      ).await()
-
-    pgPool.preparedQuery(insertItem("items"))
-      .execute(
-        Tuple.of(
-          "fake3", closestItem["category"], closestItem["service"],
-          closestItem["itemID"], closestItem["brand"], closestItem["model"], closestItem["supplier"],
-          LocalDate.parse(closestItem["purchaseDate"]), closestItem["purchasePrice"], closestItem["originLocation"],
-          closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["currentOwner"],
-            closestItem["previousOwner"], closestItem["orderNumber"], closestItem["color"], closestItem["serialNumber"],
-            LocalDate.parse(closestItem["expiryDate"]), closestItem["status"]
-        )
-      ).await()
-
-    pgPool.preparedQuery(insertItem("items"))
-      .execute(
-        Tuple.of(
-          "fake4", closestItem["category"], closestItem["service"],
-          closestItem["itemID"], closestItem["brand"], closestItem["model"], closestItem["supplier"],
-          LocalDate.parse(closestItem["purchaseDate"]), closestItem["purchasePrice"], closestItem["originLocation"],
-          closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["currentOwner"],
-            closestItem["previousOwner"], closestItem["orderNumber"], closestItem["color"], closestItem["serialNumber"],
-            LocalDate.parse(closestItem["expiryDate"]), closestItem["status"]
-        )
-      ).await()
-
-    pgPool.preparedQuery(insertItem("items"))
-      .execute(
-        Tuple.of(
-          "fake5", closestItem["category"], closestItem["service"],
-          closestItem["itemID"], closestItem["brand"], closestItem["model"], closestItem["supplier"],
-          LocalDate.parse(closestItem["purchaseDate"]), closestItem["purchasePrice"], closestItem["originLocation"],
-          closestItem["currentLocation"], closestItem["room"], closestItem["contact"], closestItem["currentOwner"],
-            closestItem["previousOwner"], closestItem["orderNumber"], closestItem["color"], closestItem["serialNumber"],
-            LocalDate.parse(closestItem["expiryDate"]), closestItem["status"]
-        )
-      ).await()
-
-    pgPool.preparedQuery(INSERT_BEACON_DATA)
-      .execute(
-        Tuple.of(
-          existingBeaconData.getString("mac"),
-          existingBeaconData.getInteger("battery") + 5,
-          existingBeaconData.getString("beaconStatus"),
-          existingBeaconData.getDouble("latitude"),
-          existingBeaconData.getDouble("longitude"),
-          existingBeaconData.getInteger("floor"),
-          existingBeaconData.getDouble("temperature")
-        )
-      ).await()
-
-    pgPool.preparedQuery(INSERT_BEACON_DATA)
-      .execute(
-        Tuple.of(
-          existingBeaconData.getString("mac"),
-          existingBeaconData.getInteger("battery"),
-          existingBeaconData.getString("beaconStatus"),
-          existingBeaconData.getDouble("latitude"),
-          existingBeaconData.getDouble("longitude"),
-          existingBeaconData.getInteger("floor"),
-          existingBeaconData.getDouble("temperature")
-        )
-      ).await()
-
-    pgPool.preparedQuery(INSERT_BEACON_DATA)
-      .execute(
-        Tuple.of(
-          updateItemJson.getString("beacon"),
-          existingBeaconData.getInteger("battery"),
-          existingBeaconData.getString("beaconStatus"),
-          existingBeaconData.getDouble("latitude"),
-          existingBeaconData.getDouble("longitude"),
-          existingBeaconData.getInteger("floor"),
-          existingBeaconData.getDouble("temperature")
-        )
-      ).await()
-
-    pgPool.preparedQuery(INSERT_BEACON_DATA)
-      .execute(
-        Tuple.of(
-          closestItem.getString("beacon"),
-          existingBeaconData.getInteger("battery"),
-          existingBeaconData.getString("beaconStatus"),
-          42,
-          -8,
-          existingBeaconData.getInteger("floor"),
-          existingBeaconData.getDouble("temperature")
-        )
-      ).await()
-
-    pgPool.preparedQuery(INSERT_BEACON_DATA)
-      .execute(
-        Tuple.of(
-          "fake1",
-          existingBeaconData.getInteger("battery"),
-          existingBeaconData.getString("beaconStatus"),
-          44,
-          -8,
-          existingBeaconData.getInteger("floor"),
-          existingBeaconData.getDouble("temperature")
-        )
-      ).await()
-
-    pgPool.preparedQuery(INSERT_BEACON_DATA)
-      .execute(
-        Tuple.of(
-          "fake2",
-          existingBeaconData.getInteger("battery"),
-          existingBeaconData.getString("beaconStatus"),
-          45,
-          -8,
-          existingBeaconData.getInteger("floor"),
-          existingBeaconData.getDouble("temperature")
-        )
-      ).await()
-
-    pgPool.preparedQuery(INSERT_BEACON_DATA)
-      .execute(
-        Tuple.of(
-          "fake3",
-          existingBeaconData.getInteger("battery"),
-          existingBeaconData.getString("beaconStatus"),
-          46,
-          -8,
-          existingBeaconData.getInteger("floor"),
-          existingBeaconData.getDouble("temperature")
-        )
-      ).await()
-
-    pgPool.preparedQuery(INSERT_BEACON_DATA)
-      .execute(
-        Tuple.of(
-          "fake4",
-          existingBeaconData.getInteger("battery"),
-          existingBeaconData.getString("beaconStatus"),
-          47,
-          -8,
-          existingBeaconData.getInteger("floor"),
-          existingBeaconData.getDouble("temperature")
-        )
-      ).await()
-
-    return pgPool.preparedQuery(INSERT_BEACON_DATA)
-      .execute(
-        Tuple.of(
-          "fake5",
-          existingBeaconData.getInteger("battery"),
-          existingBeaconData.getString("status"),
-          47,
-          -8,
-          2,
-          3.3
-        )
+    return CompositeFuture.all(
+      listOf(
+        pgPool.preparedQuery(insertItem("items"))
+          .execute(
+            Tuple.of(
+              closestItem["beacon"],
+              closestItem["category"],
+              closestItem["service"],
+              closestItem["itemID"],
+              closestItem["brand"],
+              closestItem["model"],
+              closestItem["supplier"],
+              LocalDate.parse(existingItem["purchaseDate"]),
+              closestItem["purchasePrice"],
+              closestItem["originLocation"],
+              closestItem["currentLocation"],
+              closestItem["room"],
+              closestItem["contact"],
+              closestItem["currentOwner"],
+              closestItem["previousOwner"],
+              closestItem["orderNumber"],
+              closestItem["color"],
+              closestItem["serialNumber"],
+              LocalDate.parse(closestItem["expiryDate"]),
+              closestItem["status"]
+            )
+          ),
+        pgPool.preparedQuery(insertItem("items"))
+          .execute(
+            Tuple.of(
+              "fake1",
+              closestItem["category"],
+              closestItem["service"],
+              closestItem["itemID"],
+              closestItem["brand"],
+              closestItem["model"],
+              closestItem["supplier"],
+              LocalDate.parse(closestItem["purchaseDate"]),
+              closestItem["purchasePrice"],
+              closestItem["originLocation"],
+              closestItem["currentLocation"],
+              closestItem["room"],
+              closestItem["contact"],
+              closestItem["currentOwner"],
+              closestItem["previousOwner"],
+              closestItem["orderNumber"],
+              closestItem["color"],
+              closestItem["serialNumber"],
+              LocalDate.parse(closestItem["expiryDate"]),
+              closestItem["status"]
+            )
+          ),
+        pgPool.preparedQuery(insertItem("items"))
+          .execute(
+            Tuple.of(
+              "fake2",
+              closestItem["category"],
+              closestItem["service"],
+              closestItem["itemID"],
+              closestItem["brand"],
+              closestItem["model"],
+              closestItem["supplier"],
+              LocalDate.parse(closestItem["purchaseDate"]),
+              closestItem["purchasePrice"],
+              closestItem["originLocation"],
+              closestItem["currentLocation"],
+              closestItem["room"],
+              closestItem["contact"],
+              closestItem["currentOwner"],
+              closestItem["previousOwner"],
+              closestItem["orderNumber"],
+              closestItem["color"],
+              closestItem["serialNumber"],
+              LocalDate.parse(closestItem["expiryDate"]),
+              closestItem["status"]
+            )
+          ),
+        pgPool.preparedQuery(insertItem("items"))
+          .execute(
+            Tuple.of(
+              "fake3",
+              closestItem["category"],
+              closestItem["service"],
+              closestItem["itemID"],
+              closestItem["brand"],
+              closestItem["model"],
+              closestItem["supplier"],
+              LocalDate.parse(closestItem["purchaseDate"]),
+              closestItem["purchasePrice"],
+              closestItem["originLocation"],
+              closestItem["currentLocation"],
+              closestItem["room"],
+              closestItem["contact"],
+              closestItem["currentOwner"],
+              closestItem["previousOwner"],
+              closestItem["orderNumber"],
+              closestItem["color"],
+              closestItem["serialNumber"],
+              LocalDate.parse(closestItem["expiryDate"]),
+              closestItem["status"]
+            )
+          ),
+        pgPool.preparedQuery(insertItem("items"))
+          .execute(
+            Tuple.of(
+              "fake4",
+              closestItem["category"],
+              closestItem["service"],
+              closestItem["itemID"],
+              closestItem["brand"],
+              closestItem["model"],
+              closestItem["supplier"],
+              LocalDate.parse(closestItem["purchaseDate"]),
+              closestItem["purchasePrice"],
+              closestItem["originLocation"],
+              closestItem["currentLocation"],
+              closestItem["room"],
+              closestItem["contact"],
+              closestItem["currentOwner"],
+              closestItem["previousOwner"],
+              closestItem["orderNumber"],
+              closestItem["color"],
+              closestItem["serialNumber"],
+              LocalDate.parse(closestItem["expiryDate"]),
+              closestItem["status"]
+            )
+          ),
+        pgPool.preparedQuery(insertItem("items"))
+          .execute(
+            Tuple.of(
+              "fake5",
+              closestItem["category"],
+              closestItem["service"],
+              closestItem["itemID"],
+              closestItem["brand"],
+              closestItem["model"],
+              closestItem["supplier"],
+              LocalDate.parse(closestItem["purchaseDate"]),
+              closestItem["purchasePrice"],
+              closestItem["originLocation"],
+              closestItem["currentLocation"],
+              closestItem["room"],
+              closestItem["contact"],
+              closestItem["currentOwner"],
+              closestItem["previousOwner"],
+              closestItem["orderNumber"],
+              closestItem["color"],
+              closestItem["serialNumber"],
+              LocalDate.parse(closestItem["expiryDate"]),
+              closestItem["status"]
+            )
+          ),
+        pgPool.preparedQuery(INSERT_BEACON_DATA)
+          .execute(
+            Tuple.of(
+              existingBeaconData.getString("mac"),
+              existingBeaconData.getInteger("battery") + 5,
+              existingBeaconData.getString("beaconStatus"),
+              existingBeaconData.getDouble("latitude"),
+              existingBeaconData.getDouble("longitude"),
+              existingBeaconData.getInteger("floor"),
+              existingBeaconData.getDouble("temperature")
+            )
+          ),
+        pgPool.preparedQuery(INSERT_BEACON_DATA)
+          .execute(
+            Tuple.of(
+              existingBeaconData.getString("mac"),
+              existingBeaconData.getInteger("battery"),
+              existingBeaconData.getString("beaconStatus"),
+              existingBeaconData.getDouble("latitude"),
+              existingBeaconData.getDouble("longitude"),
+              existingBeaconData.getInteger("floor"),
+              existingBeaconData.getDouble("temperature")
+            )
+          ),
+        pgPool.preparedQuery(INSERT_BEACON_DATA)
+          .execute(
+            Tuple.of(
+              updateItemJson.getString("beacon"),
+              existingBeaconData.getInteger("battery"),
+              existingBeaconData.getString("beaconStatus"),
+              existingBeaconData.getDouble("latitude"),
+              existingBeaconData.getDouble("longitude"),
+              existingBeaconData.getInteger("floor"),
+              existingBeaconData.getDouble("temperature")
+            )
+          ),
+        pgPool.preparedQuery(INSERT_BEACON_DATA)
+          .execute(
+            Tuple.of(
+              closestItem.getString("beacon"),
+              existingBeaconData.getInteger("battery"),
+              existingBeaconData.getString("beaconStatus"),
+              42,
+              -8,
+              existingBeaconData.getInteger("floor"),
+              existingBeaconData.getDouble("temperature")
+            )
+          ),
+        pgPool.preparedQuery(INSERT_BEACON_DATA)
+          .execute(
+            Tuple.of(
+              "fake1",
+              existingBeaconData.getInteger("battery"),
+              existingBeaconData.getString("beaconStatus"),
+              44,
+              -8,
+              existingBeaconData.getInteger("floor"),
+              existingBeaconData.getDouble("temperature")
+            )
+          ),
+        pgPool.preparedQuery(INSERT_BEACON_DATA)
+          .execute(
+            Tuple.of(
+              "fake2",
+              existingBeaconData.getInteger("battery"),
+              existingBeaconData.getString("beaconStatus"),
+              45,
+              -8,
+              existingBeaconData.getInteger("floor"),
+              existingBeaconData.getDouble("temperature")
+            )
+          ),
+        pgPool.preparedQuery(INSERT_BEACON_DATA)
+          .execute(
+            Tuple.of(
+              "fake3",
+              existingBeaconData.getInteger("battery"),
+              existingBeaconData.getString("beaconStatus"),
+              46,
+              -8,
+              existingBeaconData.getInteger("floor"),
+              existingBeaconData.getDouble("temperature")
+            )
+          ),
+        pgPool.preparedQuery(INSERT_BEACON_DATA)
+          .execute(
+            Tuple.of(
+              "fake4",
+              existingBeaconData.getInteger("battery"),
+              existingBeaconData.getString("beaconStatus"),
+              47,
+              -8,
+              existingBeaconData.getInteger("floor"),
+              existingBeaconData.getDouble("temperature")
+            )
+          ),
+        pgPool.preparedQuery(INSERT_BEACON_DATA)
+          .execute(
+            Tuple.of(
+              "fake5",
+              existingBeaconData.getInteger("battery"),
+              existingBeaconData.getString("status"),
+              47,
+              -8,
+              2,
+              3.3
+            )
+          )
       )
+    )
   }
 
   @AfterEach

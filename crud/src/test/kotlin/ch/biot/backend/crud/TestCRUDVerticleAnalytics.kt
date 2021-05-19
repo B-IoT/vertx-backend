@@ -14,7 +14,7 @@ import io.restassured.module.kotlin.extensions.Given
 import io.restassured.module.kotlin.extensions.Then
 import io.restassured.module.kotlin.extensions.When
 import io.restassured.specification.RequestSpecification
-import io.vertx.core.Future
+import io.vertx.core.CompositeFuture
 import io.vertx.core.Vertx
 import io.vertx.core.buffer.Buffer
 import io.vertx.junit5.VertxExtension
@@ -26,8 +26,6 @@ import io.vertx.kotlin.coroutines.dispatcher
 import io.vertx.kotlin.pgclient.pgConnectOptionsOf
 import io.vertx.kotlin.sqlclient.poolOptionsOf
 import io.vertx.pgclient.PgPool
-import io.vertx.sqlclient.Row
-import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.Tuple
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.*
@@ -165,54 +163,56 @@ class TestCRUDVerticleAnalytics {
     }
   }
 
-  private suspend fun dropAllItems(): Future<RowSet<Row>> {
-    pgPool.query("DELETE FROM items").execute().await()
-    return pgPool.query("DELETE FROM beacon_data").execute()
+  private fun dropAllItems(): CompositeFuture {
+    return CompositeFuture.all(
+      pgPool.query("DELETE FROM items").execute(),
+      pgPool.query("DELETE FROM beacon_data").execute()
+    )
   }
 
-  private suspend fun insertItems(): Future<RowSet<Row>> {
-    pgPool.preparedQuery(insertItem("items"))
-      .execute(
-        Tuple.of(
-          existingItemOne["beacon"],
-          existingItemOne["category"],
-          existingItemOne["service"],
-          existingItemOne["itemID"],
-          existingItemOne["brand"],
-          existingItemOne["model"],
-          existingItemOne["supplier"],
-          LocalDate.parse(existingItemOne["purchaseDate"]),
-          existingItemOne["purchasePrice"],
-          existingItemOne["originLocation"],
-          existingItemOne["currentLocation"],
-          existingItemOne["room"],
-          existingItemOne["contact"],
-        existingItemOne["currentOwner"],
-        existingItemOne["previousOwner"],
-        existingItemOne["orderNumber"],
-        existingItemOne["color"],
-        existingItemOne["serialNumber"],
-        LocalDate.parse(existingItemOne["expiryDate"]),
-        existingItemOne["status"],
-        )
-      ).await()
-
-    pgPool.preparedQuery(insertItem("items"))
-      .execute(
-        Tuple.of(
-          existingItemTwo["beacon"],
-          existingItemTwo["category"],
-          existingItemTwo["service"],
-          existingItemTwo["itemID"],
-          existingItemTwo["brand"],
-          existingItemTwo["model"],
-          existingItemTwo["supplier"],
-          LocalDate.parse(existingItemTwo["purchaseDate"]),
-          existingItemTwo["purchasePrice"],
-          existingItemTwo["originLocation"],
-          existingItemTwo["currentLocation"],
-          existingItemTwo["room"],
-          existingItemTwo["contact"],
+  private fun insertItems(): CompositeFuture {
+    return CompositeFuture.all(
+      pgPool.preparedQuery(insertItem("items"))
+        .execute(
+          Tuple.of(
+            existingItemOne["beacon"],
+            existingItemOne["category"],
+            existingItemOne["service"],
+            existingItemOne["itemID"],
+            existingItemOne["brand"],
+            existingItemOne["model"],
+            existingItemOne["supplier"],
+            LocalDate.parse(existingItemOne["purchaseDate"]),
+            existingItemOne["purchasePrice"],
+            existingItemOne["originLocation"],
+            existingItemOne["currentLocation"],
+            existingItemOne["room"],
+            existingItemOne["contact"],
+            existingItemOne["currentOwner"],
+            existingItemOne["previousOwner"],
+            existingItemOne["orderNumber"],
+            existingItemOne["color"],
+            existingItemOne["serialNumber"],
+            LocalDate.parse(existingItemOne["expiryDate"]),
+            existingItemOne["status"],
+          )
+        ),
+      pgPool.preparedQuery(insertItem("items"))
+        .execute(
+          Tuple.of(
+            existingItemTwo["beacon"],
+            existingItemTwo["category"],
+            existingItemTwo["service"],
+            existingItemTwo["itemID"],
+            existingItemTwo["brand"],
+            existingItemTwo["model"],
+            existingItemTwo["supplier"],
+            LocalDate.parse(existingItemTwo["purchaseDate"]),
+            existingItemTwo["purchasePrice"],
+            existingItemTwo["originLocation"],
+            existingItemTwo["currentLocation"],
+            existingItemTwo["room"],
+            existingItemTwo["contact"],
             existingItemTwo["currentOwner"],
             existingItemTwo["previousOwner"],
             existingItemTwo["orderNumber"],
@@ -220,25 +220,24 @@ class TestCRUDVerticleAnalytics {
             existingItemTwo["serialNumber"],
             LocalDate.parse(existingItemTwo["expiryDate"]),
             existingItemTwo["status"],
-        )
-      ).await()
-
-    pgPool.preparedQuery(insertItem("items"))
-      .execute(
-        Tuple.of(
-          existingItemThree["beacon"],
-          existingItemThree["category"],
-          existingItemThree["service"],
-          existingItemThree["itemID"],
-          existingItemThree["brand"],
-          existingItemThree["model"],
-          existingItemThree["supplier"],
-          LocalDate.parse(existingItemThree["purchaseDate"]),
-          existingItemThree["purchasePrice"],
-          existingItemThree["originLocation"],
-          existingItemThree["currentLocation"],
-          existingItemThree["room"],
-          existingItemThree["contact"],
+          )
+        ),
+      pgPool.preparedQuery(insertItem("items"))
+        .execute(
+          Tuple.of(
+            existingItemThree["beacon"],
+            existingItemThree["category"],
+            existingItemThree["service"],
+            existingItemThree["itemID"],
+            existingItemThree["brand"],
+            existingItemThree["model"],
+            existingItemThree["supplier"],
+            LocalDate.parse(existingItemThree["purchaseDate"]),
+            existingItemThree["purchasePrice"],
+            existingItemThree["originLocation"],
+            existingItemThree["currentLocation"],
+            existingItemThree["room"],
+            existingItemThree["contact"],
             existingItemThree["currentOwner"],
             existingItemThree["previousOwner"],
             existingItemThree["orderNumber"],
@@ -246,42 +245,40 @@ class TestCRUDVerticleAnalytics {
             existingItemThree["serialNumber"],
             LocalDate.parse(existingItemThree["expiryDate"]),
             existingItemThree["status"],
+          )
+        ),
+      pgPool.preparedQuery(INSERT_BEACON_DATA).execute(
+        Tuple.of(
+          existingBeaconDataOne.getString("mac"),
+          existingBeaconDataOne.getInteger("battery"),
+          existingBeaconDataOne.getString("beaconStatus"),
+          existingBeaconDataOne.getDouble("latitude"),
+          existingBeaconDataOne.getDouble("longitude"),
+          existingBeaconDataOne.getInteger("floor"),
+          existingBeaconDataOne.getDouble("temperature")
         )
-      ).await()
-
-    pgPool.preparedQuery(INSERT_BEACON_DATA).execute(
-      Tuple.of(
-        existingBeaconDataOne.getString("mac"),
-        existingBeaconDataOne.getInteger("battery"),
-        existingBeaconDataOne.getString("beaconStatus"),
-        existingBeaconDataOne.getDouble("latitude"),
-        existingBeaconDataOne.getDouble("longitude"),
-        existingBeaconDataOne.getInteger("floor"),
-        existingBeaconDataOne.getDouble("temperature")
-      )
-    ).await()
-
-    pgPool.preparedQuery(INSERT_BEACON_DATA).execute(
-      Tuple.of(
-        existingBeaconDataTwo.getString("mac"),
-        existingBeaconDataTwo.getInteger("battery"),
-        existingBeaconDataTwo.getString("beaconStatus"),
-        existingBeaconDataTwo.getDouble("latitude"),
-        existingBeaconDataTwo.getDouble("longitude"),
-        existingBeaconDataTwo.getInteger("floor"),
-        existingBeaconDataTwo.getDouble("temperature")
-      )
-    ).await()
-
-    return pgPool.preparedQuery(INSERT_BEACON_DATA).execute(
-      Tuple.of(
-        existingBeaconDataThree.getString("mac"),
-        existingBeaconDataThree.getInteger("battery"),
-        existingBeaconDataThree.getString("beaconStatus"),
-        existingBeaconDataThree.getDouble("latitude"),
-        existingBeaconDataThree.getDouble("longitude"),
-        existingBeaconDataThree.getInteger("floor"),
-        existingBeaconDataThree.getDouble("temperature")
+      ),
+      pgPool.preparedQuery(INSERT_BEACON_DATA).execute(
+        Tuple.of(
+          existingBeaconDataTwo.getString("mac"),
+          existingBeaconDataTwo.getInteger("battery"),
+          existingBeaconDataTwo.getString("beaconStatus"),
+          existingBeaconDataTwo.getDouble("latitude"),
+          existingBeaconDataTwo.getDouble("longitude"),
+          existingBeaconDataTwo.getInteger("floor"),
+          existingBeaconDataTwo.getDouble("temperature")
+        )
+      ),
+      pgPool.preparedQuery(INSERT_BEACON_DATA).execute(
+        Tuple.of(
+          existingBeaconDataThree.getString("mac"),
+          existingBeaconDataThree.getInteger("battery"),
+          existingBeaconDataThree.getString("beaconStatus"),
+          existingBeaconDataThree.getDouble("latitude"),
+          existingBeaconDataThree.getDouble("longitude"),
+          existingBeaconDataThree.getInteger("floor"),
+          existingBeaconDataThree.getDouble("temperature")
+        )
       )
     )
   }
