@@ -103,10 +103,16 @@ fun Row.toItemJson(): JsonObject = jsonObjectOf(
   "currentLocation" to getString("currentlocation"),
   "room" to getString("room"),
   "contact" to getString("contact"),
-  "owner" to getString("owner"),
+  "currentOwner" to getString("currentowner"),
+  "previousOwner" to getString("previousowner"),
+  "orderNumber" to getString("ordernumber"),
+  "color" to getString("color"),
+  "serialNumber" to getString("serialnumber"),
+  "expiryDate" to getLocalDate("expirydate")?.toString(),
   "timestamp" to getOffsetDateTime("time")?.toString(),
   "battery" to getInteger("battery"),
   "status" to getString("status"),
+  "beaconStatus" to getString("beaconstatus"),
   "latitude" to getDouble("latitude"),
   "longitude" to getDouble("longitude"),
   "floor" to getInteger("floor"),
@@ -130,7 +136,13 @@ internal fun extractItemInformation(json: JsonObject): List<Any?> {
   val currentLocation: String? = json["currentLocation"]
   val room: String? = json["room"]
   val contact: String? = json["contact"]
-  val owner: String? = json["owner"]
+  val currentOwner: String? = json["currentOwner"]
+  val previousOwner: String? = json["previousOwner"]
+  val orderNumber: String? = json["orderNumber"]
+  val color: String? = json["color"]
+  val serialNumber: String? = json["serialNumber"]
+  val expiryDate: String? = json["expiryDate"]
+  val status: String? = json["status"]
 
   return listOf(
     beacon,
@@ -146,7 +158,13 @@ internal fun extractItemInformation(json: JsonObject): List<Any?> {
     currentLocation,
     room,
     contact,
-    owner
+    currentOwner,
+    previousOwner,
+    orderNumber,
+    color,
+    serialNumber,
+    expiryDate?.let(LocalDate::parse),
+    status
   )
 }
 

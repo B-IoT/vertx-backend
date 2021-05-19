@@ -48,34 +48,41 @@ class TestCRUDVerticleAnalytics {
   private lateinit var pgPool: PgPool
 
   private val existingItemOne = jsonObjectOf(
-    "beacon" to "ab:ab:ab:ab:ab:ab",
-    "category" to "ECG",
-    "service" to "Bloc 1",
-    "itemID" to "abc",
-    "brand" to "ferrari",
-    "model" to "GT",
-    "supplier" to "sup",
-    "purchaseDate" to LocalDate.of(2021, 7, 8).toString(),
-    "purchasePrice" to 42.3,
-    "originLocation" to "center1",
-    "currentLocation" to "center2",
-    "room" to "616",
-    "contact" to "Monsieur Poirot",
-    "owner" to "Monsieur Dupont"
+    "beacon" to "ad:ab:ab:ab:ab:ab",
+    "category" to "Lit",
+    "service" to "Bloc 42",
+    "itemID" to "new",
+    "brand" to "fiat",
+    "model" to "panda",
+    "supplier" to "rossi",
+    "purchaseDate" to LocalDate.of(2020, 11, 24).toString(),
+    "purchasePrice" to 1007.8,
+    "originLocation" to "center5",
+    "currentLocation" to "center6",
+    "room" to "17",
+    "contact" to "Jimmy",
+    "currentOwner" to "Monsieur Dupont",
+    "previousOwner" to "Monsieur Dupond",
+    "orderNumber" to "abcdf",
+    "color" to "red",
+    "serialNumber" to "abcdf",
+    "expiryDate" to LocalDate.of(2021, 8, 8).toString(),
+    "status" to "In maintenance"
   )
   private val existingBeaconDataOne = jsonObjectOf(
     "mac" to existingItemOne.getString("beacon"),
     "battery" to 50,
-    "status" to "available",
+    "beaconStatus" to "available",
     "latitude" to 2.333333,
     "longitude" to -2.333333,
-    "floor" to 1
+    "floor" to 1,
+    "temperature" to 25.2
   )
 
   private val existingItemTwo = jsonObjectOf(
     "beacon" to "bb:ab:ab:ab:ab:ab",
     "category" to "ECG",
-    "service" to "Bloc 1",
+    "service" to "Bloc 42",
     "itemID" to "abc",
     "brand" to "ferrari",
     "model" to "GT",
@@ -86,15 +93,22 @@ class TestCRUDVerticleAnalytics {
     "currentLocation" to "center2",
     "room" to "616",
     "contact" to "Monsieur Poirot",
-    "owner" to "Monsieur Dupont"
+    "currentOwner" to "Monsieur Dupont",
+    "previousOwner" to "Monsieur Dupond",
+    "orderNumber" to "abcdf",
+    "color" to "red",
+    "serialNumber" to "abcdf",
+    "expiryDate" to LocalDate.of(2021, 8, 8).toString(),
+    "status" to "In maintenance"
   )
   private val existingBeaconDataTwo = jsonObjectOf(
     "mac" to existingItemTwo.getString("beacon"),
     "battery" to 50,
-    "status" to "unavailable",
+    "beaconStatus" to "unavailable",
     "latitude" to 2.333333,
     "longitude" to -2.333333,
-    "floor" to 1
+    "floor" to 1,
+    "temperature" to 25.2
   )
 
   private val existingItemThree = jsonObjectOf(
@@ -111,15 +125,22 @@ class TestCRUDVerticleAnalytics {
     "currentLocation" to "center2",
     "room" to "616",
     "contact" to "Monsieur Poirot",
-    "owner" to "Monsieur Dupont"
+    "currentOwner" to "Monsieur Dupont",
+    "previousOwner" to "Monsieur Dupond",
+    "orderNumber" to "abcdf",
+    "color" to "red",
+    "serialNumber" to "abcdf",
+    "expiryDate" to LocalDate.of(2021, 8, 8).toString(),
+    "status" to "In maintenance"
   )
   private val existingBeaconDataThree = jsonObjectOf(
     "mac" to existingItemThree.getString("beacon"),
     "battery" to 50,
-    "status" to "toRepair",
+    "beaconStatus" to "toRepair",
     "latitude" to 2.333333,
     "longitude" to -2.333333,
-    "floor" to 1
+    "floor" to 1,
+    "temperature" to 25.2
   )
 
   @BeforeEach
@@ -166,7 +187,13 @@ class TestCRUDVerticleAnalytics {
           existingItemOne["currentLocation"],
           existingItemOne["room"],
           existingItemOne["contact"],
-          existingItemOne["owner"]
+        existingItemOne["currentOwner"],
+        existingItemOne["previousOwner"],
+        existingItemOne["orderNumber"],
+        existingItemOne["color"],
+        existingItemOne["serialNumber"],
+        LocalDate.parse(existingItemOne["expiryDate"]),
+        existingItemOne["status"],
         )
       ).await()
 
@@ -186,7 +213,13 @@ class TestCRUDVerticleAnalytics {
           existingItemTwo["currentLocation"],
           existingItemTwo["room"],
           existingItemTwo["contact"],
-          existingItemTwo["owner"]
+            existingItemTwo["currentOwner"],
+            existingItemTwo["previousOwner"],
+            existingItemTwo["orderNumber"],
+            existingItemTwo["color"],
+            existingItemTwo["serialNumber"],
+            LocalDate.parse(existingItemTwo["expiryDate"]),
+            existingItemTwo["status"],
         )
       ).await()
 
@@ -206,7 +239,13 @@ class TestCRUDVerticleAnalytics {
           existingItemThree["currentLocation"],
           existingItemThree["room"],
           existingItemThree["contact"],
-          existingItemThree["owner"]
+            existingItemThree["currentOwner"],
+            existingItemThree["previousOwner"],
+            existingItemThree["orderNumber"],
+            existingItemThree["color"],
+            existingItemThree["serialNumber"],
+            LocalDate.parse(existingItemThree["expiryDate"]),
+            existingItemThree["status"],
         )
       ).await()
 
@@ -214,10 +253,11 @@ class TestCRUDVerticleAnalytics {
       Tuple.of(
         existingBeaconDataOne.getString("mac"),
         existingBeaconDataOne.getInteger("battery"),
-        existingBeaconDataOne.getString("status"),
+        existingBeaconDataOne.getString("beaconStatus"),
         existingBeaconDataOne.getDouble("latitude"),
         existingBeaconDataOne.getDouble("longitude"),
-        existingBeaconDataOne.getInteger("floor")
+        existingBeaconDataOne.getInteger("floor"),
+        existingBeaconDataOne.getDouble("temperature")
       )
     ).await()
 
@@ -225,10 +265,11 @@ class TestCRUDVerticleAnalytics {
       Tuple.of(
         existingBeaconDataTwo.getString("mac"),
         existingBeaconDataTwo.getInteger("battery"),
-        existingBeaconDataTwo.getString("status"),
+        existingBeaconDataTwo.getString("beaconStatus"),
         existingBeaconDataTwo.getDouble("latitude"),
         existingBeaconDataTwo.getDouble("longitude"),
-        existingBeaconDataTwo.getInteger("floor")
+        existingBeaconDataTwo.getInteger("floor"),
+        existingBeaconDataTwo.getDouble("temperature")
       )
     ).await()
 
@@ -236,10 +277,11 @@ class TestCRUDVerticleAnalytics {
       Tuple.of(
         existingBeaconDataThree.getString("mac"),
         existingBeaconDataThree.getInteger("battery"),
-        existingBeaconDataThree.getString("status"),
+        existingBeaconDataThree.getString("beaconStatus"),
         existingBeaconDataThree.getDouble("latitude"),
         existingBeaconDataThree.getDouble("longitude"),
-        existingBeaconDataThree.getInteger("floor")
+        existingBeaconDataThree.getInteger("floor"),
+        existingBeaconDataThree.getDouble("temperature")
       )
     )
   }
@@ -298,7 +340,7 @@ class TestCRUDVerticleAnalytics {
   companion object {
 
     private const val INSERT_BEACON_DATA =
-      "INSERT INTO beacon_data(time, mac, battery, status, latitude, longitude, floor) values(NOW(), $1, $2, $3, $4, $5, $6)"
+      "INSERT INTO beacon_data(time, mac, battery, beaconstatus, latitude, longitude, floor, temperature) values(NOW(), $1, $2, $3, $4, $5, $6, $7)"
 
     private val requestSpecification: RequestSpecification = RequestSpecBuilder()
       .addFilters(listOf(ResponseLoggingFilter(), RequestLoggingFilter()))
