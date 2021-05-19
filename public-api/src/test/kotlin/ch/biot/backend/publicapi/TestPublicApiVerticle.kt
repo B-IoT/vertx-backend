@@ -22,6 +22,9 @@ import io.vertx.junit5.VertxTestContext
 import io.vertx.kotlin.core.json.get
 import io.vertx.kotlin.core.json.jsonArrayOf
 import io.vertx.kotlin.core.json.jsonObjectOf
+import io.vertx.kotlin.coroutines.await
+import io.vertx.kotlin.coroutines.dispatcher
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.*
 import org.junit.jupiter.api.extension.ExtendWith
 import org.testcontainers.containers.DockerComposeContainer
@@ -91,15 +94,14 @@ class TestPublicApiVerticle {
   private lateinit var token: String
 
   @BeforeEach
-  fun setup(vertx: Vertx, testContext: VertxTestContext) {
-    vertx.deployVerticle(PublicApiVerticle())
-      .compose {
-        vertx.deployVerticle(CRUDVerticle())
-      }
-      .onSuccess {
-        testContext.completeNow()
-      }
-      .onFailure(testContext::failNow)
+  fun setup(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
+    try {
+      vertx.deployVerticle(PublicApiVerticle()).await()
+      vertx.deployVerticle(CRUDVerticle()).await()
+      testContext.completeNow()
+    } catch (error: Throwable) {
+      testContext.failNow(error)
+    }
   }
 
   @Test
@@ -905,6 +907,75 @@ class TestPublicApiVerticle {
 
     testContext.verify {
       expectThat(response.isEmpty).isFalse()
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @Order(24)
+  @DisplayName("Errors are handled in getOneHandler")
+  fun errorIsHandledGetOneRequest(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      header("Authorization", "Bearer $token")
+    } When {
+      get("/api/items/100")
+    } Then {
+      statusCode(404)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEmpty()
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @Order(25)
+  @DisplayName("Errors are handled in updateHandler")
+  fun errorIsHandledUpdateRequest(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      header("Authorization", "Bearer $token")
+      body("A body")
+    } When {
+      put("/api/items/100")
+    } Then {
+      statusCode(502)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Bad Gateway")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @Order(26)
+  @DisplayName("Errors are handled in registerHandler")
+  fun errorIsHandledRegisterRequest(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      header("Authorization", "Bearer $token")
+      body("A body")
+    } When {
+      post("/api/items")
+    } Then {
+      statusCode(502)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Bad Gateway")
       testContext.completeNow()
     }
   }

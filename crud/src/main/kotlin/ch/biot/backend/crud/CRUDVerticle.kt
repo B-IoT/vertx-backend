@@ -58,19 +58,20 @@ class CRUDVerticle : CoroutineVerticle() {
 
     private const val RELAYS_UPDATE_ADDRESS = "relays.update"
 
-    internal const val INTERNAL_SERVER_ERROR_CODE = 500
+    const val INTERNAL_SERVER_ERROR_CODE = 500
     private const val UNAUTHORIZED_CODE = 401
     const val BAD_REQUEST_CODE = 400
 
     private const val SERVER_COMPRESSION_LEVEL = 4
 
-    val HTTP_PORT = System.getenv().getOrDefault("HTTP_PORT", "8080").toInt()
+    private val environment = System.getenv()
+    val HTTP_PORT = environment.getOrDefault("HTTP_PORT", "8080").toInt()
 
-    val MONGO_PORT = System.getenv().getOrDefault("MONGO_PORT", "27017").toInt()
-    private val MONGO_HOST: String = System.getenv().getOrDefault("MONGO_HOST", "localhost")
+    val MONGO_PORT = environment.getOrDefault("MONGO_PORT", "27017").toInt()
+    private val MONGO_HOST: String = environment.getOrDefault("MONGO_HOST", "localhost")
 
-    val TIMESCALE_PORT = System.getenv().getOrDefault("TIMESCALE_PORT", "5432").toInt()
-    private val TIMESCALE_HOST: String = System.getenv().getOrDefault("TIMESCALE_HOST", "localhost")
+    val TIMESCALE_PORT = environment.getOrDefault("TIMESCALE_PORT", "5432").toInt()
+    private val TIMESCALE_HOST: String = environment.getOrDefault("TIMESCALE_HOST", "localhost")
 
     internal val LOGGER = LoggerFactory.getLogger(CRUDVerticle::class.java)
 

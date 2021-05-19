@@ -14,16 +14,20 @@ import io.restassured.module.kotlin.extensions.Given
 import io.restassured.module.kotlin.extensions.Then
 import io.restassured.module.kotlin.extensions.When
 import io.restassured.specification.RequestSpecification
+import io.vertx.core.CompositeFuture
 import io.vertx.core.Vertx
 import io.vertx.core.buffer.Buffer
 import io.vertx.junit5.VertxExtension
 import io.vertx.junit5.VertxTestContext
 import io.vertx.kotlin.core.json.get
 import io.vertx.kotlin.core.json.jsonObjectOf
+import io.vertx.kotlin.coroutines.await
+import io.vertx.kotlin.coroutines.dispatcher
 import io.vertx.kotlin.pgclient.pgConnectOptionsOf
 import io.vertx.kotlin.sqlclient.poolOptionsOf
 import io.vertx.pgclient.PgPool
 import io.vertx.sqlclient.Tuple
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.*
 import org.junit.jupiter.api.extension.ExtendWith
 import org.testcontainers.containers.DockerComposeContainer
@@ -69,7 +73,8 @@ class TestCRUDVerticleAnalytics {
     "beaconStatus" to "available",
     "latitude" to 2.333333,
     "longitude" to -2.333333,
-    "floor" to 1
+    "floor" to 1,
+    "temperature" to 25.2
   )
 
   private val existingItemTwo = jsonObjectOf(
@@ -100,7 +105,8 @@ class TestCRUDVerticleAnalytics {
     "beaconStatus" to "unavailable",
     "latitude" to 2.333333,
     "longitude" to -2.333333,
-    "floor" to 1
+    "floor" to 1,
+    "temperature" to 25.2
   )
 
   private val existingItemThree = jsonObjectOf(
@@ -131,11 +137,12 @@ class TestCRUDVerticleAnalytics {
     "beaconStatus" to "toRepair",
     "latitude" to 2.333333,
     "longitude" to -2.333333,
-    "floor" to 1
+    "floor" to 1,
+    "temperature" to 25.2
   )
 
   @BeforeEach
-  fun setup(vertx: Vertx, testContext: VertxTestContext) {
+  fun setup(vertx: Vertx, testContext: VertxTestContext) = runBlocking(vertx.dispatcher()) {
     val pgConnectOptions =
       pgConnectOptionsOf(
         port = CRUDVerticle.TIMESCALE_PORT,
@@ -147,45 +154,49 @@ class TestCRUDVerticleAnalytics {
       )
     pgPool = PgPool.pool(vertx, pgConnectOptions, poolOptionsOf())
 
-    dropAllItems()
-      .compose {
-        insertItems()
-      }.onSuccess {
-        vertx.deployVerticle(CRUDVerticle(), testContext.succeedingThenComplete())
-      }.onFailure(testContext::failNow)
+    try {
+      dropAllItems().await()
+      insertItems().await()
+      vertx.deployVerticle(CRUDVerticle(), testContext.succeedingThenComplete())
+    } catch (error: Throwable) {
+      testContext.failNow(error)
+    }
   }
 
-  private fun dropAllItems() = pgPool.query("DELETE FROM items").execute()
-    .compose {
+  private fun dropAllItems(): CompositeFuture {
+    return CompositeFuture.all(
+      pgPool.query("DELETE FROM items").execute(),
       pgPool.query("DELETE FROM beacon_data").execute()
-    }
-
-  private fun insertItems() = pgPool.preparedQuery(insertItem("items"))
-    .execute(
-      Tuple.of(
-        existingItemOne["beacon"],
-        existingItemOne["category"],
-        existingItemOne["service"],
-        existingItemOne["itemID"],
-        existingItemOne["brand"],
-        existingItemOne["model"],
-        existingItemOne["supplier"],
-        LocalDate.parse(existingItemOne["purchaseDate"]),
-        existingItemOne["purchasePrice"],
-        existingItemOne["originLocation"],
-        existingItemOne["currentLocation"],
-        existingItemOne["room"],
-        existingItemOne["contact"],
-        existingItemOne["currentOwner"],
-        existingItemOne["previousOwner"],
-        existingItemOne["orderNumber"],
-        existingItemOne["color"],
-        existingItemOne["serialNumber"],
-        LocalDate.parse(existingItemOne["expiryDate"]),
-        existingItemOne["status"],
-      )
     )
-    .compose {
+  }
+
+  private fun insertItems(): CompositeFuture {
+    return CompositeFuture.all(
+      pgPool.preparedQuery(insertItem("items"))
+        .execute(
+          Tuple.of(
+            existingItemOne["beacon"],
+            existingItemOne["category"],
+            existingItemOne["service"],
+            existingItemOne["itemID"],
+            existingItemOne["brand"],
+            existingItemOne["model"],
+            existingItemOne["supplier"],
+            LocalDate.parse(existingItemOne["purchaseDate"]),
+            existingItemOne["purchasePrice"],
+            existingItemOne["originLocation"],
+            existingItemOne["currentLocation"],
+            existingItemOne["room"],
+            existingItemOne["contact"],
+            existingItemOne["currentOwner"],
+            existingItemOne["previousOwner"],
+            existingItemOne["orderNumber"],
+            existingItemOne["color"],
+            existingItemOne["serialNumber"],
+            LocalDate.parse(existingItemOne["expiryDate"]),
+            existingItemOne["status"],
+          )
+        ),
       pgPool.preparedQuery(insertItem("items"))
         .execute(
           Tuple.of(
@@ -210,8 +221,7 @@ class TestCRUDVerticleAnalytics {
             LocalDate.parse(existingItemTwo["expiryDate"]),
             existingItemTwo["status"],
           )
-        )
-    }.compose {
+        ),
       pgPool.preparedQuery(insertItem("items"))
         .execute(
           Tuple.of(
@@ -236,8 +246,7 @@ class TestCRUDVerticleAnalytics {
             LocalDate.parse(existingItemThree["expiryDate"]),
             existingItemThree["status"],
           )
-        )
-    }.compose {
+        ),
       pgPool.preparedQuery(INSERT_BEACON_DATA).execute(
         Tuple.of(
           existingBeaconDataOne.getString("mac"),
@@ -245,39 +254,44 @@ class TestCRUDVerticleAnalytics {
           existingBeaconDataOne.getString("beaconStatus"),
           existingBeaconDataOne.getDouble("latitude"),
           existingBeaconDataOne.getDouble("longitude"),
-          existingBeaconDataOne.getInteger("floor")
+          existingBeaconDataOne.getInteger("floor"),
+          existingBeaconDataOne.getDouble("temperature")
         )
-      ).compose {
-        pgPool.preparedQuery(INSERT_BEACON_DATA).execute(
-          Tuple.of(
-            existingBeaconDataTwo.getString("mac"),
-            existingBeaconDataTwo.getInteger("battery"),
-            existingBeaconDataTwo.getString("beaconStatus"),
-            existingBeaconDataTwo.getDouble("latitude"),
-            existingBeaconDataTwo.getDouble("longitude"),
-            existingBeaconDataTwo.getInteger("floor")
-          )
+      ),
+      pgPool.preparedQuery(INSERT_BEACON_DATA).execute(
+        Tuple.of(
+          existingBeaconDataTwo.getString("mac"),
+          existingBeaconDataTwo.getInteger("battery"),
+          existingBeaconDataTwo.getString("beaconStatus"),
+          existingBeaconDataTwo.getDouble("latitude"),
+          existingBeaconDataTwo.getDouble("longitude"),
+          existingBeaconDataTwo.getInteger("floor"),
+          existingBeaconDataTwo.getDouble("temperature")
         )
-      }.compose {
-        pgPool.preparedQuery(INSERT_BEACON_DATA).execute(
-          Tuple.of(
-            existingBeaconDataThree.getString("mac"),
-            existingBeaconDataThree.getInteger("battery"),
-            existingBeaconDataThree.getString("beaconStatus"),
-            existingBeaconDataThree.getDouble("latitude"),
-            existingBeaconDataThree.getDouble("longitude"),
-            existingBeaconDataThree.getInteger("floor")
-          )
+      ),
+      pgPool.preparedQuery(INSERT_BEACON_DATA).execute(
+        Tuple.of(
+          existingBeaconDataThree.getString("mac"),
+          existingBeaconDataThree.getInteger("battery"),
+          existingBeaconDataThree.getString("beaconStatus"),
+          existingBeaconDataThree.getDouble("latitude"),
+          existingBeaconDataThree.getDouble("longitude"),
+          existingBeaconDataThree.getInteger("floor"),
+          existingBeaconDataThree.getDouble("temperature")
         )
-      }
-    }
+      )
+    )
+  }
 
   @AfterEach
-  fun cleanup(testContext: VertxTestContext) {
-    dropAllItems().compose {
-      pgPool.close()
-    }.onSuccess { testContext.completeNow() }
-      .onFailure(testContext::failNow)
+  fun cleanup(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
+    try {
+      dropAllItems().await()
+      pgPool.close().await()
+      testContext.completeNow()
+    } catch (error: Throwable) {
+      testContext.failNow(error)
+    }
   }
 
   @Test
@@ -323,7 +337,7 @@ class TestCRUDVerticleAnalytics {
   companion object {
 
     private const val INSERT_BEACON_DATA =
-      "INSERT INTO beacon_data(time, mac, battery, beaconstatus, latitude, longitude, floor) values(NOW(), $1, $2, $3, $4, $5, $6)"
+      "INSERT INTO beacon_data(time, mac, battery, beaconstatus, latitude, longitude, floor, temperature) values(NOW(), $1, $2, $3, $4, $5, $6, $7)"
 
     private val requestSpecification: RequestSpecification = RequestSpecBuilder()
       .addFilters(listOf(ResponseLoggingFilter(), RequestLoggingFilter()))
