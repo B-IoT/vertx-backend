@@ -20,7 +20,7 @@ allprojects {
     extra["junitJupiterVersion"] = "5.7.2"
     extra["logbackClassicVersion"] = "1.2.3"
     extra["testContainersVersion"] = "1.15.3"
-    extra["restAssuredVersion"] = "4.3.3"
+    extra["restAssuredVersion"] = "4.4.0"
     extra["striktVersion"] = "0.31.0"
     extra["hazelcastVersion"] = "2.2.2"
     extra["micrometerPrometheusVersion"] = "1.7.0"
