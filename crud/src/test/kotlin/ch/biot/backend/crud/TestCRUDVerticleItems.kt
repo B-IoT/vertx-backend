@@ -900,6 +900,66 @@ class TestCRUDVerticleItems {
   }
 
   @Test
+  @DisplayName("updateItem only updates the specified fields")
+  fun updateItemOnlyUpdatesSpecifiedFields(testContext: VertxTestContext) {
+    val updateJson = jsonObjectOf(
+      "service" to "A new service"
+    )
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      body(updateJson.encode())
+    } When {
+      queryParam("company", "biot")
+      put("/items/$existingItemID")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEmpty()
+    }
+
+    pgPool.preparedQuery(getItem("items", "beacon_data")).execute(Tuple.of(existingItemID))
+      .onSuccess { res ->
+        val json = res.iterator().next().toItemJson()
+        expect {
+          that(json.getString("beacon")).isEqualTo(existingItem.getString("beacon"))
+          that(json.getString("category")).isEqualTo(existingItem.getString("category"))
+          that(json.getString("service")).isEqualTo(updateJson.getString("service"))
+          that(json.getString("itemID")).isEqualTo(existingItem.getString("itemID"))
+          that(json.getString("brand")).isEqualTo(existingItem.getString("brand"))
+          that(json.getString("model")).isEqualTo(existingItem.getString("model"))
+          that(json.getString("supplier")).isEqualTo(existingItem.getString("supplier"))
+          that(json.getString("purchaseDate")).isEqualTo(existingItem.getString("purchaseDate"))
+          that(json.getDouble("purchasePrice")).isEqualTo(existingItem.getDouble("purchasePrice"))
+          that(json.getString("originLocation")).isEqualTo(existingItem.getString("originLocation"))
+          that(json.getString("currentLocation")).isEqualTo(existingItem.getString("currentLocation"))
+          that(json.getString("room")).isEqualTo(existingItem.getString("room"))
+          that(json.getString("contact")).isEqualTo(existingItem.getString("contact"))
+          that(json.getString("currentOwner")).isEqualTo(existingItem.getString("currentOwner"))
+          that(json.getString("previousOwner")).isEqualTo(existingItem.getString("previousOwner"))
+          that(json.getString("orderNumber")).isEqualTo(existingItem.getString("orderNumber"))
+          that(json.getString("color")).isEqualTo(existingItem.getString("color"))
+          that(json.getString("serialNumber")).isEqualTo(existingItem.getString("serialNumber"))
+          that(json.getString("expiryDate")).isEqualTo(existingItem.getString("expiryDate"))
+          that(json.getString("status")).isEqualTo(existingItem.getString("status"))
+          that(json.getInteger("battery")).isEqualTo(existingBeaconData.getInteger("battery"))
+          that(json.getString("beaconStatus")).isEqualTo(existingBeaconData.getString("beaconStatus"))
+          that(json.getDouble("latitude")).isEqualTo(existingBeaconData.getDouble("latitude"))
+          that(json.getDouble("longitude")).isEqualTo(existingBeaconData.getDouble("longitude"))
+          that(json.getInteger("floor")).isEqualTo(existingBeaconData.getInteger("floor"))
+          that(json.getDouble("temperature")).isEqualTo(existingBeaconData.getDouble("temperature"))
+        }
+        testContext.completeNow()
+      }
+      .onFailure(testContext::failNow)
+  }
+
+  @Test
   @DisplayName("The bad request error handler works on wrong body received")
   fun badRequestErrorHandlerWorksOnWrongBodyReceived(testContext: VertxTestContext) {
     val response = Given {

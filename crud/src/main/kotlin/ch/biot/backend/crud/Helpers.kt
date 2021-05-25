@@ -120,11 +120,11 @@ fun Row.toItemJson(): JsonObject = jsonObjectOf(
 )
 
 /**
- * Extracts the relevant item information from a given json.
+ * Extracts the relevant item information from a given json, returning a list of pairs from column name to column value.
  */
-internal fun extractItemInformation(json: JsonObject): List<Any?> {
-  val beacon: String = json["beacon"]
-  val category: String = json["category"]
+internal fun extractItemInformation(json: JsonObject, keepNulls: Boolean = true): List<Pair<String, Any?>> {
+  val beacon: String? = json["beacon"]
+  val category: String? = json["category"]
   val service: String? = json["service"]
   val itemID: String? = json["itemID"]
   val brand: String? = json["brand"]
@@ -144,28 +144,34 @@ internal fun extractItemInformation(json: JsonObject): List<Any?> {
   val expiryDate: String? = json["expiryDate"]
   val status: String? = json["status"]
 
-  return listOf(
-    beacon,
-    category,
-    service,
-    itemID,
-    brand,
-    model,
-    supplier,
-    purchaseDate?.let(LocalDate::parse),
-    purchasePrice,
-    originLocation,
-    currentLocation,
-    room,
-    contact,
-    currentOwner,
-    previousOwner,
-    orderNumber,
-    color,
-    serialNumber,
-    expiryDate?.let(LocalDate::parse),
-    status
+  val infoList = listOf(
+    "beacon" to beacon,
+    "category" to category,
+    "service" to service,
+    "itemid" to itemID,
+    "brand" to brand,
+    "model" to model,
+    "supplier" to supplier,
+    "purchasedate" to purchaseDate?.let(LocalDate::parse),
+    "purchaseprice" to purchasePrice,
+    "originlocation" to originLocation,
+    "currentlocation" to currentLocation,
+    "room" to room,
+    "contact" to contact,
+    "currentowner" to currentOwner,
+    "previousowner" to previousOwner,
+    "ordernumber" to orderNumber,
+    "color" to color,
+    "serialnumber" to serialNumber,
+    "expirydate" to expiryDate?.let(LocalDate::parse),
+    "status" to status
   )
+
+  return if (keepNulls) {
+    infoList
+  } else {
+    infoList.toList().filter { pair -> pair.second != null }
+  }
 }
 
 /**

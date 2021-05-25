@@ -25,8 +25,10 @@ fun getClosestItemsWithCategory(itemsTable: String, beaconDataTable: String) =
 fun getItem(itemsTable: String, beaconDataTable: String) =
   "SELECT * FROM $itemsTable I LEFT JOIN $beaconDataTable D ON I.beacon = D.mac WHERE I.id=$1 ORDER BY D.time DESC LIMIT 1"
 
-fun updateItem(itemsTable: String) =
-  "UPDATE $itemsTable SET beacon = $2, category = $3, service = $4, itemid = $5, brand = $6, model = $7, supplier = $8, purchasedate = $9, purchaseprice = $10, originlocation = $11, currentlocation = $12, room = $13, contact = $14, currentowner = $15, previousowner = $16, ordernumber = $17, color = $18, serialnumber = $19, expirydate = $20, status = $21 WHERE id = $1"
+fun updateItem(itemsTable: String, updatedColumns: List<String>): String {
+  val columnsWithValues = updatedColumns.mapIndexed { index, colName -> "$colName = \$${index + 2}" }.joinToString()
+  return "UPDATE $itemsTable SET $columnsWithValues WHERE id = $1"
+}
 
 fun deleteItem(itemsTable: String) = "DELETE from $itemsTable WHERE id=$1"
 

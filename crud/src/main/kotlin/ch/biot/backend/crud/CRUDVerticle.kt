@@ -566,7 +566,7 @@ class CRUDVerticle : CoroutineVerticle() {
     json.validateAndThen(ctx) {
       // Extract the information from the payload and insert the item in TimescaleDB
       val id: Int? = json["id"]
-      val info = extractItemInformation(json)
+      val info = extractItemInformation(json).map { pair -> pair.second }
       val table = ctx.getCollection(ITEMS_TABLE)
 
       val executedQuery =
@@ -686,10 +686,12 @@ class CRUDVerticle : CoroutineVerticle() {
     val json = ctx.bodyAsJson
     json.validateAndThen(ctx) {
       // Extract the information from the payload and update the item in TimescaleDB
-      val info = listOf(id.toInt(), *extractItemInformation(json).toTypedArray())
+      val info = extractItemInformation(json, keepNulls = false)
+      val data =
+        listOf(id.toInt(), *info.map { it.second }.toTypedArray())
       val table = ctx.getCollection(ITEMS_TABLE)
       executeWithErrorHandling("Could not update item $id", ctx) {
-        pgPool.preparedQuery(updateItem(table)).execute(Tuple.tuple(info)).await()
+        pgPool.preparedQuery(updateItem(table, info.map { it.first })).execute(Tuple.tuple(data)).await()
         LOGGER.info("Successfully updated item $id")
         ctx.end()
       }
