@@ -78,7 +78,7 @@ class Triangulator:
     AVAILABLE = "available"
 
     INSERT_QUERY = staticmethod(
-        lambda table: f"""INSERT INTO {table} (time, mac, battery, status, latitude, longitude, floor, temperature) VALUES (NOW(), $1, $2, $3, $4, $5, $6, $7);"""
+        lambda table: f"""INSERT INTO {table} (time, mac, battery, beaconstatus, latitude, longitude, floor, temperature) VALUES (NOW(), $1, $2, $3, $4, $5, $6, $7);"""
     )
     FETCH_BEACON_QUERY = staticmethod(
         lambda table: f"""SELECT * from {table} WHERE mac = $1 ORDER BY time DESC LIMIT 1;"""
@@ -131,11 +131,12 @@ class Triangulator:
 
             if not beacon:
                 logger.warning(
-                    "Skipping status update for beacon '{}', as it does not exist."
+                    "Skipping status update for beacon '{}', as it does not exist.",
+                    mac
                 )
                 return
 
-            if beacon["status"] != status:
+            if beacon["beaconstatus"] != status:
                 new_beacon = (
                     beacon["mac"],
                     beacon["battery"],
