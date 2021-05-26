@@ -25,7 +25,7 @@ allprojects {
     extra["hazelcastVersion"] = "2.2.2"
     extra["micrometerPrometheusVersion"] = "1.7.0"
     extra["arrowVersion"] = "0.13.2"
-    extra["mockkVersion"] = "1.10.6"
+    extra["mockkVersion"] = "1.11.0"
 }
 
 subprojects {
