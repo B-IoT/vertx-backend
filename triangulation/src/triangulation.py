@@ -15,7 +15,7 @@ class _CoordinatesHistory:
     Coordinates history used for weighted moving average.
     """
 
-    MAX_HISTORY_SIZE = 5
+    MAX_HISTORY_SIZE = 7
 
     def __init__(self):
         self.history_per_beacon: DefaultDict[
@@ -324,12 +324,12 @@ class Triangulator:
                     # Otherwise taking the mean floor + rounding it
                     floor = np.around(np.mean(self.relay_df.loc["floor", temp_relay]))
                     
-                # Add the computed coordinates to the beacon's history
+                # # Add the computed coordinates to the beacon's history
                 self.coordinates_history.update_coordinates_history(
                     mac, (np.mean(lat), np.mean(long))
                 )
 
-                # Use the weighted moving average for smoothing coordinates computation
+                # # Use the weighted moving average for smoothing coordinates computation
                 (
                     weighted_latitude,
                     weighted_longitude,
@@ -345,8 +345,8 @@ class Triangulator:
                         mac,
                         beacon_data["battery"],
                         new_beacon_status,
-                        weighted_latitude,
-                        weighted_longitude,
+                        weighted_latitude ,                #     ,    np.mean(lat)   weighted_latitude        
+                        weighted_longitude ,                  #     ,np.mean(long) weighted_longitude
                         floor,
                         beacon_data["temperature"],
                     )
