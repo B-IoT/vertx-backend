@@ -64,7 +64,7 @@ class TestCRUDVerticleAnalytics {
     "orderNumber" to "abcdf",
     "color" to "red",
     "serialNumber" to "abcdf",
-    "expiryDate" to LocalDate.of(2021, 8, 8).toString(),
+    "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
     "status" to "In maintenance"
   )
   private val existingBeaconDataOne = jsonObjectOf(
@@ -96,7 +96,7 @@ class TestCRUDVerticleAnalytics {
     "orderNumber" to "abcdf",
     "color" to "red",
     "serialNumber" to "abcdf",
-    "expiryDate" to LocalDate.of(2021, 8, 8).toString(),
+    "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
     "status" to "In maintenance"
   )
   private val existingBeaconDataTwo = jsonObjectOf(
@@ -128,7 +128,7 @@ class TestCRUDVerticleAnalytics {
     "orderNumber" to "abcdf",
     "color" to "red",
     "serialNumber" to "abcdf",
-    "expiryDate" to LocalDate.of(2021, 8, 8).toString(),
+    "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
     "status" to "In maintenance"
   )
   private val existingBeaconDataThree = jsonObjectOf(
@@ -193,7 +193,7 @@ class TestCRUDVerticleAnalytics {
             existingItemOne["orderNumber"],
             existingItemOne["color"],
             existingItemOne["serialNumber"],
-            LocalDate.parse(existingItemOne["expiryDate"]),
+            LocalDate.parse(existingItemOne["maintenanceDate"]),
             existingItemOne["status"],
           )
         ),
@@ -218,7 +218,7 @@ class TestCRUDVerticleAnalytics {
             existingItemTwo["orderNumber"],
             existingItemTwo["color"],
             existingItemTwo["serialNumber"],
-            LocalDate.parse(existingItemTwo["expiryDate"]),
+            LocalDate.parse(existingItemTwo["maintenanceDate"]),
             existingItemTwo["status"],
           )
         ),
@@ -243,7 +243,7 @@ class TestCRUDVerticleAnalytics {
             existingItemThree["orderNumber"],
             existingItemThree["color"],
             existingItemThree["serialNumber"],
-            LocalDate.parse(existingItemThree["expiryDate"]),
+            LocalDate.parse(existingItemThree["maintenanceDate"]),
             existingItemThree["status"],
           )
         ),

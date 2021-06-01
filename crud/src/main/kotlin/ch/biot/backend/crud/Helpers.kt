@@ -108,7 +108,7 @@ fun Row.toItemJson(): JsonObject = jsonObjectOf(
   "orderNumber" to getString("ordernumber"),
   "color" to getString("color"),
   "serialNumber" to getString("serialnumber"),
-  "expiryDate" to getLocalDate("expirydate")?.toString(),
+  "maintenanceDate" to getLocalDate("maintenancedate")?.toString(),
   "timestamp" to getOffsetDateTime("time")?.toString(),
   "battery" to getInteger("battery"),
   "status" to getString("status"),
@@ -141,7 +141,7 @@ internal fun extractItemInformation(json: JsonObject, keepNulls: Boolean = true)
   val orderNumber: String? = json["orderNumber"]
   val color: String? = json["color"]
   val serialNumber: String? = json["serialNumber"]
-  val expiryDate: String? = json["expiryDate"]
+  val maintenanceDate: String? = json["maintenanceDate"]
   val status: String? = json["status"]
 
   val infoList = listOf(
@@ -163,7 +163,7 @@ internal fun extractItemInformation(json: JsonObject, keepNulls: Boolean = true)
     "ordernumber" to orderNumber,
     "color" to color,
     "serialnumber" to serialNumber,
-    "expirydate" to expiryDate?.let(LocalDate::parse),
+    "maintenancedate" to maintenanceDate?.let(LocalDate::parse),
     "status" to status
   )
 

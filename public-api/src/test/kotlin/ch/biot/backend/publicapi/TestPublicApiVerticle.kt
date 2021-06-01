@@ -85,7 +85,7 @@ class TestPublicApiVerticle {
     "orderNumber" to "abcdf",
     "color" to "red",
     "serialNumber" to "abcdf",
-    "expiryDate" to LocalDate.of(2021, 8, 8).toString(),
+    "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
     "status" to "In maintenance"
   )
 
@@ -553,7 +553,7 @@ class TestPublicApiVerticle {
         that(obj.getString("orderNumber")).isEqualTo(expected.getString("orderNumber"))
         that(obj.getString("color")).isEqualTo(expected.getString("color"))
         that(obj.getString("serialNumber")).isEqualTo(expected.getString("serialNumber"))
-        that(obj.getString("expiryDate")).isEqualTo(expected.getString("expiryDate"))
+        that(obj.getString("maintenanceDate")).isEqualTo(expected.getString("maintenanceDate"))
         that(obj.getString("status")).isEqualTo(expected.getString("status"))
         that(obj.containsKey("timestamp")).isTrue()
         that(obj.containsKey("battery")).isTrue()
@@ -612,7 +612,7 @@ class TestPublicApiVerticle {
         that(obj.getString("orderNumber")).isEqualTo(item.getString("orderNumber"))
         that(obj.getString("color")).isEqualTo(item.getString("color"))
         that(obj.getString("serialNumber")).isEqualTo(item.getString("serialNumber"))
-        that(obj.getString("expiryDate")).isEqualTo(item.getString("expiryDate"))
+        that(obj.getString("maintenanceDate")).isEqualTo(item.getString("maintenanceDate"))
         that(obj.getString("status")).isEqualTo(item.getString("status"))
         that(obj.containsKey("timestamp")).isTrue()
         that(obj.containsKey("battery")).isTrue()
@@ -695,7 +695,7 @@ class TestPublicApiVerticle {
         that(response.getString("orderNumber")).isEqualTo(expected.getString("orderNumber"))
         that(response.getString("color")).isEqualTo(expected.getString("color"))
         that(response.getString("serialNumber")).isEqualTo(expected.getString("serialNumber"))
-        that(response.getString("expiryDate")).isEqualTo(expected.getString("expiryDate"))
+        that(response.getString("maintenanceDate")).isEqualTo(expected.getString("maintenanceDate"))
         that(response.getString("status")).isEqualTo(expected.getString("status"))
         that(response.containsKey("timestamp")).isTrue()
         that(response.containsKey("battery")).isTrue()
@@ -757,7 +757,7 @@ class TestPublicApiVerticle {
       "orderNumber" to "asasas",
       "color" to "blue",
       "serialNumber" to "aasasasa",
-      "expiryDate" to LocalDate.of(2022, 12, 25).toString(),
+      "maintenanceDate" to LocalDate.of(2022, 12, 25).toString(),
       "status" to "Disponible"
     )
 
@@ -804,7 +804,7 @@ class TestPublicApiVerticle {
       "orderNumber" to "abcdf",
       "color" to "red",
       "serialNumber" to "abcdf",
-      "expiryDate" to LocalDate.of(2021, 8, 8).toString(),
+      "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
       "status" to "In maintenance"
     )
 

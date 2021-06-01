@@ -71,7 +71,7 @@ class TestCRUDVerticleItems {
     "orderNumber" to "abcdf",
     "color" to "red",
     "serialNumber" to "abcdf",
-    "expiryDate" to LocalDate.of(2021, 8, 8).toString(),
+    "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
     "status" to "In maintenance"
   )
 
@@ -94,7 +94,7 @@ class TestCRUDVerticleItems {
     "orderNumber" to "abcdf",
     "color" to "red",
     "serialNumber" to "abcdf",
-    "expiryDate" to LocalDate.of(2021, 8, 8).toString(),
+    "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
     "status" to "In maintenance"
   )
 
@@ -127,7 +127,7 @@ class TestCRUDVerticleItems {
     "orderNumber" to "abcdf",
     "color" to "red",
     "serialNumber" to "abcdf",
-    "expiryDate" to LocalDate.of(2021, 8, 8).toString(),
+    "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
     "status" to "In maintenance"
   )
 
@@ -182,7 +182,7 @@ class TestCRUDVerticleItems {
           existingItem["orderNumber"],
           existingItem["color"],
           existingItem["serialNumber"],
-          LocalDate.parse(existingItem["expiryDate"]),
+          LocalDate.parse(existingItem["maintenanceDate"]),
           existingItem["status"]
         )
       ).await()
@@ -212,7 +212,7 @@ class TestCRUDVerticleItems {
               closestItem["orderNumber"],
               closestItem["color"],
               closestItem["serialNumber"],
-              LocalDate.parse(closestItem["expiryDate"]),
+              LocalDate.parse(closestItem["maintenanceDate"]),
               closestItem["status"]
             )
           ),
@@ -237,7 +237,7 @@ class TestCRUDVerticleItems {
               closestItem["orderNumber"],
               closestItem["color"],
               closestItem["serialNumber"],
-              LocalDate.parse(closestItem["expiryDate"]),
+              LocalDate.parse(closestItem["maintenanceDate"]),
               closestItem["status"]
             )
           ),
@@ -262,7 +262,7 @@ class TestCRUDVerticleItems {
               closestItem["orderNumber"],
               closestItem["color"],
               closestItem["serialNumber"],
-              LocalDate.parse(closestItem["expiryDate"]),
+              LocalDate.parse(closestItem["maintenanceDate"]),
               closestItem["status"]
             )
           ),
@@ -287,7 +287,7 @@ class TestCRUDVerticleItems {
               closestItem["orderNumber"],
               closestItem["color"],
               closestItem["serialNumber"],
-              LocalDate.parse(closestItem["expiryDate"]),
+              LocalDate.parse(closestItem["maintenanceDate"]),
               closestItem["status"]
             )
           ),
@@ -312,7 +312,7 @@ class TestCRUDVerticleItems {
               closestItem["orderNumber"],
               closestItem["color"],
               closestItem["serialNumber"],
-              LocalDate.parse(closestItem["expiryDate"]),
+              LocalDate.parse(closestItem["maintenanceDate"]),
               closestItem["status"]
             )
           ),
@@ -337,7 +337,7 @@ class TestCRUDVerticleItems {
               closestItem["orderNumber"],
               closestItem["color"],
               closestItem["serialNumber"],
-              LocalDate.parse(closestItem["expiryDate"]),
+              LocalDate.parse(closestItem["maintenanceDate"]),
               closestItem["status"]
             )
           ),
@@ -486,7 +486,7 @@ class TestCRUDVerticleItems {
       "orderNumber" to "abcdf",
       "color" to "red",
       "serialNumber" to "abcdf",
-      "expiryDate" to LocalDate.of(2021, 8, 8).toString(),
+      "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
       "status" to "In maintenance"
     )
 
@@ -532,7 +532,7 @@ class TestCRUDVerticleItems {
       "orderNumber" to "abcdf",
       "color" to "red",
       "serialNumber" to "abcdf",
-      "expiryDate" to LocalDate.of(2021, 8, 8).toString(),
+      "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
       "status" to "In maintenance"
     )
 
@@ -604,7 +604,7 @@ class TestCRUDVerticleItems {
     orderNumber VARCHAR(100),
     color VARCHAR(100),
     serialNumber VARCHAR(100),
-    expiryDate DATE,
+    maintenanceDate DATE,
     status VARCHAR(100)
 );"""
     ).execute().compose {
@@ -885,7 +885,7 @@ class TestCRUDVerticleItems {
           that(json.getString("orderNumber")).isEqualTo(updateItemJson.getString("orderNumber"))
           that(json.getString("color")).isEqualTo(updateItemJson.getString("color"))
           that(json.getString("serialNumber")).isEqualTo(updateItemJson.getString("serialNumber"))
-          that(json.getString("expiryDate")).isEqualTo(updateItemJson.getString("expiryDate"))
+          that(json.getString("maintenanceDate")).isEqualTo(updateItemJson.getString("maintenanceDate"))
           that(json.getString("status")).isEqualTo(updateItemJson.getString("status"))
           that(json.getInteger("battery")).isEqualTo(existingBeaconData.getInteger("battery"))
           that(json.getString("beaconStatus")).isEqualTo(existingBeaconData.getString("beaconStatus"))
@@ -945,7 +945,7 @@ class TestCRUDVerticleItems {
           that(json.getString("orderNumber")).isEqualTo(existingItem.getString("orderNumber"))
           that(json.getString("color")).isEqualTo(existingItem.getString("color"))
           that(json.getString("serialNumber")).isEqualTo(existingItem.getString("serialNumber"))
-          that(json.getString("expiryDate")).isEqualTo(existingItem.getString("expiryDate"))
+          that(json.getString("maintenanceDate")).isEqualTo(existingItem.getString("maintenanceDate"))
           that(json.getString("status")).isEqualTo(existingItem.getString("status"))
           that(json.getInteger("battery")).isEqualTo(existingBeaconData.getInteger("battery"))
           that(json.getString("beaconStatus")).isEqualTo(existingBeaconData.getString("beaconStatus"))

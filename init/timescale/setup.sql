@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS items
     orderNumber VARCHAR(100),
     color VARCHAR(100),
     serialNumber VARCHAR(100),
-    expiryDate DATE,
+    maintenanceDate DATE,
     status VARCHAR(100)
 );
 
