@@ -32,7 +32,7 @@ class _CoordinatesHistory:
         history = self.history_per_beacon[beacon]
         size = len(history)
         if size == self.MAX_HISTORY_SIZE:
-            # Remove oldest, to keep history's length to 5
+            # Remove oldest, to keep history's length to MAX_HISTORY_SIZE
             history.pop()
 
         # Insert the element to the head of the list
@@ -48,7 +48,7 @@ class _CoordinatesHistory:
     def _build_weights_dict(self):
         """
         Builds the dictionary of the weights, with keys (corresponding to the length of the coordinates history)
-        from 1 to 5.
+        from 1 to MAX_HISTORY_SIZE.
         """
         return {
             i: self._compute_weights(i) for i in range(1, self.MAX_HISTORY_SIZE + 1)
@@ -324,12 +324,12 @@ class Triangulator:
                     # Otherwise taking the mean floor + rounding it
                     floor = np.around(np.mean(self.relay_df.loc["floor", temp_relay]))
                     
-                # # Add the computed coordinates to the beacon's history
+                # Add the computed coordinates to the beacon's history
                 self.coordinates_history.update_coordinates_history(
                     mac, (np.mean(lat), np.mean(long))
                 )
 
-                # # Use the weighted moving average for smoothing coordinates computation
+                # Use the weighted moving average for smoothing coordinates computation
                 (
                     weighted_latitude,
                     weighted_longitude,
