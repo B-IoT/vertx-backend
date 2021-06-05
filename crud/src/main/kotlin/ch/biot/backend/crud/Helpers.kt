@@ -109,6 +109,9 @@ fun Row.toItemJson(): JsonObject = jsonObjectOf(
   "color" to getString("color"),
   "serialNumber" to getString("serialnumber"),
   "maintenanceDate" to getLocalDate("maintenancedate")?.toString(),
+  "comments" to getString("comments"),
+  "lastModifiedDate" to getLocalDate("lastmodifieddate")?.toString(),
+  "lastModifiedBy" to getString("lastmodifiedby"),
   "timestamp" to getOffsetDateTime("time")?.toString(),
   "battery" to getInteger("battery"),
   "status" to getString("status"),
@@ -143,6 +146,9 @@ internal fun extractItemInformation(json: JsonObject, keepNulls: Boolean = true)
   val serialNumber: String? = json["serialNumber"]
   val maintenanceDate: String? = json["maintenanceDate"]
   val status: String? = json["status"]
+  val comments: String? = json["comments"]
+  val lastModifiedDate: String? = json["lastModifiedDate"]
+  val lastModifiedBy: String? = json["lastModifiedBy"]
 
   val infoList = listOf(
     "beacon" to beacon,
@@ -164,7 +170,10 @@ internal fun extractItemInformation(json: JsonObject, keepNulls: Boolean = true)
     "color" to color,
     "serialnumber" to serialNumber,
     "maintenancedate" to maintenanceDate?.let(LocalDate::parse),
-    "status" to status
+    "status" to status,
+    "comments" to comments,
+    "lastmodifieddate" to lastModifiedDate?.let(LocalDate::parse),
+    "lastmodifiedby" to lastModifiedBy
   )
 
   return if (keepNulls) {

@@ -65,7 +65,10 @@ class TestCRUDVerticleAnalytics {
     "color" to "red",
     "serialNumber" to "abcdf",
     "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
-    "status" to "In maintenance"
+    "status" to "In maintenance",
+    "comments" to "A comment",
+    "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+    "lastModifiedBy" to "Monsieur Duport"
   )
   private val existingBeaconDataOne = jsonObjectOf(
     "mac" to existingItemOne.getString("beacon"),
@@ -97,7 +100,10 @@ class TestCRUDVerticleAnalytics {
     "color" to "red",
     "serialNumber" to "abcdf",
     "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
-    "status" to "In maintenance"
+    "status" to "In maintenance",
+    "comments" to "A comment",
+    "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+    "lastModifiedBy" to "Monsieur Duport"
   )
   private val existingBeaconDataTwo = jsonObjectOf(
     "mac" to existingItemTwo.getString("beacon"),
@@ -129,7 +135,10 @@ class TestCRUDVerticleAnalytics {
     "color" to "red",
     "serialNumber" to "abcdf",
     "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
-    "status" to "In maintenance"
+    "status" to "In maintenance",
+    "comments" to "A comment",
+    "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+    "lastModifiedBy" to "Monsieur Duport"
   )
   private val existingBeaconDataThree = jsonObjectOf(
     "mac" to existingItemThree.getString("beacon"),
@@ -195,6 +204,9 @@ class TestCRUDVerticleAnalytics {
             existingItemOne["serialNumber"],
             LocalDate.parse(existingItemOne["maintenanceDate"]),
             existingItemOne["status"],
+            existingItemOne["comments"],
+            LocalDate.parse(existingItemOne["lastModifiedDate"]),
+            existingItemOne["lastModifiedBy"]
           )
         ),
       pgPool.preparedQuery(insertItem("items"))
@@ -220,6 +232,9 @@ class TestCRUDVerticleAnalytics {
             existingItemTwo["serialNumber"],
             LocalDate.parse(existingItemTwo["maintenanceDate"]),
             existingItemTwo["status"],
+            existingItemTwo["comments"],
+            LocalDate.parse(existingItemTwo["lastModifiedDate"]),
+            existingItemTwo["lastModifiedBy"]
           )
         ),
       pgPool.preparedQuery(insertItem("items"))
@@ -245,6 +260,9 @@ class TestCRUDVerticleAnalytics {
             existingItemThree["serialNumber"],
             LocalDate.parse(existingItemThree["maintenanceDate"]),
             existingItemThree["status"],
+            existingItemThree["comments"],
+            LocalDate.parse(existingItemThree["lastModifiedDate"]),
+            existingItemThree["lastModifiedBy"]
           )
         ),
       pgPool.preparedQuery(INSERT_BEACON_DATA).execute(

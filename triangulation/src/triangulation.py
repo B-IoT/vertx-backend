@@ -273,7 +273,7 @@ class Triangulator:
             lat = []
             long = []
             nb_relays = len(temp_df)
-            if nb_relays > 1:
+            if nb_relays > 2:
                 logger.info(
                     "Beacon '{}' detected by {} relays, starting triangulation...",
                     mac,
@@ -360,12 +360,12 @@ class Triangulator:
                     else f" and status updated to '{self.TO_REPAIR}'"
                 )
                 logger.info("Triangulation done{}", status_updated_message)
-            elif len(temp_df) == 1:
+            elif 1 <= nb_relays and nb_relays <= 2:
                 if status == self.MOVEMENT_DETECTED_AND_BUTTON_PRESSED:
                     # Even if we didn't triangulate, we still need to update the status
                     await self._update_beacon_status(company, mac, self.TO_REPAIR)
 
-                logger.warning("Beacon '{}' detected by only one relay, skipping!", mac)
+                logger.warning("Beacon '{}' detected by {} relay, skipping!", mac, nb_relays)
             else:
                 logger.warning("Beacon '{}' not detected by any relay, skipping!", mac)
 

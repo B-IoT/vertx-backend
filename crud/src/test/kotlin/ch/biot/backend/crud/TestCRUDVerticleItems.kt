@@ -72,7 +72,10 @@ class TestCRUDVerticleItems {
     "color" to "red",
     "serialNumber" to "abcdf",
     "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
-    "status" to "In maintenance"
+    "status" to "In maintenance",
+    "comments" to "A comment",
+    "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+    "lastModifiedBy" to "Monsieur Duport"
   )
 
   private val closestItem = jsonObjectOf(
@@ -95,7 +98,10 @@ class TestCRUDVerticleItems {
     "color" to "red",
     "serialNumber" to "abcdf",
     "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
-    "status" to "In maintenance"
+    "status" to "In maintenance",
+    "comments" to "A comment",
+    "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+    "lastModifiedBy" to "Monsieur Duport"
   )
 
   private val existingBeaconData = jsonObjectOf(
@@ -128,7 +134,10 @@ class TestCRUDVerticleItems {
     "color" to "red",
     "serialNumber" to "abcdf",
     "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
-    "status" to "In maintenance"
+    "status" to "In maintenance",
+    "comments" to "A comment",
+    "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+    "lastModifiedBy" to "Monsieur Duport"
   )
 
   @BeforeEach
@@ -183,7 +192,10 @@ class TestCRUDVerticleItems {
           existingItem["color"],
           existingItem["serialNumber"],
           LocalDate.parse(existingItem["maintenanceDate"]),
-          existingItem["status"]
+          existingItem["status"],
+          existingItem["comments"],
+          LocalDate.parse(existingItem["lastModifiedDate"]),
+          existingItem["lastModifiedBy"]
         )
       ).await()
 
@@ -213,7 +225,10 @@ class TestCRUDVerticleItems {
               closestItem["color"],
               closestItem["serialNumber"],
               LocalDate.parse(closestItem["maintenanceDate"]),
-              closestItem["status"]
+              closestItem["status"],
+              closestItem["comments"],
+              LocalDate.parse(closestItem["lastModifiedDate"]),
+              closestItem["lastModifiedBy"]
             )
           ),
         pgPool.preparedQuery(insertItem("items"))
@@ -238,7 +253,10 @@ class TestCRUDVerticleItems {
               closestItem["color"],
               closestItem["serialNumber"],
               LocalDate.parse(closestItem["maintenanceDate"]),
-              closestItem["status"]
+              closestItem["status"],
+              closestItem["comments"],
+              LocalDate.parse(closestItem["lastModifiedDate"]),
+              closestItem["lastModifiedBy"]
             )
           ),
         pgPool.preparedQuery(insertItem("items"))
@@ -263,7 +281,10 @@ class TestCRUDVerticleItems {
               closestItem["color"],
               closestItem["serialNumber"],
               LocalDate.parse(closestItem["maintenanceDate"]),
-              closestItem["status"]
+              closestItem["status"],
+              closestItem["comments"],
+              LocalDate.parse(closestItem["lastModifiedDate"]),
+              closestItem["lastModifiedBy"]
             )
           ),
         pgPool.preparedQuery(insertItem("items"))
@@ -288,7 +309,10 @@ class TestCRUDVerticleItems {
               closestItem["color"],
               closestItem["serialNumber"],
               LocalDate.parse(closestItem["maintenanceDate"]),
-              closestItem["status"]
+              closestItem["status"],
+              closestItem["comments"],
+              LocalDate.parse(closestItem["lastModifiedDate"]),
+              closestItem["lastModifiedBy"]
             )
           ),
         pgPool.preparedQuery(insertItem("items"))
@@ -313,7 +337,10 @@ class TestCRUDVerticleItems {
               closestItem["color"],
               closestItem["serialNumber"],
               LocalDate.parse(closestItem["maintenanceDate"]),
-              closestItem["status"]
+              closestItem["status"],
+              closestItem["comments"],
+              LocalDate.parse(closestItem["lastModifiedDate"]),
+              closestItem["lastModifiedBy"]
             )
           ),
         pgPool.preparedQuery(insertItem("items"))
@@ -338,7 +365,10 @@ class TestCRUDVerticleItems {
               closestItem["color"],
               closestItem["serialNumber"],
               LocalDate.parse(closestItem["maintenanceDate"]),
-              closestItem["status"]
+              closestItem["status"],
+              closestItem["comments"],
+              LocalDate.parse(closestItem["lastModifiedDate"]),
+              closestItem["lastModifiedBy"]
             )
           ),
         pgPool.preparedQuery(INSERT_BEACON_DATA)
@@ -487,7 +517,10 @@ class TestCRUDVerticleItems {
       "color" to "red",
       "serialNumber" to "abcdf",
       "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
-      "status" to "In maintenance"
+      "status" to "In maintenance",
+      "comments" to "A comment",
+      "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+      "lastModifiedBy" to "Monsieur Duport"
     )
 
     val response = Given {
@@ -533,7 +566,10 @@ class TestCRUDVerticleItems {
       "color" to "red",
       "serialNumber" to "abcdf",
       "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
-      "status" to "In maintenance"
+      "status" to "In maintenance",
+      "comments" to "A comment",
+      "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+      "lastModifiedBy" to "Monsieur Duport"
     )
 
     val response = Given {
@@ -605,7 +641,10 @@ class TestCRUDVerticleItems {
     color VARCHAR(100),
     serialNumber VARCHAR(100),
     maintenanceDate DATE,
-    status VARCHAR(100)
+    status VARCHAR(100),
+    comments VARCHAR(100),
+    lastModifiedDate DATE,
+    lastModifiedBy VARCHAR(100)
 );"""
     ).execute().compose {
       pgPool.query(
@@ -887,6 +926,9 @@ class TestCRUDVerticleItems {
           that(json.getString("serialNumber")).isEqualTo(updateItemJson.getString("serialNumber"))
           that(json.getString("maintenanceDate")).isEqualTo(updateItemJson.getString("maintenanceDate"))
           that(json.getString("status")).isEqualTo(updateItemJson.getString("status"))
+          that(json.getString("comments")).isEqualTo(updateItemJson.getString("comments"))
+          that(json.getString("lastModifiedDate")).isEqualTo(updateItemJson.getString("lastModifiedDate"))
+          that(json.getString("lastModifiedBy")).isEqualTo(updateItemJson.getString("lastModifiedBy"))
           that(json.getInteger("battery")).isEqualTo(existingBeaconData.getInteger("battery"))
           that(json.getString("beaconStatus")).isEqualTo(existingBeaconData.getString("beaconStatus"))
           that(json.getDouble("latitude")).isEqualTo(existingBeaconData.getDouble("latitude"))
@@ -947,6 +989,9 @@ class TestCRUDVerticleItems {
           that(json.getString("serialNumber")).isEqualTo(existingItem.getString("serialNumber"))
           that(json.getString("maintenanceDate")).isEqualTo(existingItem.getString("maintenanceDate"))
           that(json.getString("status")).isEqualTo(existingItem.getString("status"))
+          that(json.getString("comments")).isEqualTo(existingItem.getString("comments"))
+          that(json.getString("lastModifiedDate")).isEqualTo(existingItem.getString("lastModifiedDate"))
+          that(json.getString("lastModifiedBy")).isEqualTo(existingItem.getString("lastModifiedBy"))
           that(json.getInteger("battery")).isEqualTo(existingBeaconData.getInteger("battery"))
           that(json.getString("beaconStatus")).isEqualTo(existingBeaconData.getString("beaconStatus"))
           that(json.getDouble("latitude")).isEqualTo(existingBeaconData.getDouble("latitude"))
