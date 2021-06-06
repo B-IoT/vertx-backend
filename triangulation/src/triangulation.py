@@ -15,7 +15,7 @@ class _CoordinatesHistory:
     Coordinates history used for weighted moving average.
     """
 
-    MAX_HISTORY_SIZE = 7
+    MAX_HISTORY_SIZE = 5
 
     def __init__(self):
         self.history_per_beacon: DefaultDict[
@@ -131,8 +131,7 @@ class Triangulator:
 
             if not beacon:
                 logger.warning(
-                    "Skipping status update for beacon '{}', as it does not exist.",
-                    mac
+                    "Skipping status update for beacon '{}', as it does not exist.", mac
                 )
                 return
 
@@ -236,19 +235,21 @@ class Triangulator:
             right_index=True,
             suffixes=(OLD_SUFFIX, None),
         )
+
+        # Keep old values if the new ones are NaN
+        if f"{relay_id}{OLD_SUFFIX}" in self.connectivity_df.columns:
+            self.connectivity_df[relay_id].fillna(
+                self.connectivity_df[f"{relay_id}{OLD_SUFFIX}"], inplace=True
+            )
+
         # Filter out old measurements
         self.connectivity_df = self.connectivity_df[
             [col for col in self.connectivity_df.columns if OLD_SUFFIX not in col]
         ]
 
-        updated_beacons = self.connectivity_df[
-            ~self.connectivity_df.loc[:, relay_id].isnull()
-        ].index
-
         # Triangulation of each beacon
         coordinates = []
-        for i in range(len(updated_beacons)):
-            mac = macs[i]
+        for mac in macs:
             beacon_data = next(b for b in beacons if b["mac"] == mac)
 
             if mac not in self.connectivity_df.index:
@@ -266,8 +267,8 @@ class Triangulator:
             temp_df = temp_df.reset_index().rename(
                 columns={"index": "relay", mac: "dist"}
             )
-            # Only use the 5 closest relays to the beacon
-            temp_df = temp_df.sort_values("dist", axis=0, ascending=True).iloc[:5, :]
+            # Only use the 3 closest relays to the beacon
+            temp_df = temp_df.sort_values("dist", axis=0, ascending=True).iloc[:3, :]
             temp_df = temp_df.reset_index()
 
             lat = []
@@ -323,7 +324,7 @@ class Triangulator:
                 else:
                     # Otherwise taking the mean floor + rounding it
                     floor = np.around(np.mean(self.relay_df.loc["floor", temp_relay]))
-                    
+
                 # Add the computed coordinates to the beacon's history
                 self.coordinates_history.update_coordinates_history(
                     mac, (np.mean(lat), np.mean(long))
@@ -345,8 +346,8 @@ class Triangulator:
                         mac,
                         beacon_data["battery"],
                         new_beacon_status,
-                        weighted_latitude ,                #     ,    np.mean(lat)   weighted_latitude        
-                        weighted_longitude ,                  #     ,np.mean(long) weighted_longitude
+                        weighted_latitude,  #     ,    np.mean(lat)   weighted_latitude
+                        weighted_longitude,  #     ,np.mean(long) weighted_longitude
                         floor,
                         beacon_data["temperature"],
                     )
@@ -365,7 +366,9 @@ class Triangulator:
                     # Even if we didn't triangulate, we still need to update the status
                     await self._update_beacon_status(company, mac, self.TO_REPAIR)
 
-                logger.warning("Beacon '{}' detected by {} relay, skipping!", mac, nb_relays)
+                logger.warning(
+                    "Beacon '{}' detected by {} relay, skipping!", mac, nb_relays
+                )
             else:
                 logger.warning("Beacon '{}' not detected by any relay, skipping!", mac)
 
@@ -376,6 +379,5 @@ class Triangulator:
         del df_beacons
         del averaged
         del relay
-        del updated_beacons
         del coordinates
         gc.collect()
