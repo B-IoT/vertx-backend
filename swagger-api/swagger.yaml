@@ -2,9 +2,9 @@ openapi: 3.0.0
 info:
   title: Vert.x API
   description: BIoT Vert.x API
-  version: "2.2"
+  version: "2.3"
 servers:
-- url: https://virtserver.swaggerhub.com/b-iot/Vert.x/2.2
+- url: https://virtserver.swaggerhub.com/b-iot/Vert.x/2.3
   description: SwaggerHub API Auto Mocking
 paths:
   /relays:
@@ -583,7 +583,25 @@ components:
           type: string
         contact:
           type: string
-        owner:
+        currentOwner:
+          type: string
+        previousOwner:
+          type: string
+        orderNumber:
+          type: string
+        color:
+          type: string
+        serialNumber:
+          type: string
+        maintenanceDate:
+          type: string
+          format: date
+        comments:
+          type: string
+        lastModifiedDate:
+          type: string
+          format: date
+        lastModifiedBy:
           type: string
         timestamp:
           type: string
@@ -595,6 +613,8 @@ components:
           format: int32
         status:
           type: string
+        beaconStatus:
+          type: string
         latitude:
           type: number
           format: double
@@ -604,6 +624,9 @@ components:
         floor:
           type: integer
           format: int32
+        temperature:
+          type: number
+          format: double
       description: An item
     ItemRegisterInfo:
       type: object
@@ -639,7 +662,25 @@ components:
           type: string
         contact:
           type: string
-        owner:
+        currentOwner:
+          type: string
+        previousOwner:
+          type: string
+        orderNumber:
+          type: string
+        color:
+          type: string
+        serialNumber:
+          type: string
+        maintenanceDate:
+          type: string
+          format: date
+        comments:
+          type: string
+        lastModifiedDate:
+          type: string
+          format: date
+        lastModifiedBy:
           type: string
       description: An item to register
     ItemUpdateInfo:
@@ -673,7 +714,25 @@ components:
           type: string
         contact:
           type: string
-        owner:
+        currentOwner:
+          type: string
+        previousOwner:
+          type: string
+        orderNumber:
+          type: string
+        color:
+          type: string
+        serialNumber:
+          type: string
+        maintenanceDate:
+          type: string
+          format: date
+        comments:
+          type: string
+        lastModifiedDate:
+          type: string
+          format: date
+        lastModifiedBy:
           type: string
       description: Update information for an item
     Status:
