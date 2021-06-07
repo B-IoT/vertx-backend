@@ -3,10 +3,10 @@
  */
 
 plugins {
-    kotlin("jvm") version "1.4.32"
+    kotlin("jvm") version "1.5.10"
     id("com.github.johnrengelman.shadow") version "6.1.0" apply false
     id("com.google.cloud.tools.jib") version "3.0.0" apply false
-    id("com.github.ben-manes.versions") version "0.38.0"
+    id("com.github.ben-manes.versions") version "0.39.0"
     jacoco
 }
 
@@ -16,16 +16,16 @@ repositories {
 }
 
 allprojects {
-    extra["vertxVersion"] = if (project.hasProperty("vertxVersion")) project.property("vertxVersion") else "4.0.3"
+    extra["vertxVersion"] = if (project.hasProperty("vertxVersion")) project.property("vertxVersion") else "4.1.0"
     extra["junitJupiterVersion"] = "5.7.2"
     extra["logbackClassicVersion"] = "1.2.3"
     extra["testContainersVersion"] = "1.15.3"
-    extra["restAssuredVersion"] = "4.3.3"
+    extra["restAssuredVersion"] = "4.4.0"
     extra["striktVersion"] = "0.31.0"
     extra["hazelcastVersion"] = "2.2.2"
     extra["micrometerPrometheusVersion"] = "1.7.0"
     extra["arrowVersion"] = "0.13.2"
-    extra["mockkVersion"] = "1.10.6"
+    extra["mockkVersion"] = "1.11.0"
 }
 
 subprojects {
