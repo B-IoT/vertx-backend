@@ -15,6 +15,10 @@ repositories {
     jcenter()
 }
 
+jacoco {
+    toolVersion = "0.8.7"
+}
+
 allprojects {
     extra["vertxVersion"] = if (project.hasProperty("vertxVersion")) project.property("vertxVersion") else "4.1.0"
     extra["junitJupiterVersion"] = "5.7.2"
