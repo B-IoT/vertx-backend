@@ -1,10 +1,9 @@
 # Copyright (c) 2021 BioT. All rights reserved.
 
-from config import logger, KAFKA_HOST, KAFKA_PORT
+from .config import logger, KAFKA_HOST, KAFKA_PORT
 
 from confluent_kafka import Consumer, KafkaError, KafkaException
-from typing import List
-from collections.abc import Callable
+from typing import List, Callable
 import orjson
 import sys
 

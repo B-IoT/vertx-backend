@@ -1,8 +1,8 @@
 # Copyright (c) 2021 BioT. All rights reserved.
 
-from kafka import KafkaConsumer
-from config import logger
-from triangulation import Triangulator
+from .kafka import KafkaConsumer
+from .config import logger
+from .triangulation import Triangulator
 
 import asyncio
 
