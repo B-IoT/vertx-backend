@@ -32,7 +32,7 @@ class _CoordinatesHistory:
         history = self.history_per_beacon[beacon]
         size = len(history)
         if size == self.MAX_HISTORY_SIZE:
-            # Remove oldest, to keep history's length to 5
+            # Remove oldest, to keep history's length to MAX_HISTORY_SIZE
             history.pop()
 
         # Insert the element to the head of the list
@@ -48,7 +48,7 @@ class _CoordinatesHistory:
     def _build_weights_dict(self):
         """
         Builds the dictionary of the weights, with keys (corresponding to the length of the coordinates history)
-        from 1 to 5.
+        from 1 to MAX_HISTORY_SIZE.
         """
         return {
             i: self._compute_weights(i) for i in range(1, self.MAX_HISTORY_SIZE + 1)
@@ -78,7 +78,7 @@ class Triangulator:
     AVAILABLE = "available"
 
     INSERT_QUERY = staticmethod(
-        lambda table: f"""INSERT INTO {table} (time, mac, battery, status, latitude, longitude, floor, temperature) VALUES (NOW(), $1, $2, $3, $4, $5, $6, $7);"""
+        lambda table: f"""INSERT INTO {table} (time, mac, battery, beaconstatus, latitude, longitude, floor, temperature) VALUES (NOW(), $1, $2, $3, $4, $5, $6, $7);"""
     )
     FETCH_BEACON_QUERY = staticmethod(
         lambda table: f"""SELECT * from {table} WHERE mac = $1 ORDER BY time DESC LIMIT 1;"""
@@ -131,11 +131,11 @@ class Triangulator:
 
             if not beacon:
                 logger.warning(
-                    "Skipping status update for beacon '{}', as it does not exist."
+                    "Skipping status update for beacon '{}', as it does not exist.", mac
                 )
                 return
 
-            if beacon["status"] != status:
+            if beacon["beaconstatus"] != status:
                 new_beacon = (
                     beacon["mac"],
                     beacon["battery"],
@@ -235,19 +235,21 @@ class Triangulator:
             right_index=True,
             suffixes=(OLD_SUFFIX, None),
         )
+
+        # Keep old values if the new ones are NaN
+        if f"{relay_id}{OLD_SUFFIX}" in self.connectivity_df.columns:
+            self.connectivity_df[relay_id].fillna(
+                self.connectivity_df[f"{relay_id}{OLD_SUFFIX}"], inplace=True
+            )
+
         # Filter out old measurements
         self.connectivity_df = self.connectivity_df[
             [col for col in self.connectivity_df.columns if OLD_SUFFIX not in col]
         ]
 
-        updated_beacons = self.connectivity_df[
-            ~self.connectivity_df.loc[:, relay_id].isnull()
-        ].index
-
         # Triangulation of each beacon
         coordinates = []
-        for i in range(len(updated_beacons)):
-            mac = macs[i]
+        for mac in macs:
             beacon_data = next(b for b in beacons if b["mac"] == mac)
 
             if mac not in self.connectivity_df.index:
@@ -265,14 +267,14 @@ class Triangulator:
             temp_df = temp_df.reset_index().rename(
                 columns={"index": "relay", mac: "dist"}
             )
-            # Only use the 5 closest relays to the beacon
-            temp_df = temp_df.sort_values("dist", axis=0, ascending=True).iloc[:5, :]
+            # Only use the 3 closest relays to the beacon
+            temp_df = temp_df.sort_values("dist", axis=0, ascending=True).iloc[:3, :]
             temp_df = temp_df.reset_index()
 
             lat = []
             long = []
             nb_relays = len(temp_df)
-            if nb_relays > 1:
+            if nb_relays > 2:
                 logger.info(
                     "Beacon '{}' detected by {} relays, starting triangulation...",
                     mac,
@@ -312,8 +314,16 @@ class Triangulator:
                             + (dist_1 / dist) * vect_long
                         )
 
-                temp_relay = temp_df.loc[:, "relay"]
-                floor = np.around(np.mean(self.relay_df.loc[0:3, "floor", temp_relay]))
+                temp_relay = temp_df.loc[0:3, "relay"]
+                floor = np.mean(self.relay_df.loc["floor", temp_relay])
+
+                if (floor - np.floor(floor)) - 0.5 <= 1e-5:
+                    # Case where we're in the middle, eg: floor = 1.5
+                    # Taking the floor of the closest relay
+                    floor = self.relay_df.loc["floor", temp_df.loc[0, "relay"]]
+                else:
+                    # Otherwise taking the mean floor + rounding it
+                    floor = np.around(np.mean(self.relay_df.loc["floor", temp_relay]))
 
                 # Add the computed coordinates to the beacon's history
                 self.coordinates_history.update_coordinates_history(
@@ -336,8 +346,8 @@ class Triangulator:
                         mac,
                         beacon_data["battery"],
                         new_beacon_status,
-                        weighted_latitude,
-                        weighted_longitude,
+                        weighted_latitude,  #     ,    np.mean(lat)   weighted_latitude
+                        weighted_longitude,  #     ,np.mean(long) weighted_longitude
                         floor,
                         beacon_data["temperature"],
                     )
@@ -351,12 +361,14 @@ class Triangulator:
                     else f" and status updated to '{self.TO_REPAIR}'"
                 )
                 logger.info("Triangulation done{}", status_updated_message)
-            elif len(temp_df) == 1:
+            elif 1 <= nb_relays and nb_relays <= 2:
                 if status == self.MOVEMENT_DETECTED_AND_BUTTON_PRESSED:
                     # Even if we didn't triangulate, we still need to update the status
                     await self._update_beacon_status(company, mac, self.TO_REPAIR)
 
-                logger.warning("Beacon '{}' detected by only one relay, skipping!", mac)
+                logger.warning(
+                    "Beacon '{}' detected by {} relay, skipping!", mac, nb_relays
+                )
             else:
                 logger.warning("Beacon '{}' not detected by any relay, skipping!", mac)
 
@@ -367,6 +379,5 @@ class Triangulator:
         del df_beacons
         del averaged
         del relay
-        del updated_beacons
         del coordinates
         gc.collect()

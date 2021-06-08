@@ -64,8 +64,11 @@ class TestCRUDVerticleAnalytics {
     "orderNumber" to "abcdf",
     "color" to "red",
     "serialNumber" to "abcdf",
-    "expiryDate" to LocalDate.of(2021, 8, 8).toString(),
-    "status" to "In maintenance"
+    "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
+    "status" to "In maintenance",
+    "comments" to "A comment",
+    "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+    "lastModifiedBy" to "Monsieur Duport"
   )
   private val existingBeaconDataOne = jsonObjectOf(
     "mac" to existingItemOne.getString("beacon"),
@@ -96,8 +99,11 @@ class TestCRUDVerticleAnalytics {
     "orderNumber" to "abcdf",
     "color" to "red",
     "serialNumber" to "abcdf",
-    "expiryDate" to LocalDate.of(2021, 8, 8).toString(),
-    "status" to "In maintenance"
+    "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
+    "status" to "In maintenance",
+    "comments" to "A comment",
+    "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+    "lastModifiedBy" to "Monsieur Duport"
   )
   private val existingBeaconDataTwo = jsonObjectOf(
     "mac" to existingItemTwo.getString("beacon"),
@@ -128,8 +134,11 @@ class TestCRUDVerticleAnalytics {
     "orderNumber" to "abcdf",
     "color" to "red",
     "serialNumber" to "abcdf",
-    "expiryDate" to LocalDate.of(2021, 8, 8).toString(),
-    "status" to "In maintenance"
+    "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
+    "status" to "In maintenance",
+    "comments" to "A comment",
+    "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+    "lastModifiedBy" to "Monsieur Duport"
   )
   private val existingBeaconDataThree = jsonObjectOf(
     "mac" to existingItemThree.getString("beacon"),
@@ -193,8 +202,11 @@ class TestCRUDVerticleAnalytics {
             existingItemOne["orderNumber"],
             existingItemOne["color"],
             existingItemOne["serialNumber"],
-            LocalDate.parse(existingItemOne["expiryDate"]),
+            LocalDate.parse(existingItemOne["maintenanceDate"]),
             existingItemOne["status"],
+            existingItemOne["comments"],
+            LocalDate.parse(existingItemOne["lastModifiedDate"]),
+            existingItemOne["lastModifiedBy"]
           )
         ),
       pgPool.preparedQuery(insertItem("items"))
@@ -218,8 +230,11 @@ class TestCRUDVerticleAnalytics {
             existingItemTwo["orderNumber"],
             existingItemTwo["color"],
             existingItemTwo["serialNumber"],
-            LocalDate.parse(existingItemTwo["expiryDate"]),
+            LocalDate.parse(existingItemTwo["maintenanceDate"]),
             existingItemTwo["status"],
+            existingItemTwo["comments"],
+            LocalDate.parse(existingItemTwo["lastModifiedDate"]),
+            existingItemTwo["lastModifiedBy"]
           )
         ),
       pgPool.preparedQuery(insertItem("items"))
@@ -243,8 +258,11 @@ class TestCRUDVerticleAnalytics {
             existingItemThree["orderNumber"],
             existingItemThree["color"],
             existingItemThree["serialNumber"],
-            LocalDate.parse(existingItemThree["expiryDate"]),
+            LocalDate.parse(existingItemThree["maintenanceDate"]),
             existingItemThree["status"],
+            existingItemThree["comments"],
+            LocalDate.parse(existingItemThree["lastModifiedDate"]),
+            existingItemThree["lastModifiedBy"]
           )
         ),
       pgPool.preparedQuery(INSERT_BEACON_DATA).execute(

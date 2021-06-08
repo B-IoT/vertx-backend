@@ -5,7 +5,7 @@
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import org.gradle.api.tasks.testing.logging.TestLogEvent.*
 
-version = "1.1.4-SNAPSHOT"
+version = "1.1.5-SNAPSHOT"
 
 val mainVerticleName = "ch.biot.backend.crud.CRUDVerticle"
 val watchForChange = "src/**/*"
@@ -81,7 +81,7 @@ jib {
   }
   to {
     image = "vertx-backend/crud"
-    tags = setOf("v1.1.4", "latest")
+    tags = setOf("v1.1.5", "latest")
   }
   container {
     mainClass = mainVerticleName

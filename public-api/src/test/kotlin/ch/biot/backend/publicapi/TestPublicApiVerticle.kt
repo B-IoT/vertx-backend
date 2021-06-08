@@ -85,8 +85,11 @@ class TestPublicApiVerticle {
     "orderNumber" to "abcdf",
     "color" to "red",
     "serialNumber" to "abcdf",
-    "expiryDate" to LocalDate.of(2021, 8, 8).toString(),
-    "status" to "In maintenance"
+    "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
+    "status" to "In maintenance",
+    "comments" to "A comment",
+    "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+    "lastModifiedBy" to "Monsieur Duport"
   )
 
   private var itemID: Int = 1
@@ -553,8 +556,11 @@ class TestPublicApiVerticle {
         that(obj.getString("orderNumber")).isEqualTo(expected.getString("orderNumber"))
         that(obj.getString("color")).isEqualTo(expected.getString("color"))
         that(obj.getString("serialNumber")).isEqualTo(expected.getString("serialNumber"))
-        that(obj.getString("expiryDate")).isEqualTo(expected.getString("expiryDate"))
+        that(obj.getString("maintenanceDate")).isEqualTo(expected.getString("maintenanceDate"))
         that(obj.getString("status")).isEqualTo(expected.getString("status"))
+        that(obj.getString("comments")).isEqualTo(expected.getString("comments"))
+        that(obj.getString("lastModifiedDate")).isEqualTo(expected.getString("lastModifiedDate"))
+        that(obj.getString("lastModifiedBy")).isEqualTo(expected.getString("lastModifiedBy"))
         that(obj.containsKey("timestamp")).isTrue()
         that(obj.containsKey("battery")).isTrue()
         that(obj.containsKey("beaconStatus")).isTrue()
@@ -612,8 +618,11 @@ class TestPublicApiVerticle {
         that(obj.getString("orderNumber")).isEqualTo(item.getString("orderNumber"))
         that(obj.getString("color")).isEqualTo(item.getString("color"))
         that(obj.getString("serialNumber")).isEqualTo(item.getString("serialNumber"))
-        that(obj.getString("expiryDate")).isEqualTo(item.getString("expiryDate"))
+        that(obj.getString("maintenanceDate")).isEqualTo(item.getString("maintenanceDate"))
         that(obj.getString("status")).isEqualTo(item.getString("status"))
+        that(obj.getString("comments")).isEqualTo(item.getString("comments"))
+        that(obj.getString("lastModifiedDate")).isEqualTo(item.getString("lastModifiedDate"))
+        that(obj.getString("lastModifiedBy")).isEqualTo(item.getString("lastModifiedBy"))
         that(obj.containsKey("timestamp")).isTrue()
         that(obj.containsKey("battery")).isTrue()
         that(obj.containsKey("beaconStatus")).isTrue()
@@ -695,8 +704,11 @@ class TestPublicApiVerticle {
         that(response.getString("orderNumber")).isEqualTo(expected.getString("orderNumber"))
         that(response.getString("color")).isEqualTo(expected.getString("color"))
         that(response.getString("serialNumber")).isEqualTo(expected.getString("serialNumber"))
-        that(response.getString("expiryDate")).isEqualTo(expected.getString("expiryDate"))
+        that(response.getString("maintenanceDate")).isEqualTo(expected.getString("maintenanceDate"))
         that(response.getString("status")).isEqualTo(expected.getString("status"))
+        that(response.getString("comments")).isEqualTo(expected.getString("comments"))
+        that(response.getString("lastModifiedDate")).isEqualTo(expected.getString("lastModifiedDate"))
+        that(response.getString("lastModifiedBy")).isEqualTo(expected.getString("lastModifiedBy"))
         that(response.containsKey("timestamp")).isTrue()
         that(response.containsKey("battery")).isTrue()
         that(response.containsKey("beaconStatus")).isTrue()
@@ -757,8 +769,11 @@ class TestPublicApiVerticle {
       "orderNumber" to "asasas",
       "color" to "blue",
       "serialNumber" to "aasasasa",
-      "expiryDate" to LocalDate.of(2022, 12, 25).toString(),
-      "status" to "Disponible"
+      "maintenanceDate" to LocalDate.of(2022, 12, 25).toString(),
+      "status" to "Disponible",
+      "comments" to "A comment",
+      "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+      "lastModifiedBy" to "Monsieur Duport"
     )
 
     val response = Given {
@@ -804,8 +819,11 @@ class TestPublicApiVerticle {
       "orderNumber" to "abcdf",
       "color" to "red",
       "serialNumber" to "abcdf",
-      "expiryDate" to LocalDate.of(2021, 8, 8).toString(),
-      "status" to "In maintenance"
+      "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
+      "status" to "In maintenance",
+      "comments" to "A comment",
+      "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+      "lastModifiedBy" to "Monsieur Duport"
     )
 
     // Register the item

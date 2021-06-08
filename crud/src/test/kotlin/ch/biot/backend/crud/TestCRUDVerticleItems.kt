@@ -71,8 +71,11 @@ class TestCRUDVerticleItems {
     "orderNumber" to "abcdf",
     "color" to "red",
     "serialNumber" to "abcdf",
-    "expiryDate" to LocalDate.of(2021, 8, 8).toString(),
-    "status" to "In maintenance"
+    "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
+    "status" to "In maintenance",
+    "comments" to "A comment",
+    "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+    "lastModifiedBy" to "Monsieur Duport"
   )
 
   private val closestItem = jsonObjectOf(
@@ -94,8 +97,11 @@ class TestCRUDVerticleItems {
     "orderNumber" to "abcdf",
     "color" to "red",
     "serialNumber" to "abcdf",
-    "expiryDate" to LocalDate.of(2021, 8, 8).toString(),
-    "status" to "In maintenance"
+    "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
+    "status" to "In maintenance",
+    "comments" to "A comment",
+    "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+    "lastModifiedBy" to "Monsieur Duport"
   )
 
   private val existingBeaconData = jsonObjectOf(
@@ -127,8 +133,11 @@ class TestCRUDVerticleItems {
     "orderNumber" to "abcdf",
     "color" to "red",
     "serialNumber" to "abcdf",
-    "expiryDate" to LocalDate.of(2021, 8, 8).toString(),
-    "status" to "In maintenance"
+    "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
+    "status" to "In maintenance",
+    "comments" to "A comment",
+    "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+    "lastModifiedBy" to "Monsieur Duport"
   )
 
   @BeforeEach
@@ -182,8 +191,11 @@ class TestCRUDVerticleItems {
           existingItem["orderNumber"],
           existingItem["color"],
           existingItem["serialNumber"],
-          LocalDate.parse(existingItem["expiryDate"]),
-          existingItem["status"]
+          LocalDate.parse(existingItem["maintenanceDate"]),
+          existingItem["status"],
+          existingItem["comments"],
+          LocalDate.parse(existingItem["lastModifiedDate"]),
+          existingItem["lastModifiedBy"]
         )
       ).await()
 
@@ -212,8 +224,11 @@ class TestCRUDVerticleItems {
               closestItem["orderNumber"],
               closestItem["color"],
               closestItem["serialNumber"],
-              LocalDate.parse(closestItem["expiryDate"]),
-              closestItem["status"]
+              LocalDate.parse(closestItem["maintenanceDate"]),
+              closestItem["status"],
+              closestItem["comments"],
+              LocalDate.parse(closestItem["lastModifiedDate"]),
+              closestItem["lastModifiedBy"]
             )
           ),
         pgPool.preparedQuery(insertItem("items"))
@@ -237,8 +252,11 @@ class TestCRUDVerticleItems {
               closestItem["orderNumber"],
               closestItem["color"],
               closestItem["serialNumber"],
-              LocalDate.parse(closestItem["expiryDate"]),
-              closestItem["status"]
+              LocalDate.parse(closestItem["maintenanceDate"]),
+              closestItem["status"],
+              closestItem["comments"],
+              LocalDate.parse(closestItem["lastModifiedDate"]),
+              closestItem["lastModifiedBy"]
             )
           ),
         pgPool.preparedQuery(insertItem("items"))
@@ -262,8 +280,11 @@ class TestCRUDVerticleItems {
               closestItem["orderNumber"],
               closestItem["color"],
               closestItem["serialNumber"],
-              LocalDate.parse(closestItem["expiryDate"]),
-              closestItem["status"]
+              LocalDate.parse(closestItem["maintenanceDate"]),
+              closestItem["status"],
+              closestItem["comments"],
+              LocalDate.parse(closestItem["lastModifiedDate"]),
+              closestItem["lastModifiedBy"]
             )
           ),
         pgPool.preparedQuery(insertItem("items"))
@@ -287,8 +308,11 @@ class TestCRUDVerticleItems {
               closestItem["orderNumber"],
               closestItem["color"],
               closestItem["serialNumber"],
-              LocalDate.parse(closestItem["expiryDate"]),
-              closestItem["status"]
+              LocalDate.parse(closestItem["maintenanceDate"]),
+              closestItem["status"],
+              closestItem["comments"],
+              LocalDate.parse(closestItem["lastModifiedDate"]),
+              closestItem["lastModifiedBy"]
             )
           ),
         pgPool.preparedQuery(insertItem("items"))
@@ -312,8 +336,11 @@ class TestCRUDVerticleItems {
               closestItem["orderNumber"],
               closestItem["color"],
               closestItem["serialNumber"],
-              LocalDate.parse(closestItem["expiryDate"]),
-              closestItem["status"]
+              LocalDate.parse(closestItem["maintenanceDate"]),
+              closestItem["status"],
+              closestItem["comments"],
+              LocalDate.parse(closestItem["lastModifiedDate"]),
+              closestItem["lastModifiedBy"]
             )
           ),
         pgPool.preparedQuery(insertItem("items"))
@@ -337,8 +364,11 @@ class TestCRUDVerticleItems {
               closestItem["orderNumber"],
               closestItem["color"],
               closestItem["serialNumber"],
-              LocalDate.parse(closestItem["expiryDate"]),
-              closestItem["status"]
+              LocalDate.parse(closestItem["maintenanceDate"]),
+              closestItem["status"],
+              closestItem["comments"],
+              LocalDate.parse(closestItem["lastModifiedDate"]),
+              closestItem["lastModifiedBy"]
             )
           ),
         pgPool.preparedQuery(INSERT_BEACON_DATA)
@@ -486,8 +516,11 @@ class TestCRUDVerticleItems {
       "orderNumber" to "abcdf",
       "color" to "red",
       "serialNumber" to "abcdf",
-      "expiryDate" to LocalDate.of(2021, 8, 8).toString(),
-      "status" to "In maintenance"
+      "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
+      "status" to "In maintenance",
+      "comments" to "A comment",
+      "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+      "lastModifiedBy" to "Monsieur Duport"
     )
 
     val response = Given {
@@ -532,8 +565,11 @@ class TestCRUDVerticleItems {
       "orderNumber" to "abcdf",
       "color" to "red",
       "serialNumber" to "abcdf",
-      "expiryDate" to LocalDate.of(2021, 8, 8).toString(),
-      "status" to "In maintenance"
+      "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
+      "status" to "In maintenance",
+      "comments" to "A comment",
+      "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+      "lastModifiedBy" to "Monsieur Duport"
     )
 
     val response = Given {
@@ -604,8 +640,11 @@ class TestCRUDVerticleItems {
     orderNumber VARCHAR(100),
     color VARCHAR(100),
     serialNumber VARCHAR(100),
-    expiryDate DATE,
-    status VARCHAR(100)
+    maintenanceDate DATE,
+    status VARCHAR(100),
+    comments VARCHAR(100),
+    lastModifiedDate DATE,
+    lastModifiedBy VARCHAR(100)
 );"""
     ).execute().compose {
       pgPool.query(
@@ -885,8 +924,74 @@ class TestCRUDVerticleItems {
           that(json.getString("orderNumber")).isEqualTo(updateItemJson.getString("orderNumber"))
           that(json.getString("color")).isEqualTo(updateItemJson.getString("color"))
           that(json.getString("serialNumber")).isEqualTo(updateItemJson.getString("serialNumber"))
-          that(json.getString("expiryDate")).isEqualTo(updateItemJson.getString("expiryDate"))
+          that(json.getString("maintenanceDate")).isEqualTo(updateItemJson.getString("maintenanceDate"))
           that(json.getString("status")).isEqualTo(updateItemJson.getString("status"))
+          that(json.getString("comments")).isEqualTo(updateItemJson.getString("comments"))
+          that(json.getString("lastModifiedDate")).isEqualTo(updateItemJson.getString("lastModifiedDate"))
+          that(json.getString("lastModifiedBy")).isEqualTo(updateItemJson.getString("lastModifiedBy"))
+          that(json.getInteger("battery")).isEqualTo(existingBeaconData.getInteger("battery"))
+          that(json.getString("beaconStatus")).isEqualTo(existingBeaconData.getString("beaconStatus"))
+          that(json.getDouble("latitude")).isEqualTo(existingBeaconData.getDouble("latitude"))
+          that(json.getDouble("longitude")).isEqualTo(existingBeaconData.getDouble("longitude"))
+          that(json.getInteger("floor")).isEqualTo(existingBeaconData.getInteger("floor"))
+          that(json.getDouble("temperature")).isEqualTo(existingBeaconData.getDouble("temperature"))
+        }
+        testContext.completeNow()
+      }
+      .onFailure(testContext::failNow)
+  }
+
+  @Test
+  @DisplayName("updateItem only updates the specified fields")
+  fun updateItemOnlyUpdatesSpecifiedFields(testContext: VertxTestContext) {
+    val updateJson = jsonObjectOf(
+      "service" to "A new service"
+    )
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      body(updateJson.encode())
+    } When {
+      queryParam("company", "biot")
+      put("/items/$existingItemID")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEmpty()
+    }
+
+    pgPool.preparedQuery(getItem("items", "beacon_data")).execute(Tuple.of(existingItemID))
+      .onSuccess { res ->
+        val json = res.iterator().next().toItemJson()
+        expect {
+          that(json.getString("beacon")).isEqualTo(existingItem.getString("beacon"))
+          that(json.getString("category")).isEqualTo(existingItem.getString("category"))
+          that(json.getString("service")).isEqualTo(updateJson.getString("service"))
+          that(json.getString("itemID")).isEqualTo(existingItem.getString("itemID"))
+          that(json.getString("brand")).isEqualTo(existingItem.getString("brand"))
+          that(json.getString("model")).isEqualTo(existingItem.getString("model"))
+          that(json.getString("supplier")).isEqualTo(existingItem.getString("supplier"))
+          that(json.getString("purchaseDate")).isEqualTo(existingItem.getString("purchaseDate"))
+          that(json.getDouble("purchasePrice")).isEqualTo(existingItem.getDouble("purchasePrice"))
+          that(json.getString("originLocation")).isEqualTo(existingItem.getString("originLocation"))
+          that(json.getString("currentLocation")).isEqualTo(existingItem.getString("currentLocation"))
+          that(json.getString("room")).isEqualTo(existingItem.getString("room"))
+          that(json.getString("contact")).isEqualTo(existingItem.getString("contact"))
+          that(json.getString("currentOwner")).isEqualTo(existingItem.getString("currentOwner"))
+          that(json.getString("previousOwner")).isEqualTo(existingItem.getString("previousOwner"))
+          that(json.getString("orderNumber")).isEqualTo(existingItem.getString("orderNumber"))
+          that(json.getString("color")).isEqualTo(existingItem.getString("color"))
+          that(json.getString("serialNumber")).isEqualTo(existingItem.getString("serialNumber"))
+          that(json.getString("maintenanceDate")).isEqualTo(existingItem.getString("maintenanceDate"))
+          that(json.getString("status")).isEqualTo(existingItem.getString("status"))
+          that(json.getString("comments")).isEqualTo(existingItem.getString("comments"))
+          that(json.getString("lastModifiedDate")).isEqualTo(existingItem.getString("lastModifiedDate"))
+          that(json.getString("lastModifiedBy")).isEqualTo(existingItem.getString("lastModifiedBy"))
           that(json.getInteger("battery")).isEqualTo(existingBeaconData.getInteger("battery"))
           that(json.getString("beaconStatus")).isEqualTo(existingBeaconData.getString("beaconStatus"))
           that(json.getDouble("latitude")).isEqualTo(existingBeaconData.getDouble("latitude"))
