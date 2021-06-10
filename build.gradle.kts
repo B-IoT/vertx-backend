@@ -5,7 +5,7 @@
 plugins {
     kotlin("jvm") version "1.5.10"
     id("com.github.johnrengelman.shadow") version "6.1.0" apply false
-    id("com.google.cloud.tools.jib") version "3.0.0" apply false
+    id("com.google.cloud.tools.jib") version "3.1.0" apply false
     id("com.github.ben-manes.versions") version "0.39.0"
     jacoco
 }
