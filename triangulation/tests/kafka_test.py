@@ -3,30 +3,20 @@
 import pytest
 import socket
 import orjson
-from triangulation.src.kafka import KafkaConsumer
-from triangulation.src.main import TOPIC
 from confluent_kafka import Producer
 
-BOOTSTRAP_SERVERS = "localhost:9092"
+from triangulation.src.kafka import KafkaConsumer
+from triangulation.src.main import TOPIC
+from triangulation.src.config import KAFKA_HOST, KAFKA_PORT
 
-
-def acked(err, msg):
-    if err is not None:
-        print("Failed to deliver message: %s: %s" % (str(msg), str(err)))
-    else:
-        print("Message produced: %s" % (str(msg)))
 
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("kafka_container_using_docker_compose")
 async def test_kafka_consumer_is_correctly_created(mocker):
-    kafkaConsumer = KafkaConsumer()
-    on_message_stub = mocker.stub(name="on_message_stub")
-    await kafkaConsumer.start([TOPIC], on_message_stub)
-
     producer = Producer(
         {
-            "bootstrap.servers": BOOTSTRAP_SERVERS,
+            "bootstrap.servers": f"{KAFKA_HOST}:{KAFKA_PORT}",
             "client.id": socket.gethostname(),
         }
     )
@@ -57,7 +47,11 @@ async def test_kafka_consumer_is_correctly_created(mocker):
         "company": "biot",
     }
     msg = orjson.dumps(msg_dict)
-    producer.produce(TOPIC, key=key, value=msg, callback=acked)
-    producer.poll(1)
+    producer.produce(TOPIC, key=key, value=msg)
+    producer.flush()
 
-    on_message_stub.assert_called_once_with(key, msg_dict)
+    kafkaConsumer = KafkaConsumer()
+    on_message_stub = mocker.AsyncMock(side_effect=lambda k, m: kafkaConsumer.stop())
+    await kafkaConsumer.start([TOPIC], on_message_stub)
+
+    on_message_stub.assert_awaited_once_with(key, msg_dict)

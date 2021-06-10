@@ -1,6 +1,6 @@
 # Copyright (c) 2021 BioT. All rights reserved.
 
-from .config import logger, KAFKA_HOST, KAFKA_PORT
+from .config import logger, KAFKA_HOST, KAFKA_PORT, DEV
 
 from confluent_kafka import Consumer, KafkaError, KafkaException
 from typing import List, Callable
@@ -20,10 +20,11 @@ class KafkaConsumer:
             "bootstrap.servers": f"{KAFKA_HOST}:{KAFKA_PORT}",
             "group.id": "triangulation-client",
             "on_commit": self._commit_completed,
-            "auto.offset.reset": "latest",
+            "auto.offset.reset": "earliest" if DEV else "latest",
             "allow.auto.create.topics": "true",
         }
         self.consumer = Consumer(conf)
+        self.should_consume = True
 
     def _commit_completed(self, err, _):
         """
@@ -45,7 +46,7 @@ class KafkaConsumer:
             consumer.subscribe(topics)
 
             msg_count = 0
-            while True:
+            while self.should_consume:
                 msg = consumer.poll(timeout=1.0)
                 if msg is None:
                     continue
@@ -75,6 +76,12 @@ class KafkaConsumer:
         finally:
             # Close down consumer to commit final offsets.
             consumer.close()
+
+    def stop(self):
+        """
+        Stops the consumer.
+        """
+        self.should_consume = False
 
     async def start(self, topics: List[str], on_message: Callable[[str, dict], None]):
         """
