@@ -31,3 +31,12 @@ services:
       KAFKA_CONFLUENT_BALANCER_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+
+  timescale:
+    image: timescale/timescaledb-postgis:1.7.4-pg12
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_PASSWORD: "biot"
+    volumes:
+      - /Users/avenezia/vertx-backend/init/timescale:/docker-entrypoint-initdb.d/

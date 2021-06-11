@@ -12,8 +12,8 @@ from triangulation.src.config import KAFKA_HOST, KAFKA_PORT
 
 
 @pytest.mark.asyncio
-@pytest.mark.usefixtures("kafka_container_using_docker_compose")
-async def test_kafka_consumer_is_correctly_created(mocker):
+@pytest.mark.usefixtures("docker_compose")
+async def test_kafka_consumer_consumes_new_message_and_calls_the_callback(mocker):
     producer = Producer(
         {
             "bootstrap.servers": f"{KAFKA_HOST}:{KAFKA_PORT}",

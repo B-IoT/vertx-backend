@@ -10,7 +10,7 @@ from triangulation.src.config import KAFKA_HOST, KAFKA_PORT
 
 
 @pytest.fixture
-def kafka_container_using_docker_compose():
+def docker_compose():
     container = get_container()
     yield
     container.stop()
