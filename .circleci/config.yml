@@ -61,6 +61,11 @@ jobs:
     steps:
       - checkout:
           path: ~/vertx-backend
+      - run:
+          name: "Switch to Python v3.8"
+          command: |
+            pyenv versions
+            pyenv global 3.8.0
       - python/install-packages:
           pip-dependency-file: requirements_dev.txt
           pkg-manager: pip
