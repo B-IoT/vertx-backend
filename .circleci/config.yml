@@ -70,7 +70,7 @@ jobs:
           pip-dependency-file: requirements_dev.txt
           pkg-manager: pip
       - run: mkdir ~/test-results
-      - run: pytest -o log_cli=true --capture=no --junitxml=~/test-results
+      - run: pytest -o log_cli=true --capture=no --junitxml=~/test-results/report.xml
       - store_test_results:
           path: ~/test-results
 workflows:
