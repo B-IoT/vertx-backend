@@ -83,7 +83,7 @@ workflows:
             public-api/.* run-backend-services-job true
             relays-communication/.* run-backend-services-job true
             triangulation/.* run-triangulation-service-job true
-          base-revision: ${CIRCLE_BRANCH}
+          base-revision: main
           # this is the path of the configuration we should trigger once path filtering and pipeline parameter value updates are complete. In this case, we are using the parent dynamic configuration itself.
           config-path: .circleci/config.yml
   backend-services:
