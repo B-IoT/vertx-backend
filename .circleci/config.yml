@@ -62,7 +62,7 @@ jobs:
       - checkout:
           path: ~/vertx-backend
       - run:
-          name: "Switch to Python v3.8"
+          name: "Switch to Python v3.9.4"
           command: |
             pyenv versions
             pyenv global 3.9.4
