@@ -61,7 +61,7 @@ internal fun forwardJsonArrayOrStatusCode(ctx: RoutingContext, resp: HttpRespons
  * @param error the error that occurred
  */
 internal fun sendBadGateway(ctx: RoutingContext, error: Throwable) {
-  PublicApiVerticle.LOGGER.error("Oops... an error occurred!", error)
+  LOGGER.error(error) { "Oops... an error occurred!" }
   ctx.fail(502, error)
 }
 

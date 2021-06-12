@@ -18,7 +18,6 @@ import io.vertx.ext.web.openapi.RouterBuilder
 import io.vertx.ext.web.validation.BadRequestException
 import io.vertx.ext.web.validation.BodyProcessorException
 import io.vertx.ext.web.validation.ParameterProcessorException
-import io.vertx.ext.web.validation.RequestPredicateException
 import io.vertx.kotlin.core.eventbus.eventBusOptionsOf
 import io.vertx.kotlin.core.http.httpServerOptionsOf
 import io.vertx.kotlin.core.json.get
@@ -40,9 +39,10 @@ import io.vertx.pgclient.SslMode
 import io.vertx.spi.cluster.hazelcast.HazelcastClusterManager
 import io.vertx.sqlclient.Tuple
 import kotlinx.coroutines.launch
-import org.slf4j.LoggerFactory
+import mu.KotlinLogging
 import java.net.InetAddress
 
+internal val LOGGER = KotlinLogging.logger {}
 
 class CRUDVerticle : CoroutineVerticle() {
 
@@ -73,8 +73,6 @@ class CRUDVerticle : CoroutineVerticle() {
     val TIMESCALE_PORT = environment.getOrDefault("TIMESCALE_PORT", "5432").toInt()
     private val TIMESCALE_HOST: String = environment.getOrDefault("TIMESCALE_HOST", "localhost")
 
-    internal val LOGGER = LoggerFactory.getLogger(CRUDVerticle::class.java)
-
     @JvmStatic
     fun main(args: Array<String>) {
       val ipv4 = InetAddress.getLocalHost().hostAddress
@@ -86,7 +84,7 @@ class CRUDVerticle : CoroutineVerticle() {
       Vertx.clusteredVertx(options).onSuccess {
         it.deployVerticle(CRUDVerticle())
       }.onFailure { error ->
-        LOGGER.error("Could not start", error)
+        LOGGER.error(error) { "Could not start" }
       }
     }
   }
@@ -193,13 +191,13 @@ class CRUDVerticle : CoroutineVerticle() {
           .requestHandler(router)
           .listen(HTTP_PORT)
           .await()
-        LOGGER.info("HTTP server listening on port $HTTP_PORT")
+        LOGGER.info { "HTTP server listening on port $HTTP_PORT" }
       } catch (error: Throwable) {
-        LOGGER.error("Could not start HTTP server", error)
+        LOGGER.error(error) { "Could not start HTTP server" }
       }
     } catch (error: Throwable) {
       // Something went wrong during router builder initialization
-      LOGGER.error("Could not initialize router builder", error)
+      LOGGER.error(error) { "Could not initialize router builder" }
     }
   }
 
@@ -212,26 +210,20 @@ class CRUDVerticle : CoroutineVerticle() {
 
     val failure = ctx.failure()
     if (failure is BadRequestException) {
-      when (failure) {
+      val errorMessage = when (failure) {
         is ParameterProcessorException -> {
-          // Something went wrong while parsing/validating a parameter
-          val errorMessage = "Something went wrong while parsing/validating a parameter."
-          LOGGER.error(errorMessage, failure)
-          response.setStatusCode(statusCode).end(errorMessage)
+          "Something went wrong while parsing/validating a parameter."
         }
         is BodyProcessorException -> {
-          // Something went wrong while parsing/validating the body
-          val errorMessage = "Something went while parsing/validating the body."
-          LOGGER.error(errorMessage, failure)
-          response.setStatusCode(statusCode).end(errorMessage)
+          "Something went while parsing/validating the body."
         }
-        is RequestPredicateException -> {
-          // A request predicate is unsatisfied
-          val errorMessage = "A request predicate is unsatisfied."
-          LOGGER.error(errorMessage, failure)
-          response.setStatusCode(statusCode).end(errorMessage)
+        else -> {
+          "A request predicate is unsatisfied."
         }
       }
+
+      LOGGER.error(failure) { errorMessage }
+      response.setStatusCode(statusCode).end(errorMessage)
     }
   }
 
@@ -241,7 +233,7 @@ class CRUDVerticle : CoroutineVerticle() {
    * Handles a getStatus request.
    */
   private suspend fun analyticsGetStatusHandler(ctx: RoutingContext) {
-    LOGGER.info("New analytics get status request")
+    LOGGER.info { "New analytics get status request" }
 
     val itemsTable = ctx.getCollection(ITEMS_TABLE)
     val beaconDataTable = ctx.getCollection(BEACON_DATA_TABLE)
@@ -281,14 +273,14 @@ class CRUDVerticle : CoroutineVerticle() {
   // Health checks handlers
 
   private fun livenessCheckHandler(ctx: RoutingContext) {
-    LOGGER.info("Liveness check")
+    LOGGER.debug { "Liveness check" }
     ctx.response()
       .putHeader(CONTENT_TYPE, APPLICATION_JSON)
       .end(jsonObjectOf("status" to "UP").encode())
   }
 
   private fun readinessCheckHandler(ctx: RoutingContext) {
-    LOGGER.info("Readiness check complete")
+    LOGGER.debug { "Readiness check complete" }
     ctx.response()
       .putHeader(CONTENT_TYPE, APPLICATION_JSON)
       .end(jsonObjectOf("status" to "UP").encode())
@@ -318,7 +310,7 @@ class CRUDVerticle : CoroutineVerticle() {
       ) to MongoAuthentication.create(mongoClient, mongoAuthRelaysOptions)
     }
 
-    LOGGER.info("New register request")
+    LOGGER.info { "New registerRelay request" }
     val json = ctx.bodyAsJson
     json.validateAndThen(ctx) {
       // Get the MongoDB authentication utils associated to the right collection, based on the user's company
@@ -344,7 +336,7 @@ class CRUDVerticle : CoroutineVerticle() {
           }
         )
         mongoClient.findOneAndUpdate(collection, query, extraInfo).await()
-        LOGGER.info("New relay registered")
+        LOGGER.info { "New relay registered" }
         ctx.end()
       }
     }
@@ -354,7 +346,7 @@ class CRUDVerticle : CoroutineVerticle() {
    * Handles a getRelays request.
    */
   private suspend fun getRelaysHandler(ctx: RoutingContext) {
-    LOGGER.info("New getRelays request")
+    LOGGER.info { "New getRelays request" }
 
     val collection = ctx.getCollection(RELAYS_COLLECTION)
     executeWithErrorHandling("Could not get relays", ctx) {
@@ -370,7 +362,7 @@ class CRUDVerticle : CoroutineVerticle() {
    */
   private suspend fun getRelayHandler(ctx: RoutingContext) {
     val relayID = ctx.pathParam("id")
-    LOGGER.info("New getRelay request for relay $relayID")
+    LOGGER.info { "New getRelay request for relay $relayID" }
 
     val query = jsonObjectOf("relayID" to relayID)
     val collection = ctx.getCollection(RELAYS_COLLECTION)
@@ -386,11 +378,14 @@ class CRUDVerticle : CoroutineVerticle() {
    * Handles an updateRelay request.
    */
   private suspend fun updateRelayHandler(ctx: RoutingContext) {
-    LOGGER.info("New updateRelay request")
     val json = ctx.bodyAsJson
+    val relayID = ctx.pathParam("id")
+
+    LOGGER.info { "New updateRelay request for relay $relayID" }
+
     json.validateAndThen(ctx) {
       // Update MongoDB
-      val query = jsonObjectOf("relayID" to ctx.pathParam("id"))
+      val query = jsonObjectOf("relayID" to relayID)
       val update = json {
         obj(
           "\$set" to json.copy().apply {
@@ -400,7 +395,7 @@ class CRUDVerticle : CoroutineVerticle() {
         )
       }
       val collection = ctx.getCollection(RELAYS_COLLECTION)
-      executeWithErrorHandling("Could not update MongoDB collection $collection with update JSON $update", ctx) {
+      executeWithErrorHandling("Could not update collection $collection with update JSON $update", ctx) {
         val updatedRelay = mongoClient.findOneAndUpdateWithOptions(
           collection,
           query,
@@ -408,14 +403,14 @@ class CRUDVerticle : CoroutineVerticle() {
           findOptionsOf(),
           updateOptionsOf(returningNewDocument = true)
         ).await()
-        LOGGER.info("Successfully updated MongoDB collection $collection with update JSON $update")
+        LOGGER.info { "Successfully updated collection $collection with update JSON $update" }
         // Put the beacon information in the JSON to send to the relay
         val cleanEntry = updatedRelay.cleanForRelay().apply {
           put("beacon", json["beacon"])
         }
         // Send to the RelaysCommunicationVerticle the entry to update the relay
         vertx.eventBus().send(RELAYS_UPDATE_ADDRESS, cleanEntry)
-        LOGGER.info("Update sent to the event bus address $RELAYS_UPDATE_ADDRESS")
+        LOGGER.info { "Update sent to the event bus address $RELAYS_UPDATE_ADDRESS" }
         ctx.end()
       }
     }
@@ -426,7 +421,7 @@ class CRUDVerticle : CoroutineVerticle() {
    */
   private suspend fun deleteRelayHandler(ctx: RoutingContext) {
     val relayID = ctx.pathParam("id")
-    LOGGER.info("New deleteRelay request for relay $relayID")
+    LOGGER.info { "New deleteRelay request for relay $relayID" }
     val query = jsonObjectOf("relayID" to relayID)
     val collection = ctx.getCollection(RELAYS_COLLECTION)
     executeWithErrorHandling("Could not delete relay", ctx) {
@@ -441,7 +436,7 @@ class CRUDVerticle : CoroutineVerticle() {
    * Handles a registerUser request.
    */
   private suspend fun registerUserHandler(ctx: RoutingContext) {
-    LOGGER.info("New user request")
+    LOGGER.info { "New registerUser request" }
     val json = ctx.bodyAsJson
     json.validateAndThen(ctx) {
       // Create the user
@@ -458,7 +453,7 @@ class CRUDVerticle : CoroutineVerticle() {
           }
         )
         mongoClient.findOneAndUpdate(USERS_COLLECTION, query, extraInfo).await()
-        LOGGER.info("New user registered")
+        LOGGER.info { "New user registered" }
         ctx.end()
       }
     }
@@ -468,7 +463,7 @@ class CRUDVerticle : CoroutineVerticle() {
    * Handles a getUsers request.
    */
   private suspend fun getUsersHandler(ctx: RoutingContext) {
-    LOGGER.info("New getUsers request")
+    LOGGER.info { "New getUsers request" }
 
     executeWithErrorHandling("Could not get users", ctx) {
       val users = mongoClient.find(USERS_COLLECTION, jsonObjectOf()).await()
@@ -483,7 +478,7 @@ class CRUDVerticle : CoroutineVerticle() {
    */
   private suspend fun getUserHandler(ctx: RoutingContext) {
     val userID = ctx.pathParam("id")
-    LOGGER.info("New getUser request for relay $userID")
+    LOGGER.info { "New getUser request for user $userID" }
     val query = jsonObjectOf("userID" to userID)
     executeWithErrorHandling("Could not get user", ctx) {
       val user = mongoClient.findOne(USERS_COLLECTION, query, jsonObjectOf()).await()
@@ -497,8 +492,10 @@ class CRUDVerticle : CoroutineVerticle() {
    * Handles an updateUser request.
    */
   private suspend fun updateUserHandler(ctx: RoutingContext) {
-    LOGGER.info("New updateUser request")
     val json = ctx.bodyAsJson
+    val userID = ctx.pathParam("id")
+    LOGGER.info { "New updateUser request for user $userID" }
+
     json.validateAndThen(ctx) {
       // Update MongoDB
       val jsonWithSaltedPassword = json.copy().apply {
@@ -511,10 +508,10 @@ class CRUDVerticle : CoroutineVerticle() {
         )
       }
 
-      val query = jsonObjectOf("userID" to ctx.pathParam("id"))
-      executeWithErrorHandling("Could not update MongoDB collection $USERS_COLLECTION with update JSON $update", ctx) {
+      val query = jsonObjectOf("userID" to userID)
+      executeWithErrorHandling("Could not update collection $USERS_COLLECTION with update JSON $update", ctx) {
         mongoClient.findOneAndUpdate(USERS_COLLECTION, query, update).await()
-        LOGGER.info("Successfully updated MongoDB collection $USERS_COLLECTION with update JSON $update")
+        LOGGER.info("Successfully updated collection $USERS_COLLECTION with update JSON $update")
         ctx.end()
       }
     }
@@ -525,7 +522,7 @@ class CRUDVerticle : CoroutineVerticle() {
    */
   private suspend fun deleteUserHandler(ctx: RoutingContext) {
     val userID = ctx.pathParam("id")
-    LOGGER.info("New deleteUser request for user $userID")
+    LOGGER.info { "New deleteUser request for user $userID" }
     val query = jsonObjectOf("userID" to userID)
     executeWithErrorHandling("Could not delete user", ctx) {
       mongoClient.removeDocument(USERS_COLLECTION, query).await()
@@ -537,7 +534,7 @@ class CRUDVerticle : CoroutineVerticle() {
    * Handles an authenticate request.
    */
   private suspend fun authenticateHandler(ctx: RoutingContext) {
-    LOGGER.info("New authenticate request")
+    LOGGER.info { "New authenticate request" }
     val body = if (ctx.body.length() == 0) {
       jsonObjectOf()
     } else {
@@ -549,7 +546,7 @@ class CRUDVerticle : CoroutineVerticle() {
       val company: String = user["company"]
       ctx.end(company)
     } catch (error: Throwable) {
-      LOGGER.error("Authentication error: ", error)
+      LOGGER.error(error) { "Authentication error" }
       ctx.fail(UNAUTHORIZED_CODE, error)
     }
   }
@@ -560,7 +557,7 @@ class CRUDVerticle : CoroutineVerticle() {
    * Handles a registerItem request.
    */
   private suspend fun registerItemHandler(ctx: RoutingContext) {
-    LOGGER.info("New registerItem request")
+    LOGGER.info { "New registerItem request" }
 
     val json = ctx.bodyAsJson
     json.validateAndThen(ctx) {
@@ -574,10 +571,10 @@ class CRUDVerticle : CoroutineVerticle() {
         else pgPool.preparedQuery(insertItem(table, false)).execute(Tuple.tuple(info))
 
       executeWithErrorHandling("Could not register item", ctx) {
-        val queryResult = executedQuery.await()
-        LOGGER.info("New item registered")
-        val row = queryResult.iterator().next()
-        ctx.end(row.getInteger("id").toString())
+        val row = executedQuery.await().iterator().next()
+        val itemID = row.getInteger("id").toString()
+        LOGGER.info { "New item $itemID registered" }
+        ctx.end(itemID)
       }
     }
   }
@@ -586,7 +583,7 @@ class CRUDVerticle : CoroutineVerticle() {
    * Handles a getItems request.
    */
   private suspend fun getItemsHandler(ctx: RoutingContext) {
-    LOGGER.info("New getItems request")
+    LOGGER.info { "New getItems request" }
     val params = ctx.queryParams()
 
     val itemsTable = ctx.getCollection(ITEMS_TABLE)
@@ -609,7 +606,7 @@ class CRUDVerticle : CoroutineVerticle() {
   }
 
   private suspend fun getClosestItemsHandler(ctx: RoutingContext) {
-    LOGGER.info("New getClosestItems request")
+    LOGGER.info { "New getClosestItems request" }
 
     val params = ctx.queryParams()
     val latitude = params["latitude"].toDouble()
@@ -655,7 +652,7 @@ class CRUDVerticle : CoroutineVerticle() {
    */
   private suspend fun getItemHandler(ctx: RoutingContext) {
     val itemID = ctx.pathParam("id").toInt() // the id needs to be converted to Int, as the DB stores it as an integer
-    LOGGER.info("New getItem request for item $itemID")
+    LOGGER.info { "New getItem request for item $itemID" }
 
     val itemsTable = ctx.getCollection(ITEMS_TABLE)
     val beaconDataTable = ctx.getCollection(BEACON_DATA_TABLE)
@@ -681,7 +678,7 @@ class CRUDVerticle : CoroutineVerticle() {
    */
   private suspend fun updateItemHandler(ctx: RoutingContext) {
     val id = ctx.pathParam("id")
-    LOGGER.info("New updateItem request for item $id")
+    LOGGER.info { "New updateItem request for item $id" }
 
     val json = ctx.bodyAsJson
     json.validateAndThen(ctx) {
@@ -692,7 +689,7 @@ class CRUDVerticle : CoroutineVerticle() {
       val table = ctx.getCollection(ITEMS_TABLE)
       executeWithErrorHandling("Could not update item $id", ctx) {
         pgPool.preparedQuery(updateItem(table, info.map { it.first })).execute(Tuple.tuple(data)).await()
-        LOGGER.info("Successfully updated item $id")
+        LOGGER.info { "Successfully updated item $id" }
         ctx.end()
       }
     }
@@ -703,7 +700,7 @@ class CRUDVerticle : CoroutineVerticle() {
    */
   private suspend fun deleteItemHandler(ctx: RoutingContext) {
     val itemID = ctx.pathParam("id").toInt() // the id needs to be converted to Int, as the DB stores it as an integer
-    LOGGER.info("New deleteItem request for item $itemID")
+    LOGGER.info { "New deleteItem request for item $itemID" }
 
     val table = ctx.getCollection(ITEMS_TABLE)
     executeWithErrorHandling("Could not delete item", ctx) {
@@ -716,7 +713,7 @@ class CRUDVerticle : CoroutineVerticle() {
    * Handles a getCategories request.
    */
   private suspend fun getCategoriesHandler(ctx: RoutingContext) {
-    LOGGER.info("New getCategories request")
+    LOGGER.info { "New getCategories request" }
 
     val table = ctx.getCollection(ITEMS_TABLE)
     executeWithErrorHandling("Could not get categories", ctx) {

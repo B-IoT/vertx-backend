@@ -6,7 +6,6 @@ package ch.biot.backend.crud
 
 import ch.biot.backend.crud.CRUDVerticle.Companion.BAD_REQUEST_CODE
 import ch.biot.backend.crud.CRUDVerticle.Companion.INTERNAL_SERVER_ERROR_CODE
-import ch.biot.backend.crud.CRUDVerticle.Companion.LOGGER
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.auth.mongo.MongoAuthentication
 import io.vertx.ext.web.RoutingContext
@@ -27,15 +26,15 @@ import java.util.*
 suspend fun JsonObject?.validateAndThen(ctx: RoutingContext, block: suspend (JsonObject) -> Unit) {
   when {
     this == null -> {
-      LOGGER.warn("Bad request with null body")
+      LOGGER.warn { "Bad request with null body" }
       ctx.fail(BAD_REQUEST_CODE)
     }
     this.isEmpty -> {
-      LOGGER.warn("Bad request with empty body")
+      LOGGER.warn { "Bad request with empty body" }
       ctx.fail(BAD_REQUEST_CODE)
     }
     this.containsKey("company") && !this.getString("company").matches("^[a-zA-Z]+$".toRegex()) -> {
-      LOGGER.warn("Bad request with wrongly formatted company")
+      LOGGER.warn { "Bad request with wrongly formatted company" }
       ctx.fail(BAD_REQUEST_CODE)
     }
     else -> block(this)
@@ -205,6 +204,6 @@ suspend fun executeWithErrorHandling(errorMessage: String, ctx: RoutingContext, 
   try {
     block()
   } catch (error: Throwable) {
-    LOGGER.error(errorMessage, error)
+    LOGGER.error(error) { errorMessage }
     ctx.fail(INTERNAL_SERVER_ERROR_CODE, error)
   }

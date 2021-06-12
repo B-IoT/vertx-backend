@@ -29,9 +29,11 @@ import io.vertx.mqtt.MqttServer
 import io.vertx.mqtt.messages.MqttPublishMessage
 import io.vertx.spi.cluster.hazelcast.HazelcastClusterManager
 import kotlinx.coroutines.launch
-import org.slf4j.LoggerFactory
+import mu.KotlinLogging
 import java.net.InetAddress
 import java.time.Instant
+
+private val LOGGER = KotlinLogging.logger {}
 
 class RelaysCommunicationVerticle : CoroutineVerticle() {
 
@@ -53,8 +55,6 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     private const val LIVENESS_PORT = 1884
     private const val READINESS_PORT = 1885
 
-    private val LOGGER = LoggerFactory.getLogger(RelaysCommunicationVerticle::class.java)
-
     @JvmStatic
     fun main(args: Array<String>) {
       val ipv4 = InetAddress.getLocalHost().hostAddress
@@ -66,7 +66,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
       Vertx.clusteredVertx(options).onSuccess {
         it.deployVerticle(RelaysCommunicationVerticle())
       }.onFailure { error ->
-        LOGGER.error("Could not start", error)
+        LOGGER.error(error) { "Could not start" }
       }
     }
   }
@@ -107,7 +107,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     // relay
     vertx.eventBus().consumer<JsonObject>(RELAYS_UPDATE_ADDRESS) { message ->
       val json = message.body()
-      LOGGER.info("Received relay update $json on event bus address $RELAYS_UPDATE_ADDRESS, sending it to client...")
+      LOGGER.info { "Received relay update $json on event bus address $RELAYS_UPDATE_ADDRESS, sending it to client..." }
 
       val mqttID: String = json["mqttID"]
 
@@ -124,27 +124,28 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
 
     try {
       // TCP server for liveness checks
-      vertx.createNetServer().connectHandler { LOGGER.info("Liveness check") }.listen(LIVENESS_PORT).await()
+      vertx.createNetServer().connectHandler { LOGGER.debug { "Liveness check" } }.listen(LIVENESS_PORT).await()
       MqttServer.create(vertx).endpointHandler { client ->
         launch(vertx.dispatcher()) { handleClient(client) }
       }.listen(MQTT_PORT).await()
 
-      LOGGER.info("MQTT server listening on port $MQTT_PORT")
-      vertx.createNetServer().connectHandler { LOGGER.info("Readiness check complete") }.listen(READINESS_PORT).await()
+      LOGGER.info { "MQTT server listening on port $MQTT_PORT" }
+      vertx.createNetServer().connectHandler { LOGGER.debug { "Readiness check complete" } }.listen(READINESS_PORT)
+        .await()
     } catch (error: Throwable) {
-      LOGGER.error("An error occurred while creating the server", error)
+      LOGGER.error(error) { "An error occurred while creating the server" }
     }
   }
 
   private suspend fun handleClient(client: MqttEndpoint) {
     val clientIdentifier = client.clientIdentifier()
     val isCleanSession = client.isCleanSession
-    LOGGER.info("Client [$clientIdentifier] request to connect, clean session = $isCleanSession")
+    LOGGER.info { "Client $clientIdentifier request to connect, clean session = $isCleanSession" }
 
     val mqttAuth = client.auth()
     if (mqttAuth == null) {
       // No auth information, reject
-      LOGGER.error("Client [$clientIdentifier] rejected")
+      LOGGER.error { "Client [$clientIdentifier] rejected" }
       client.reject(MqttConnectReturnCode.CONNECTION_REFUSED_NOT_AUTHORIZED)
       return
     }
@@ -178,18 +179,18 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     try {
       mongoAuthRelays.authenticate(credentialsJson).await()
 
-      LOGGER.info("Client [$clientIdentifier] connected")
+      LOGGER.info { "Client $clientIdentifier connected" }
 
       // Accept connection from the remote client
       val sessionPresent = !client.isCleanSession
       client.accept(sessionPresent)
         .disconnectHandler {
-          LOGGER.info("Client [$clientIdentifier] disconnected")
+          LOGGER.info { "Client $clientIdentifier disconnected" }
           clients.remove(clientIdentifier)
         }.subscribeHandler { subscribe ->
           // Extract the QoS levels to be used to acknowledge
           val grantedQosLevels = subscribe.topicSubscriptions().map { s ->
-            LOGGER.info("Subscription for [${s.topicName()}] with QoS [${s.qualityOfService()}] by client [$clientIdentifier]")
+            LOGGER.info { "Subscription for ${s.topicName()} with QoS ${s.qualityOfService()} by client $clientIdentifier" }
             s.qualityOfService()
           }
 
@@ -201,7 +202,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
           launch(vertx.dispatcher()) { sendLastConfiguration(client) }
         }.unsubscribeHandler { unsubscribe ->
           unsubscribe.topics().forEach { topic ->
-            LOGGER.info("Unsubscription for [$topic] by client [$clientIdentifier]")
+            LOGGER.info { "Unsubscription for $topic by client $clientIdentifier" }
           }
           clients.remove(clientIdentifier)
         }.publishHandler { m ->
@@ -209,7 +210,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
         }
     } catch (error: Throwable) {
       // Wrong username or password, reject
-      LOGGER.error("Client [$clientIdentifier] rejected", error)
+      LOGGER.error(error) { "Client $clientIdentifier rejected" }
       client.reject(MqttConnectReturnCode.CONNECTION_REFUSED_BAD_USER_NAME_OR_PASSWORD)
     }
   }
@@ -268,7 +269,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
 
     try {
       val message = m.payload().toJsonObject()
-      LOGGER.info("Received message $message from client ${client.clientIdentifier()}")
+      LOGGER.info { "Received message $message from client ${client.clientIdentifier()}" }
 
       if (m.qosLevel() == MqttQoS.AT_LEAST_ONCE) {
         // Acknowledge the message
@@ -291,19 +292,18 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
             // Send the message to Kafka on the "incoming.update" topic
             val record = KafkaProducerRecord.create(INGESTION_TOPIC, relayID, kafkaMessage)
             kafkaProducer.send(record).await()
-            LOGGER.info("Sent message $kafkaMessage with key '$relayID' on topic '$INGESTION_TOPIC'")
+            LOGGER.info { "Sent message $kafkaMessage with key $relayID on topic $INGESTION_TOPIC" }
           } catch (sendError: Throwable) {
-            LOGGER.error(
-              "Could not send message $kafkaMessage with key '$relayID' on topic '$INGESTION_TOPIC'",
-              sendError
-            )
+            LOGGER.error(sendError) {
+              "Could not send message $kafkaMessage with key $relayID' on topic $INGESTION_TOPIC"
+            }
           }
         } catch (invalidJsonError: Throwable) {
-          LOGGER.error("Invalid JSON received", invalidJsonError)
+          LOGGER.error(invalidJsonError) { "Invalid JSON received" }
         }
       }
-    } catch (e: DecodeException) {
-      LOGGER.error("Could not decode MQTT message $m", e)
+    } catch (exception: DecodeException) {
+      LOGGER.error(exception) { "Could not decode MQTT message $m" }
     }
   }
 
@@ -322,7 +322,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
         sendMessageTo(client, cleanConfig)
       }
     } catch (error: Throwable) {
-      LOGGER.error("Could not send last configuration to client ${client.clientIdentifier()}", error)
+      LOGGER.error(error) { "Could not send last configuration to client ${client.clientIdentifier()}" }
     }
   }
 
@@ -334,9 +334,9 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
       val messageId = client
         .publishAcknowledgeHandler { messageId -> LOGGER.info("Received ack for message $messageId") }
         .publish(UPDATE_PARAMETERS_TOPIC, message.toBuffer(), MqttQoS.AT_LEAST_ONCE, false, false).await()
-      LOGGER.info("Published message $message with id $messageId to client ${client.clientIdentifier()} on topic $UPDATE_PARAMETERS_TOPIC")
+      LOGGER.info { "Published message $message with id $messageId to client ${client.clientIdentifier()} on topic $UPDATE_PARAMETERS_TOPIC" }
     } catch (error: Throwable) {
-      LOGGER.error("Could not send message $message on topic $UPDATE_PARAMETERS_TOPIC", error)
+      LOGGER.error(error) { "Could not send message $message on topic $UPDATE_PARAMETERS_TOPIC" }
     }
   }
 }
