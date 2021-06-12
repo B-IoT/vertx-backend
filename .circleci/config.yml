@@ -55,8 +55,8 @@ jobs:
       - run: ./gradlew jacocoRootReport
       - run: bash <(curl -s https://codecov.io/bash) -t $CODECOV_TOKEN
   build-triangulation-service:
-    executor: python/default
-    machine: true
+    machine:
+      image: ubuntu-2004:202104-01
     working_directory: ~/vertx-backend/triangulation
     steps:
       - checkout:
@@ -65,6 +65,8 @@ jobs:
           pip-dependency-file: requirements_dev.txt
           pkg-manager: pip
       - run: pytest -o log_cli=true --capture=no 
+      - store_test_results:
+        path: test-results
 workflows:
   backend-services:
     jobs:
