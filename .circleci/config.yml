@@ -66,7 +66,7 @@ jobs:
           pkg-manager: pip
       - run: pytest -o log_cli=true --capture=no 
       - store_test_results:
-        path: test-results
+          path: test-results
 workflows:
   backend-services:
     jobs:
