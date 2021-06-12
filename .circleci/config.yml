@@ -69,9 +69,10 @@ jobs:
       - python/install-packages:
           pip-dependency-file: requirements_dev.txt
           pkg-manager: pip
-      - run: pytest -o log_cli=true --capture=no 
+      - run: mkdir ~/test-results
+      - run: pytest -o log_cli=true --capture=no --junitxml=~/test-results
       - store_test_results:
-          path: test-results
+          path: ~/test-results
 workflows:
   backend-services:
     jobs:
