@@ -1,6 +1,8 @@
 version: '2.1'
 orbs:
   path-filtering: circleci/path-filtering@0.0.2
+# This allows you to use CircleCI's dynamic configuration feature
+setup: true
 parameters:
   run-backend-services-job:
     type: boolean
