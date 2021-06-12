@@ -59,6 +59,7 @@ jobs:
     working_directory: ~/vertx-backend/triangulation
     steps:
       - checkout
+          path: ~/vertx-backend
       - python/install-packages:
           pip-dependency-file: requirements_dev.txt
           pkg-manager: pip
