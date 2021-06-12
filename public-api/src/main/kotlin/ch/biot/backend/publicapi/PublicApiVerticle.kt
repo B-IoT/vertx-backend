@@ -35,8 +35,10 @@ import io.vertx.kotlin.micrometer.vertxPrometheusOptionsOf
 import io.vertx.micrometer.PrometheusScrapingHandler
 import io.vertx.spi.cluster.hazelcast.HazelcastClusterManager
 import kotlinx.coroutines.launch
-import org.slf4j.LoggerFactory
+import mu.KotlinLogging
 import java.net.InetAddress
+
+internal val LOGGER = KotlinLogging.logger {}
 
 class PublicApiVerticle : CoroutineVerticle() {
 
@@ -63,8 +65,6 @@ class PublicApiVerticle : CoroutineVerticle() {
     val CRUD_PORT: Int = environment.getOrDefault("CRUD_PORT", "8080").toInt()
     internal val PUBLIC_PORT = environment.getOrDefault("PUBLIC_PORT", "8080").toInt()
 
-    internal val LOGGER = LoggerFactory.getLogger(PublicApiVerticle::class.java)
-
     @JvmStatic
     fun main(args: Array<String>) {
       val ipv4 = InetAddress.getLocalHost().hostAddress
@@ -80,7 +80,7 @@ class PublicApiVerticle : CoroutineVerticle() {
       Vertx.clusteredVertx(options).onSuccess {
         it.deployVerticle(PublicApiVerticle())
       }.onFailure { error ->
-        LOGGER.error("Could not start", error)
+        LOGGER.error(error) { "Could not start" }
       }
     }
   }
@@ -189,15 +189,15 @@ class PublicApiVerticle : CoroutineVerticle() {
         .listen(PUBLIC_PORT)
         .await()
 
-      LOGGER.info("HTTP server listening on port $PUBLIC_PORT")
+      LOGGER.info { "HTTP server listening on port $PUBLIC_PORT" }
     } catch (error: Throwable) {
-      LOGGER.error("Could not start HTTP server", error)
+      LOGGER.error(error) { "Could not start HTTP server" }
     }
   }
 
   // Analytics
   private suspend fun analyticsGetStatusHandler(ctx: RoutingContext) {
-    LOGGER.info("New getStatus request on $ANALYTICS_ENDPOINT endpoint")
+    LOGGER.info { "New getStatus request on $ANALYTICS_ENDPOINT endpoint" }
 
     webClient.get(CRUD_PORT, CRUD_HOST, "/$ANALYTICS_ENDPOINT/status")
       .addQueryParam("company", ctx.user().principal()["company"])
@@ -225,14 +225,14 @@ class PublicApiVerticle : CoroutineVerticle() {
       .bimap(
         { error ->
           val cause = error.cause
-          LOGGER.error("Readiness check failed", cause)
+          LOGGER.error(cause) { "Readiness check failed" }
           ctx.response()
             .setStatusCode(503)
             .putHeader(CONTENT_TYPE, APPLICATION_JSON)
             .end(jsonObjectOf("status" to "DOWN", "reason" to cause?.message).encode())
         },
         {
-          LOGGER.info("Readiness check complete")
+          LOGGER.debug { "Readiness check complete" }
           ctx.response()
             .putHeader(CONTENT_TYPE, APPLICATION_JSON)
             .end(jsonObjectOf("status" to "UP").encode())
@@ -241,7 +241,7 @@ class PublicApiVerticle : CoroutineVerticle() {
   }
 
   private fun livenessCheckHandler(ctx: RoutingContext) {
-    LOGGER.info("Liveness check")
+    LOGGER.debug { "Liveness check" }
     ctx.response()
       .putHeader(CONTENT_TYPE, APPLICATION_JSON)
       .end(jsonObjectOf("status" to "UP").encode())
@@ -267,10 +267,10 @@ class PublicApiVerticle : CoroutineVerticle() {
       return jwtAuth.generateToken(claims, jwtOptions)
     }
 
-    LOGGER.info("New token request")
-
     val payload = ctx.bodyAsJson
     val username: String = payload["username"]
+
+    LOGGER.info { "New token request for user $username" }
 
     webClient
       .post(CRUD_PORT, CRUD_HOST, "/users/authenticate")
@@ -279,7 +279,7 @@ class PublicApiVerticle : CoroutineVerticle() {
       .coroutineSendBuffer(ctx.body)
       .bimap(
         { error ->
-          LOGGER.error("Authentication error", error)
+          LOGGER.error(error) { "Authentication error" }
           ctx.fail(UNAUTHORIZED_CODE)
         },
         { response ->
@@ -306,7 +306,7 @@ class PublicApiVerticle : CoroutineVerticle() {
   private suspend fun updateItemHandler(ctx: RoutingContext) = updateHandler(ctx, ITEMS_ENDPOINT)
   private suspend fun getItemsHandler(ctx: RoutingContext) = getManyHandler(ctx, ITEMS_ENDPOINT)
   private suspend fun getClosestItemsHandler(ctx: RoutingContext) {
-    LOGGER.info("New getClosestItems request")
+    LOGGER.info { "New getClosestItems request" }
 
     webClient.get(CRUD_PORT, CRUD_HOST, "/$ITEMS_ENDPOINT/closest/?${ctx.request().query()}")
       .addQueryParam("company", ctx.user().principal()["company"])
@@ -335,7 +335,7 @@ class PublicApiVerticle : CoroutineVerticle() {
    * sent.
    */
   private suspend fun registerHandler(ctx: RoutingContext, endpoint: String, forwardResponse: Boolean = false) {
-    LOGGER.info("New register request on /$endpoint endpoint")
+    LOGGER.info { "New register request on /$endpoint endpoint" }
 
     webClient
       .post(CRUD_PORT, CRUD_HOST, "/$endpoint").apply {
@@ -363,7 +363,7 @@ class PublicApiVerticle : CoroutineVerticle() {
    * Handles an update request for the given endpoint.
    */
   private suspend fun updateHandler(ctx: RoutingContext, endpoint: String) {
-    LOGGER.info("New update request on /$endpoint endpoint")
+    LOGGER.info { "New update request on /$endpoint endpoint" }
 
     webClient
       .put(CRUD_PORT, CRUD_HOST, "/$endpoint/${ctx.pathParam("id")}")
@@ -384,7 +384,7 @@ class PublicApiVerticle : CoroutineVerticle() {
    * Handles a getMany request for the given endpoint.
    */
   private suspend fun getManyHandler(ctx: RoutingContext, endpoint: String) {
-    LOGGER.info("New getMany request on /$endpoint endpoint")
+    LOGGER.info { "New getMany request on /$endpoint endpoint" }
 
     val query = ctx.request().query()
     val requestURI = if (query != null && query.isNotEmpty()) "/$endpoint/?$query" else "/$endpoint"
@@ -409,7 +409,7 @@ class PublicApiVerticle : CoroutineVerticle() {
    * Handles a getOne request for the given endpoint.
    */
   private suspend fun getOneHandler(ctx: RoutingContext, endpoint: String) {
-    LOGGER.info("New getOne request on /$endpoint endpoint")
+    LOGGER.info { "New getOne request on /$endpoint endpoint" }
 
     webClient
       .get(CRUD_PORT, CRUD_HOST, "/$endpoint/${ctx.pathParam("id")}")
@@ -431,7 +431,7 @@ class PublicApiVerticle : CoroutineVerticle() {
    * Handles a delete request for the given endpoint.
    */
   private suspend fun deleteHandler(ctx: RoutingContext, endpoint: String) {
-    LOGGER.info("New delete request on /$endpoint endpoint")
+    LOGGER.info { "New delete request on /$endpoint endpoint" }
 
     webClient
       .delete(CRUD_PORT, CRUD_HOST, "/$endpoint/${ctx.pathParam("id")}")

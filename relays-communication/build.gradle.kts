@@ -20,6 +20,7 @@ dependencies {
   val vertxVersion = project.extra["vertxVersion"]
   val junitJupiterVersion = project.extra["junitJupiterVersion"]
   val logbackClassicVersion = project.extra["logbackClassicVersion"]
+  val kotlinLoggingVersion = project.extra["kotlinLoggingVersion"]
   val striktVersion = project.extra["striktVersion"]
   val testContainersVersion = project.extra["testContainersVersion"]
   val hazelcastVersion = project.extra["hazelcastVersion"]
@@ -37,6 +38,7 @@ dependencies {
   implementation("io.vertx:vertx-mongo-client:$vertxVersion")
   implementation("io.vertx:vertx-auth-mongo:$vertxVersion")
   implementation("ch.qos.logback:logback-classic:$logbackClassicVersion")
+  implementation("io.github.microutils:kotlin-logging-jvm:$kotlinLoggingVersion")
   testImplementation("org.testcontainers:junit-jupiter:$testContainersVersion")
   testImplementation("io.vertx:vertx-junit5:$vertxVersion")
   testImplementation("org.junit.jupiter:junit-jupiter:$junitJupiterVersion")

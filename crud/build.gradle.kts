@@ -20,6 +20,7 @@ dependencies {
   val vertxVersion = project.extra["vertxVersion"]
   val junitJupiterVersion = project.extra["junitJupiterVersion"]
   val logbackClassicVersion = project.extra["logbackClassicVersion"]
+  val kotlinLoggingVersion = project.extra["kotlinLoggingVersion"]
   val restAssuredVersion = project.extra["restAssuredVersion"]
   val striktVersion = project.extra["striktVersion"]
   val testContainersVersion = project.extra["testContainersVersion"]
@@ -38,6 +39,7 @@ dependencies {
   implementation("io.vertx:vertx-lang-kotlin-coroutines:$vertxVersion")
   implementation("io.arrow-kt:arrow-fx-coroutines:$arrowVersion")
   implementation("ch.qos.logback:logback-classic:$logbackClassicVersion")
+  implementation("io.github.microutils:kotlin-logging-jvm:$kotlinLoggingVersion")
   testImplementation("org.testcontainers:junit-jupiter:$testContainersVersion")
   testImplementation("io.rest-assured:kotlin-extensions:$restAssuredVersion")
   testImplementation("io.vertx:vertx-junit5:$vertxVersion")
