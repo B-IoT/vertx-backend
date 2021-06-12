@@ -1,25 +1,73 @@
-version: '2.1'
+# Java Gradle CircleCI 2.0 configuration file
+#
+# Check https://circleci.com/docs/2.0/language-java/ for more details
+#
+version: 2.1
 orbs:
-  path-filtering: circleci/path-filtering@0.0.2
-# This allows you to use CircleCI's dynamic configuration feature
-setup: true
-parameters:
-  run-backend-services-job:
-    type: boolean
-    default: false
-  run-triangulation-service-job:
-    type: boolean
-    default: false
+  python: circleci/python@1.4.0
+jobs:
+  build-backend-services:
+    machine: true
+    working_directory: ~/vertx-backend
+
+    environment:
+      # Customize the JVM maximum heap limit
+      JVM_OPTS: -Xmx3200m
+      TERM: dumb
+
+    steps:
+      - run:
+          name: Install OpenJDK 11
+          command: |
+            sudo apt-get update && sudo apt-get install openjdk-11-jdk
+            sudo update-alternatives --set java /usr/lib/jvm/java-11-openjdk-amd64/bin/java
+            sudo update-alternatives --set javac /usr/lib/jvm/java-11-openjdk-amd64/bin/javac
+            java -version
+
+      - checkout
+
+      # Download and cache dependencies
+      - restore_cache:
+          keys:
+            - v1-dependencies-{{ checksum "build.gradle" }}
+            # fallback to using the latest cache if no exact match is found
+            - v1-dependencies-
+
+      - run: ./gradlew dependencies
+
+      - save_cache:
+          paths:
+            - ~/.gradle
+          key: v1-dependencies-{{ checksum "build.gradle" }}
+
+      # run tests!
+      - run: ./gradlew test --info --stacktrace
+
+      - run:
+          name: Save test results
+          command: |
+            mkdir -p ~/test-results/junit/
+            find . -type f -regex ".*/build/test-results/.*xml" -exec cp {} ~/test-results/junit/ \;
+          when: always
+      - store_test_results:
+          path: ~/test-results
+
+      - run: ./gradlew jacocoRootReport
+      - run: bash <(curl -s https://codecov.io/bash) -t $CODECOV_TOKEN
+  build-triangulation-service:
+    executor: python/default
+    working_directory: ~/vertx-backend/triangulation
+    steps:
+      - checkout
+      - python/install-packages:
+          pip-dependency-file: requirements_dev.txt
+          pkg-manager: pip
+      - run: pytest -o log_cli=true --capture=no 
 workflows:
-  generate-config:
+  backend-services:
     jobs:
-      - path-filtering/filter:
-          # 3-column, whitespace-delimited mapping. One mapping per line: <regex path-to-test> <parameter-to-set> <value-of-pipeline-parameter>.
-          mapping: |
-            crud/.* run-backend-services-job true
-            public-api/.* run-backend-services-job true
-            relays-communication/.* run-backend-services-job true
-            triangulation/.* run-triangulation-service-job true
-          base-revision: main
-          # this is the path of the configuration we should trigger once path filtering and pipeline parameter value updates are complete. In this case, we are using the parent dynamic configuration itself.
-          config-path: .circleci/continue_config.yml
+      - build-backend-services
+  triangulation-service:
+    jobs:
+      - build-triangulation-service
+
