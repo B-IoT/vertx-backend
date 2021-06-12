@@ -65,7 +65,7 @@ jobs:
           name: "Switch to Python v3.8"
           command: |
             pyenv versions
-            pyenv global 3.8.0
+            pyenv global 3.9.4
       - python/install-packages:
           pip-dependency-file: requirements_dev.txt
           pkg-manager: pip
