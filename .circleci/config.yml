@@ -56,6 +56,7 @@ jobs:
       - run: bash <(curl -s https://codecov.io/bash) -t $CODECOV_TOKEN
   build-triangulation-service:
     executor: python/default
+    machine: true
     working_directory: ~/vertx-backend/triangulation
     steps:
       - checkout
