@@ -7,7 +7,7 @@ from .triangulation import Triangulator
 import asyncio
 
 # Constants
-TOPIC = "incoming.update"
+TOPIC = "incoming.update" 
 
 
 async def main():
