@@ -190,3 +190,5 @@ nbdist/
 !.vscode/extensions.json
 
 */build/
+
+**/__pycache__/

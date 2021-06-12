@@ -3,8 +3,10 @@
 # Check https://circleci.com/docs/2.0/language-java/ for more details
 #
 version: 2.1
+orbs:
+  python: circleci/python@1.4.0
 jobs:
-  build:
+  build-backend-services:
     machine: true
     working_directory: ~/vertx-backend
 
@@ -52,3 +54,30 @@ jobs:
 
       - run: ./gradlew jacocoRootReport
       - run: bash <(curl -s https://codecov.io/bash) -t $CODECOV_TOKEN
+  build-triangulation-service:
+    machine:
+      image: ubuntu-2004:202104-01
+    working_directory: ~/vertx-backend/triangulation
+    steps:
+      - checkout:
+          path: ~/vertx-backend
+      - run:
+          name: "Switch to Python v3.9.4"
+          command: |
+            pyenv versions
+            pyenv global 3.9.4
+      - python/install-packages:
+          pip-dependency-file: requirements_dev.txt
+          pkg-manager: pip
+      - run: mkdir ~/test-results
+      - run: pytest -o log_cli=true --capture=no --junitxml=~/test-results/report.xml
+      - store_test_results:
+          path: ~/test-results
+workflows:
+  backend-services:
+    jobs:
+      - build-backend-services
+  triangulation-service:
+    jobs:
+      - build-triangulation-service
+
