@@ -16,18 +16,6 @@ parameters:
     type: boolean
     default: false
 jobs:
-  check-updated-files:
-    - path-filtering/filter:
-        # 3-column, whitespace-delimited mapping. One mapping per line: <regex path-to-test> <parameter-to-set> <value-of-pipeline-parameter>.
-        mapping: |
-          crud/.* run-backend-services-job true
-          public-api/.* run-backend-services-job true
-          relays-communication/.* run-backend-services-job true
-          triangulation/.* run-triangulation-service-job true
-        base-revision: master
-        # this is the path of the configuration we should trigger once path filtering and pipeline parameter value updates are complete. In this case, we are using the parent dynamic configuration itself.
-        config-path: .circleci/config.yml
-
   build-backend-services:
     machine: true
     working_directory: ~/vertx-backend
@@ -88,7 +76,16 @@ jobs:
 workflows:
   always-run:
     jobs:
-      - check-updated-files
+      - path-filtering/filter:
+          # 3-column, whitespace-delimited mapping. One mapping per line: <regex path-to-test> <parameter-to-set> <value-of-pipeline-parameter>.
+          mapping: |
+            crud/.* run-backend-services-job true
+            public-api/.* run-backend-services-job true
+            relays-communication/.* run-backend-services-job true
+            triangulation/.* run-triangulation-service-job true
+          base-revision: master
+          # this is the path of the configuration we should trigger once path filtering and pipeline parameter value updates are complete. In this case, we are using the parent dynamic configuration itself.
+          config-path: .circleci/config.yml
   backend-services:
     when: << pipeline.parameters.run-backend-services-job >>
     jobs:
