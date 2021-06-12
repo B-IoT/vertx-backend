@@ -58,7 +58,7 @@ jobs:
     executor: python/default
     working_directory: ~/vertx-backend/triangulation
     steps:
-      - checkout
+      - checkout:
           path: ~/vertx-backend
       - python/install-packages:
           pip-dependency-file: requirements_dev.txt
