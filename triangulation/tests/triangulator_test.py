@@ -1,7 +1,7 @@
 import pytest
 import asyncpg
 
-from triangulation.src.triangulation import Triangulator
+from triangulation.src.triangulator import Triangulator
 from triangulation.src.config import TIMESCALE_HOST, TIMESCALE_PORT
 
 

@@ -1,6 +1,6 @@
 # Copyright (c) 2021 BioT. All rights reserved.
 
-from .config import logger, KAFKA_HOST, KAFKA_PORT, DEV
+from src.config import logger, KAFKA_HOST, KAFKA_PORT, DEV
 
 from confluent_kafka import Consumer, KafkaError, KafkaException
 from typing import List, Callable
