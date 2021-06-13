@@ -6,7 +6,7 @@ from confluent_kafka import Consumer
 from testcontainers.core.waiting_utils import wait_container_is_ready
 from testcontainers.compose import DockerCompose
 
-from triangulation.src.config import KAFKA_HOST, KAFKA_PORT
+from src.config import KAFKA_HOST, KAFKA_PORT
 
 
 @pytest.fixture
