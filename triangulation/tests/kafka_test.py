@@ -5,9 +5,9 @@ import socket
 import orjson
 from confluent_kafka import Producer
 
-from src.kafka import KafkaConsumer
-from src.main import TOPIC
-from src.config import KAFKA_HOST, KAFKA_PORT
+from ..src.kafka import KafkaConsumer
+from ..src.main import TOPIC
+from ..src.config import KAFKA_HOST, KAFKA_PORT
 
 
 

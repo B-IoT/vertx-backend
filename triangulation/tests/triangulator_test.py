@@ -1,8 +1,8 @@
 import pytest
 import asyncpg
 
-from src.triangulator import Triangulator
-from src.config import TIMESCALE_HOST, TIMESCALE_PORT
+from ..src.triangulator import Triangulator
+from ..src.config import TIMESCALE_HOST, TIMESCALE_PORT
 
 
 @pytest.mark.asyncio
