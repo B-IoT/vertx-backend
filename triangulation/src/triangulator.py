@@ -1,6 +1,6 @@
 # Copyright (c) 2021 BioT. All rights reserved.
 
-from src.config import logger, TIMESCALE_HOST, TIMESCALE_PORT
+from .config import logger, TIMESCALE_HOST, TIMESCALE_PORT
 
 import asyncpg
 import gc
