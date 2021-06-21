@@ -27,7 +27,7 @@ allprojects {
     extra["testContainersVersion"] = "1.15.3"
     extra["restAssuredVersion"] = "4.4.0"
     extra["striktVersion"] = "0.31.0"
-    extra["hazelcastVersion"] = "2.2.2"
+    extra["hazelcastVersion"] = "2.2.3"
     extra["micrometerPrometheusVersion"] = "1.7.0"
     extra["arrowVersion"] = "0.13.2"
     extra["mockkVersion"] = "1.11.0"
