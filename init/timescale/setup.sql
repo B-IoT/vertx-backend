@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS items
     serialNumber VARCHAR(100),
     maintenanceDate DATE,
     status VARCHAR(100),
-    comments VARCHAR(100),
+    comments VARCHAR(200),
     lastModifiedDate DATE,
     lastModifiedBy VARCHAR(100)
 );
