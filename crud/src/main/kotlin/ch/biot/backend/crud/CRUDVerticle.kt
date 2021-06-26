@@ -58,6 +58,9 @@ class CRUDVerticle : CoroutineVerticle() {
 
     private const val RELAYS_UPDATE_ADDRESS = "relays.update"
 
+    private const val ITEM_UNDER_CREATION = "Under creation"
+    private const val ITEM_CREATED = "Created"
+
     const val INTERNAL_SERVER_ERROR_CODE = 500
     private const val UNAUTHORIZED_CODE = 401
     const val BAD_REQUEST_CODE = 400
@@ -560,7 +563,11 @@ class CRUDVerticle : CoroutineVerticle() {
     LOGGER.info { "New registerItem request" }
 
     val json = ctx.bodyAsJson
-    json.validateAndThen(ctx) {
+    json.apply {
+      if (getString("status") == null) {
+        put("status", ITEM_UNDER_CREATION)
+      }
+    }.validateAndThen(ctx) {
       // Extract the information from the payload and insert the item in TimescaleDB
       val id: Int? = json["id"]
       val info = extractItemInformation(json).map { pair -> pair.second }
@@ -681,11 +688,14 @@ class CRUDVerticle : CoroutineVerticle() {
     LOGGER.info { "New updateItem request for item $id" }
 
     val json = ctx.bodyAsJson
-    json.validateAndThen(ctx) {
+    json.apply {
+      if (getString("status") == ITEM_UNDER_CREATION) {
+        put("status", ITEM_CREATED)
+      }
+    }.validateAndThen(ctx) {
       // Extract the information from the payload and update the item in TimescaleDB
       val info = extractItemInformation(json, keepNulls = false)
-      val data =
-        listOf(id.toInt(), *info.map { it.second }.toTypedArray())
+      val data = listOf(id.toInt(), *info.map { it.second }.toTypedArray())
       val table = ctx.getCollection(ITEMS_TABLE)
       executeWithErrorHandling("Could not update item $id", ctx) {
         pgPool.preparedQuery(updateItem(table, info.map { it.first })).execute(Tuple.tuple(data)).await()

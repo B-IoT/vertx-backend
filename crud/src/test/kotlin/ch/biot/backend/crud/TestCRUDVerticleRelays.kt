@@ -240,7 +240,7 @@ class TestCRUDVerticleRelays {
 
   @Test
   @DisplayName("updateRelay correctly updates the desired relay")
-  fun updateRelayIsCorrect(vertx: Vertx, testContext: VertxTestContext) {
+  fun updateRelayIsCorrect(vertx: Vertx, testContext: VertxTestContext) = runBlocking(vertx.dispatcher()) {
     val updateJson = jsonObjectOf(
       "ledStatus" to true,
       "latitude" to 1.0,
@@ -293,8 +293,9 @@ class TestCRUDVerticleRelays {
       expectThat(response).isEmpty()
     }
 
-    mongoClient.findOne("relays", jsonObjectOf("relayID" to "testRelay"), jsonObjectOf())
-      .onSuccess { json ->
+    try {
+      val json = mongoClient.findOne("relays", jsonObjectOf("relayID" to "testRelay"), jsonObjectOf()).await()
+      testContext.verify {
         expectThat(json).isNotNull()
         expect {
           that(json.getBoolean("ledStatus")).isEqualTo(updateJson.getBoolean("ledStatus"))
@@ -308,7 +309,9 @@ class TestCRUDVerticleRelays {
         }
         testContext.completeNow()
       }
-      .onFailure(testContext::failNow)
+    } catch (error: Throwable) {
+      testContext.failNow(error)
+    }
   }
 
   @Test
