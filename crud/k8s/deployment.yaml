@@ -23,7 +23,7 @@ spec:
           name: crud
           ports:
             - name: http
-              containerPort: 8080
+              containerPort: 8081
             - name: hazelcast
               containerPort: 5701
           env:
@@ -52,14 +52,14 @@ spec:
           livenessProbe:
             httpGet:
               path: /health/live
-              port: 8080
+              port: 8081
             initialDelaySeconds: 60
             periodSeconds: 15
             timeoutSeconds: 5
           readinessProbe:
             httpGet:
               path: /health/ready
-              port: 8080
+              port: 8081
             initialDelaySeconds: 10
             periodSeconds: 10
             timeoutSeconds: 5

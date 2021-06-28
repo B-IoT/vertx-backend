@@ -62,7 +62,7 @@ class PublicApiVerticle : CoroutineVerticle() {
 
     private val environment = System.getenv()
     val CRUD_HOST: String = environment.getOrDefault("CRUD_HOST", "localhost")
-    val CRUD_PORT: Int = environment.getOrDefault("CRUD_PORT", "8080").toInt()
+    val CRUD_PORT: Int = environment.getOrDefault("CRUD_PORT", "8081").toInt()
     internal val PUBLIC_PORT = environment.getOrDefault("PUBLIC_PORT", "8080").toInt()
 
     @JvmStatic
