@@ -68,7 +68,7 @@ class CRUDVerticle : CoroutineVerticle() {
     private const val SERVER_COMPRESSION_LEVEL = 4
 
     private val environment = System.getenv()
-    val HTTP_PORT = environment.getOrDefault("HTTP_PORT", "8080").toInt()
+    val HTTP_PORT = environment.getOrDefault("HTTP_PORT", "8081").toInt()
 
     val MONGO_PORT = environment.getOrDefault("MONGO_PORT", "27017").toInt()
     private val MONGO_HOST: String = environment.getOrDefault("MONGO_HOST", "localhost")

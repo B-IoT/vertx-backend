@@ -1,0 +1,1 @@
+./gradlew crud:run relays-communication:run public-api:run --parallel
