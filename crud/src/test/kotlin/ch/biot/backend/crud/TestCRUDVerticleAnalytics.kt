@@ -26,6 +26,7 @@ import io.vertx.kotlin.coroutines.dispatcher
 import io.vertx.kotlin.pgclient.pgConnectOptionsOf
 import io.vertx.kotlin.sqlclient.poolOptionsOf
 import io.vertx.pgclient.PgPool
+import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.*
@@ -43,7 +44,7 @@ import java.time.LocalDate
 @Testcontainers
 class TestCRUDVerticleAnalytics {
 
-  private lateinit var pgPool: PgPool
+  private lateinit var pgClient: SqlClient
 
   private val existingItemOne = jsonObjectOf(
     "beacon" to "ad:ab:ab:ab:ab:ab",
@@ -161,7 +162,7 @@ class TestCRUDVerticleAnalytics {
         password = "biot",
         cachePreparedStatements = true
       )
-    pgPool = PgPool.pool(vertx, pgConnectOptions, poolOptionsOf())
+    pgClient = PgPool.pool(vertx, pgConnectOptions, poolOptionsOf())
 
     try {
       dropAllItems().await()
@@ -174,14 +175,14 @@ class TestCRUDVerticleAnalytics {
 
   private fun dropAllItems(): CompositeFuture {
     return CompositeFuture.all(
-      pgPool.query("DELETE FROM items").execute(),
-      pgPool.query("DELETE FROM beacon_data").execute()
+      pgClient.query("DELETE FROM items").execute(),
+      pgClient.query("DELETE FROM beacon_data").execute()
     )
   }
 
   private fun insertItems(): CompositeFuture {
     return CompositeFuture.all(
-      pgPool.preparedQuery(insertItem("items"))
+      pgClient.preparedQuery(insertItem("items"))
         .execute(
           Tuple.of(
             existingItemOne["beacon"],
@@ -209,7 +210,7 @@ class TestCRUDVerticleAnalytics {
             existingItemOne["lastModifiedBy"]
           )
         ),
-      pgPool.preparedQuery(insertItem("items"))
+      pgClient.preparedQuery(insertItem("items"))
         .execute(
           Tuple.of(
             existingItemTwo["beacon"],
@@ -237,7 +238,7 @@ class TestCRUDVerticleAnalytics {
             existingItemTwo["lastModifiedBy"]
           )
         ),
-      pgPool.preparedQuery(insertItem("items"))
+      pgClient.preparedQuery(insertItem("items"))
         .execute(
           Tuple.of(
             existingItemThree["beacon"],
@@ -265,7 +266,7 @@ class TestCRUDVerticleAnalytics {
             existingItemThree["lastModifiedBy"]
           )
         ),
-      pgPool.preparedQuery(INSERT_BEACON_DATA).execute(
+      pgClient.preparedQuery(INSERT_BEACON_DATA).execute(
         Tuple.of(
           existingBeaconDataOne.getString("mac"),
           existingBeaconDataOne.getInteger("battery"),
@@ -276,7 +277,7 @@ class TestCRUDVerticleAnalytics {
           existingBeaconDataOne.getDouble("temperature")
         )
       ),
-      pgPool.preparedQuery(INSERT_BEACON_DATA).execute(
+      pgClient.preparedQuery(INSERT_BEACON_DATA).execute(
         Tuple.of(
           existingBeaconDataTwo.getString("mac"),
           existingBeaconDataTwo.getInteger("battery"),
@@ -287,7 +288,7 @@ class TestCRUDVerticleAnalytics {
           existingBeaconDataTwo.getDouble("temperature")
         )
       ),
-      pgPool.preparedQuery(INSERT_BEACON_DATA).execute(
+      pgClient.preparedQuery(INSERT_BEACON_DATA).execute(
         Tuple.of(
           existingBeaconDataThree.getString("mac"),
           existingBeaconDataThree.getInteger("battery"),
@@ -305,7 +306,7 @@ class TestCRUDVerticleAnalytics {
   fun cleanup(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
     try {
       dropAllItems().await()
-      pgPool.close().await()
+      pgClient.close().await()
       testContext.completeNow()
     } catch (error: Throwable) {
       testContext.failNow(error)

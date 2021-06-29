@@ -5,6 +5,9 @@
 package ch.biot.backend.crud
 
 import ch.biot.backend.crud.queries.*
+import ch.biot.backend.crud.updates.UnhandledPublishedMessageException
+import ch.biot.backend.crud.updates.UpdateType
+import ch.biot.backend.crud.updates.UpdatesManager
 import io.vertx.core.Vertx
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
@@ -36,7 +39,9 @@ import io.vertx.kotlin.pgclient.pgConnectOptionsOf
 import io.vertx.kotlin.sqlclient.poolOptionsOf
 import io.vertx.pgclient.PgPool
 import io.vertx.pgclient.SslMode
+import io.vertx.pgclient.pubsub.PgSubscriber
 import io.vertx.spi.cluster.hazelcast.HazelcastClusterManager
+import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 import kotlinx.coroutines.launch
 import mu.KotlinLogging
@@ -100,7 +105,7 @@ class CRUDVerticle : CoroutineVerticle() {
   // It is used since there is a collection per company
   private val mongoAuthRelaysCache: MutableMap<String, Pair<MongoUserUtil, MongoAuthentication>> = mutableMapOf()
 
-  private lateinit var pgPool: PgPool
+  private lateinit var pgClient: SqlClient
 
   override suspend fun start() {
     // Initialize MongoDB
@@ -143,7 +148,19 @@ class CRUDVerticle : CoroutineVerticle() {
         trustAll = true,
         cachePreparedStatements = true
       )
-    pgPool = PgPool.pool(vertx, pgConnectOptions, poolOptionsOf())
+    pgClient = PgPool.client(vertx, pgConnectOptions, poolOptionsOf())
+    val pgSubscriber = PgSubscriber.subscriber(vertx, pgConnectOptions).apply {
+      reconnectPolicy { retries ->
+        // Reconnect at most 10 times after 500 ms each
+        if (retries < 10) 500L else -1L
+      }
+    }
+
+    // Initialize the updates manager
+    val updatesManager = UpdatesManager(vertx.eventBus())
+
+    // Subscribe to items' updates
+    pgSubscriber.subscribeToItemsUpdates(updatesManager).connect().await()
 
     try {
       // Initialize OpenAPI router
@@ -242,7 +259,7 @@ class CRUDVerticle : CoroutineVerticle() {
     val beaconDataTable = ctx.getCollection(BEACON_DATA_TABLE)
 
     executeWithErrorHandling("Could not get items' status", ctx) {
-      val queryResult = pgPool.preparedQuery(getStatus(itemsTable, beaconDataTable)).execute().await()
+      val queryResult = pgClient.preparedQuery(getStatus(itemsTable, beaconDataTable)).execute().await()
       val result =
         if (queryResult.size() == 0) jsonObjectOf()
         else {
@@ -574,8 +591,8 @@ class CRUDVerticle : CoroutineVerticle() {
       val table = ctx.getCollection(ITEMS_TABLE)
 
       val executedQuery =
-        if (id != null) pgPool.preparedQuery(insertItem(table, true)).execute(Tuple.of(id, *info.toTypedArray()))
-        else pgPool.preparedQuery(insertItem(table, false)).execute(Tuple.tuple(info))
+        if (id != null) pgClient.preparedQuery(insertItem(table, true)).execute(Tuple.of(id, *info.toTypedArray()))
+        else pgClient.preparedQuery(insertItem(table, false)).execute(Tuple.tuple(info))
 
       executeWithErrorHandling("Could not register item", ctx) {
         val row = executedQuery.await().iterator().next()
@@ -597,9 +614,9 @@ class CRUDVerticle : CoroutineVerticle() {
     val beaconDataTable = ctx.getCollection(BEACON_DATA_TABLE)
 
     val executedQuery = if (params.contains("category")) {
-      pgPool.preparedQuery(getItemsWithCategory(itemsTable, beaconDataTable)).execute(Tuple.of(params["category"]))
+      pgClient.preparedQuery(getItemsWithCategory(itemsTable, beaconDataTable)).execute(Tuple.of(params["category"]))
     } else {
-      pgPool.preparedQuery(getItems(itemsTable, beaconDataTable)).execute()
+      pgClient.preparedQuery(getItems(itemsTable, beaconDataTable)).execute()
     }
 
     executeWithErrorHandling("Could not get items", ctx) {
@@ -623,10 +640,10 @@ class CRUDVerticle : CoroutineVerticle() {
     val beaconDataTable = ctx.getCollection(BEACON_DATA_TABLE)
 
     val executedQuery = if (params.contains("category")) {
-      pgPool.preparedQuery(getClosestItemsWithCategory(itemsTable, beaconDataTable))
+      pgClient.preparedQuery(getClosestItemsWithCategory(itemsTable, beaconDataTable))
         .execute(Tuple.of(params["category"], latitude, longitude))
     } else {
-      pgPool.preparedQuery(getClosestItems(itemsTable, beaconDataTable))
+      pgClient.preparedQuery(getClosestItems(itemsTable, beaconDataTable))
         .execute(Tuple.of(latitude, longitude))
     }
 
@@ -664,7 +681,7 @@ class CRUDVerticle : CoroutineVerticle() {
     val itemsTable = ctx.getCollection(ITEMS_TABLE)
     val beaconDataTable = ctx.getCollection(BEACON_DATA_TABLE)
     executeWithErrorHandling("Could not get item", ctx) {
-      val queryResult = pgPool.preparedQuery(getItem(itemsTable, beaconDataTable)).execute(Tuple.of(itemID)).await()
+      val queryResult = pgClient.preparedQuery(getItem(itemsTable, beaconDataTable)).execute(Tuple.of(itemID)).await()
       if (queryResult.size() == 0) {
         // No item found, answer with 404
         ctx.response().statusCode = 404
@@ -699,7 +716,7 @@ class CRUDVerticle : CoroutineVerticle() {
       val data = listOf(id.toInt(), *info.map { it.second }.toTypedArray())
       val table = ctx.getCollection(ITEMS_TABLE)
       executeWithErrorHandling("Could not update item $id", ctx) {
-        pgPool.preparedQuery(updateItem(table, info.map { it.first })).execute(Tuple.tuple(data)).await()
+        pgClient.preparedQuery(updateItem(table, info.map { it.first })).execute(Tuple.tuple(data)).await()
         LOGGER.info { "Successfully updated item $id" }
         ctx.end()
       }
@@ -715,7 +732,7 @@ class CRUDVerticle : CoroutineVerticle() {
 
     val table = ctx.getCollection(ITEMS_TABLE)
     executeWithErrorHandling("Could not delete item", ctx) {
-      pgPool.preparedQuery(deleteItem(table)).execute(Tuple.of(itemID)).await()
+      pgClient.preparedQuery(deleteItem(table)).execute(Tuple.of(itemID)).await()
       ctx.end()
     }
   }
@@ -728,7 +745,7 @@ class CRUDVerticle : CoroutineVerticle() {
 
     val table = ctx.getCollection(ITEMS_TABLE)
     executeWithErrorHandling("Could not get categories", ctx) {
-      val queryResult = pgPool.preparedQuery(getCategories(table)).execute().await()
+      val queryResult = pgClient.preparedQuery(getCategories(table)).execute().await()
       val result = if (queryResult.size() == 0) listOf() else queryResult.map { it.getString("category") }
 
       ctx.response()
@@ -750,4 +767,49 @@ class CRUDVerticle : CoroutineVerticle() {
         }
       }
     }
+
+  /**
+   * Subscribes to items updates (through Postgres LISTEN channels) with the given [UpdatesManager].
+   */
+  private fun PgSubscriber.subscribeToItemsUpdates(updatesManager: UpdatesManager): PgSubscriber {
+    val dispatcher = vertx.dispatcher()
+
+    channel(UpdateType.POST.toString()).handler { payload ->
+      launch(dispatcher) {
+        val json = JsonObject(payload)
+        val id = json.getInteger("id")
+        try {
+          updatesManager.publishItemUpdate(UpdateType.POST, id, json)
+        } catch (error: UnhandledPublishedMessageException) {
+          LOGGER.error(error) { "Failed to publish POST item update" }
+        }
+      }
+    }
+
+    channel(UpdateType.PUT.toString()).handler { payload ->
+      launch(dispatcher) {
+        val json = JsonObject(payload)
+        val id = json.getInteger("id")
+        try {
+          updatesManager.publishItemUpdate(UpdateType.PUT, id, json)
+        } catch (error: UnhandledPublishedMessageException) {
+          LOGGER.error(error) { "Failed to publish PUT item update" }
+        }
+      }
+    }
+
+    channel(UpdateType.DELETE.toString()).handler { payload ->
+      launch(dispatcher) {
+        val json = JsonObject(payload)
+        val id = json.getInteger("id")
+        try {
+          updatesManager.publishItemUpdate(UpdateType.DELETE, id)
+        } catch (error: UnhandledPublishedMessageException) {
+          LOGGER.error(error) { "Failed to publish DELETE item update" }
+        }
+      }
+    }
+
+    return this
+  }
 }
