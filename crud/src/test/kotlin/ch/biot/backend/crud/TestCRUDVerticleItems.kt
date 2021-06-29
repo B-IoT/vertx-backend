@@ -1108,6 +1108,7 @@ class TestCRUDVerticleItems {
         body(updateJson.encode())
       } When {
         queryParam("company", "biot")
+        queryParam("scan", true)
         put("/items/$existingItemID")
       } Then {
         statusCode(200)
