@@ -798,6 +798,57 @@ class TestPublicApiVerticle {
 
   @Test
   @Order(20)
+  @DisplayName("Updating an item (with query parameters) succeeds")
+  fun updateItemWithQueryParametersSucceeds(testContext: VertxTestContext) {
+    val updateJson = jsonObjectOf(
+      "beacon" to "ad:ab:ab:ab:ab:ab",
+      "category" to "Lit",
+      "service" to "Bloc 42",
+      "itemID" to "sdsddsd",
+      "brand" to "maserati",
+      "model" to "wdwd",
+      "supplier" to "supplier",
+      "purchaseDate" to LocalDate.of(2020, 11, 8).toString(),
+      "purchasePrice" to 1000.3,
+      "originLocation" to "center6",
+      "currentLocation" to "center10",
+      "room" to "2",
+      "contact" to "Monsieur Poire",
+      "currentOwner" to "Monsieur Dupe",
+      "previousOwner" to "Monsieur Pistache",
+      "orderNumber" to "asasas",
+      "color" to "blue",
+      "serialNumber" to "aasasasa",
+      "maintenanceDate" to LocalDate.of(2022, 12, 25).toString(),
+      "status" to "Disponible",
+      "comments" to "A comment",
+      "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+      "lastModifiedBy" to "Monsieur Duport"
+    )
+
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      header("Authorization", "Bearer $token")
+      body(updateJson.encode())
+    } When {
+      queryParam("scan", true)
+      put("/api/items/$itemID")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEmpty()
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @Order(21)
   @DisplayName("Deleting an item succeeds")
   fun deleteItemSucceeds(testContext: VertxTestContext) {
     val newItem = jsonObjectOf(
@@ -859,7 +910,7 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(21)
+  @Order(22)
   @DisplayName("Liveness check succeeds")
   fun livenessCheckSucceeds(testContext: VertxTestContext) {
     val expected = jsonObjectOf("status" to "UP")
@@ -883,7 +934,7 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(22)
+  @Order(23)
   @DisplayName("Readiness check succeeds")
   fun readinessCheckSucceeds(testContext: VertxTestContext) {
     val expected = jsonObjectOf("status" to "UP")
@@ -907,7 +958,7 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(23)
+  @Order(24)
   @DisplayName("Getting the item's status succeeds (analytics)")
   fun getStatusSucceeds(testContext: VertxTestContext) {
     val response = Buffer.buffer(
@@ -930,7 +981,7 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(24)
+  @Order(25)
   @DisplayName("Errors are handled in getOneHandler")
   fun errorIsHandledGetOneRequest(testContext: VertxTestContext) {
     val response = Given {
@@ -951,7 +1002,7 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(25)
+  @Order(26)
   @DisplayName("Errors are handled in updateHandler")
   fun errorIsHandledUpdateRequest(testContext: VertxTestContext) {
     val response = Given {
@@ -975,7 +1026,7 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(26)
+  @Order(27)
   @DisplayName("Errors are handled in registerHandler")
   fun errorIsHandledRegisterRequest(testContext: VertxTestContext) {
     val response = Given {

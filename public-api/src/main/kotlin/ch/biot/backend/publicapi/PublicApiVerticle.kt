@@ -365,8 +365,13 @@ class PublicApiVerticle : CoroutineVerticle() {
   private suspend fun updateHandler(ctx: RoutingContext, endpoint: String) {
     LOGGER.info { "New update request on /$endpoint endpoint" }
 
+    val query = ctx.request().query()
+    val requestURI =
+      if (query != null && query.isNotEmpty()) "/$endpoint/${ctx.pathParam("id")}?$query"
+      else "/$endpoint/${ctx.pathParam("id")}"
+
     webClient
-      .put(CRUD_PORT, CRUD_HOST, "/$endpoint/${ctx.pathParam("id")}")
+      .put(CRUD_PORT, CRUD_HOST, requestURI)
       .addQueryParam("company", ctx.user().principal()["company"])
       .timeout(TIMEOUT)
       .putHeader(CONTENT_TYPE, APPLICATION_JSON)

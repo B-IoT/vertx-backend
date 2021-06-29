@@ -685,11 +685,12 @@ class CRUDVerticle : CoroutineVerticle() {
    */
   private suspend fun updateItemHandler(ctx: RoutingContext) {
     val id = ctx.pathParam("id")
+    val isScan = ctx.queryParams().get("scan")?.toBoolean()
     LOGGER.info { "New updateItem request for item $id" }
 
     val json = ctx.bodyAsJson
     json.apply {
-      if (getString("status") == ITEM_UNDER_CREATION) {
+      if (isScan == true && getString("status") == ITEM_UNDER_CREATION) {
         put("status", ITEM_CREATED)
       }
     }.validateAndThen(ctx) {
