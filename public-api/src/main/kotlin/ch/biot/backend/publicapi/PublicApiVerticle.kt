@@ -300,7 +300,7 @@ class PublicApiVerticle : CoroutineVerticle() {
       // Add the company information to the custom claims of the token
       val claims = jsonObjectOf("company" to company)
       // The token expires in 7 days (10080 minutes)
-      val jwtOptions = jwtOptionsOf(algorithm = "RS256", expiresInMinutes = 10080, issuer = "BIoT", subject = username)
+      val jwtOptions = jwtOptionsOf(algorithm = "RS256", expiresInMinutes = 10080, issuer = "BioT", subject = username)
       return jwtAuth.generateToken(claims, jwtOptions)
     }
 
