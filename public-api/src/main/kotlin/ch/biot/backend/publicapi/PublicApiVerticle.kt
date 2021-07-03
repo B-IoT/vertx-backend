@@ -17,6 +17,7 @@ import io.vertx.ext.web.codec.BodyCodec
 import io.vertx.ext.web.handler.BodyHandler
 import io.vertx.ext.web.handler.CorsHandler
 import io.vertx.ext.web.handler.JWTAuthHandler
+import io.vertx.ext.web.handler.sockjs.SockJSHandler
 import io.vertx.kotlin.core.eventbus.eventBusOptionsOf
 import io.vertx.kotlin.core.http.httpServerOptionsOf
 import io.vertx.kotlin.core.json.get
@@ -29,7 +30,9 @@ import io.vertx.kotlin.coroutines.dispatcher
 import io.vertx.kotlin.ext.auth.jwt.jwtAuthOptionsOf
 import io.vertx.kotlin.ext.auth.jwtOptionsOf
 import io.vertx.kotlin.ext.auth.pubSecKeyOptionsOf
+import io.vertx.kotlin.ext.bridge.permittedOptionsOf
 import io.vertx.kotlin.ext.web.client.webClientOptionsOf
+import io.vertx.kotlin.ext.web.handler.sockjs.sockJSBridgeOptionsOf
 import io.vertx.kotlin.micrometer.micrometerMetricsOptionsOf
 import io.vertx.kotlin.micrometer.vertxPrometheusOptionsOf
 import io.vertx.micrometer.PrometheusScrapingHandler
@@ -37,6 +40,7 @@ import io.vertx.spi.cluster.hazelcast.HazelcastClusterManager
 import kotlinx.coroutines.launch
 import mu.KotlinLogging
 import java.net.InetAddress
+
 
 internal val LOGGER = KotlinLogging.logger {}
 
@@ -124,10 +128,20 @@ class PublicApiVerticle : CoroutineVerticle() {
 
     // CORS allowed headers and methods
     val allowedHeaders =
-      setOf("x-requested-with", "Access-Control-Allow-Origin", "origin", CONTENT_TYPE, "accept", "Authorization")
+      setOf(
+        "x-requested-with",
+        "Access-Control-Allow-Origin",
+        "Access-Control-Allow-Credentials",
+        "origin",
+        CONTENT_TYPE,
+        "accept",
+        "Authorization"
+      )
     val allowedMethods = setOf(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT, HttpMethod.DELETE)
 
-    router.route().handler(CorsHandler.create("*").allowedHeaders(allowedHeaders).allowedMethods(allowedMethods))
+    router.route().handler(
+      CorsHandler.create(".*.").allowCredentials(true).allowedHeaders(allowedHeaders).allowedMethods(allowedMethods)
+    )
 
     with(BodyHandler.create()) {
       router.post().handler(this)
@@ -173,6 +187,14 @@ class PublicApiVerticle : CoroutineVerticle() {
     router.get("/health/ready").coroutineHandler(::readinessCheckHandler)
     router.get("/health/live").handler(::livenessCheckHandler)
 
+    // Event bus bridge
+    val sockJSHandler = SockJSHandler.create(vertx)
+    val sockJSBridgeOptions = sockJSBridgeOptionsOf(
+      outboundPermitteds = listOf(permittedOptionsOf(addressRegex = "items\\.updates\\..+"))
+    )
+    router.route("/eventbus/*").coroutineHandler(::eventBusAuthHandler)
+    router.mountSubRouter("/eventbus", sockJSHandler.bridge(sockJSBridgeOptions))
+
     webClient = WebClient.create(vertx, webClientOptionsOf(tryUseCompression = true))
 
     try {
@@ -192,6 +214,21 @@ class PublicApiVerticle : CoroutineVerticle() {
       LOGGER.info { "HTTP server listening on port $PUBLIC_PORT" }
     } catch (error: Throwable) {
       LOGGER.error(error) { "Could not start HTTP server" }
+    }
+  }
+
+  // Event bus
+  private suspend fun eventBusAuthHandler(ctx: RoutingContext) {
+    val token = ctx.request().getParam("token")
+    val user = jwtAuth.authenticate(jsonObjectOf("token" to token)).await()
+    if (user == null) {
+      ctx.fail(UNAUTHORIZED_CODE)
+    } else {
+      val principal = user.principal()
+      val username: String = principal["sub"]
+      val company: String = principal["company"]
+      LOGGER.info { "New event bus connection by user $username from company $company" }
+      ctx.next()
     }
   }
 

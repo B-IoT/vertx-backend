@@ -85,6 +85,35 @@ fun String.saltAndHash(mongoAuth: MongoAuthentication): String {
 }
 
 /**
+ * Converts the json to a JSON representation corresponding to an item.
+ */
+fun JsonObject.toItemJson(): JsonObject = jsonObjectOf(
+  "id" to getInteger("id"),
+  "beacon" to getString("beacon"),
+  "category" to getString("category"),
+  "service" to getString("service"),
+  "itemID" to getString("itemid"),
+  "brand" to getString("brand"),
+  "model" to getString("model"),
+  "supplier" to getString("supplier"),
+  "purchaseDate" to getString("purchasedate")?.let(LocalDate::parse),
+  "purchasePrice" to getDouble("purchaseprice"),
+  "originLocation" to getString("originlocation"),
+  "currentLocation" to getString("currentlocation"),
+  "room" to getString("room"),
+  "contact" to getString("contact"),
+  "currentOwner" to getString("currentowner"),
+  "previousOwner" to getString("previousowner"),
+  "orderNumber" to getString("ordernumber"),
+  "color" to getString("color"),
+  "serialNumber" to getString("serialnumber"),
+  "maintenanceDate" to getString("maintenancedate")?.let(LocalDate::parse),
+  "comments" to getString("comments"),
+  "lastModifiedDate" to getString("lastmodifieddate")?.let(LocalDate::parse),
+  "lastModifiedBy" to getString("lastmodifiedby")
+)
+
+/**
  * Converts the row to a JSON representation corresponding to an item.
  */
 fun Row.toItemJson(): JsonObject = jsonObjectOf(

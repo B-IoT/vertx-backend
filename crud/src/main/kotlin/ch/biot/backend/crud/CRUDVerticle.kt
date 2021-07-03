@@ -5,7 +5,7 @@
 package ch.biot.backend.crud
 
 import ch.biot.backend.crud.queries.*
-import ch.biot.backend.crud.updates.UnhandledPublishedMessageException
+import ch.biot.backend.crud.updates.PublishMessageException
 import ch.biot.backend.crud.updates.UpdateType
 import ch.biot.backend.crud.updates.UpdatesManager
 import io.vertx.core.Vertx
@@ -777,10 +777,17 @@ class CRUDVerticle : CoroutineVerticle() {
     channel(UpdateType.POST.toString()).handler { payload ->
       launch(dispatcher) {
         val json = JsonObject(payload)
-        val id = json.getInteger("id")
+        LOGGER.debug { "Received POST notification with payload $json" }
+
+        val item = json.getJsonObject("data").toItemJson()
+        val id = item.getInteger("id")
+
+        val table = json.remove("table") as String
+        val company = if (table == "items") "biot" else table.split("_")[1]
+
         try {
-          updatesManager.publishItemUpdate(UpdateType.POST, id, json)
-        } catch (error: UnhandledPublishedMessageException) {
+          updatesManager.publishItemUpdate(UpdateType.POST, company, id, item)
+        } catch (error: PublishMessageException) {
           LOGGER.error(error) { "Failed to publish POST item update" }
         }
       }
@@ -789,10 +796,17 @@ class CRUDVerticle : CoroutineVerticle() {
     channel(UpdateType.PUT.toString()).handler { payload ->
       launch(dispatcher) {
         val json = JsonObject(payload)
-        val id = json.getInteger("id")
+        LOGGER.debug { "Received PUT notification with payload $json" }
+
+        val item = json.getJsonObject("data").toItemJson()
+        val id = item.getInteger("id")
+
+        val table = json.remove("table") as String
+        val company = if (table == "items") "biot" else table.split("_")[1]
+
         try {
-          updatesManager.publishItemUpdate(UpdateType.PUT, id, json)
-        } catch (error: UnhandledPublishedMessageException) {
+          updatesManager.publishItemUpdate(UpdateType.PUT, company, id, json)
+        } catch (error: PublishMessageException) {
           LOGGER.error(error) { "Failed to publish PUT item update" }
         }
       }
@@ -801,10 +815,16 @@ class CRUDVerticle : CoroutineVerticle() {
     channel(UpdateType.DELETE.toString()).handler { payload ->
       launch(dispatcher) {
         val json = JsonObject(payload)
+        LOGGER.debug { "Received DELETE notification with payload $json" }
+
         val id = json.getInteger("id")
+
+        val table = json.remove("table") as String
+        val company = if (table == "items") "biot" else table.split("_")[1]
+
         try {
-          updatesManager.publishItemUpdate(UpdateType.DELETE, id)
-        } catch (error: UnhandledPublishedMessageException) {
+          updatesManager.publishItemUpdate(UpdateType.DELETE, company, id)
+        } catch (error: PublishMessageException) {
           LOGGER.error(error) { "Failed to publish DELETE item update" }
         }
       }
