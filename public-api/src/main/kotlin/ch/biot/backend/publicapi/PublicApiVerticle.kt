@@ -176,6 +176,7 @@ class PublicApiVerticle : CoroutineVerticle() {
     router.get("$API_PREFIX/$ITEMS_ENDPOINT/categories").handler(jwtAuthHandler)
       .coroutineHandler(::getCategoriesHandler)
     router.get("$API_PREFIX/$ITEMS_ENDPOINT/closest").handler(jwtAuthHandler).coroutineHandler(::getClosestItemsHandler)
+    router.get("$API_PREFIX/$ITEMS_ENDPOINT/me").handler(jwtAuthHandler).handler(::getUserInfoHandler)
     router.get("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getItemHandler)
     router.delete("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::deleteItemHandler)
 
@@ -358,6 +359,18 @@ class PublicApiVerticle : CoroutineVerticle() {
           forwardJsonObjectOrStatusCode(ctx, resp)
         }
       )
+  }
+
+  private fun getUserInfoHandler(ctx: RoutingContext) {
+    LOGGER.info { "New getUserInfo request" }
+
+    val info = jsonObjectOf(
+      "company" to ctx.user().principal()["company"]
+    )
+
+    ctx.response()
+      .putHeader("Content-Type", "application/json")
+      .end(info.encode())
   }
 
   private suspend fun getItemHandler(ctx: RoutingContext) = getOneHandler(ctx, ITEMS_ENDPOINT)
