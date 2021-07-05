@@ -159,6 +159,7 @@ class PublicApiVerticle : CoroutineVerticle() {
     router.post("$OAUTH_PREFIX/token").coroutineHandler(::tokenHandler)
     router.put("$API_PREFIX/$USERS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::updateUserHandler)
     router.get("$API_PREFIX/$USERS_ENDPOINT").handler(jwtAuthHandler).coroutineHandler(::getUsersHandler)
+    router.get("$API_PREFIX/$USERS_ENDPOINT/me").handler(jwtAuthHandler).handler(::getUserInfoHandler)
     router.get("$API_PREFIX/$USERS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getUserHandler)
     router.delete("$API_PREFIX/$USERS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::deleteUserHandler)
 
@@ -176,7 +177,6 @@ class PublicApiVerticle : CoroutineVerticle() {
     router.get("$API_PREFIX/$ITEMS_ENDPOINT/categories").handler(jwtAuthHandler)
       .coroutineHandler(::getCategoriesHandler)
     router.get("$API_PREFIX/$ITEMS_ENDPOINT/closest").handler(jwtAuthHandler).coroutineHandler(::getClosestItemsHandler)
-    router.get("$API_PREFIX/$ITEMS_ENDPOINT/me").handler(jwtAuthHandler).handler(::getUserInfoHandler)
     router.get("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getItemHandler)
     router.delete("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::deleteItemHandler)
 
