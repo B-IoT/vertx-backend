@@ -1049,6 +1049,33 @@ class TestPublicApiVerticle {
     }
   }
 
+  @Test
+  @Order(28)
+  @DisplayName("Getting the user information succeeds")
+  fun getUserInfoIsCorrect(testContext: VertxTestContext) {
+    val expected = jsonObjectOf(
+      "company" to "biot"
+    )
+
+    val response = Buffer.buffer(Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      header("Authorization", "Bearer $token")
+    } When {
+      get("/api/users/me")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }).toJsonObject()
+
+    testContext.verify {
+      expectThat(response).isEqualTo(expected)
+      testContext.completeNow()
+    }
+  }
+
   companion object {
 
     private val requestSpecification: RequestSpecification = RequestSpecBuilder()
