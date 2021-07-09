@@ -151,8 +151,8 @@ class CRUDVerticle : CoroutineVerticle() {
     pgClient = PgPool.client(vertx, pgConnectOptions, poolOptionsOf())
     val pgSubscriber = PgSubscriber.subscriber(vertx, pgConnectOptions).apply {
       reconnectPolicy { retries ->
-        // Reconnect at most 10 times after 500 ms each
-        if (retries < 10) 500L else -1L
+        // Reconnect at most 10 times after 1000 ms each
+        if (retries < 10) 1000L else -1L
       }
     }
 

@@ -636,7 +636,7 @@ class TestCRUDVerticleItems {
   @DisplayName("registerItem correctly registers a new item with a custom id")
   fun registerWithIdIsCorrect(testContext: VertxTestContext) {
     val newItem = jsonObjectOf(
-      "id" to 42,
+      "id" to 120,
       "beacon" to "aa:aa:aa:aa:aa:aa",
       "category" to "Lit",
       "service" to "Bloc 1",
@@ -676,7 +676,7 @@ class TestCRUDVerticleItems {
     }
 
     testContext.verify {
-      expectThat(response.toInt()).isEqualTo(42) // it returns the id of the registered item
+      expectThat(response.toInt()).isEqualTo(newItem.getInteger("id")) // the response returns the id of the registered item
       testContext.completeNow()
     }
   }
