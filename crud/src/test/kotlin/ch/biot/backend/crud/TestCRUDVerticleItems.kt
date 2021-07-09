@@ -10,6 +10,7 @@ import ch.biot.backend.crud.CRUDVerticle.Companion.MONGO_PORT
 import ch.biot.backend.crud.CRUDVerticle.Companion.TIMESCALE_PORT
 import ch.biot.backend.crud.queries.getItem
 import ch.biot.backend.crud.queries.insertItem
+import ch.biot.backend.crud.updates.UpdateType
 import io.restassured.builder.RequestSpecBuilder
 import io.restassured.filter.log.RequestLoggingFilter
 import io.restassured.filter.log.ResponseLoggingFilter
@@ -1225,7 +1226,128 @@ class TestCRUDVerticleItems {
     }
   }
 
+  @Test
+  @DisplayName("Item updates on POST operations are correctly received on the event bus")
+  fun receivePostUpdatesOnEventBus(vertx: Vertx, testContext: VertxTestContext) {
+    val itemId = 100
+    val newItem = jsonObjectOf(
+      "id" to itemId,
+      "category" to "ECG"
+    )
+    val expectedType = UpdateType.POST.toString()
+
+    vertx.eventBus().consumer<JsonObject>(ITEMS_UPDATES_ADDRESS) { msg ->
+      val body = msg.body()
+      testContext.verify {
+        expectThat(body.getString("type")).isEqualTo(expectedType)
+        expectThat(body.getInteger("id")).isEqualTo(itemId)
+        expectThat(body.getJsonObject("content").getString("category")).isEqualTo(newItem.getString("category"))
+        testContext.completeNow()
+      }
+    }
+
+    Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      body(newItem.encode())
+    } When {
+      queryParam("company", "biot")
+      post("/items")
+    } Then {
+      statusCode(200)
+    }
+  }
+
+  @Test
+  @DisplayName("Item updates on PUT operations are correctly received on the event bus")
+  fun receivePutUpdatesOnEventBus(vertx: Vertx, testContext: VertxTestContext) {
+    val itemId = 100
+    val newItem = jsonObjectOf(
+      "id" to itemId,
+      "category" to "ECG"
+    )
+    val updateItem = jsonObjectOf(
+      "category" to "Lit"
+    )
+    val expectedType = UpdateType.PUT.toString()
+
+    Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      body(newItem.encode())
+    } When {
+      queryParam("company", "biot")
+      post("/items")
+    } Then {
+      statusCode(200)
+    }
+
+    vertx.eventBus().consumer<JsonObject>(ITEMS_UPDATES_ADDRESS) { msg ->
+      val body = msg.body()
+      testContext.verify {
+        expectThat(body.getString("type")).isEqualTo(expectedType)
+        expectThat(body.getInteger("id")).isEqualTo(itemId)
+        expectThat(body.getJsonObject("content").getString("category")).isEqualTo(updateItem.getString("category"))
+        testContext.completeNow()
+      }
+    }
+
+    Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      body(updateItem.encode())
+    } When {
+      queryParam("company", "biot")
+      put("/items/$itemId")
+    } Then {
+      statusCode(200)
+    }
+  }
+
+  @Test
+  @DisplayName("Item updates on DELETE operations are correctly received on the event bus")
+  fun receiveDeleteUpdatesOnEventBus(vertx: Vertx, testContext: VertxTestContext) {
+    val itemId = 100
+    val newItem = jsonObjectOf(
+      "id" to itemId,
+      "category" to "ECG"
+    )
+    val expectedType = UpdateType.DELETE.toString()
+
+    Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      body(newItem.encode())
+    } When {
+      queryParam("company", "biot")
+      post("/items")
+    } Then {
+      statusCode(200)
+    }
+
+    vertx.eventBus().consumer<JsonObject>(ITEMS_UPDATES_ADDRESS) { msg ->
+      val body = msg.body()
+      testContext.verify {
+        expectThat(body.getString("type")).isEqualTo(expectedType)
+        expectThat(body.getInteger("id")).isEqualTo(itemId)
+        testContext.completeNow()
+      }
+    }
+
+    Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("company", "biot")
+      delete("/items/$itemId")
+    } Then {
+      statusCode(200)
+    }
+  }
+
   companion object {
+
+    private const val ITEMS_UPDATES_ADDRESS = "items.updates.biot"
 
     private const val INSERT_BEACON_DATA =
       "INSERT INTO beacon_data(time, mac, battery, beaconstatus, latitude, longitude, floor, temperature) values(NOW(), $1, $2, $3, $4, $5, $6, $7)"

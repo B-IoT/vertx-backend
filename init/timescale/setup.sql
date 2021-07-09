@@ -93,21 +93,24 @@ $$
 LANGUAGE 'plpgsql';
 
 -- Insert trigger
-CREATE OR REPLACE TRIGGER items_insert_trigger
+DROP TRIGGER IF EXISTS items_insert_trigger ON items;
+CREATE TRIGGER items_insert_trigger
 AFTER INSERT
 ON items
 FOR EACH ROW
 EXECUTE PROCEDURE notify_insert_trigger_func();
 
 -- Update trigger
-CREATE OR REPLACE TRIGGER items_update_trigger
+DROP TRIGGER IF EXISTS items_update_trigger ON items;
+CREATE TRIGGER items_update_trigger
 AFTER UPDATE
 ON items
 FOR EACH ROW
 EXECUTE PROCEDURE notify_update_trigger_func();
 
 -- Delete trigger
-CREATE OR REPLACE TRIGGER items_delete_trigger
+DROP TRIGGER IF EXISTS items_delete_trigger ON items;
+CREATE TRIGGER items_delete_trigger
 AFTER DELETE
 ON items
 FOR EACH ROW

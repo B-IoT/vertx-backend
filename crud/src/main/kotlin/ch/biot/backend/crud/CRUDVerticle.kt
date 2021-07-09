@@ -805,7 +805,7 @@ class CRUDVerticle : CoroutineVerticle() {
         val company = if (table == "items") "biot" else table.split("_")[1]
 
         try {
-          updatesManager.publishItemUpdate(UpdateType.PUT, company, id, json)
+          updatesManager.publishItemUpdate(UpdateType.PUT, company, id, item)
         } catch (error: PublishMessageException) {
           LOGGER.error(error) { "Failed to publish PUT item update" }
         }
