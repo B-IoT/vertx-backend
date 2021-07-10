@@ -17,6 +17,8 @@ import io.restassured.specification.RequestSpecification
 import io.vertx.core.Vertx
 import io.vertx.core.buffer.Buffer
 import io.vertx.core.json.JsonArray
+import io.vertx.eventbusclient.EventBusClient
+import io.vertx.eventbusclient.EventBusClientOptions
 import io.vertx.junit5.VertxExtension
 import io.vertx.junit5.VertxTestContext
 import io.vertx.kotlin.core.json.get
@@ -1074,6 +1076,23 @@ class TestPublicApiVerticle {
       expectThat(response).isEqualTo(expected)
       testContext.completeNow()
     }
+  }
+
+  @Test
+  @Order(29)
+  @DisplayName("The event bus bridge endpoint is available")
+  fun eventBusBridgeIsAvailable(vertx: Vertx, testContext: VertxTestContext) {
+    val options = EventBusClientOptions()
+      .setHost("localhost").setPort(PublicApiVerticle.PUBLIC_PORT)
+      .setWebSocketPath("/eventbus/websocket?token=$token") // websocket needed otherwise the client doesn't work
+    val webSocketEventBusClient = EventBusClient.webSocket(options)
+
+    webSocketEventBusClient.connectedHandler {
+      testContext.verify {
+        expectThat(webSocketEventBusClient.isConnected).isTrue()
+        testContext.completeNow()
+      }
+    }.connect()
   }
 
   companion object {
