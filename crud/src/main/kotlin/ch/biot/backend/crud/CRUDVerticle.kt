@@ -772,60 +772,34 @@ class CRUDVerticle : CoroutineVerticle() {
    * Subscribes to items updates (through Postgres LISTEN channels) with the given [UpdatesManager].
    */
   private fun PgSubscriber.subscribeToItemsUpdates(updatesManager: UpdatesManager): PgSubscriber {
-    val dispatcher = vertx.dispatcher()
+    fun publishUpdate(json: JsonObject, updateType: UpdateType) {
+      LOGGER.debug { "Received $updateType notification with payload $json" }
 
-    channel(UpdateType.POST.toString()).handler { payload ->
-      launch(dispatcher) {
-        val json = JsonObject(payload)
-        LOGGER.debug { "Received POST notification with payload $json" }
+      val item = json.getJsonObject("data")?.toItemJson()
 
-        val item = json.getJsonObject("data").toItemJson()
-        val id = item.getInteger("id")
+      val id = if (updateType == UpdateType.DELETE) {
+        json.getInteger("id")
+      } else {
+        // Item is not null for POST and PUT
+        item!!.getInteger("id")
+      }
 
-        val table = json.remove("table") as String
-        val company = if (table == "items") "biot" else table.split("_")[1]
+      val table = json.remove("table") as String
+      val company = if (table == "items") "biot" else table.split("_")[1]
 
-        try {
-          updatesManager.publishItemUpdate(UpdateType.POST, company, id, item)
-        } catch (error: PublishMessageException) {
-          LOGGER.error(error) { "Failed to publish POST item update" }
-        }
+      try {
+        updatesManager.publishItemUpdate(updateType, company, id, item)
+      } catch (error: PublishMessageException) {
+        LOGGER.error(error) { "Failed to publish $updateType item update" }
       }
     }
 
-    channel(UpdateType.PUT.toString()).handler { payload ->
-      launch(dispatcher) {
-        val json = JsonObject(payload)
-        LOGGER.debug { "Received PUT notification with payload $json" }
-
-        val item = json.getJsonObject("data").toItemJson()
-        val id = item.getInteger("id")
-
-        val table = json.remove("table") as String
-        val company = if (table == "items") "biot" else table.split("_")[1]
-
-        try {
-          updatesManager.publishItemUpdate(UpdateType.PUT, company, id, item)
-        } catch (error: PublishMessageException) {
-          LOGGER.error(error) { "Failed to publish PUT item update" }
-        }
-      }
-    }
-
-    channel(UpdateType.DELETE.toString()).handler { payload ->
-      launch(dispatcher) {
-        val json = JsonObject(payload)
-        LOGGER.debug { "Received DELETE notification with payload $json" }
-
-        val id = json.getInteger("id")
-
-        val table = json.remove("table") as String
-        val company = if (table == "items") "biot" else table.split("_")[1]
-
-        try {
-          updatesManager.publishItemUpdate(UpdateType.DELETE, company, id)
-        } catch (error: PublishMessageException) {
-          LOGGER.error(error) { "Failed to publish DELETE item update" }
+    // Subscribe to POST, PUT and DELETE updates
+    listOf(UpdateType.POST, UpdateType.PUT, UpdateType.DELETE).forEach { type ->
+      channel(type.toString()).handler { payload ->
+        launch(vertx.dispatcher()) {
+          val json = JsonObject(payload)
+          publishUpdate(json, type)
         }
       }
     }
