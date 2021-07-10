@@ -5,7 +5,7 @@
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import org.gradle.api.tasks.testing.logging.TestLogEvent.*
 
-version = "1.1.3-SNAPSHOT"
+version = "1.2.0-SNAPSHOT"
 
 val mainVerticleName = "ch.biot.backend.publicapi.PublicApiVerticle"
 val watchForChange = "src/**/*"
@@ -28,6 +28,10 @@ dependencies {
   val micrometerPrometheusVersion = project.extra["micrometerPrometheusVersion"]
   val arrowVersion = project.extra["arrowVersion"]
 
+  // For this module only, and test-only
+  val eventBusBridgeClientVersion = "1.0.1"
+  val gsonVersion = "2.8.7"
+
   implementation("io.vertx:vertx-web:$vertxVersion")
   implementation("io.vertx:vertx-web-client:$vertxVersion")
   implementation("io.vertx:vertx-auth-jwt:$vertxVersion")
@@ -46,6 +50,8 @@ dependencies {
   testImplementation("io.vertx:vertx-junit5:$vertxVersion")
   testImplementation("org.junit.jupiter:junit-jupiter:$junitJupiterVersion")
   testImplementation("io.strikt:strikt-gradle:$striktVersion")
+  testImplementation("io.vertx:vertx-eventbus-bridge-client:$eventBusBridgeClientVersion")
+  testImplementation("com.google.code.gson:gson:$gsonVersion")
   testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:$junitJupiterVersion")
 }
 
@@ -83,7 +89,7 @@ jib {
   }
   to {
     image = "vertx-backend/public-api"
-    tags = setOf("v1.1.3", "latest")
+    tags = setOf("v1.2.0", "latest")
   }
   container {
     mainClass = mainVerticleName

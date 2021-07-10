@@ -10,6 +10,7 @@ import ch.biot.backend.crud.CRUDVerticle.Companion.MONGO_PORT
 import ch.biot.backend.crud.CRUDVerticle.Companion.TIMESCALE_PORT
 import ch.biot.backend.crud.queries.getItem
 import ch.biot.backend.crud.queries.insertItem
+import ch.biot.backend.crud.updates.UpdateType
 import io.restassured.builder.RequestSpecBuilder
 import io.restassured.filter.log.RequestLoggingFilter
 import io.restassured.filter.log.ResponseLoggingFilter
@@ -33,6 +34,7 @@ import io.vertx.kotlin.coroutines.dispatcher
 import io.vertx.kotlin.pgclient.pgConnectOptionsOf
 import io.vertx.kotlin.sqlclient.poolOptionsOf
 import io.vertx.pgclient.PgPool
+import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.*
@@ -49,7 +51,7 @@ import java.time.LocalDate
 @Testcontainers
 class TestCRUDVerticleItems {
 
-  private lateinit var pgPool: PgPool
+  private lateinit var pgClient: SqlClient
 
   private var existingItemID: Int = 1
   private val existingItem = jsonObjectOf(
@@ -151,7 +153,7 @@ class TestCRUDVerticleItems {
         password = "biot",
         cachePreparedStatements = true
       )
-    pgPool = PgPool.pool(vertx, pgConnectOptions, poolOptionsOf())
+    pgClient = PgPool.pool(vertx, pgConnectOptions, poolOptionsOf())
 
     try {
       dropAllItems().await()
@@ -164,13 +166,13 @@ class TestCRUDVerticleItems {
 
   private fun dropAllItems(): CompositeFuture {
     return CompositeFuture.all(
-      pgPool.query("DELETE FROM items").execute(),
-      pgPool.query("DELETE FROM beacon_data").execute()
+      pgClient.query("DELETE FROM items").execute(),
+      pgClient.query("DELETE FROM beacon_data").execute()
     )
   }
 
   private suspend fun insertItems(): CompositeFuture {
-    val result = pgPool.preparedQuery(insertItem("items"))
+    val result = pgClient.preparedQuery(insertItem("items"))
       .execute(
         Tuple.of(
           existingItem["beacon"],
@@ -203,7 +205,7 @@ class TestCRUDVerticleItems {
 
     return CompositeFuture.all(
       listOf(
-        pgPool.preparedQuery(insertItem("items"))
+        pgClient.preparedQuery(insertItem("items"))
           .execute(
             Tuple.of(
               closestItem["beacon"],
@@ -231,7 +233,7 @@ class TestCRUDVerticleItems {
               closestItem["lastModifiedBy"]
             )
           ),
-        pgPool.preparedQuery(insertItem("items"))
+        pgClient.preparedQuery(insertItem("items"))
           .execute(
             Tuple.of(
               "fake1",
@@ -259,7 +261,7 @@ class TestCRUDVerticleItems {
               closestItem["lastModifiedBy"]
             )
           ),
-        pgPool.preparedQuery(insertItem("items"))
+        pgClient.preparedQuery(insertItem("items"))
           .execute(
             Tuple.of(
               "fake2",
@@ -287,7 +289,7 @@ class TestCRUDVerticleItems {
               closestItem["lastModifiedBy"]
             )
           ),
-        pgPool.preparedQuery(insertItem("items"))
+        pgClient.preparedQuery(insertItem("items"))
           .execute(
             Tuple.of(
               "fake3",
@@ -315,7 +317,7 @@ class TestCRUDVerticleItems {
               closestItem["lastModifiedBy"]
             )
           ),
-        pgPool.preparedQuery(insertItem("items"))
+        pgClient.preparedQuery(insertItem("items"))
           .execute(
             Tuple.of(
               "fake4",
@@ -343,7 +345,7 @@ class TestCRUDVerticleItems {
               closestItem["lastModifiedBy"]
             )
           ),
-        pgPool.preparedQuery(insertItem("items"))
+        pgClient.preparedQuery(insertItem("items"))
           .execute(
             Tuple.of(
               "fake5",
@@ -371,7 +373,7 @@ class TestCRUDVerticleItems {
               closestItem["lastModifiedBy"]
             )
           ),
-        pgPool.preparedQuery(INSERT_BEACON_DATA)
+        pgClient.preparedQuery(INSERT_BEACON_DATA)
           .execute(
             Tuple.of(
               existingBeaconData.getString("mac"),
@@ -383,7 +385,7 @@ class TestCRUDVerticleItems {
               existingBeaconData.getDouble("temperature")
             )
           ),
-        pgPool.preparedQuery(INSERT_BEACON_DATA)
+        pgClient.preparedQuery(INSERT_BEACON_DATA)
           .execute(
             Tuple.of(
               existingBeaconData.getString("mac"),
@@ -395,7 +397,7 @@ class TestCRUDVerticleItems {
               existingBeaconData.getDouble("temperature")
             )
           ),
-        pgPool.preparedQuery(INSERT_BEACON_DATA)
+        pgClient.preparedQuery(INSERT_BEACON_DATA)
           .execute(
             Tuple.of(
               updateItemJson.getString("beacon"),
@@ -407,7 +409,7 @@ class TestCRUDVerticleItems {
               existingBeaconData.getDouble("temperature")
             )
           ),
-        pgPool.preparedQuery(INSERT_BEACON_DATA)
+        pgClient.preparedQuery(INSERT_BEACON_DATA)
           .execute(
             Tuple.of(
               closestItem.getString("beacon"),
@@ -419,7 +421,7 @@ class TestCRUDVerticleItems {
               existingBeaconData.getDouble("temperature")
             )
           ),
-        pgPool.preparedQuery(INSERT_BEACON_DATA)
+        pgClient.preparedQuery(INSERT_BEACON_DATA)
           .execute(
             Tuple.of(
               "fake1",
@@ -431,7 +433,7 @@ class TestCRUDVerticleItems {
               existingBeaconData.getDouble("temperature")
             )
           ),
-        pgPool.preparedQuery(INSERT_BEACON_DATA)
+        pgClient.preparedQuery(INSERT_BEACON_DATA)
           .execute(
             Tuple.of(
               "fake2",
@@ -443,7 +445,7 @@ class TestCRUDVerticleItems {
               existingBeaconData.getDouble("temperature")
             )
           ),
-        pgPool.preparedQuery(INSERT_BEACON_DATA)
+        pgClient.preparedQuery(INSERT_BEACON_DATA)
           .execute(
             Tuple.of(
               "fake3",
@@ -455,7 +457,7 @@ class TestCRUDVerticleItems {
               existingBeaconData.getDouble("temperature")
             )
           ),
-        pgPool.preparedQuery(INSERT_BEACON_DATA)
+        pgClient.preparedQuery(INSERT_BEACON_DATA)
           .execute(
             Tuple.of(
               "fake4",
@@ -467,7 +469,7 @@ class TestCRUDVerticleItems {
               existingBeaconData.getDouble("temperature")
             )
           ),
-        pgPool.preparedQuery(INSERT_BEACON_DATA)
+        pgClient.preparedQuery(INSERT_BEACON_DATA)
           .execute(
             Tuple.of(
               "fake5",
@@ -487,7 +489,7 @@ class TestCRUDVerticleItems {
   fun cleanup(vertx: Vertx, testContext: VertxTestContext) = runBlocking(vertx.dispatcher()) {
     try {
       dropAllItems().await()
-      pgPool.close()
+      pgClient.close()
       testContext.completeNow()
     } catch (error: Throwable) {
       testContext.failNow(error)
@@ -591,7 +593,7 @@ class TestCRUDVerticleItems {
       val id = response.toInt()
 
       try {
-        val res = pgPool.preparedQuery(getItem("items", "beacon_data")).execute(Tuple.of(id)).await()
+        val res = pgClient.preparedQuery(getItem("items", "beacon_data")).execute(Tuple.of(id)).await()
         val json = res.iterator().next().toItemJson()
         expect {
           that(json.getString("beacon")).isEqualTo(newItem.getString("beacon"))
@@ -634,7 +636,7 @@ class TestCRUDVerticleItems {
   @DisplayName("registerItem correctly registers a new item with a custom id")
   fun registerWithIdIsCorrect(testContext: VertxTestContext) {
     val newItem = jsonObjectOf(
-      "id" to 42,
+      "id" to 120,
       "beacon" to "aa:aa:aa:aa:aa:aa",
       "category" to "Lit",
       "service" to "Bloc 1",
@@ -674,7 +676,7 @@ class TestCRUDVerticleItems {
     }
 
     testContext.verify {
-      expectThat(response.toInt()).isEqualTo(42) // it returns the id of the registered item
+      expectThat(response.toInt()).isEqualTo(newItem.getInteger("id")) // the response returns the id of the registered item
       testContext.completeNow()
     }
   }
@@ -706,7 +708,7 @@ class TestCRUDVerticleItems {
   @Test
   @DisplayName("getItems returns an empty list for another company")
   fun getItemsReturnsEmptyForAnotherCompany(testContext: VertxTestContext) {
-    pgPool.query(
+    pgClient.query(
       """CREATE TABLE IF NOT EXISTS items_another
 (
     id SERIAL PRIMARY KEY,
@@ -735,7 +737,7 @@ class TestCRUDVerticleItems {
     lastModifiedBy VARCHAR(100)
 );"""
     ).execute().compose {
-      pgPool.query(
+      pgClient.query(
         """CREATE TABLE IF NOT EXISTS beacon_data_another
 (
     time TIMESTAMPTZ NOT NULL,
@@ -991,7 +993,7 @@ class TestCRUDVerticleItems {
     }
 
     try {
-      val res = pgPool.preparedQuery(getItem("items", "beacon_data")).execute(Tuple.of(existingItemID)).await()
+      val res = pgClient.preparedQuery(getItem("items", "beacon_data")).execute(Tuple.of(existingItemID)).await()
       val json = res.iterator().next().toItemJson()
       expect {
         that(json.getString("beacon")).isEqualTo(updateItemJson.getString("beacon"))
@@ -1056,7 +1058,7 @@ class TestCRUDVerticleItems {
       }
 
       try {
-        val res = pgPool.preparedQuery(getItem("items", "beacon_data")).execute(Tuple.of(existingItemID)).await()
+        val res = pgClient.preparedQuery(getItem("items", "beacon_data")).execute(Tuple.of(existingItemID)).await()
         val json = res.iterator().next().toItemJson()
         expect {
           that(json.getString("beacon")).isEqualTo(existingItem.getString("beacon"))
@@ -1121,7 +1123,7 @@ class TestCRUDVerticleItems {
       }
 
       try {
-        val res = pgPool.preparedQuery(getItem("items", "beacon_data")).execute(Tuple.of(existingItemID)).await()
+        val res = pgClient.preparedQuery(getItem("items", "beacon_data")).execute(Tuple.of(existingItemID)).await()
         val json = res.iterator().next().toItemJson()
         expect {
           that(json.getString("beacon")).isEqualTo(updateJson.getString("beacon"))
@@ -1224,7 +1226,128 @@ class TestCRUDVerticleItems {
     }
   }
 
+  @Test
+  @DisplayName("Item updates on POST operations are correctly received on the event bus")
+  fun receivePostUpdatesOnEventBus(vertx: Vertx, testContext: VertxTestContext) {
+    val itemId = 100
+    val newItem = jsonObjectOf(
+      "id" to itemId,
+      "category" to "ECG"
+    )
+    val expectedType = UpdateType.POST.toString()
+
+    vertx.eventBus().consumer<JsonObject>(ITEMS_UPDATES_ADDRESS) { msg ->
+      val body = msg.body()
+      testContext.verify {
+        expectThat(body.getString("type")).isEqualTo(expectedType)
+        expectThat(body.getInteger("id")).isEqualTo(itemId)
+        expectThat(body.getJsonObject("content").getString("category")).isEqualTo(newItem.getString("category"))
+        testContext.completeNow()
+      }
+    }
+
+    Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      body(newItem.encode())
+    } When {
+      queryParam("company", "biot")
+      post("/items")
+    } Then {
+      statusCode(200)
+    }
+  }
+
+  @Test
+  @DisplayName("Item updates on PUT operations are correctly received on the event bus")
+  fun receivePutUpdatesOnEventBus(vertx: Vertx, testContext: VertxTestContext) {
+    val itemId = 100
+    val newItem = jsonObjectOf(
+      "id" to itemId,
+      "category" to "ECG"
+    )
+    val updateItem = jsonObjectOf(
+      "category" to "Lit"
+    )
+    val expectedType = UpdateType.PUT.toString()
+
+    Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      body(newItem.encode())
+    } When {
+      queryParam("company", "biot")
+      post("/items")
+    } Then {
+      statusCode(200)
+    }
+
+    vertx.eventBus().consumer<JsonObject>(ITEMS_UPDATES_ADDRESS) { msg ->
+      val body = msg.body()
+      testContext.verify {
+        expectThat(body.getString("type")).isEqualTo(expectedType)
+        expectThat(body.getInteger("id")).isEqualTo(itemId)
+        expectThat(body.getJsonObject("content").getString("category")).isEqualTo(updateItem.getString("category"))
+        testContext.completeNow()
+      }
+    }
+
+    Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      body(updateItem.encode())
+    } When {
+      queryParam("company", "biot")
+      put("/items/$itemId")
+    } Then {
+      statusCode(200)
+    }
+  }
+
+  @Test
+  @DisplayName("Item updates on DELETE operations are correctly received on the event bus")
+  fun receiveDeleteUpdatesOnEventBus(vertx: Vertx, testContext: VertxTestContext) {
+    val itemId = 100
+    val newItem = jsonObjectOf(
+      "id" to itemId,
+      "category" to "ECG"
+    )
+    val expectedType = UpdateType.DELETE.toString()
+
+    Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      body(newItem.encode())
+    } When {
+      queryParam("company", "biot")
+      post("/items")
+    } Then {
+      statusCode(200)
+    }
+
+    vertx.eventBus().consumer<JsonObject>(ITEMS_UPDATES_ADDRESS) { msg ->
+      val body = msg.body()
+      testContext.verify {
+        expectThat(body.getString("type")).isEqualTo(expectedType)
+        expectThat(body.getInteger("id")).isEqualTo(itemId)
+        testContext.completeNow()
+      }
+    }
+
+    Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("company", "biot")
+      delete("/items/$itemId")
+    } Then {
+      statusCode(200)
+    }
+  }
+
   companion object {
+
+    private const val ITEMS_UPDATES_ADDRESS = "items.updates.biot"
 
     private const val INSERT_BEACON_DATA =
       "INSERT INTO beacon_data(time, mac, battery, beaconstatus, latitude, longitude, floor, temperature) values(NOW(), $1, $2, $3, $4, $5, $6, $7)"

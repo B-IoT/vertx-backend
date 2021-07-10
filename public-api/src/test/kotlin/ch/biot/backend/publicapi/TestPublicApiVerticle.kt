@@ -17,6 +17,8 @@ import io.restassured.specification.RequestSpecification
 import io.vertx.core.Vertx
 import io.vertx.core.buffer.Buffer
 import io.vertx.core.json.JsonArray
+import io.vertx.eventbusclient.EventBusClient
+import io.vertx.eventbusclient.EventBusClientOptions
 import io.vertx.junit5.VertxExtension
 import io.vertx.junit5.VertxTestContext
 import io.vertx.kotlin.core.json.get
@@ -1047,6 +1049,50 @@ class TestPublicApiVerticle {
       expectThat(response).isEqualTo("Bad Gateway")
       testContext.completeNow()
     }
+  }
+
+  @Test
+  @Order(28)
+  @DisplayName("Getting the user information succeeds")
+  fun getUserInfoIsCorrect(testContext: VertxTestContext) {
+    val expected = jsonObjectOf(
+      "company" to "biot"
+    )
+
+    val response = Buffer.buffer(Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      header("Authorization", "Bearer $token")
+    } When {
+      get("/api/users/me")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }).toJsonObject()
+
+    testContext.verify {
+      expectThat(response).isEqualTo(expected)
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @Order(29)
+  @DisplayName("The event bus bridge endpoint is available")
+  fun eventBusBridgeIsAvailable(vertx: Vertx, testContext: VertxTestContext) {
+    val options = EventBusClientOptions()
+      .setHost("localhost").setPort(PublicApiVerticle.PUBLIC_PORT)
+      .setWebSocketPath("/eventbus/websocket?token=$token") // websocket needed otherwise the client doesn't work
+    val webSocketEventBusClient = EventBusClient.webSocket(options)
+
+    webSocketEventBusClient.connectedHandler {
+      testContext.verify {
+        expectThat(webSocketEventBusClient.isConnected).isTrue()
+        testContext.completeNow()
+      }
+    }.connect()
   }
 
   companion object {
