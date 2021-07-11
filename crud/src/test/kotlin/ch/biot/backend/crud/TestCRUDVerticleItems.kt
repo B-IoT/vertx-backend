@@ -21,6 +21,7 @@ import io.restassured.module.kotlin.extensions.Then
 import io.restassured.module.kotlin.extensions.When
 import io.restassured.specification.RequestSpecification
 import io.vertx.core.CompositeFuture
+import io.vertx.core.Future
 import io.vertx.core.Vertx
 import io.vertx.core.buffer.Buffer
 import io.vertx.core.json.JsonArray
@@ -34,6 +35,8 @@ import io.vertx.kotlin.coroutines.dispatcher
 import io.vertx.kotlin.pgclient.pgConnectOptionsOf
 import io.vertx.kotlin.sqlclient.poolOptionsOf
 import io.vertx.pgclient.PgPool
+import io.vertx.sqlclient.Row
+import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 import kotlinx.coroutines.runBlocking
@@ -153,7 +156,7 @@ class TestCRUDVerticleItems {
         password = "biot",
         cachePreparedStatements = true
       )
-    pgClient = PgPool.pool(vertx, pgConnectOptions, poolOptionsOf())
+    pgClient = PgPool.client(vertx, pgConnectOptions, poolOptionsOf())
 
     try {
       dropAllItems().await()
@@ -171,7 +174,7 @@ class TestCRUDVerticleItems {
     )
   }
 
-  private suspend fun insertItems(): CompositeFuture {
+  private suspend fun insertItems(): Future<RowSet<Row>> {
     val result = pgClient.preparedQuery(insertItem("items"))
       .execute(
         Tuple.of(
@@ -203,9 +206,7 @@ class TestCRUDVerticleItems {
 
     existingItemID = result.iterator().next().getInteger("id")
 
-    return CompositeFuture.all(
-      listOf(
-        pgClient.preparedQuery(insertItem("items"))
+    pgClient.preparedQuery(insertItem("items"))
           .execute(
             Tuple.of(
               closestItem["beacon"],
@@ -232,7 +233,8 @@ class TestCRUDVerticleItems {
               LocalDate.parse(closestItem["lastModifiedDate"]),
               closestItem["lastModifiedBy"]
             )
-          ),
+          ).await()
+
         pgClient.preparedQuery(insertItem("items"))
           .execute(
             Tuple.of(
@@ -260,7 +262,8 @@ class TestCRUDVerticleItems {
               LocalDate.parse(closestItem["lastModifiedDate"]),
               closestItem["lastModifiedBy"]
             )
-          ),
+          ).await()
+
         pgClient.preparedQuery(insertItem("items"))
           .execute(
             Tuple.of(
@@ -288,7 +291,8 @@ class TestCRUDVerticleItems {
               LocalDate.parse(closestItem["lastModifiedDate"]),
               closestItem["lastModifiedBy"]
             )
-          ),
+          ).await()
+
         pgClient.preparedQuery(insertItem("items"))
           .execute(
             Tuple.of(
@@ -316,7 +320,8 @@ class TestCRUDVerticleItems {
               LocalDate.parse(closestItem["lastModifiedDate"]),
               closestItem["lastModifiedBy"]
             )
-          ),
+          ).await()
+
         pgClient.preparedQuery(insertItem("items"))
           .execute(
             Tuple.of(
@@ -344,7 +349,8 @@ class TestCRUDVerticleItems {
               LocalDate.parse(closestItem["lastModifiedDate"]),
               closestItem["lastModifiedBy"]
             )
-          ),
+          ).await()
+
         pgClient.preparedQuery(insertItem("items"))
           .execute(
             Tuple.of(
@@ -372,7 +378,8 @@ class TestCRUDVerticleItems {
               LocalDate.parse(closestItem["lastModifiedDate"]),
               closestItem["lastModifiedBy"]
             )
-          ),
+          ).await()
+
         pgClient.preparedQuery(INSERT_BEACON_DATA)
           .execute(
             Tuple.of(
@@ -384,7 +391,8 @@ class TestCRUDVerticleItems {
               existingBeaconData.getInteger("floor"),
               existingBeaconData.getDouble("temperature")
             )
-          ),
+          ).await()
+
         pgClient.preparedQuery(INSERT_BEACON_DATA)
           .execute(
             Tuple.of(
@@ -396,7 +404,8 @@ class TestCRUDVerticleItems {
               existingBeaconData.getInteger("floor"),
               existingBeaconData.getDouble("temperature")
             )
-          ),
+          ).await()
+
         pgClient.preparedQuery(INSERT_BEACON_DATA)
           .execute(
             Tuple.of(
@@ -408,7 +417,8 @@ class TestCRUDVerticleItems {
               existingBeaconData.getInteger("floor"),
               existingBeaconData.getDouble("temperature")
             )
-          ),
+          ).await()
+
         pgClient.preparedQuery(INSERT_BEACON_DATA)
           .execute(
             Tuple.of(
@@ -420,7 +430,8 @@ class TestCRUDVerticleItems {
               existingBeaconData.getInteger("floor"),
               existingBeaconData.getDouble("temperature")
             )
-          ),
+          ).await()
+
         pgClient.preparedQuery(INSERT_BEACON_DATA)
           .execute(
             Tuple.of(
@@ -432,7 +443,8 @@ class TestCRUDVerticleItems {
               existingBeaconData.getInteger("floor"),
               existingBeaconData.getDouble("temperature")
             )
-          ),
+          ).await()
+
         pgClient.preparedQuery(INSERT_BEACON_DATA)
           .execute(
             Tuple.of(
@@ -444,7 +456,8 @@ class TestCRUDVerticleItems {
               existingBeaconData.getInteger("floor"),
               existingBeaconData.getDouble("temperature")
             )
-          ),
+          ).await()
+
         pgClient.preparedQuery(INSERT_BEACON_DATA)
           .execute(
             Tuple.of(
@@ -456,7 +469,8 @@ class TestCRUDVerticleItems {
               existingBeaconData.getInteger("floor"),
               existingBeaconData.getDouble("temperature")
             )
-          ),
+          ).await()
+
         pgClient.preparedQuery(INSERT_BEACON_DATA)
           .execute(
             Tuple.of(
@@ -468,8 +482,9 @@ class TestCRUDVerticleItems {
               existingBeaconData.getInteger("floor"),
               existingBeaconData.getDouble("temperature")
             )
-          ),
-        pgClient.preparedQuery(INSERT_BEACON_DATA)
+          ).await()
+
+        return pgClient.preparedQuery(INSERT_BEACON_DATA)
           .execute(
             Tuple.of(
               "fake5",
@@ -481,8 +496,6 @@ class TestCRUDVerticleItems {
               3.3
             )
           )
-      )
-    )
   }
 
   @AfterEach

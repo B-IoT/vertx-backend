@@ -15,6 +15,7 @@ import io.restassured.module.kotlin.extensions.Then
 import io.restassured.module.kotlin.extensions.When
 import io.restassured.specification.RequestSpecification
 import io.vertx.core.CompositeFuture
+import io.vertx.core.Future
 import io.vertx.core.Vertx
 import io.vertx.core.buffer.Buffer
 import io.vertx.junit5.VertxExtension
@@ -26,6 +27,8 @@ import io.vertx.kotlin.coroutines.dispatcher
 import io.vertx.kotlin.pgclient.pgConnectOptionsOf
 import io.vertx.kotlin.sqlclient.poolOptionsOf
 import io.vertx.pgclient.PgPool
+import io.vertx.sqlclient.Row
+import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 import kotlinx.coroutines.runBlocking
@@ -162,7 +165,7 @@ class TestCRUDVerticleAnalytics {
         password = "biot",
         cachePreparedStatements = true
       )
-    pgClient = PgPool.pool(vertx, pgConnectOptions, poolOptionsOf())
+    pgClient = PgPool.client(vertx, pgConnectOptions, poolOptionsOf())
 
     try {
       dropAllItems().await()
@@ -180,9 +183,8 @@ class TestCRUDVerticleAnalytics {
     )
   }
 
-  private fun insertItems(): CompositeFuture {
-    return CompositeFuture.all(
-      pgClient.preparedQuery(insertItem("items"))
+  private suspend fun insertItems(): Future<RowSet<Row>> {
+    pgClient.preparedQuery(insertItem("items"))
         .execute(
           Tuple.of(
             existingItemOne["beacon"],
@@ -209,7 +211,8 @@ class TestCRUDVerticleAnalytics {
             LocalDate.parse(existingItemOne["lastModifiedDate"]),
             existingItemOne["lastModifiedBy"]
           )
-        ),
+        ).await()
+
       pgClient.preparedQuery(insertItem("items"))
         .execute(
           Tuple.of(
@@ -237,7 +240,8 @@ class TestCRUDVerticleAnalytics {
             LocalDate.parse(existingItemTwo["lastModifiedDate"]),
             existingItemTwo["lastModifiedBy"]
           )
-        ),
+        ).await()
+
       pgClient.preparedQuery(insertItem("items"))
         .execute(
           Tuple.of(
@@ -265,7 +269,8 @@ class TestCRUDVerticleAnalytics {
             LocalDate.parse(existingItemThree["lastModifiedDate"]),
             existingItemThree["lastModifiedBy"]
           )
-        ),
+        ).await()
+
       pgClient.preparedQuery(INSERT_BEACON_DATA).execute(
         Tuple.of(
           existingBeaconDataOne.getString("mac"),
@@ -276,7 +281,8 @@ class TestCRUDVerticleAnalytics {
           existingBeaconDataOne.getInteger("floor"),
           existingBeaconDataOne.getDouble("temperature")
         )
-      ),
+      ).await()
+
       pgClient.preparedQuery(INSERT_BEACON_DATA).execute(
         Tuple.of(
           existingBeaconDataTwo.getString("mac"),
@@ -287,8 +293,9 @@ class TestCRUDVerticleAnalytics {
           existingBeaconDataTwo.getInteger("floor"),
           existingBeaconDataTwo.getDouble("temperature")
         )
-      ),
-      pgClient.preparedQuery(INSERT_BEACON_DATA).execute(
+      ).await()
+
+      return pgClient.preparedQuery(INSERT_BEACON_DATA).execute(
         Tuple.of(
           existingBeaconDataThree.getString("mac"),
           existingBeaconDataThree.getInteger("battery"),
@@ -299,7 +306,6 @@ class TestCRUDVerticleAnalytics {
           existingBeaconDataThree.getDouble("temperature")
         )
       )
-    )
   }
 
   @AfterEach
