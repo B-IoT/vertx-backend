@@ -528,30 +528,47 @@ class PublicApiVerticle : CoroutineVerticle() {
   ) {
     override fun authenticate(context: RoutingContext, handler: Handler<AsyncResult<User>>?) {
       LOGGER.info { "Custom auth handler" }
-      //TODO add test for session in the token vs DB
-      
       parseAuthorization(context) { parseAuthorization: AsyncResult<String> ->
         if (parseAuthorization.failed()) {
           handler!!.handle(Future.failedFuture(parseAuthorization.cause()))
           return@parseAuthorization
         }
         val token = parseAuthorization.result()
-        authProvider.authenticate(
-          TokenCredentials(token)
-        ) { authn: AsyncResult<User> ->
-          if (authn.failed()) {
-            handler!!.handle(
-              Future.failedFuture(
-                HttpException(
-                  401,
-                  authn.cause()
+        val validSession = true
+
+        //TODO add test for session in the token vs DB
+
+        if(validSession){
+          authProvider.authenticate(
+            TokenCredentials(token)
+          ) { authn: AsyncResult<User> ->
+            if (authn.failed()) {
+              //will not fail if the other JWT authentication passes
+              handler!!.handle(
+                Future.failedFuture(
+                  HttpException(
+                    401,
+                    authn.cause()
+                  )
                 )
               )
-            )
-          } else {
-            handler!!.handle(authn)
+            } else {
+              handler!!.handle(authn)
+            }
           }
+        } else {
+          //the session is not valid (i.e. the user connected elsewhere in the meantime
+          handler!!.handle(
+            Future.failedFuture(
+              HttpException(
+                403,
+                "Session expired: this user logged in elsewhere."
+              )
+            )
+          )
         }
+
+
       }
 
     }
