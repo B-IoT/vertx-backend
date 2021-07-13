@@ -327,7 +327,8 @@ class PublicApiVerticle : CoroutineVerticle() {
           ctx.fail(UNAUTHORIZED_CODE)
         },
         { response ->
-          val company = response.bodyAsString()
+          val json = response.bodyAsJsonObject()
+          val company: String = json["company"]
           val token = makeJwtToken(username, company)
           ctx.response().putHeader(CONTENT_TYPE, "application/jwt").end(token)
         }
