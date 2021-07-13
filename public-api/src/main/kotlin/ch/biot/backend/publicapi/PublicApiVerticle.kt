@@ -6,10 +6,12 @@ package ch.biot.backend.publicapi
 
 import arrow.fx.coroutines.parZip
 import io.vertx.core.AsyncResult
+import io.vertx.core.Future
 import io.vertx.core.Handler
 import io.vertx.core.Vertx
 import io.vertx.core.http.HttpMethod
 import io.vertx.ext.auth.User
+import io.vertx.ext.auth.authentication.TokenCredentials
 import io.vertx.ext.auth.jwt.JWTAuth
 import io.vertx.ext.web.Route
 import io.vertx.ext.web.Router
@@ -17,11 +19,8 @@ import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.client.WebClient
 import io.vertx.ext.web.client.predicate.ResponsePredicate
 import io.vertx.ext.web.codec.BodyCodec
-import io.vertx.ext.web.handler.BodyHandler
-import io.vertx.ext.web.handler.ChainAuthHandler
-import io.vertx.ext.web.handler.CorsHandler
-import io.vertx.ext.web.handler.JWTAuthHandler
-import io.vertx.ext.web.handler.impl.AuthenticationHandlerImpl
+import io.vertx.ext.web.handler.*
+import io.vertx.ext.web.handler.impl.HTTPAuthorizationHandler
 import io.vertx.ext.web.handler.sockjs.SockJSHandler
 import io.vertx.kotlin.core.eventbus.eventBusOptionsOf
 import io.vertx.kotlin.core.http.httpServerOptionsOf
@@ -523,11 +522,38 @@ class PublicApiVerticle : CoroutineVerticle() {
       }
     }
 
-  private class UniqueSessionAuthHandler(authProvider: JWTAuth): AuthenticationHandlerImpl<JWTAuth>(authProvider) {
+  private class UniqueSessionAuthHandler(authProvider: JWTAuth): HTTPAuthorizationHandler<JWTAuth>(
+    authProvider,
+    Type.BEARER, null
+  ) {
     override fun authenticate(context: RoutingContext, handler: Handler<AsyncResult<User>>?) {
       LOGGER.info { "Custom auth handler" }
       //TODO add test for session in the token vs DB
-      sendStatusCode(ctx = context, 200)
+      
+      parseAuthorization(context) { parseAuthorization: AsyncResult<String> ->
+        if (parseAuthorization.failed()) {
+          handler!!.handle(Future.failedFuture(parseAuthorization.cause()))
+          return@parseAuthorization
+        }
+        val token = parseAuthorization.result()
+        authProvider.authenticate(
+          TokenCredentials(token)
+        ) { authn: AsyncResult<User> ->
+          if (authn.failed()) {
+            handler!!.handle(
+              Future.failedFuture(
+                HttpException(
+                  401,
+                  authn.cause()
+                )
+              )
+            )
+          } else {
+            handler!!.handle(authn)
+          }
+        }
+      }
+
     }
   }
 }
