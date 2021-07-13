@@ -256,7 +256,7 @@ class TestCRUDVerticleUsers {
       put("password", newPassword)
     }
 
-    val expected = jsonObjectOf(Pair("company", existingUser["company"]))
+    val expected = jsonObjectOf("company" to existingUser["company"])
 
     val responseAuth = Buffer.buffer(
         Given {
@@ -292,7 +292,7 @@ class TestCRUDVerticleUsers {
       "password" to "password",
       "company" to "test"
     )
-    val expected = jsonObjectOf(Pair("company", "test"))
+    val expected = jsonObjectOf("company" to "test")
 
     Given {
       spec(requestSpecification)

@@ -569,7 +569,7 @@ class CRUDVerticle : CoroutineVerticle() {
 
       //TODO store the sessionUuid in the DB
 
-      val result = jsonObjectOf(Pair("company", company), Pair("sessionUuid", sessionUuid.toString()))
+      val result = jsonObjectOf("company" to company, "sessionUuid" to sessionUuid.toString())
       ctx.response()
         .putHeader(CONTENT_TYPE, APPLICATION_JSON)
         .end(result.encode())
