@@ -527,7 +527,7 @@ class PublicApiVerticle : CoroutineVerticle() {
     override fun authenticate(context: RoutingContext, handler: Handler<AsyncResult<User>>?) {
       LOGGER.info { "Custom auth handler" }
       //TODO add test for session in the token vs DB
-      sendStatusCode(ctx = context, 407)
+      sendStatusCode(ctx = context, 200)
     }
   }
 }
