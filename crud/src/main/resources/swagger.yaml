@@ -181,12 +181,11 @@ paths:
               $ref: '#/components/schemas/UserAuthenticateInfo'
       responses:
         "200":
-          description: The company of the authenticated user as a string
+          description: The company of the authenticated user as a string and the session UUID as a string in a JSON object
           content:
-            text/plain:
+            application/json:
               schema:
-                type: string
-                example: biot
+                $ref: '#/components/schemas/AuthenticationResult'
         "401":
           description: Authentication error
   /users/{id}:
@@ -557,6 +556,15 @@ components:
           type: string
           format: password
       description: Authenticate information for a user
+
+    AuthenticationResult:
+      type: object
+      properties:
+        company:
+          type: string
+        sessionUuid:
+          type: string
+      description: Successful authentication result containing the company and the session UUID
     Item:
       type: object
       properties:

@@ -46,6 +46,7 @@ import io.vertx.sqlclient.Tuple
 import kotlinx.coroutines.launch
 import mu.KotlinLogging
 import java.net.InetAddress
+import java.util.*
 
 internal val LOGGER = KotlinLogging.logger {}
 
@@ -564,7 +565,14 @@ class CRUDVerticle : CoroutineVerticle() {
     try {
       val user = mongoAuthUsers.authenticate(body).await()
       val company: String = user["company"]
-      ctx.end(company)
+      val sessionUuid: UUID = UUID.randomUUID()
+
+      //TODO store the sessionUuid in the DB
+
+      val result = jsonObjectOf(Pair("company", company), Pair("sessionUuid", sessionUuid.toString()))
+      ctx.response()
+        .putHeader(CONTENT_TYPE, APPLICATION_JSON)
+        .end(result.encode())
     } catch (error: Throwable) {
       LOGGER.error(error) { "Authentication error" }
       ctx.fail(UNAUTHORIZED_CODE, error)

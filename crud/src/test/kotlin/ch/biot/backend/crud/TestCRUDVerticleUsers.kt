@@ -275,13 +275,14 @@ class TestCRUDVerticleUsers {
   }
 
   @Test
-  @DisplayName("authenticate correctly authenticates and returns the user's company")
+  @DisplayName("authenticate correctly authenticates and returns the user's company and an UUID")
   fun authenticateIsCorrect(testContext: VertxTestContext) {
     val userJson = jsonObjectOf(
       "username" to "username",
       "password" to "password",
       "company" to "test"
     )
+    val expected = jsonObjectOf(Pair("company", "test"))
 
     Given {
       spec(requestSpecification)
@@ -292,7 +293,8 @@ class TestCRUDVerticleUsers {
       post("/users")
     }
 
-    val response = Given {
+    val response = Buffer.buffer(
+      Given {
       spec(requestSpecification)
       contentType(ContentType.JSON)
       body(userJson.encode())
@@ -303,9 +305,16 @@ class TestCRUDVerticleUsers {
     } Extract {
       asString()
     }
+    ).toJsonObject()
 
     testContext.verify {
-      expectThat(response).isEqualTo(userJson["company"])
+      expectThat(response).isNotNull()
+      expectThat(response.isEmpty).isFalse()
+
+      val uuid = response.getJsonObject("sessionUuid")
+      response.remove("sessionUuid")
+
+      expectThat(response).isEqualTo(expected)
       testContext.completeNow()
     }
   }
