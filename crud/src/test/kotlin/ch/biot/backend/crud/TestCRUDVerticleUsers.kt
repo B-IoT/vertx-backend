@@ -256,20 +256,30 @@ class TestCRUDVerticleUsers {
       put("password", newPassword)
     }
 
-    val company = Given {
-      spec(requestSpecification)
-      contentType(ContentType.JSON)
-      body(updatedUser.encode())
-    } When {
-      post("/users/authenticate")
-    } Then {
-      statusCode(200)
-    } Extract {
-      asString()
-    }
+    val expected = jsonObjectOf(Pair("company", existingUser["company"]))
+
+    val responseAuth = Buffer.buffer(
+        Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        body(updatedUser.encode())
+        accept(ContentType.JSON)
+      } When {
+        post("/users/authenticate")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonObject()
 
     testContext.verify {
-      expectThat(company).isEqualTo(existingUser["company"])
+      expectThat(responseAuth).isNotNull()
+      expectThat(responseAuth.isEmpty).isFalse()
+
+      val uuid = responseAuth.remove("sessionUuid")
+
+      expectThat(responseAuth).isEqualTo(expected)
       testContext.completeNow()
     }
   }
@@ -294,25 +304,25 @@ class TestCRUDVerticleUsers {
     }
 
     val response = Buffer.buffer(
-      Given {
-      spec(requestSpecification)
-      contentType(ContentType.JSON)
-      body(userJson.encode())
-    } When {
-      post("/users/authenticate")
-    } Then {
-      statusCode(200)
-    } Extract {
-      asString()
-    }
+        Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        body(userJson.encode())
+        accept(ContentType.JSON)
+      } When {
+        post("/users/authenticate")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
     ).toJsonObject()
 
     testContext.verify {
       expectThat(response).isNotNull()
       expectThat(response.isEmpty).isFalse()
 
-      val uuid = response.getJsonObject("sessionUuid")
-      response.remove("sessionUuid")
+      val uuid = response.remove("sessionUuid")
 
       expectThat(response).isEqualTo(expected)
       testContext.completeNow()
