@@ -5,8 +5,11 @@
 package ch.biot.backend.publicapi
 
 import arrow.fx.coroutines.parZip
+import io.vertx.core.AsyncResult
+import io.vertx.core.Handler
 import io.vertx.core.Vertx
 import io.vertx.core.http.HttpMethod
+import io.vertx.ext.auth.User
 import io.vertx.ext.auth.jwt.JWTAuth
 import io.vertx.ext.web.Route
 import io.vertx.ext.web.Router
@@ -15,8 +18,10 @@ import io.vertx.ext.web.client.WebClient
 import io.vertx.ext.web.client.predicate.ResponsePredicate
 import io.vertx.ext.web.codec.BodyCodec
 import io.vertx.ext.web.handler.BodyHandler
+import io.vertx.ext.web.handler.ChainAuthHandler
 import io.vertx.ext.web.handler.CorsHandler
 import io.vertx.ext.web.handler.JWTAuthHandler
+import io.vertx.ext.web.handler.impl.AuthenticationHandlerImpl
 import io.vertx.ext.web.handler.sockjs.SockJSHandler
 import io.vertx.kotlin.core.eventbus.eventBusOptionsOf
 import io.vertx.kotlin.core.http.httpServerOptionsOf
@@ -121,6 +126,8 @@ class PublicApiVerticle : CoroutineVerticle() {
 
     val jwtAuthHandler = JWTAuthHandler.create(jwtAuth)
 
+    val chainAuthHandler = ChainAuthHandler.all().add(jwtAuthHandler).add(UniqueSessionAuthHandler(jwtAuth))
+
     val router = Router.router(vertx)
 
     // Metrics
@@ -157,31 +164,31 @@ class PublicApiVerticle : CoroutineVerticle() {
       )
       .coroutineHandler(::registerUserHandler)
     router.post("$OAUTH_PREFIX/token").coroutineHandler(::tokenHandler)
-    router.put("$API_PREFIX/$USERS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::updateUserHandler)
-    router.get("$API_PREFIX/$USERS_ENDPOINT").handler(jwtAuthHandler).coroutineHandler(::getUsersHandler)
-    router.get("$API_PREFIX/$USERS_ENDPOINT/me").handler(jwtAuthHandler).handler(::getUserInfoHandler)
-    router.get("$API_PREFIX/$USERS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getUserHandler)
-    router.delete("$API_PREFIX/$USERS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::deleteUserHandler)
+    router.put("$API_PREFIX/$USERS_ENDPOINT/:id").handler(chainAuthHandler).coroutineHandler(::updateUserHandler)
+    router.get("$API_PREFIX/$USERS_ENDPOINT").handler(chainAuthHandler).coroutineHandler(::getUsersHandler)
+    router.get("$API_PREFIX/$USERS_ENDPOINT/me").handler(chainAuthHandler).handler(::getUserInfoHandler)
+    router.get("$API_PREFIX/$USERS_ENDPOINT/:id").handler(chainAuthHandler).coroutineHandler(::getUserHandler)
+    router.delete("$API_PREFIX/$USERS_ENDPOINT/:id").handler(chainAuthHandler).coroutineHandler(::deleteUserHandler)
 
     // Relays
-    router.post("$API_PREFIX/$RELAYS_ENDPOINT").handler(jwtAuthHandler).coroutineHandler(::registerRelayHandler)
-    router.put("$API_PREFIX/$RELAYS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::updateRelayHandler)
-    router.get("$API_PREFIX/$RELAYS_ENDPOINT").handler(jwtAuthHandler).coroutineHandler(::getRelaysHandler)
-    router.get("$API_PREFIX/$RELAYS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getRelayHandler)
-    router.delete("$API_PREFIX/$RELAYS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::deleteRelayHandler)
+    router.post("$API_PREFIX/$RELAYS_ENDPOINT").handler(chainAuthHandler).coroutineHandler(::registerRelayHandler)
+    router.put("$API_PREFIX/$RELAYS_ENDPOINT/:id").handler(chainAuthHandler).coroutineHandler(::updateRelayHandler)
+    router.get("$API_PREFIX/$RELAYS_ENDPOINT").handler(chainAuthHandler).coroutineHandler(::getRelaysHandler)
+    router.get("$API_PREFIX/$RELAYS_ENDPOINT/:id").handler(chainAuthHandler).coroutineHandler(::getRelayHandler)
+    router.delete("$API_PREFIX/$RELAYS_ENDPOINT/:id").handler(chainAuthHandler).coroutineHandler(::deleteRelayHandler)
 
     // Items
-    router.post("$API_PREFIX/$ITEMS_ENDPOINT").handler(jwtAuthHandler).coroutineHandler(::registerItemHandler)
-    router.put("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::updateItemHandler)
-    router.get("$API_PREFIX/$ITEMS_ENDPOINT").handler(jwtAuthHandler).coroutineHandler(::getItemsHandler)
-    router.get("$API_PREFIX/$ITEMS_ENDPOINT/categories").handler(jwtAuthHandler)
+    router.post("$API_PREFIX/$ITEMS_ENDPOINT").handler(chainAuthHandler).coroutineHandler(::registerItemHandler)
+    router.put("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(chainAuthHandler).coroutineHandler(::updateItemHandler)
+    router.get("$API_PREFIX/$ITEMS_ENDPOINT").handler(chainAuthHandler).coroutineHandler(::getItemsHandler)
+    router.get("$API_PREFIX/$ITEMS_ENDPOINT/categories").handler(chainAuthHandler)
       .coroutineHandler(::getCategoriesHandler)
-    router.get("$API_PREFIX/$ITEMS_ENDPOINT/closest").handler(jwtAuthHandler).coroutineHandler(::getClosestItemsHandler)
-    router.get("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getItemHandler)
-    router.delete("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::deleteItemHandler)
+    router.get("$API_PREFIX/$ITEMS_ENDPOINT/closest").handler(chainAuthHandler).coroutineHandler(::getClosestItemsHandler)
+    router.get("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(chainAuthHandler).coroutineHandler(::getItemHandler)
+    router.delete("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(chainAuthHandler).coroutineHandler(::deleteItemHandler)
 
     // Analytics
-    router.get("$API_PREFIX/$ANALYTICS_ENDPOINT/status").handler(jwtAuthHandler)
+    router.get("$API_PREFIX/$ANALYTICS_ENDPOINT/status").handler(chainAuthHandler)
       .coroutineHandler(::analyticsGetStatusHandler)
 
     // Health checks
@@ -515,4 +522,12 @@ class PublicApiVerticle : CoroutineVerticle() {
         }
       }
     }
+
+  private class UniqueSessionAuthHandler(authProvider: JWTAuth): AuthenticationHandlerImpl<JWTAuth>(authProvider) {
+    override fun authenticate(context: RoutingContext, handler: Handler<AsyncResult<User>>?) {
+      LOGGER.info { "Custom auth handler" }
+      //TODO add test for session in the token vs DB
+      sendStatusCode(ctx = context, 407)
+    }
+  }
 }
