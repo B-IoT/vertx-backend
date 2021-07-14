@@ -36,10 +36,7 @@ import org.junit.jupiter.api.extension.ExtendWith
 import org.testcontainers.containers.DockerComposeContainer
 import org.testcontainers.junit.jupiter.Testcontainers
 import strikt.api.expectThat
-import strikt.assertions.isEmpty
-import strikt.assertions.isEqualTo
-import strikt.assertions.isFalse
-import strikt.assertions.isNotNull
+import strikt.assertions.*
 import java.io.File
 
 @ExtendWith(VertxExtension::class)
@@ -328,6 +325,77 @@ class TestCRUDVerticleUsers {
       testContext.completeNow()
     }
   }
+
+  @Test
+  @DisplayName("authenticate session correctly authenticates a session with the valid UUID returned by authenticate")
+  fun authenticateSessionWithCorrectUUIDIsCorrect(testContext: VertxTestContext) {
+    val userJson = jsonObjectOf(
+      "username" to "username",
+      "password" to "password",
+      "company" to "test"
+    )
+
+    Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      body(userJson.encode())
+    } When {
+      post("/users")
+    }
+
+    val response1 = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        body(userJson.encode())
+        accept(ContentType.JSON)
+      } When {
+        post("/users/authenticate")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonObject()
+
+    testContext.verify {
+      expectThat(response1).isNotNull()
+      expectThat(response1.isEmpty).isFalse()
+      expectThat(response1.containsKey("sessionUuid")).isTrue()
+    }
+    val sessionUuid: String = response1["sessionUuid"]
+
+    val expected = jsonObjectOf("company" to "test", "sessionUuid" to sessionUuid)
+    val sessionAuthJson = userJson.copy().apply {
+      remove("password")
+      put("sessionUuid", sessionUuid)
+    }
+
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        body(sessionAuthJson.encode())
+        accept(ContentType.JSON)
+      } When {
+        post("/users/authenticate/session")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonObject()
+
+    testContext.verify {
+      expectThat(response).isNotNull()
+      expectThat(response.isEmpty).isFalse()
+
+      expectThat(response).isEqualTo(expected)
+      testContext.completeNow()
+    }
+  }
+
 
   @Test
   @DisplayName("deleteUser correctly deletes a user")
