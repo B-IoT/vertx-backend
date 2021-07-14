@@ -211,6 +211,7 @@ class TestPublicApiVerticle {
       expectThat(response.isEmpty).isFalse()
 
       val password = response.getJsonObject(0).remove("password")
+      val sessionUuid = response.getJsonObject(0).remove("sessionUuid")
       expectThat(response).isEqualTo(expected)
       expectThat(password).isNotNull()
       testContext.completeNow()
@@ -240,6 +241,7 @@ class TestPublicApiVerticle {
     testContext.verify {
       expectThat(response).isNotNull()
       val password = response.remove("password")
+      val sessionUuid = response.remove("sessionUuid")
       expectThat(response).isEqualTo(expected)
       expectThat(password).isNotNull()
       testContext.completeNow()
