@@ -564,7 +564,6 @@ class TestCRUDVerticleUsers {
       expectThat(responseFail).isNotNull()
       expectThat(responseWorks).isNotNull()
       expectThat(responseWorks.isEmpty).isFalse()
-
       expectThat(responseWorks).isEqualTo(expected)
       testContext.completeNow()
     }
