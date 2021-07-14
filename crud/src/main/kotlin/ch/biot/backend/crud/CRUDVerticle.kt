@@ -183,6 +183,7 @@ class CRUDVerticle : CoroutineVerticle() {
       routerBuilder.operation("updateUser").coroutineHandler(::updateUserHandler)
       routerBuilder.operation("deleteUser").coroutineHandler(::deleteUserHandler)
       routerBuilder.operation("authenticate").coroutineHandler(::authenticateHandler)
+      routerBuilder.operation("authenticateSession").coroutineHandler(::authenticateSessionHandler)
 
       // Items
       routerBuilder.operation("registerItem").coroutineHandler(::registerItemHandler)
@@ -583,6 +584,48 @@ class CRUDVerticle : CoroutineVerticle() {
           .end(result.encode())
       }.onFailure { th ->
         LOGGER.error { "Cannot insert the session UUID in the DB: " + th.stackTraceToString() }
+        ctx.fail(INTERNAL_SERVER_ERROR_CODE, th)
+      }.await()
+
+
+    } catch (error: Throwable) {
+      LOGGER.error(error) { "Authentication error" }
+      ctx.fail(UNAUTHORIZED_CODE, error)
+    }
+  }
+
+  /**
+   * Handles a session authenticate request.
+   */
+  private suspend fun authenticateSessionHandler(ctx: RoutingContext) {
+    LOGGER.info { "New session authenticate request" }
+    val body = if (ctx.body.length() == 0) {
+      jsonObjectOf()
+    } else {
+      ctx.bodyAsJson
+    }
+
+    try {
+      val requestUsername: String = body["username"]
+      val requestCompany: String = body["company"]
+      val requestSessionUuid: String = body["sessionUuid"]
+
+      val query = jsonObjectOf("username" to requestUsername, "company" to requestCompany)
+      mongoClient.findOne(USERS_COLLECTION, query, jsonObjectOf()).onSuccess { user ->
+        val dbSessionUuid: String = user["sessionUuid"] //should never be null because authenticate should have been called
+                                                        //prior
+        if(requestSessionUuid != dbSessionUuid){
+          ctx.fail(UNAUTHORIZED_CODE)
+        } else {
+          val result = jsonObjectOf("company" to user["company"], "sessionUuid" to dbSessionUuid)
+          ctx.response()
+            .putHeader(CONTENT_TYPE, APPLICATION_JSON)
+            .end(result.encode())
+        }
+
+
+      }.onFailure { th ->
+        LOGGER.error { "Cannot get the user from the DB: " + th.stackTraceToString() }
         ctx.fail(INTERNAL_SERVER_ERROR_CODE, th)
       }.await()
 

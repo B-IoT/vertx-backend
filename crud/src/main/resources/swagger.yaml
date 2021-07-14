@@ -188,6 +188,26 @@ paths:
                 $ref: '#/components/schemas/AuthenticationResult'
         "401":
           description: Authentication error
+  '/users/authenticate/session':
+    post:
+      tags:
+        - User
+      operationId: authenticateSession
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SessionAuthenticateInfo'
+      responses:
+        '200':
+          description: The company of the authenticated user as a string and the session UUID as a string in a JSON object
+          content:
+            application/json:
+              schema:
+                $ref:  '#/components/schemas/AuthenticationResult'
+        '401':
+          description: Authentication error
+
   /users/{id}:
     get:
       tags:
@@ -556,6 +576,16 @@ components:
           type: string
           format: password
       description: Authenticate information for a user
+    SessionAuthenticateInfo:
+      type: object
+      properties:
+        username:
+          type: string
+        company:
+          type: string
+        sessionUuid:
+          type: string
+      description: Authenticate information for a session
 
     AuthenticationResult:
       type: object
