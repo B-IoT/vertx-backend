@@ -396,6 +396,64 @@ class TestCRUDVerticleUsers {
     }
   }
 
+  @Test
+  @DisplayName("authenticate session fails to authenticate a session with an invalid UUID")
+  fun authenticateSessionWithIncorrectUUIDFails(testContext: VertxTestContext) {
+    val userJson = jsonObjectOf(
+      "username" to "username",
+      "password" to "password",
+      "company" to "test"
+    )
+
+    Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      body(userJson.encode())
+    } When {
+      post("/users")
+    }
+
+    val response1 = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        body(userJson.encode())
+        accept(ContentType.JSON)
+      } When {
+        post("/users/authenticate")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonObject()
+
+    testContext.verify {
+      expectThat(response1).isNotNull()
+      expectThat(response1.isEmpty).isFalse()
+      expectThat(response1.containsKey("sessionUuid")).isTrue()
+    }
+    val sessionUuid: String = response1["sessionUuid"]
+
+    val expected = jsonObjectOf("company" to "test", "sessionUuid" to sessionUuid)
+    val sessionAuthJson = userJson.copy().apply {
+      remove("password")
+      put("sessionUuid", "wrongUuid")
+    }
+
+      Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        body(sessionAuthJson.encode())
+        accept(ContentType.JSON)
+      } When {
+        post("/users/authenticate/session")
+      } Then {
+        statusCode(401)
+      }
+  }
+
 
   @Test
   @DisplayName("deleteUser correctly deletes a user")
