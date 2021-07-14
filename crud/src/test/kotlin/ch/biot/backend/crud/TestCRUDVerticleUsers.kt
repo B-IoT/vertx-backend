@@ -442,7 +442,6 @@ class TestCRUDVerticleUsers {
       put("sessionUuid", "wrongUUID")
     }
 
-    val response = Buffer.buffer(
       Given {
         spec(requestSpecification)
         contentType(ContentType.JSON)
@@ -452,10 +451,7 @@ class TestCRUDVerticleUsers {
         post("/users/authenticate/session")
       } Then {
         statusCode(401)
-      } Extract {
-        asString()
       }
-    ).toJsonObject()
 
     testContext.verify {
       testContext.completeNow()
