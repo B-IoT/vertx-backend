@@ -47,6 +47,7 @@ import kotlinx.coroutines.launch
 import mu.KotlinLogging
 import java.net.InetAddress
 import java.util.*
+import java.util.logging.Logger
 
 internal val LOGGER = KotlinLogging.logger {}
 
@@ -567,12 +568,25 @@ class CRUDVerticle : CoroutineVerticle() {
       val company: String = user["company"]
       val sessionUuid: UUID = UUID.randomUUID()
 
-      //TODO store the sessionUuid in the DB
+      val update = json {
+        obj(
+          "\$set" to obj("sessionUuid" to sessionUuid.toString())
+//          "\$currentDate" to obj("lastModified" to true)
+        )
+      }
 
-      val result = jsonObjectOf("company" to company, "sessionUuid" to sessionUuid.toString())
-      ctx.response()
-        .putHeader(CONTENT_TYPE, APPLICATION_JSON)
-        .end(result.encode())
+      val query = jsonObjectOf("username" to body["username"], "company" to company)
+      mongoClient.findOneAndUpdate(USERS_COLLECTION, query, update).onSuccess { js ->
+        val result = jsonObjectOf("company" to company, "sessionUuid" to sessionUuid.toString())
+        ctx.response()
+          .putHeader(CONTENT_TYPE, APPLICATION_JSON)
+          .end(result.encode())
+      }.onFailure { th ->
+        LOGGER.error { "Cannot insert the session UUID in the DB: " + th.stackTraceToString() }
+        ctx.fail(INTERNAL_SERVER_ERROR_CODE, th)
+      }.await()
+
+
     } catch (error: Throwable) {
       LOGGER.error(error) { "Authentication error" }
       ctx.fail(UNAUTHORIZED_CODE, error)
