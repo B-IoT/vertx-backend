@@ -10,8 +10,10 @@ import io.vertx.core.Future
 import io.vertx.core.Handler
 import io.vertx.core.Vertx
 import io.vertx.core.http.HttpMethod
+import io.vertx.core.json.JsonObject
 import io.vertx.ext.auth.User
 import io.vertx.ext.auth.authentication.TokenCredentials
+import io.vertx.ext.auth.impl.jose.JWT
 import io.vertx.ext.auth.jwt.JWTAuth
 import io.vertx.ext.web.Route
 import io.vertx.ext.web.Router
@@ -303,9 +305,9 @@ class PublicApiVerticle : CoroutineVerticle() {
    * Handles the token request.
    */
   private suspend fun tokenHandler(ctx: RoutingContext) {
-    fun makeJwtToken(username: String, company: String): String {
+    fun makeJwtToken(username: String, company: String, sessionUuid: String): String {
       // Add the company information to the custom claims of the token
-      val claims = jsonObjectOf("company" to company)
+      val claims = jsonObjectOf("username" to username, "company" to company, "sessionUuid" to sessionUuid)
       // The token expires in 7 days (10080 minutes)
       val jwtOptions = jwtOptionsOf(algorithm = "RS256", expiresInMinutes = 10080, issuer = "BioT", subject = username)
       return jwtAuth.generateToken(claims, jwtOptions)
@@ -329,7 +331,8 @@ class PublicApiVerticle : CoroutineVerticle() {
         { response ->
           val json = response.bodyAsJsonObject()
           val company: String = json["company"]
-          val token = makeJwtToken(username, company)
+          val sessionUuid: String = json["sessionUuid"]
+          val token = makeJwtToken(username, company, sessionUuid)
           ctx.response().putHeader(CONTENT_TYPE, "application/jwt").end(token)
         }
       )
@@ -523,53 +526,55 @@ class PublicApiVerticle : CoroutineVerticle() {
       }
     }
 
-  private class UniqueSessionAuthHandler(authProvider: JWTAuth): HTTPAuthorizationHandler<JWTAuth>(
+  private inner class UniqueSessionAuthHandler(authProvider: JWTAuth): HTTPAuthorizationHandler<JWTAuth>(
     authProvider,
     Type.BEARER, null
   ) {
     override fun authenticate(context: RoutingContext, handler: Handler<AsyncResult<User>>?) {
-      LOGGER.info { "Custom auth handler" }
+      LOGGER.info { "Custom auth handler for session" }
       parseAuthorization(context) { parseAuthorization: AsyncResult<String> ->
         if (parseAuthorization.failed()) {
           handler!!.handle(Future.failedFuture(parseAuthorization.cause()))
           return@parseAuthorization
         }
         val token = parseAuthorization.result()
-        val validSession = true
+        val claimsJson: JsonObject = JWT.parse(token)["payload"]
+        val json = jsonObjectOf("username" to claimsJson["username"], "company" to claimsJson["company"], "sessionUuid" to claimsJson["sessionUuid"])
 
-        //TODO add test for session in the token vs DB
-
-        if(validSession){
-          authProvider.authenticate(
-            TokenCredentials(token)
-          ) { authn: AsyncResult<User> ->
-            if (authn.failed()) {
-              //will not fail if the other JWT authentication passes
-              handler!!.handle(
-                Future.failedFuture(
-                  HttpException(
-                    401,
-                    authn.cause()
+        webClient
+          .post(CRUD_PORT, CRUD_HOST, "/users/authenticate/session")
+          .timeout(TIMEOUT)
+          .expect(ResponsePredicate.SC_SUCCESS)
+          .sendJsonObject(json)
+          .onSuccess { response ->
+            authProvider.authenticate(
+              TokenCredentials(token)
+            ) { authn: AsyncResult<User> ->
+              if (authn.failed()) {
+                //will not fail if the other JWT authentication passes
+                handler!!.handle(
+                  Future.failedFuture(
+                    HttpException(
+                      401,
+                      authn.cause()
+                    )
                   )
                 )
-              )
-            } else {
-              handler!!.handle(authn)
+              } else {
+                handler!!.handle(authn)
+              }
             }
-          }
-        } else {
-          //the session is not valid (i.e. the user connected elsewhere in the meantime
-          handler!!.handle(
-            Future.failedFuture(
-              HttpException(
-                403,
-                "Session expired: this user logged in elsewhere."
+          }.onFailure { error ->
+            //the session is not valid (i.e. the user connected elsewhere in the meantime
+            handler!!.handle(
+              Future.failedFuture(
+                HttpException(
+                  403,
+                  "Session expired: this user logged in elsewhere."
+                )
               )
             )
-          )
-        }
-
-
+          }
       }
 
     }
