@@ -1097,6 +1097,57 @@ class TestPublicApiVerticle {
     }.connect()
   }
 
+  @Test
+  @Order(30)
+  @DisplayName("Getting a new token for a registered user succeeds and old token is invalid")
+  fun geNewtTokenSucceedsAndInvalidateOld(testContext: VertxTestContext) {
+    val loginInfo = jsonObjectOf(
+      "username" to user["username"],
+      "password" to "newPassword"
+    )
+
+
+    val response1 = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      body(loginInfo.encode())
+    } When {
+      post("/oauth/token")
+    } Then {
+      statusCode(200)
+      contentType("application/jwt")
+    } Extract {
+      asString()
+    }
+
+    val newToken = response1
+
+    testContext.verify {
+      expectThat(response1).isNotNull()
+      expectThat(response1).isNotBlank()
+    }
+
+    val response2 = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      header("Authorization", "Bearer $token")
+      body("A body")
+    } When {
+      post("/api/items")
+    } Then {
+      statusCode(403)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response2).isNotNull()
+      testContext.completeNow()
+    }
+
+  }
+
   companion object {
 
     private val requestSpecification: RequestSpecification = RequestSpecBuilder()
