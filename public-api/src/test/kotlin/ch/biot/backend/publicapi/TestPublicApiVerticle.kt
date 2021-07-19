@@ -1151,7 +1151,7 @@ class TestPublicApiVerticle {
   @Test
   @Order(31)
   @DisplayName("Getting a new token for a registered user succeeds and new token is valid")
-  fun geNewtTokenSucceedsAndNewIsValid(testContext: VertxTestContext) {
+  fun getNewTokenSucceedsAndNewIsValid(testContext: VertxTestContext) {
     val loginInfo = jsonObjectOf(
       "username" to user["username"],
       "password" to "newPassword"
