@@ -274,7 +274,8 @@ class TestCRUDVerticleUsers {
       expectThat(responseAuth).isNotNull()
       expectThat(responseAuth.isEmpty).isFalse()
 
-      val uuid = responseAuth.remove("sessionUuid")
+      val uuid: String = responseAuth.remove("sessionUuid") as String
+      expectThat(uuid).isNotEmpty()
 
       expectThat(responseAuth).isEqualTo(expected)
       testContext.completeNow()
@@ -319,7 +320,8 @@ class TestCRUDVerticleUsers {
       expectThat(response).isNotNull()
       expectThat(response.isEmpty).isFalse()
 
-      val uuid = response.remove("sessionUuid")
+      val uuid: String = response.remove("sessionUuid") as String
+      expectThat(uuid).isNotEmpty()
 
       expectThat(response).isEqualTo(expected)
       testContext.completeNow()

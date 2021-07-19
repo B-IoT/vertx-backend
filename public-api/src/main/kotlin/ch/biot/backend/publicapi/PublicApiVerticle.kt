@@ -184,7 +184,8 @@ class PublicApiVerticle : CoroutineVerticle() {
     router.get("$API_PREFIX/$ITEMS_ENDPOINT").handler(chainAuthHandler).coroutineHandler(::getItemsHandler)
     router.get("$API_PREFIX/$ITEMS_ENDPOINT/categories").handler(chainAuthHandler)
       .coroutineHandler(::getCategoriesHandler)
-    router.get("$API_PREFIX/$ITEMS_ENDPOINT/closest").handler(chainAuthHandler).coroutineHandler(::getClosestItemsHandler)
+    router.get("$API_PREFIX/$ITEMS_ENDPOINT/closest").handler(chainAuthHandler)
+      .coroutineHandler(::getClosestItemsHandler)
     router.get("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(chainAuthHandler).coroutineHandler(::getItemHandler)
     router.delete("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(chainAuthHandler).coroutineHandler(::deleteItemHandler)
 
@@ -526,55 +527,61 @@ class PublicApiVerticle : CoroutineVerticle() {
       }
     }
 
-  private inner class UniqueSessionAuthHandler(authProvider: JWTAuth): HTTPAuthorizationHandler<JWTAuth>(
+  private inner class UniqueSessionAuthHandler(authProvider: JWTAuth) : HTTPAuthorizationHandler<JWTAuth>(
     authProvider,
     Type.BEARER, null
   ) {
     override fun authenticate(context: RoutingContext, handler: Handler<AsyncResult<User>>?) {
-      LOGGER.info { "Custom auth handler for session" }
-      parseAuthorization(context) { parseAuthorization: AsyncResult<String> ->
-        if (parseAuthorization.failed()) {
-          handler!!.handle(Future.failedFuture(parseAuthorization.cause()))
-          return@parseAuthorization
-        }
-        val token = parseAuthorization.result()
-        val claimsJson: JsonObject = JWT.parse(token)["payload"]
-        val json = jsonObjectOf("username" to claimsJson["username"], "company" to claimsJson["company"], "sessionUuid" to claimsJson["sessionUuid"])
+      handler?.let {
+        LOGGER.debug { "Custom auth handler for session" }
+        parseAuthorization(context) { parseAuthorization: AsyncResult<String> ->
+          if (parseAuthorization.failed()) {
+            handler!!.handle(Future.failedFuture(parseAuthorization.cause()))
+            return@parseAuthorization
+          }
+          val token = parseAuthorization.result()
+          val claimsJson: JsonObject = JWT.parse(token)["payload"]
+          val json = jsonObjectOf(
+            "username" to claimsJson["username"],
+            "company" to claimsJson["company"],
+            "sessionUuid" to claimsJson["sessionUuid"]
+          )
 
-        webClient
-          .post(CRUD_PORT, CRUD_HOST, "/users/authenticate/session")
-          .timeout(TIMEOUT)
-          .expect(ResponsePredicate.SC_SUCCESS)
-          .sendJsonObject(json)
-          .onSuccess { response ->
-            authProvider.authenticate(
-              TokenCredentials(token)
-            ) { authn: AsyncResult<User> ->
-              if (authn.failed()) {
-                //will not fail if the other JWT authentication passes
-                handler!!.handle(
-                  Future.failedFuture(
-                    HttpException(
-                      401,
-                      authn.cause()
+          webClient
+            .post(CRUD_PORT, CRUD_HOST, "/users/authenticate/session")
+            .timeout(TIMEOUT)
+            .expect(ResponsePredicate.SC_SUCCESS)
+            .sendJsonObject(json)
+            .onSuccess {
+              authProvider.authenticate(
+                TokenCredentials(token)
+              ) { authn: AsyncResult<User> ->
+                if (authn.failed()) {
+                  // Will not fail if the other JWT authentication passes
+                  handler!!.handle(
+                    Future.failedFuture(
+                      HttpException(
+                        401,
+                        authn.cause()
+                      )
                     )
                   )
-                )
-              } else {
-                handler!!.handle(authn)
+                } else {
+                  handler!!.handle(authn)
+                }
               }
-            }
-          }.onFailure { error ->
-            //the session is not valid (i.e. the user connected elsewhere in the meantime
-            handler!!.handle(
-              Future.failedFuture(
-                HttpException(
-                  403,
-                  "Session expired: this user logged in elsewhere."
+            }.onFailure {
+              // The session is not valid (i.e. the user connected elsewhere in the meantime
+              handler!!.handle(
+                Future.failedFuture(
+                  HttpException(
+                    403,
+                    "Session expired: this user logged in elsewhere."
+                  )
                 )
               )
-            )
-          }
+            }
+        }
       }
 
     }
