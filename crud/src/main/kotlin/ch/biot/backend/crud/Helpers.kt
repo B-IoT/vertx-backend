@@ -96,7 +96,7 @@ fun JsonObject.toItemJson(): JsonObject = jsonObjectOf(
   "brand" to getString("brand"),
   "model" to getString("model"),
   "supplier" to getString("supplier"),
-  "purchaseDate" to getString("purchasedate")?.let(LocalDate::parse),
+  "purchaseDate" to getString("purchasedate"),
   "purchasePrice" to getDouble("purchaseprice"),
   "originLocation" to getString("originlocation"),
   "currentLocation" to getString("currentlocation"),
@@ -107,9 +107,9 @@ fun JsonObject.toItemJson(): JsonObject = jsonObjectOf(
   "orderNumber" to getString("ordernumber"),
   "color" to getString("color"),
   "serialNumber" to getString("serialnumber"),
-  "maintenanceDate" to getString("maintenancedate")?.let(LocalDate::parse),
+  "maintenanceDate" to getString("maintenancedate"),
   "comments" to getString("comments"),
-  "lastModifiedDate" to getString("lastmodifieddate")?.let(LocalDate::parse),
+  "lastModifiedDate" to getString("lastmodifieddate"),
   "lastModifiedBy" to getString("lastmodifiedby")
 )
 
