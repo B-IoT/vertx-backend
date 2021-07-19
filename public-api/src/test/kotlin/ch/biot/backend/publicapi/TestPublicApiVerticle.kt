@@ -214,6 +214,7 @@ class TestPublicApiVerticle {
       val sessionUuid = response.getJsonObject(0).remove("sessionUuid")
       expectThat(response).isEqualTo(expected)
       expectThat(password).isNotNull()
+      expectThat(sessionUuid).isNotNull()
       testContext.completeNow()
     }
   }
@@ -244,6 +245,7 @@ class TestPublicApiVerticle {
       val sessionUuid = response.remove("sessionUuid")
       expectThat(response).isEqualTo(expected)
       expectThat(password).isNotNull()
+      expectThat(sessionUuid).isNotNull()
       testContext.completeNow()
     }
   }
@@ -1119,8 +1121,6 @@ class TestPublicApiVerticle {
     } Extract {
       asString()
     }
-
-    val newToken = response1
 
     testContext.verify {
       expectThat(response1).isNotNull()

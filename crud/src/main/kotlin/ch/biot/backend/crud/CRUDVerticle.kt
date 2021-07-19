@@ -47,7 +47,6 @@ import kotlinx.coroutines.launch
 import mu.KotlinLogging
 import java.net.InetAddress
 import java.util.*
-import java.util.logging.Logger
 
 internal val LOGGER = KotlinLogging.logger {}
 
@@ -572,7 +571,6 @@ class CRUDVerticle : CoroutineVerticle() {
       val update = json {
         obj(
           "\$set" to obj("sessionUuid" to sessionUuid.toString())
-//          "\$currentDate" to obj("lastModified" to true)
         )
       }
 
@@ -610,9 +608,10 @@ class CRUDVerticle : CoroutineVerticle() {
 
       executeWithErrorHandling("Cannot get the user from the DB.", ctx) {
         val user = mongoClient.findOne(USERS_COLLECTION, query, jsonObjectOf()).await()
-        val dbSessionUuid: String = user["sessionUuid"] //Should never be null because authenticate should have been called
-                                                        //previously
-        if(requestSessionUuid != dbSessionUuid){
+        val dbSessionUuid: String =
+          user["sessionUuid"] // Should never be null because authenticate should have been called
+        // previously
+        if (requestSessionUuid != dbSessionUuid) {
           ctx.fail(UNAUTHORIZED_CODE)
         } else {
           val result = jsonObjectOf("company" to user["company"], "sessionUuid" to dbSessionUuid)

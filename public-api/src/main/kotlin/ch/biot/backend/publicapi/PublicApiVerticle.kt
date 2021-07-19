@@ -536,7 +536,7 @@ class PublicApiVerticle : CoroutineVerticle() {
         LOGGER.debug { "Custom auth handler for session" }
         parseAuthorization(context) { parseAuthorization: AsyncResult<String> ->
           if (parseAuthorization.failed()) {
-            handler!!.handle(Future.failedFuture(parseAuthorization.cause()))
+            handler.handle(Future.failedFuture(parseAuthorization.cause()))
             return@parseAuthorization
           }
           val token = parseAuthorization.result()
@@ -558,7 +558,7 @@ class PublicApiVerticle : CoroutineVerticle() {
               ) { authn: AsyncResult<User> ->
                 if (authn.failed()) {
                   // Will not fail if the other JWT authentication passes
-                  handler!!.handle(
+                  handler.handle(
                     Future.failedFuture(
                       HttpException(
                         401,
@@ -567,12 +567,12 @@ class PublicApiVerticle : CoroutineVerticle() {
                     )
                   )
                 } else {
-                  handler!!.handle(authn)
+                  handler.handle(authn)
                 }
               }
             }.onFailure {
               // The session is not valid (i.e. the user connected elsewhere in the meantime
-              handler!!.handle(
+              handler.handle(
                 Future.failedFuture(
                   HttpException(
                     403,

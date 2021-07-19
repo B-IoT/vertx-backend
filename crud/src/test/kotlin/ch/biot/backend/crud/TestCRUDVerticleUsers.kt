@@ -256,7 +256,7 @@ class TestCRUDVerticleUsers {
     val expected = jsonObjectOf("company" to existingUser["company"])
 
     val responseAuth = Buffer.buffer(
-        Given {
+      Given {
         spec(requestSpecification)
         contentType(ContentType.JSON)
         body(updatedUser.encode())
@@ -302,7 +302,7 @@ class TestCRUDVerticleUsers {
     }
 
     val response = Buffer.buffer(
-        Given {
+      Given {
         spec(requestSpecification)
         contentType(ContentType.JSON)
         body(userJson.encode())
@@ -443,17 +443,17 @@ class TestCRUDVerticleUsers {
     }
 
     val response = Given {
-        spec(requestSpecification)
-        contentType(ContentType.JSON)
-        body(sessionAuthJson.encode())
-        accept(ContentType.JSON)
-      } When {
-        post("/users/authenticate/session")
-      } Then {
-        statusCode(401)
-      } Extract {
-        asString()
-      }
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      body(sessionAuthJson.encode())
+      accept(ContentType.JSON)
+    } When {
+      post("/users/authenticate/session")
+    } Then {
+      statusCode(401)
+    } Extract {
+      asString()
+    }
 
     testContext.verify {
       expectThat(response).isNotNull()
@@ -462,8 +462,10 @@ class TestCRUDVerticleUsers {
   }
 
   @Test
-  @DisplayName("authenticate session fails to authenticate a session with an old UUID from a previous authentication" +
-    " but correctly authenticates with the latest")
+  @DisplayName(
+    "authenticate session fails to authenticate a session with an old UUID from a previous authentication" +
+      " but correctly authenticates with the latest"
+  )
   fun authenticateSessionWithOldUUIDFails(testContext: VertxTestContext) {
     val userJson = jsonObjectOf(
       "username" to "username",
