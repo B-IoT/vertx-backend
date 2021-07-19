@@ -53,7 +53,7 @@ internal val LOGGER = KotlinLogging.logger {}
 class PublicApiVerticle : CoroutineVerticle() {
 
   companion object {
-    private const val TIMEOUT: Long = 5000
+    const val TIMEOUT: Long = 5000
 
     private const val APPLICATION_JSON = "application/json"
     private const val CONTENT_TYPE = "Content-Type"
@@ -127,7 +127,12 @@ class PublicApiVerticle : CoroutineVerticle() {
 
     val jwtAuthHandler = JWTAuthHandler.create(jwtAuth)
 
-    val chainAuthHandler = ChainAuthHandler.all().add(jwtAuthHandler).add(UniqueSessionAuthHandler(jwtAuth))
+    webClient = WebClient.create(vertx, webClientOptionsOf(tryUseCompression = true))
+
+    val chainAuthHandler = ChainAuthHandler.all().add(jwtAuthHandler).add(UniqueSessionAuthHandler(
+      authProvider = jwtAuth,
+      webClient = webClient
+    ))
 
     val router = Router.router(vertx)
 
@@ -205,7 +210,6 @@ class PublicApiVerticle : CoroutineVerticle() {
     router.route("/eventbus/*").coroutineHandler(::eventBusAuthHandler)
     router.mountSubRouter("/eventbus", sockJSHandler.bridge(sockJSBridgeOptions))
 
-    webClient = WebClient.create(vertx, webClientOptionsOf(tryUseCompression = true))
 
     try {
       vertx.createHttpServer(
@@ -526,64 +530,4 @@ class PublicApiVerticle : CoroutineVerticle() {
         }
       }
     }
-
-  private inner class UniqueSessionAuthHandler(authProvider: JWTAuth) : HTTPAuthorizationHandler<JWTAuth>(
-    authProvider,
-    Type.BEARER, null
-  ) {
-    override fun authenticate(context: RoutingContext, handler: Handler<AsyncResult<User>>?) {
-      handler?.let {
-        LOGGER.debug { "Custom auth handler for session" }
-        parseAuthorization(context) { parseAuthorization: AsyncResult<String> ->
-          if (parseAuthorization.failed()) {
-            handler.handle(Future.failedFuture(parseAuthorization.cause()))
-            return@parseAuthorization
-          }
-          val token = parseAuthorization.result()
-          val claimsJson: JsonObject = JWT.parse(token)["payload"]
-          val json = jsonObjectOf(
-            "username" to claimsJson["username"],
-            "company" to claimsJson["company"],
-            "sessionUuid" to claimsJson["sessionUuid"]
-          )
-
-          webClient
-            .post(CRUD_PORT, CRUD_HOST, "/users/authenticate/session")
-            .timeout(TIMEOUT)
-            .expect(ResponsePredicate.SC_SUCCESS)
-            .sendJsonObject(json)
-            .onSuccess {
-              authProvider.authenticate(
-                TokenCredentials(token)
-              ) { authn: AsyncResult<User> ->
-                if (authn.failed()) {
-                  // Will not fail if the other JWT authentication passes
-                  handler.handle(
-                    Future.failedFuture(
-                      HttpException(
-                        401,
-                        authn.cause()
-                      )
-                    )
-                  )
-                } else {
-                  handler.handle(authn)
-                }
-              }
-            }.onFailure {
-              // The session is not valid (i.e. the user connected elsewhere in the meantime
-              handler.handle(
-                Future.failedFuture(
-                  HttpException(
-                    403,
-                    "Session expired: this user logged in elsewhere."
-                  )
-                )
-              )
-            }
-        }
-      }
-
-    }
   }
-}
