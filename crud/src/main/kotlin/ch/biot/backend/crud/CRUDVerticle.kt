@@ -145,26 +145,7 @@ class CRUDVerticle : CoroutineVerticle() {
     mongoAuthUsers = MongoAuthentication.create(mongoClient, mongoAuthUsersOptions)
 
 
-    // Check that the initial admin BioT user is in the DB, add it if not
-    try {
-      val query = jsonObjectOf("userID" to INITIAL_USER["userID"])
-      val initialUser = mongoClient.findOne(USERS_COLLECTION, query, jsonObjectOf()).await()
-      if (initialUser == null) {
-        val password: String = INITIAL_USER["password"]
-        val hashedPassword = password.saltAndHash(mongoAuthUsers)
-        val docID = mongoUserUtilUsers.createHashedUser(INITIAL_USER["username"], hashedPassword).await()
-
-        val queryInsert = jsonObjectOf("_id" to docID)
-        val extraInfo = jsonObjectOf(
-          "\$set" to INITIAL_USER.copy().apply {
-            remove("password")
-          }
-        )
-        mongoClient.findOneAndUpdate(USERS_COLLECTION, queryInsert, extraInfo).await()
-      }
-    } catch (error: Throwable) {
-      LOGGER.error(error) { "Could not create the initial user in the DB." }
-    }
+    checkInitialUserAndAdd()
 
     // Initialize TimescaleDB
     val pgConnectOptions =
@@ -248,6 +229,31 @@ class CRUDVerticle : CoroutineVerticle() {
     } catch (error: Throwable) {
       // Something went wrong during router builder initialization
       LOGGER.error(error) { "Could not initialize router builder" }
+    }
+  }
+
+  /**
+   * Check that the initial admin BioT user is in the DB, add it if not
+   */
+  private suspend fun checkInitialUserAndAdd() {
+    try {
+      val query = jsonObjectOf("userID" to INITIAL_USER["userID"])
+      val initialUser = mongoClient.findOne(USERS_COLLECTION, query, jsonObjectOf()).await()
+      if (initialUser == null) {
+        val password: String = INITIAL_USER["password"]
+        val hashedPassword = password.saltAndHash(mongoAuthUsers)
+        val docID = mongoUserUtilUsers.createHashedUser(INITIAL_USER["username"], hashedPassword).await()
+
+        val queryInsert = jsonObjectOf("_id" to docID)
+        val extraInfo = jsonObjectOf(
+          "\$set" to INITIAL_USER.copy().apply {
+            remove("password")
+          }
+        )
+        mongoClient.findOneAndUpdate(USERS_COLLECTION, queryInsert, extraInfo).await()
+      }
+    } catch (error: Throwable) {
+      LOGGER.error(error) { "Could not create the initial user in the DB." }
     }
   }
 
