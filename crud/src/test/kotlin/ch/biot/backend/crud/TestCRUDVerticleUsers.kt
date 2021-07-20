@@ -36,10 +36,7 @@ import org.junit.jupiter.api.extension.ExtendWith
 import org.testcontainers.containers.DockerComposeContainer
 import org.testcontainers.junit.jupiter.Testcontainers
 import strikt.api.expectThat
-import strikt.assertions.isEmpty
-import strikt.assertions.isEqualTo
-import strikt.assertions.isFalse
-import strikt.assertions.isNotNull
+import strikt.assertions.*
 import java.io.File
 
 @ExtendWith(VertxExtension::class)
@@ -256,27 +253,84 @@ class TestCRUDVerticleUsers {
       put("password", newPassword)
     }
 
-    val company = Given {
-      spec(requestSpecification)
-      contentType(ContentType.JSON)
-      body(updatedUser.encode())
-    } When {
-      post("/users/authenticate")
-    } Then {
-      statusCode(200)
-    } Extract {
-      asString()
-    }
+    val expected = jsonObjectOf("company" to existingUser["company"])
+
+    val responseAuth = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        body(updatedUser.encode())
+        accept(ContentType.JSON)
+      } When {
+        post("/users/authenticate")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonObject()
 
     testContext.verify {
-      expectThat(company).isEqualTo(existingUser["company"])
+      expectThat(responseAuth).isNotNull()
+      expectThat(responseAuth.isEmpty).isFalse()
+
+      val uuid: String = responseAuth.remove("sessionUuid") as String
+      expectThat(uuid).isNotEmpty()
+
+      expectThat(responseAuth).isEqualTo(expected)
       testContext.completeNow()
     }
   }
 
   @Test
-  @DisplayName("authenticate correctly authenticates and returns the user's company")
+  @DisplayName("authenticate correctly authenticates and returns the user's company and an UUID")
   fun authenticateIsCorrect(testContext: VertxTestContext) {
+    val userJson = jsonObjectOf(
+      "username" to "username",
+      "password" to "password",
+      "company" to "test"
+    )
+    val expected = jsonObjectOf("company" to "test")
+
+    Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      body(userJson.encode())
+    } When {
+      post("/users")
+    }
+
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        body(userJson.encode())
+        accept(ContentType.JSON)
+      } When {
+        post("/users/authenticate")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonObject()
+
+    testContext.verify {
+      expectThat(response).isNotNull()
+      expectThat(response.isEmpty).isFalse()
+
+      val uuid: String = response.remove("sessionUuid") as String
+      expectThat(uuid).isNotEmpty()
+
+      expectThat(response).isEqualTo(expected)
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("authenticate session correctly authenticates a session with the valid UUID returned by authenticate")
+  fun authenticateSessionWithCorrectUUIDIsCorrect(testContext: VertxTestContext) {
     val userJson = jsonObjectOf(
       "username" to "username",
       "password" to "password",
@@ -292,23 +346,233 @@ class TestCRUDVerticleUsers {
       post("/users")
     }
 
+    val response1 = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        body(userJson.encode())
+        accept(ContentType.JSON)
+      } When {
+        post("/users/authenticate")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonObject()
+
+    testContext.verify {
+      expectThat(response1).isNotNull()
+      expectThat(response1.isEmpty).isFalse()
+      expectThat(response1.containsKey("sessionUuid")).isTrue()
+    }
+    val sessionUuid: String = response1["sessionUuid"]
+
+    val expected = jsonObjectOf("company" to "test", "sessionUuid" to sessionUuid)
+    val sessionAuthJson = userJson.copy().apply {
+      remove("password")
+      put("sessionUuid", sessionUuid)
+    }
+
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        body(sessionAuthJson.encode())
+        accept(ContentType.JSON)
+      } When {
+        post("/users/authenticate/session")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonObject()
+
+    testContext.verify {
+      expectThat(response).isNotNull()
+      expectThat(response.isEmpty).isFalse()
+
+      expectThat(response).isEqualTo(expected)
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("authenticate session fails to authenticate a session with an invalid UUID")
+  fun authenticateSessionWithIncorrectUUIDFails(testContext: VertxTestContext) {
+    val userJson = jsonObjectOf(
+      "username" to "username",
+      "password" to "password",
+      "company" to "test"
+    )
+
+    Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      body(userJson.encode())
+    } When {
+      post("/users")
+    }
+
+    val response1 = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        body(userJson.encode())
+        accept(ContentType.JSON)
+      } When {
+        post("/users/authenticate")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonObject()
+
+    testContext.verify {
+      expectThat(response1).isNotNull()
+      expectThat(response1.isEmpty).isFalse()
+      expectThat(response1.containsKey("sessionUuid")).isTrue()
+    }
+
+    val sessionAuthJson = userJson.copy().apply {
+      remove("password")
+      put("sessionUuid", "wrongUUID")
+    }
+
     val response = Given {
       spec(requestSpecification)
       contentType(ContentType.JSON)
-      body(userJson.encode())
+      body(sessionAuthJson.encode())
+      accept(ContentType.JSON)
     } When {
-      post("/users/authenticate")
+      post("/users/authenticate/session")
     } Then {
-      statusCode(200)
+      statusCode(401)
     } Extract {
       asString()
     }
 
     testContext.verify {
-      expectThat(response).isEqualTo(userJson["company"])
+      expectThat(response).isNotNull()
       testContext.completeNow()
     }
   }
+
+  @Test
+  @DisplayName(
+    "authenticate session fails to authenticate a session with an old UUID from a previous authentication" +
+      " but correctly authenticates with the latest"
+  )
+  fun authenticateSessionWithOldUUIDFails(testContext: VertxTestContext) {
+    val userJson = jsonObjectOf(
+      "username" to "username",
+      "password" to "password",
+      "company" to "test"
+    )
+
+    Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      body(userJson.encode())
+    } When {
+      post("/users")
+    }
+
+    val response1 = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        body(userJson.encode())
+        accept(ContentType.JSON)
+      } When {
+        post("/users/authenticate")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonObject()
+
+    testContext.verify {
+      expectThat(response1).isNotNull()
+      expectThat(response1.isEmpty).isFalse()
+      expectThat(response1.containsKey("sessionUuid")).isTrue()
+    }
+    val sessionUuid1: String = response1["sessionUuid"]
+
+    val response2 = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        body(userJson.encode())
+        accept(ContentType.JSON)
+      } When {
+        post("/users/authenticate")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonObject()
+
+    testContext.verify {
+      expectThat(response2).isNotNull()
+      expectThat(response2.isEmpty).isFalse()
+      expectThat(response2.containsKey("sessionUuid")).isTrue()
+    }
+    val sessionUuid2: String = response2["sessionUuid"]
+
+    val expected = jsonObjectOf("company" to "test", "sessionUuid" to sessionUuid2)
+    val sessionAuthJsonFail = userJson.copy().apply {
+      remove("password")
+      put("sessionUuid", sessionUuid1)
+    }
+    val sessionAuthJsonWorks = userJson.copy().apply {
+      remove("password")
+      put("sessionUuid", sessionUuid2)
+    }
+
+    val responseFail = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      body(sessionAuthJsonFail.encode())
+      accept(ContentType.JSON)
+    } When {
+      post("/users/authenticate/session")
+    } Then {
+      statusCode(401)
+    } Extract {
+      asString()
+    }
+
+    val responseWorks = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        body(sessionAuthJsonWorks.encode())
+        accept(ContentType.JSON)
+      } When {
+        post("/users/authenticate/session")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonObject()
+
+    testContext.verify {
+      expectThat(responseFail).isNotNull()
+      expectThat(responseWorks).isNotNull()
+      expectThat(responseWorks.isEmpty).isFalse()
+      expectThat(responseWorks).isEqualTo(expected)
+      testContext.completeNow()
+    }
+  }
+
 
   @Test
   @DisplayName("deleteUser correctly deletes a user")

@@ -14,6 +14,8 @@ To build all JARs, use `./gradlew build` (it will also run the tests).
 
 To generate aggregated JaCoCo test coverage reports, first run all tests, then use `./gradlew jacocoRootReport`.
 
+When running the tests locally, the Docker containers have to be stopped unlike when running the backend.
+
 If you have a local Kubernetes cluster (with MongoDB, TimescaleDB and Kafka running), you can use `skaffold dev` to locally deploy and run the backend in watch mode. Otherwise, you can use Docker Compose: first, run it with `docker compose up`, then launch all services with `./run.sh`.
 
 ## Deployment

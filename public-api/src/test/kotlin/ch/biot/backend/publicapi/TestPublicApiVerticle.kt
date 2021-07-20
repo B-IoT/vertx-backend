@@ -211,8 +211,10 @@ class TestPublicApiVerticle {
       expectThat(response.isEmpty).isFalse()
 
       val password = response.getJsonObject(0).remove("password")
+      val sessionUuid = response.getJsonObject(0).remove("sessionUuid")
       expectThat(response).isEqualTo(expected)
       expectThat(password).isNotNull()
+      expectThat(sessionUuid).isNotNull()
       testContext.completeNow()
     }
   }
@@ -240,8 +242,10 @@ class TestPublicApiVerticle {
     testContext.verify {
       expectThat(response).isNotNull()
       val password = response.remove("password")
+      val sessionUuid = response.remove("sessionUuid")
       expectThat(response).isEqualTo(expected)
       expectThat(password).isNotNull()
+      expectThat(sessionUuid).isNotNull()
       testContext.completeNow()
     }
   }
@@ -1093,6 +1097,105 @@ class TestPublicApiVerticle {
         testContext.completeNow()
       }
     }.connect()
+  }
+
+  @Test
+  @Order(30)
+  @DisplayName("Getting a new token for a registered user succeeds and old token is invalid")
+  fun getNewTokenSucceedsAndInvalidateOld(testContext: VertxTestContext) {
+    val loginInfo = jsonObjectOf(
+      "username" to user["username"],
+      "password" to "newPassword"
+    )
+
+
+    val response1 = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      body(loginInfo.encode())
+    } When {
+      post("/oauth/token")
+    } Then {
+      statusCode(200)
+      contentType("application/jwt")
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response1).isNotNull()
+      expectThat(response1).isNotBlank()
+    }
+
+    val response2 = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      header("Authorization", "Bearer $token")
+      body("A body")
+    } When {
+      post("/api/items")
+    } Then {
+      statusCode(403)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response2).isNotNull()
+      testContext.completeNow()
+    }
+
+  }
+
+  @Test
+  @Order(31)
+  @DisplayName("Getting a new token for a registered user succeeds and new token is valid")
+  fun getNewTokenSucceedsAndNewIsValid(testContext: VertxTestContext) {
+    val loginInfo = jsonObjectOf(
+      "username" to user["username"],
+      "password" to "newPassword"
+    )
+
+
+    val response1 = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      body(loginInfo.encode())
+    } When {
+      post("/oauth/token")
+    } Then {
+      statusCode(200)
+      contentType("application/jwt")
+    } Extract {
+      asString()
+    }
+
+    val newToken = response1
+
+    testContext.verify {
+      expectThat(response1).isNotNull()
+      expectThat(response1).isNotBlank()
+    }
+
+    val response2 = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      header("Authorization", "Bearer $newToken")
+    } When {
+      get("/api/users")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response2).isNotNull()
+      testContext.completeNow()
+    }
+
   }
 
   companion object {

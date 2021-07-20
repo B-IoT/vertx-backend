@@ -46,6 +46,7 @@ import io.vertx.sqlclient.Tuple
 import kotlinx.coroutines.launch
 import mu.KotlinLogging
 import java.net.InetAddress
+import java.util.*
 
 internal val LOGGER = KotlinLogging.logger {}
 
@@ -181,6 +182,7 @@ class CRUDVerticle : CoroutineVerticle() {
       routerBuilder.operation("updateUser").coroutineHandler(::updateUserHandler)
       routerBuilder.operation("deleteUser").coroutineHandler(::deleteUserHandler)
       routerBuilder.operation("authenticate").coroutineHandler(::authenticateHandler)
+      routerBuilder.operation("authenticateSession").coroutineHandler(::authenticateSessionHandler)
 
       // Items
       routerBuilder.operation("registerItem").coroutineHandler(::registerItemHandler)
@@ -564,7 +566,60 @@ class CRUDVerticle : CoroutineVerticle() {
     try {
       val user = mongoAuthUsers.authenticate(body).await()
       val company: String = user["company"]
-      ctx.end(company)
+      val sessionUuid: UUID = UUID.randomUUID()
+
+      val update = json {
+        obj(
+          "\$set" to obj("sessionUuid" to sessionUuid.toString())
+        )
+      }
+
+      val query = jsonObjectOf("username" to body["username"], "company" to company)
+      executeWithErrorHandling("Cannot insert the session UUID in the DB.", ctx) {
+        mongoClient.findOneAndUpdate(USERS_COLLECTION, query, update).await()
+        val result = jsonObjectOf("company" to company, "sessionUuid" to sessionUuid.toString())
+        ctx.response()
+          .putHeader(CONTENT_TYPE, APPLICATION_JSON)
+          .end(result.encode())
+      }
+    } catch (error: Throwable) {
+      LOGGER.error(error) { "Authentication error" }
+      ctx.fail(UNAUTHORIZED_CODE, error)
+    }
+  }
+
+  /**
+   * Handles a session authenticate request.
+   */
+  private suspend fun authenticateSessionHandler(ctx: RoutingContext) {
+    LOGGER.info { "New session authenticate request" }
+    val body = if (ctx.body.length() == 0) {
+      jsonObjectOf()
+    } else {
+      ctx.bodyAsJson
+    }
+
+    try {
+      val requestUsername: String = body["username"]
+      val requestCompany: String = body["company"]
+      val requestSessionUuid: String = body["sessionUuid"]
+
+      val query = jsonObjectOf("username" to requestUsername, "company" to requestCompany)
+
+      executeWithErrorHandling("Cannot get the user from the DB.", ctx) {
+        val user = mongoClient.findOne(USERS_COLLECTION, query, jsonObjectOf()).await()
+        val dbSessionUuid: String =
+          user["sessionUuid"] // Should never be null because authenticate should have been called
+        // previously
+        if (requestSessionUuid != dbSessionUuid) {
+          ctx.fail(UNAUTHORIZED_CODE)
+        } else {
+          val result = jsonObjectOf("company" to user["company"], "sessionUuid" to dbSessionUuid)
+          ctx.response()
+            .putHeader(CONTENT_TYPE, APPLICATION_JSON)
+            .end(result.encode())
+        }
+      }
     } catch (error: Throwable) {
       LOGGER.error(error) { "Authentication error" }
       ctx.fail(UNAUTHORIZED_CODE, error)
