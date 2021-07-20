@@ -149,7 +149,7 @@ class CRUDVerticle : CoroutineVerticle() {
     try {
       val query = jsonObjectOf("userID" to INITIAL_USER["userID"])
       val initialUser = mongoClient.findOne(USERS_COLLECTION, query, jsonObjectOf()).await()
-      if(initialUser == null) {
+      if (initialUser == null) {
         val password: String = INITIAL_USER["password"]
         val hashedPassword = password.saltAndHash(mongoAuthUsers)
         val docID = mongoUserUtilUsers.createHashedUser(INITIAL_USER["username"], hashedPassword).await()
