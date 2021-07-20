@@ -100,8 +100,6 @@ class TestHelpers {
     expectThat(validateAccessControlString("biot:group1:group1", company)).isTrue()
     val longNameGroups = "a".repeat(MAX_ACCESS_CONTROL_STRING_LENGTH-"biot:".length)
     expectThat(validateAccessControlString("biot:$longNameGroups", company)).isTrue()
-
-
   }
 
   @Test
