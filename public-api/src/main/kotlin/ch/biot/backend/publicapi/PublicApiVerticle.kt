@@ -149,13 +149,7 @@ class PublicApiVerticle : CoroutineVerticle() {
     }
 
     // Users
-    router.post("$OAUTH_PREFIX/register")
-      .handler(
-        // Only allow creating a user from inside the network
-        CorsHandler.create("((http://)|(https://))localhost\\:\\d+").allowedHeaders(allowedHeaders)
-          .allowedMethods(setOf(HttpMethod.POST))
-      )
-      .coroutineHandler(::registerUserHandler)
+    router.post("$OAUTH_PREFIX/register").handler(jwtAuthHandler).coroutineHandler(::registerUserHandler)
     router.post("$OAUTH_PREFIX/token").coroutineHandler(::tokenHandler)
     router.put("$API_PREFIX/$USERS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::updateUserHandler)
     router.get("$API_PREFIX/$USERS_ENDPOINT").handler(jwtAuthHandler).coroutineHandler(::getUsersHandler)
@@ -389,10 +383,8 @@ class PublicApiVerticle : CoroutineVerticle() {
 
     webClient
       .post(CRUD_PORT, CRUD_HOST, "/$endpoint").apply {
-        if (endpoint != USERS_ENDPOINT) {
-          // The users endpoint is not considered because, as the user is being created, there is no authenticated user associated to the context
-          addQueryParam("company", ctx.user().principal()["company"])
-        }
+        addQueryParam("company", ctx.user().principal()["company"])
+
         timeout(TIMEOUT)
         putHeader(CONTENT_TYPE, APPLICATION_JSON)
         expect(ResponsePredicate.SC_OK)

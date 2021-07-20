@@ -72,6 +72,14 @@ class CRUDVerticle : CoroutineVerticle() {
 
     private const val SERVER_COMPRESSION_LEVEL = 4
 
+    // User initially inserted in the DB
+    val INITIAL_USER = jsonObjectOf(
+      "userID" to "biot_biot",
+      "username" to "biot",
+      "password" to "biot",
+      "company" to "biot"
+    )
+
     private val environment = System.getenv()
     val HTTP_PORT = environment.getOrDefault("HTTP_PORT", "8081").toInt()
 
@@ -135,6 +143,28 @@ class CRUDVerticle : CoroutineVerticle() {
       mongoClient, mongoAuthUsersOptions, mongoAuthorizationOptionsOf()
     )
     mongoAuthUsers = MongoAuthentication.create(mongoClient, mongoAuthUsersOptions)
+
+
+    // Check that the initial admin BiOT user is in the DB, add it if not
+    try {
+      val query = jsonObjectOf("userID" to INITIAL_USER["userID"])
+      val initialUser = mongoClient.findOne(USERS_COLLECTION, query, jsonObjectOf()).await()
+      if(initialUser == null) {
+        val password: String = INITIAL_USER["password"]
+        val hashedPassword = password.saltAndHash(mongoAuthUsers)
+        val docID = mongoUserUtilUsers.createHashedUser(INITIAL_USER["username"], hashedPassword).await()
+
+        val queryInsert = jsonObjectOf("_id" to docID)
+        val extraInfo = jsonObjectOf(
+          "\$set" to INITIAL_USER.copy().apply {
+            remove("password")
+          }
+        )
+        mongoClient.findOneAndUpdate(USERS_COLLECTION, queryInsert, extraInfo).await()
+      }
+    } catch (error: Throwable) {
+      LOGGER.error(error) { "Could not create the initial user in the DB." }
+    }
 
     // Initialize TimescaleDB
     val pgConnectOptions =
