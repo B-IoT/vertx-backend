@@ -6,6 +6,7 @@ package ch.biot.backend.crud
 
 import ch.biot.backend.crud.CRUDVerticle.Companion.BAD_REQUEST_CODE
 import ch.biot.backend.crud.CRUDVerticle.Companion.INTERNAL_SERVER_ERROR_CODE
+import ch.biot.backend.crud.CRUDVerticle.Companion.MAX_ACCESS_CONTROL_STRING_LENGTH
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.auth.mongo.MongoAuthentication
 import io.vertx.ext.web.RoutingContext
@@ -40,6 +41,10 @@ suspend fun JsonObject?.validateAndThen(ctx: RoutingContext, block: suspend (Jso
     else -> block(this)
   }
 }
+
+fun validateAccessControlString(s: String, company: String): Boolean =
+  s.length <= MAX_ACCESS_CONTROL_STRING_LENGTH && s.matches("^[a-zA-Z]+(:[a-zA-Z0-9]+)*$".toRegex()) && s.split(':')[0] == company
+
 
 /**
  * Cleans the JSON object, removing the "_id" field and formatting the "lastModified" field.

@@ -6,6 +6,7 @@ package ch.biot.backend.crud
 
 import ch.biot.backend.crud.CRUDVerticle.Companion.BAD_REQUEST_CODE
 import ch.biot.backend.crud.CRUDVerticle.Companion.INTERNAL_SERVER_ERROR_CODE
+import ch.biot.backend.crud.CRUDVerticle.Companion.MAX_ACCESS_CONTROL_STRING_LENGTH
 import io.mockk.confirmVerified
 import io.mockk.every
 import io.mockk.mockk
@@ -26,6 +27,9 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
 import org.testcontainers.containers.DockerComposeContainer
 import org.testcontainers.junit.jupiter.Testcontainers
+import strikt.api.expectThat
+import strikt.assertions.isFalse
+import strikt.assertions.isTrue
 import java.io.File
 
 @ExtendWith(VertxExtension::class)
@@ -86,6 +90,39 @@ class TestHelpers {
     confirmVerified(routingContext)
   }
 
+  @Test
+  fun validateAccessControlStringAcceptsValidStrings(vertx: Vertx): Unit = runBlocking(vertx.dispatcher()) {
+    val company = "biot"
+
+    expectThat(validateAccessControlString("biot", company)).isTrue()
+    expectThat(validateAccessControlString("biot:group1", company)).isTrue()
+    expectThat(validateAccessControlString("biot:group1:group2", company)).isTrue()
+    expectThat(validateAccessControlString("biot:group1:group1", company)).isTrue()
+    val longNameGroups = "a".repeat(MAX_ACCESS_CONTROL_STRING_LENGTH-"biot:".length)
+    expectThat(validateAccessControlString("biot:$longNameGroups", company)).isTrue()
+
+
+  }
+
+  @Test
+  fun validateAccessControlStringRejectsInvalidStrings(vertx: Vertx): Unit = runBlocking(vertx.dispatcher()) {
+    val company = "biot"
+
+    expectThat(validateAccessControlString("biot12", company)).isFalse()
+    expectThat(validateAccessControlString("biot12:group1", company)).isFalse()
+    expectThat(validateAccessControlString("biot:group1:group2 ", company)).isFalse()
+    expectThat(validateAccessControlString("biot:grou p1:group1", company)).isFalse()
+    expectThat(validateAccessControlString("", company)).isFalse()
+    expectThat(validateAccessControlString("biot12", "biot12")).isFalse()
+    expectThat(validateAccessControlString("biot:group1:group1:", company)).isFalse()
+    expectThat(validateAccessControlString("biot:group1:$$123", company)).isFalse()
+    expectThat(validateAccessControlString("biot:group1:*", company)).isFalse()
+    expectThat(validateAccessControlString("biot:group1:#", company)).isFalse()
+    expectThat(validateAccessControlString("biot:group1:çava", company)).isFalse()
+
+    val longNameGroups = "a".repeat(MAX_ACCESS_CONTROL_STRING_LENGTH-"biot:".length + 1)
+    expectThat(validateAccessControlString("biot:$longNameGroups", company)).isFalse() // Too long i.e. 2049 chars
+  }
   companion object {
 
     private val instance: KDockerComposeContainer by lazy { defineDockerCompose() }
