@@ -4,6 +4,7 @@
 
 package ch.biot.backend.crud
 
+import ch.biot.backend.crud.CRUDVerticle.Companion.INITIAL_USER
 import io.restassured.builder.RequestSpecBuilder
 import io.restassured.filter.log.RequestLoggingFilter
 import io.restassured.filter.log.ResponseLoggingFilter
@@ -175,7 +176,7 @@ class TestCRUDVerticleUsers {
   @Test
   @DisplayName("getUsers correctly retrieves all users")
   fun getUsersIsCorrect(testContext: VertxTestContext) {
-    val expected = jsonArrayOf(existingUser.copy().apply { remove("password") })
+    val expected = jsonArrayOf(existingUser.copy().apply { remove("password") }, INITIAL_USER.copy().apply { remove("password") })
 
     val response = Buffer.buffer(
       Given {
@@ -194,9 +195,11 @@ class TestCRUDVerticleUsers {
       expectThat(response).isNotNull()
       expectThat(response.isEmpty).isFalse()
 
-      val password = response.getJsonObject(0).remove("password")
+      val password1 = response.getJsonObject(0).remove("password")
+      val password2 = response.getJsonObject(1).remove("password")
       expectThat(response).isEqualTo(expected)
-      expectThat(password).isNotNull()
+      expectThat(password1).isNotNull()
+      expectThat(password2).isNotNull()
       testContext.completeNow()
     }
   }
