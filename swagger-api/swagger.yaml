@@ -305,15 +305,6 @@ paths:
       tags:
       - Item
       operationId: registerItem
-      parameters:
-      - name: accessControlString
-        in: query
-        description: accessControlString to access data
-        required: false
-        style: form
-        explode: true
-        schema:
-          type: string
       requestBody:
         content:
           application/json:
