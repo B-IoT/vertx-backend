@@ -637,6 +637,8 @@ components:
           type: string
         itemID:
           type: string
+        accessControlString:
+          type: string
         brand:
           type: string
         model:
