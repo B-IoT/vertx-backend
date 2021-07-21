@@ -527,6 +527,8 @@ components:
           type: string
         company:
           type: string
+        accessControlString:
+          type: string
       description: A user
     UserRegisterInfo:
       required:
