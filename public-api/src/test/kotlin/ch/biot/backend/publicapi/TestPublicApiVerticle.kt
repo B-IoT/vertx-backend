@@ -5,6 +5,7 @@
 package ch.biot.backend.publicapi
 
 import ch.biot.backend.crud.CRUDVerticle
+import ch.biot.backend.crud.CRUDVerticle.Companion.INITIAL_USER
 import io.restassured.builder.RequestSpecBuilder
 import io.restassured.filter.log.RequestLoggingFilter
 import io.restassured.filter.log.ResponseLoggingFilter
@@ -112,33 +113,11 @@ class TestPublicApiVerticle {
 
   @Test
   @Order(1)
-  @DisplayName("Registering a user succeeds")
-  fun registerUserSucceeds(testContext: VertxTestContext) {
-    val response = Given {
-      spec(requestSpecification)
-      contentType(ContentType.JSON)
-      body(user.encode())
-    } When {
-      post("/oauth/register")
-    } Then {
-      statusCode(200)
-    } Extract {
-      asString()
-    }
-
-    testContext.verify {
-      expectThat(response).isEmpty()
-      testContext.completeNow()
-    }
-  }
-
-  @Test
-  @Order(2)
-  @DisplayName("Getting the token for a registered user succeeds")
+  @DisplayName("Getting the token for the initial user succeeds")
   fun getTokenSucceeds(testContext: VertxTestContext) {
     val loginInfo = jsonObjectOf(
-      "username" to user["username"],
-      "password" to user["password"]
+      "username" to CRUDVerticle.INITIAL_USER["username"],
+      "password" to CRUDVerticle.INITIAL_USER["password"]
     )
 
     val response = Given {
@@ -164,7 +143,7 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(3)
+  @Order(2)
   @DisplayName("Getting the token with wrong credentials fails")
   fun getTokenWithWrongCredentialsFails(testContext: VertxTestContext) {
     val loginInfo = jsonObjectOf(
@@ -188,10 +167,33 @@ class TestPublicApiVerticle {
   }
 
   @Test
+  @Order(3)
+  @DisplayName("Registering a user succeeds")
+  fun registerUserSucceeds(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      header("Authorization", "Bearer $token")
+      contentType(ContentType.JSON)
+      body(user.encode())
+    } When {
+      post("/oauth/register")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEmpty()
+      testContext.completeNow()
+    }
+  }
+
+  @Test
   @Order(4)
   @DisplayName("Getting the users succeeds")
   fun getUsersSucceeds(testContext: VertxTestContext) {
-    val expected = jsonArrayOf(user.copy().apply { remove("password") })
+    val expected = jsonArrayOf(INITIAL_USER.copy().apply { remove("password") }, user.copy().apply { remove("password") })
 
     val response = Buffer.buffer(
       Given {
@@ -211,9 +213,12 @@ class TestPublicApiVerticle {
       expectThat(response).isNotNull()
       expectThat(response.isEmpty).isFalse()
 
-      val password = response.getJsonObject(0).remove("password")
+      val password1 = response.getJsonObject(0).remove("password")
+      val password2 = response.getJsonObject(1).remove("password")
       expectThat(response).isEqualTo(expected)
-      expectThat(password).isNotNull()
+
+      expectThat(password1).isNotNull()
+      expectThat(password2).isNotNull()
       testContext.completeNow()
     }
   }
@@ -290,6 +295,7 @@ class TestPublicApiVerticle {
     // Register the user
     Given {
       spec(requestSpecification)
+      header("Authorization", "Bearer $token")
       contentType(ContentType.JSON)
       body(userToRemove.encode())
     } When {

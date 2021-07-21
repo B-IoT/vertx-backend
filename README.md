@@ -30,5 +30,4 @@ To join the team use this [link](https://app.getpostman.com/join-team?invite_cod
 
 ## Swagger
 
-The organization page is [here](https://app.swaggerhub.com/organizations/b-iot).
-
+The organization page is [here](https://app.swaggerhub.com/organizations/biot-ch).
