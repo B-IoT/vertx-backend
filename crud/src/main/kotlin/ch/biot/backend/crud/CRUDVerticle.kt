@@ -43,6 +43,7 @@ import io.vertx.pgclient.pubsub.PgSubscriber
 import io.vertx.spi.cluster.hazelcast.HazelcastClusterManager
 import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.launch
 import mu.KotlinLogging
 import java.net.InetAddress
@@ -632,7 +633,14 @@ class CRUDVerticle : CoroutineVerticle() {
     }.validateAndThen(ctx) {
       // Extract the information from the payload and insert the item in TimescaleDB
       val id: Int? = json["id"]
+      val company: String = ctx.queryParams()["company"]
+      // If no accessControlString is given, put the company
+      if(!json.containsKey("accessControlString") || !validateAccessControlString( json.getString("accessControlString"), company)){
+        json.remove("accessControlString")
+        json.put("accessControlString", company)
+      }
       val info = extractItemInformation(json).map { pair -> pair.second }
+
       val table = ctx.getCollection(ITEMS_TABLE)
 
       val executedQuery =
@@ -654,9 +662,11 @@ class CRUDVerticle : CoroutineVerticle() {
   private suspend fun getItemsHandler(ctx: RoutingContext) {
     LOGGER.info { "New getItems request" }
     val params = ctx.queryParams()
-
+    LOGGER.info { "getItems for company ${params["company"]}" }
     val itemsTable = ctx.getCollection(ITEMS_TABLE)
     val beaconDataTable = ctx.getCollection(BEACON_DATA_TABLE)
+
+
 
     val executedQuery = if (params.contains("category")) {
       pgClient.preparedQuery(getItemsWithCategory(itemsTable, beaconDataTable)).execute(Tuple.of(params["category"]))

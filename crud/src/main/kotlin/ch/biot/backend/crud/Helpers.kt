@@ -102,6 +102,7 @@ fun JsonObject.toItemJson(): JsonObject = jsonObjectOf(
   "category" to getString("category"),
   "service" to getString("service"),
   "itemID" to getString("itemid"),
+  "accessControlString" to getString("accessControlString"),
   "brand" to getString("brand"),
   "model" to getString("model"),
   "supplier" to getString("supplier"),
@@ -131,6 +132,7 @@ fun Row.toItemJson(): JsonObject = jsonObjectOf(
   "category" to getString("category"),
   "service" to getString("service"),
   "itemID" to getString("itemid"),
+  "accessControlString" to getString("accesscontrolstring"),
   "brand" to getString("brand"),
   "model" to getString("model"),
   "supplier" to getString("supplier"),
@@ -167,6 +169,7 @@ internal fun extractItemInformation(json: JsonObject, keepNulls: Boolean = true)
   val category: String? = json["category"]
   val service: String? = json["service"]
   val itemID: String? = json["itemID"]
+  val accessControlString: String? = json["accessControlString"]
   val brand: String? = json["brand"]
   val model: String? = json["model"]
   val supplier: String? = json["supplier"]
@@ -192,6 +195,7 @@ internal fun extractItemInformation(json: JsonObject, keepNulls: Boolean = true)
     "category" to category,
     "service" to service,
     "itemid" to itemID,
+    "accessControlString" to accessControlString,
     "brand" to brand,
     "model" to model,
     "supplier" to supplier,
