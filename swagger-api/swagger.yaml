@@ -547,6 +547,8 @@ components:
           type: string
         company:
           type: string
+        sessionUuid:
+          type: string
       description: A user
     UserRegisterInfo:
       type: object
