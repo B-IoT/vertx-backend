@@ -2,7 +2,7 @@ openapi: 3.0.0
 info:
   title: Vert.x API
   description: BIoT Vert.x API
-  version: 2.3.1
+  version: 2.3.2
 servers:
 - url: https://virtserver.swaggerhub.com/b-iot/Vert.x/2.3.1
   description: SwaggerHub API Auto Mocking
@@ -529,6 +529,9 @@ components:
           type: string
       description: A user
     UserRegisterInfo:
+      required:
+      - accessControlString
+      - company
       type: object
       properties:
         userID:
@@ -539,6 +542,8 @@ components:
           type: string
           format: password
         company:
+          type: string
+        accessControlString:
           type: string
       description: A user to register
     UserUpdateInfo:
