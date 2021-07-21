@@ -50,7 +50,8 @@ class TestPublicApiVerticle {
     "userID" to "test2",
     "username" to "test2",
     "password" to "password",
-    "company" to "biot"
+    "company" to "biot",
+    "accessControlString" to "biot:grp1"
   )
 
   private val relay = jsonObjectOf(
@@ -282,7 +283,8 @@ class TestPublicApiVerticle {
       "userID" to "test42",
       "username" to "test42",
       "password" to "test42",
-      "company" to "biot"
+      "company" to "biot",
+      "accessControlString" to "biot:grp"
     )
 
     // Register the user

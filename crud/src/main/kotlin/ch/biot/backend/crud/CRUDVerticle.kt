@@ -461,23 +461,30 @@ class CRUDVerticle : CoroutineVerticle() {
     LOGGER.info { "New registerUser request" }
     val json = ctx.bodyAsJson
     json.validateAndThen(ctx) {
-      // Create the user
-      val password: String = json["password"]
-      val hashedPassword = password.saltAndHash(mongoAuthUsers)
-      executeWithErrorHandling("Could not register user", ctx) {
-        val docID = mongoUserUtilUsers.createHashedUser(json["username"], hashedPassword).await()
+      // Ensures that the company and the accessControlString cannot be empty
+      // because json.validateAndThen only checks the format, not the presence
+      if(!json.containsKey("company") || !json.containsKey("accessControlString")){
+        ctx.fail(BAD_REQUEST_CODE)
+      } else {
+        // Create the user
+        val password: String = json["password"]
+        val hashedPassword = password.saltAndHash(mongoAuthUsers)
+        executeWithErrorHandling("Could not register user", ctx) {
+          val docID = mongoUserUtilUsers.createHashedUser(json["username"], hashedPassword).await()
 
-        // Update the user with the data specified in the HTTP request
-        val query = jsonObjectOf("_id" to docID)
-        val extraInfo = jsonObjectOf(
-          "\$set" to json.copy().apply {
-            remove("password")
-          }
-        )
-        mongoClient.findOneAndUpdate(USERS_COLLECTION, query, extraInfo).await()
-        LOGGER.info { "New user registered" }
-        ctx.end()
+          // Update the user with the data specified in the HTTP request
+          val query = jsonObjectOf("_id" to docID)
+          val extraInfo = jsonObjectOf(
+            "\$set" to json.copy().apply {
+              remove("password")
+            }
+          )
+          mongoClient.findOneAndUpdate(USERS_COLLECTION, query, extraInfo).await()
+          LOGGER.info { "New user registered" }
+          ctx.end()
+        }
       }
+
     }
   }
 
