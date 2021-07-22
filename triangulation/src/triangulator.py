@@ -248,11 +248,11 @@ class Triangulator:
                 
         relay_index = list(map(self.relay_mapping.get, relay_id))
         
-        if (relay_data[0] and relay_data[1]) not in self.relay_matrix:
-            if self.relay_matrix is None:
-                self.relay_matrix = relay_data
-            else:
-                self.relay_matrix = np.stack((self.relay_matrix, relay_data), axis=0)
+        if self.relay_matrix is None:
+            self.relay_matrix = relay_data
+                
+        elif (relay_data[0] and relay_data[1]) not in self.relay_matrix:
+            self.relay_matrix = np.stack((self.relay_matrix, relay_data), axis=0)
         
         
         ##Create the matrix with the beacon data 
