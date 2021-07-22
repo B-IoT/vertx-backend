@@ -294,15 +294,7 @@ class Triangulator:
                     rssis[i]
                 )
             
-            logger.info(
-                    "1 - temp raw: {} & cond 1:  {} & cond 2: {}, cond 3: {} ",
-                    self.temp_raw[beacon_number_temp, relay_index],
-                    math.isnan(self.temp_raw[beacon_number_temp, relay_index]),
-                    self.temp_raw[beacon_number_temp, relay_index] != np.nan,
-                    np.isnan(self.temp_raw[beacon_number_temp, relay_index])
-                )
-            
-            if self.temp_raw[beacon_number_temp, relay_index] != np.nan:  
+            if np.isnan(self.temp_raw[beacon_number_temp, relay_index]):  
                 logger.info("caca")
                 self.matrix_raw = np.dstack((self.temp_raw, self.matrix_raw))
                 self.temp_raw[:] = np.nan
