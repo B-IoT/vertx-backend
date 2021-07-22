@@ -108,6 +108,7 @@ class Triangulator:
         self.max_history = 30        
         
         self.temp_raw = np.zeros([self.nb_beacons, self.nb_relays])
+        self.temp_raw[:] = np.nan
         
         self.matrix_raw = np.zeros([self.nb_beacons, self.nb_relays, 1])
         self.matrix_raw[:] = np.nan
@@ -293,7 +294,10 @@ class Triangulator:
                     relay_index,
                     rssis[i]
                 )
-            
+            logger.info(
+                    "1 - temp raw: {}",
+                    self.temp_raw
+                )
             if np.isnan(self.temp_raw[beacon_number_temp, relay_index]):  
                 logger.info("caca")
                 self.matrix_raw = np.dstack((self.temp_raw, self.matrix_raw))
