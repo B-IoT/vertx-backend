@@ -279,17 +279,28 @@ class Triangulator:
         beacon_indexes = list(map(self.beacon_mapping.get, macs))
         
         #For each beacon we add it to our temporary connectivity matrix
+        logger.info(
+                    "beacon_indexes: {}",
+                    beacon_indexes
+                )
+        
         for i in range (len(beacon_indexes)):
             beacon_number_temp = beacon_indexes[i]
-                        
+            
+            logger.info(
+                    "beacon_number_temp: {}, relay_index: {}, rssi: {}",
+                    beacon_number_temp,
+                    relay_index,
+                    rssis[i]
+                )
+            
             if self.temp_raw[beacon_number_temp, relay_index] != np.nan:          
                 self.matrix_raw = np.dstack((self.temp_raw, self.matrix_raw))
                 self.temp_raw[:] = np.nan
-            else:
-                self.temp_raw[beacon_number_temp, relay_index] = rssis[i]
+            self.temp_raw[beacon_number_temp, relay_index] = rssis[i]
         
         logger.info(
-                    "1 - relay_index: {}",
+                    "1 - temp raw: {}",
                     self.temp_raw
                 )
         
