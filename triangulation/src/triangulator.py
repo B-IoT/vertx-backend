@@ -246,7 +246,7 @@ class Triangulator:
         if relay_id not in self.relay_mapping:
             self.relay_mapping[relay_id] = len(self.relay_mapping)
                 
-        relay_index = list(map(self.relay_mapping.get, relay_id))
+        relay_index = self.relay_mapping[relay_id]
         
         if self.relay_matrix is None:
             self.relay_matrix = relay_data
