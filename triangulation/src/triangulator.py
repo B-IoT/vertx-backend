@@ -209,7 +209,7 @@ class Triangulator:
         return d
     
     def _feature_augmentation(self, X):
-        return np.array([np.ones(len(X)), X, X**2, X**3, X**4, X**5]).transpose()
+        return np.array(np.ones(len(X)), X, X**2, X**3, X**4, X**5).transpose()
                      
     async def triangulate(self, relay_id: str, data: dict):
         """
@@ -323,21 +323,22 @@ class Triangulator:
             temp = np.flip(temp[i,:])
             temp,_ = kf.smooth(temp[~np.isnan(temp)])
             temp = self._feature_augmentation(temp[-1])
-            logger.info(
-                    "feature augmentation: {}",
-                    temp
-                )
             temp = scaler.transform(np.array(temp).reshape(1, -1))
             logger.info(
                     "feature normalisation: {}",
                     temp
                 )
+            
             matrix_dist_loc[i] = reg_kalman.predict(np.array(temp).reshape(1, -1))/100
             logger.info(
                         "matrix dist loc  {}",
-                        matrix_dist_loc
+                        matrix_dist_loc[i]
                         )
         self.matrix_dist[beacon_indexes, relay_index] = matrix_dist_loc.reshape(len(beacon_indexes))
+        logger.info(
+                        "matrix dist global  {}",
+                        self.matrix_dist
+                        )
         
         coordinates = []
         
