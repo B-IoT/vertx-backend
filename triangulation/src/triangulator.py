@@ -103,7 +103,8 @@ class Triangulator:
         )
         self.coordinates_history = _CoordinatesHistory()
         
-        self.nb_beacons, self.nb_relays = 1000
+        self.nb_beacons = 1000 
+        self.nb_relays = 1000
         self.max_history = 30        
         
         self.temp_raw = np.empty([self.nb_beacons, self.nb_relays])
@@ -429,5 +430,4 @@ class Triangulator:
                 logger.warning("Beacon '{}' not detected by any relay, skipping!", mac)
                 
            if coordinates:
-                await self._store_beacons_data(company, coordinates)
-             
+                await self._store_beacons_data(company, coordinates)          
