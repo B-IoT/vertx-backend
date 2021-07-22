@@ -334,7 +334,7 @@ class Triangulator:
         
         for i, beacon_index in enumerate(beacon_indexes):
          
-           mac = list(map(self.inv_beacon_mapping.get, beacon_index))
+           mac = self.inv_beacon_mapping[beacon_index]
            beacon_data = next(b for b in beacons if b["mac"] == mac)
            status = beacon_data["status"]
            
