@@ -319,7 +319,7 @@ class Triangulator:
         self.matrix_dist[:] = np.nan
         
         #Variance of the signal (per beacon/relay)
-        var = np.nanvar(self.matrix_raw[beacon_indexes, relay_index], axis=2)
+        var = np.nanvar(self.matrix_raw[beacon_indexes, relay_index,:])
         observation_covariance = var ** 2
         
         #Flattening the distance matrix
