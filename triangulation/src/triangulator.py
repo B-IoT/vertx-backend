@@ -109,7 +109,8 @@ class Triangulator:
         
         self.temp_raw = np.zeros([self.nb_beacons, self.nb_relays])
         
-        self.matrix_raw = np.zeros([self.nb_beacons, self.nb_relays, 0])
+        self.matrix_raw = np.zeros([self.nb_beacons, self.nb_relays, 1])
+        self.matrix_raw[:] = np.nan
         
         self.initial_value_guess = np.empty([self.nb_beacons, self.nb_relays])
         self.initial_value_guess[:] = 3
@@ -281,11 +282,16 @@ class Triangulator:
         for i in range (len(beacon_indexes)):
             beacon_number_temp = beacon_indexes[i]
                         
-            if self.temp_raw[beacon_number_temp, relay_index] !=0:          
+            if self.temp_raw[beacon_number_temp, relay_index] != np.nan:          
                 self.matrix_raw = np.dstack((self.temp_raw, self.matrix_raw))
-                self.temp_raw[:] = 0
+                self.temp_raw[:] = np.nan
             else:
                 self.temp_raw[beacon_number_temp, relay_index] = rssis[i]
+        
+        logger.info(
+                    "1 - relay_index: {}",
+                    self.temp_raw
+                )
         
         #number of historic values we want to keep
         self.matrix_raw = self.matrix_raw[:,:,0:max_history]
