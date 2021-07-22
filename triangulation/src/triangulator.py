@@ -209,7 +209,7 @@ class Triangulator:
         return d
     
     def _feature_augmentation(self, X):
-        return [np.array(np.ones(len(X))), X, X**2, X**3, X**4, X**5]
+        return np.array([np.ones(len(X)), X, X**2, X**3, X**4, X**5]).transpose()
                      
     async def triangulate(self, relay_id: str, data: dict):
         """
@@ -312,28 +312,16 @@ class Triangulator:
     
         
         for i in range (0,np.size(var)):
-            
-            logger.info(
-                        "matrix raw  {}",
-                        self.initial_value_guess.flatten()[i]
-                        )
+        
             
             kf = KalmanFilter(
                 initial_state_mean = self.initial_value_guess.flatten()[i],
                 initial_state_covariance = observation_covariance.flatten()[i],
                 observation_covariance = observation_covariance.flatten()[i]
             )
-            logger.info(
-                        "matrix raw  {}",
-                        self.matrix_raw
-                        )
             temp = self.matrix_raw[beacon_indexes, relay_index].reshape(len(beacon_indexes), max_history)
             temp = np.flip(temp[i,:])
             temp,_ = kf.smooth(temp[~np.isnan(temp)])
-            logger.info(
-                    "temp kalman: {}",
-                    temp
-                )
             temp = self._feature_augmentation(temp[-1])
             logger.info(
                     "feature augmentation: {}",
