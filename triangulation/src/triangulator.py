@@ -250,7 +250,7 @@ class Triangulator:
         relay_index = self.relay_mapping[relay_id]
         
         if self.relay_matrix is None:
-            self.relay_matrix = relay_data.reshape(1,3)
+            self.relay_matrix = relay_data
                 
         elif (relay_data[0] not in self.relay_matrix) and (relay_data[1] not in self.relay_matrix) :
             self.relay_matrix = np.stack((self.relay_matrix, relay_data), axis=0)
@@ -355,7 +355,7 @@ class Triangulator:
                     relay_indexes
                 )
            
-           nb_relays = len(relay_indexes)
+           nb_relays = relay_matrix.shape[0]
            
            lat = []
            long = []
