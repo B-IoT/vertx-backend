@@ -216,11 +216,11 @@ class Triangulator:
         """
         
         #Importing the scaler model
-        filename = 'db_to_m_scaler.sav'
+        filename = 'src/db_to_m_scaler.sav'
         scaler = pickle.load(open(filename, 'rb'))
         
         #Importing the ML model
-        filename = 'db_to_m_Kalman+GBR.sav'
+        filename = 'src/db_to_m_Kalman+GBR.sav'
         reg_kalman = pickle.load(open(filename, 'rb'))
 
         measured_ref = -64
