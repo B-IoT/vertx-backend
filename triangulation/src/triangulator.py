@@ -359,7 +359,7 @@ class Triangulator:
            
            lat = []
            long = []
-           if nb_relays > 2:               
+           if nb_relays >= 2:               
                
                #Taking only the 5 closest relays for triangulation
                if nb_relays > 5:
