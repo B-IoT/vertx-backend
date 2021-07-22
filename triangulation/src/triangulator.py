@@ -302,6 +302,11 @@ class Triangulator:
         #Flattening the distance matrix
         matrix_dist_loc = self.matrix_dist[beacon_indexes, relay_index].flatten()
         
+        logger.info(
+                    "1 - relay_index: {}",
+                    relay_index
+                )
+        
         for i in range (0,np.size(var)):
     
             kf = KalmanFilter(
@@ -318,15 +323,18 @@ class Triangulator:
             temp,_ = kf.smooth(temp[~np.isnan(temp)])
             temp = self._feature_augmentation(temp[-1])
             temp = scaler.transform(np.array(temp).reshape(1, -1))
+            logger.info(
+                    "temp kalman: {}",
+                    temp
+                )
             matrix_dist_loc[i] = reg_kalman.predict(np.array(temp).reshape(1, -1))/100
-            
+            logger.info(
+                        "matrix dist loc  {}",
+                        matrix_dist_loc
+                        )
         self.matrix_dist[beacon_indexes, relay_index] = matrix_dist_loc.reshape(len(beacon_indexes))
         
         coordinates = []
-        logger.info(
-                    "1 - beacon_indexes: {}",
-                    beacon_indexes
-                )
         
         for i, beacon_index in enumerate(beacon_indexes):
          
