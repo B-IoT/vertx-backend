@@ -311,7 +311,7 @@ class Triangulator:
         matrix_dist_loc = self.matrix_dist[beacon_indexes, relay_index].flatten()
     
         
-        for i in range (0,np.size(var)):
+        for i in range (0,np.size(beacon_indexes)):
         
             
             kf = KalmanFilter(
@@ -325,7 +325,7 @@ class Triangulator:
             temp = self._feature_augmentation(temp[-1])
             temp = scaler.transform(np.array(temp).reshape(1, -1))
             logger.info(
-                    "feature normalisation: {}",
+                    "i: {}, feature normalisation: {}",i,
                     temp
                 )
             
@@ -334,6 +334,8 @@ class Triangulator:
                         "matrix dist loc  {}",
                         matrix_dist_loc[i]
                         )
+            
+            
         self.matrix_dist[beacon_indexes, relay_index] = matrix_dist_loc.reshape(len(beacon_indexes))
         logger.info(
                         "matrix dist global  {}",
