@@ -381,15 +381,15 @@ class Triangulator:
                                 " relay_matrix {}",
                                     self.relay_matrix
                 )      
-                        vect_lat = self.relay_matrix[relay_2_index, 0] - self.relay_matrix[relay_1_index, 0]
-                        vect_long = self.relay_matrix[relay_2_index, 1] - self.relay_matrix[relay_1_index, 1]                
+                        vect_lat = self.relay_matrix[relay_2, 0] - self.relay_matrix[relay_1, 0]
+                        vect_long = self.relay_matrix[relay_2, 1] - self.relay_matrix[relay_1, 1]                
                         
                         #Calculating the distance between the 2 gateways in meters
                         dist = self._lat_to_meters(
-                            self.relay_matrix[relay_1_index, 0],
-                            self.relay_matrix[relay_1_index, 1],
-                            self.relay_matrix[relay_2_index, 0],
-                            self.relay_matrix[relay_2_index, 1],
+                            self.relay_matrix[relay_1, 0],
+                            self.relay_matrix[relay_1, 1],
+                            self.relay_matrix[relay_2, 0],
+                            self.relay_matrix[relay_2, 1],
                         )
                         
                         # Applying proportionality rule from the origin on the vector to determine the position of the beacon in lat;long coord
@@ -398,24 +398,24 @@ class Triangulator:
                         dist_1 = self.matrix_dist[beacon_index, relay_1_index]
                         
                         lat.append(
-                            self.relay_matrix[relay_1_index, 0] + (dist_1 / dist) * vect_lat
+                            self.relay_matrix[relay_1, 0] + (dist_1 / dist) * vect_lat
                         )
                         long.append(
-                            self.relay_matrix[relay_1_index, 1]
+                            self.relay_matrix[relay_1, 1]
                             + (dist_1 / dist) * vect_long
                         )
                         
-               floor = np.mean(self.relay_matrix[relay_indexes[0:3], 2])
+               floor = np.mean(self.relay_matrix[0:3, 2])
                
                if (floor - np.floor(floor)) - 0.5 <= 1e-5:
                     # Case where we're in the middle, eg: floor = 1.5
                     # Taking the floor of the closest relay
-                    floor = self.relay_matrix[relay_indexes[0], 2]
+                    floor = self.relay_matrix[0, 2]
                else:
                     # Otherwise taking the mean floor + rounding it
-                    floor = np.around(np.mean(self.relay_matrix[relay_indexes[0:3], 2]))
+                    floor = np.around(np.mean(self.relay_matrix[0:3, 2]))
 
-               floor = np.mean(self.relay_matrix[relay_indexes[0:3], 2])              
+               floor = np.mean(self.relay_matrix[0:3, 2])              
              
                #SMA            
                self.coordinates_history.update_coordinates_history(
