@@ -351,21 +351,11 @@ class Triangulator:
            relay_indexes = np.argwhere(~np.isnan(temp)).flatten()
            relay_indexes = temp[relay_indexes].argsort()
            
-           logger.info(
-                    "Relay indexes {} ...",
-                    relay_indexes
-                )
-           
            nb_relays = len(relay_indexes)
            
            lat = []
            long = []
-           if nb_relays > 2:
-               logger.info(
-                    "Beacon detected by {} - Triangulating...",
-                    nb_relays
-                )
-               
+           if nb_relays > 2:               
                
                #Taking only the 5 closest relays for triangulation
                if nb_relays > 5:
@@ -373,33 +363,12 @@ class Triangulator:
                    
                for relay_1 in range(nb_relays-1):
                     for relay_2 in range(relay_1 + 1, nb_relays):
-            
-                        logger.info(
-                        "relay indexes  {}",
-                        relay_indexes
-                        )
                         
                         relay_1_index = relay_indexes[relay_1]
                         relay_2_index = relay_indexes[relay_2]
                         
-                        logger.info(
-                        "relay data  {}",
-                        relay_data
-                        )
-                        
-                        logger.info(
-                        "relay 1 index {}",
-                        relay_1_index
-                        )
-                        logger.info(
-                        " Relay 2 index {}",
-                        relay_2_index
-                        )
-                        
                         vect_lat = self.relay_matrix[relay_2_index, 0] - self.relay_matrix[relay_1_index, 0]
-                        vect_long = self.relay_matrix[relay_2_index, 1] - self.relay_matrix[relay_1_index, 1]
-                        
-                        
+                        vect_long = self.relay_matrix[relay_2_index, 1] - self.relay_matrix[relay_1_index, 1]                
                         
                         #Calculating the distance between the 2 gateways in meters
                         dist = self._lat_to_meters(
