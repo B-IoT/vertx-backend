@@ -121,7 +121,7 @@ class Triangulator:
         self.inv_beacon_mapping = {}
         
         self.matrix_dist = np.empty([self.nb_beacons, self.nb_relays])
-        self.matrix_dist[:] = np.nan
+        self.matrix_dist[:] = 3
 
         return self
 
@@ -287,28 +287,13 @@ class Triangulator:
         
         for i in range (len(beacon_indexes)):
             beacon_number_temp = beacon_indexes[i]
-            
-            logger.info(
-                    "beacon_number_temp: {}, relay_index: {}, rssi: {}",
-                    beacon_number_temp,
-                    relay_index,
-                    rssis[i]
-                )
-            logger.info(
-                    "1 - temp raw: {}",
-                    self.temp_raw
-                )
+
             if not np.isnan(self.temp_raw[beacon_number_temp, relay_index]):  
                 logger.info("caca")
                 self.matrix_raw = np.dstack((self.temp_raw, self.matrix_raw))
                 self.temp_raw[:] = np.nan
                 
             self.temp_raw[beacon_number_temp, relay_index] = rssis[i]
-        
-        logger.info(
-                    "2 - temp raw: {}",
-                    self.temp_raw
-                )
         
         #number of historic values we want to keep
         self.matrix_raw = self.matrix_raw[:,:,0:max_history]
@@ -324,19 +309,15 @@ class Triangulator:
         
         #Flattening the distance matrix
         matrix_dist_loc = self.matrix_dist[beacon_indexes, relay_index].flatten()
-        
-        logger.info(
-                    "1 - relay_index: {}",
-                    relay_index
-                )
-        
-        logger.info(
-                    "1 - var: {}",
-                    var
-                )
+    
         
         for i in range (0,np.size(var)):
-    
+            
+            logger.info(
+                        "matrix raw  {}",
+                        self.initial_value_guess.flatten()[i]
+                        )
+            
             kf = KalmanFilter(
                 initial_state_mean = self.initial_value_guess.flatten()[i],
                 initial_state_covariance = observation_covariance.flatten()[i],
