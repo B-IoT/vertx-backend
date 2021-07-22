@@ -356,10 +356,13 @@ class Triangulator:
                 )
            
            nb_relays = self.relay_matrix.shape[0]
-           
+           logger.info(
+                    "2- nb_relays {}",
+                    nb_relays
+                )
            lat = []
            long = []
-           if nb_relays >= 2:               
+           if nb_relays > 2:               
                
                #Taking only the 5 closest relays for triangulation
                if nb_relays > 5:
