@@ -209,7 +209,7 @@ class Triangulator:
         return d
     
     def _feature_augmentation(self, X):
-        return np.array(np.ones(len(X)), X, X**2, X**3, X**4, X**5).transpose()
+        return np.array([np.ones(len(X)), X, X**2, X**3, X**4, X**5]).transpose()
                      
     async def triangulate(self, relay_id: str, data: dict):
         """
