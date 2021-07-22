@@ -221,16 +221,14 @@ class Triangulator:
     
     def _Preprocessing(self, beacon_indexes, relay_index, max_history):
         
-        '''
-        - Takes the max_history RSSI
-        - Apply Kalman Filter
-        - Takes the last value of the Kalman filter (most recent one)
-        - Does polynomial feature augmentation (up to 5th degree)
-        - Convert the db to m value with ML model
-        - Puts the found value in matrix_dist
-        '''
+        #Importing the scaler model
+        filename = 'src/db_to_m_scaler.sav'
+        scaler = pickle.load(open(filename, 'rb'))
         
-        #Convert meters to db -nominal case, should be replaced by a ML approach
+        #Importing the ML model
+        filename = 'src/db_to_m_Kalman+GBR.sav'
+        reg_kalman = pickle.load(open(filename, 'rb'))
+
         measured_ref = -64
         tx = 6
         meters_to_db = lambda x: measured_ref - 10*tx*math.log10(x)
