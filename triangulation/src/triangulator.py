@@ -204,13 +204,19 @@ class Triangulator:
         if not beacons:
             logger.warning("No beacon detected, skipping!")
             return
-
+        
+        
+        ### ADD BEACON MAPPING
+        
+        
         # Filter out empty MAC addresses
         macs, rssis = zip(
             *[(beacon["mac"], beacon["rssi"]) for beacon in beacons if beacon["mac"]]
         )
 
         # Used to remove duplicates through averaging
+        
+        
         df_beacons = pd.DataFrame(columns=["beacon", "rssi"])
         df_beacons["beacon"] = macs
         df_beacons["rssi"] = rssis
