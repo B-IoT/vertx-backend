@@ -13,3 +13,4 @@ python-math==0.0.1
 pykalman
 pickle5==0.0.11
 scipy==1.7.0
+scikit-learn==0.24.2
