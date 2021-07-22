@@ -3,11 +3,14 @@
 from .config import logger, TIMESCALE_HOST, TIMESCALE_PORT
 
 import asyncpg
-import gc
-import numpy as np
-import pandas as pd
 from collections import defaultdict
 from typing import DefaultDict, Tuple, List
+
+
+import math
+import numpy as np
+from pykalman import KalmanFilter #https://pykalman.github.io/
+import pickle
 
 
 class _CoordinatesHistory:
@@ -86,11 +89,11 @@ class Triangulator:
 
     @classmethod
     async def create(cls):
+           
         # We need to use this because it is impossible to call await inside __init__()
         self = Triangulator()
         # Data structures
-        self.connectivity_df = pd.DataFrame()
-        self.relay_df = pd.DataFrame(index=["lat", "long", "floor"])
+        self.relay_matrix = np.zeros([3, 0, 0])
         self.db_pool = await asyncpg.create_pool(
             host=TIMESCALE_HOST,
             port=TIMESCALE_PORT,
@@ -99,6 +102,24 @@ class Triangulator:
             password="biot",
         )
         self.coordinates_history = _CoordinatesHistory()
+        
+        self.nb_beacons, self.nb_relays = 1000
+        self.max_history = 30        
+        
+        self.temp_raw = np.empty([self.nb_beacons, self.nb_relays])
+        self.temp_raw[:] = np.nan
+        
+        self.matrix_raw = np.zeros([self.nb_beacons, self.nb_relays, 0])
+        
+        self.initial_value_guess = np.empty([self.nb_beacons, self.nb_relays])
+        self.initial_value_guess[:] = 3
+        
+        self.relay_mapping = {}
+        self.beacon_mapping = {}
+        self.inv_beacon_mapping = {}
+        
+        self.matrix_dist = np.empty([self.nb_beacons, self.nb_relays])
+        self.matrix_dist[:] = np.nan
 
         return self
 
@@ -184,170 +205,199 @@ class Triangulator:
         """
         d = 10 ** ((measure_ref - RSSI) / (10 * N))
         return d
-
+    
+    def _feature_augmentation(self, X):
+        return [np.array(np.ones(len(X))), X, X**2, X**3, X**4, X**5]
+                     
     async def triangulate(self, relay_id: str, data: dict):
         """
         Triangulates all beacons detected by the given relay, if enough information is available.
         """
+        
+        #Importing the scaler model
+        filename = 'db_to_m_scaler.sav'
+        scaler = pickle.load(open(filename, 'rb'))
+        
+        #Importing the ML model
+        filename = 'db_to_m_Kalman+GBR.sav'
+        reg_kalman = pickle.load(open(filename, 'rb'))
 
-        self.relay_df[relay_id] = [
+        measured_ref = -64
+        tx = 6
+        max_history = 30 #Number of data hsitory to keep 
+        
+        #Convert meters to db -nominal case, should be replaced by a ML approach
+        meters_to_db = lambda x: measured_ref - 10*tx*math.log10(x)
+
+        #Import the data
+        relay_data = [
             data["latitude"],
             data["longitude"],
             int(data["floor"]),
         ]
-
+        
         company = data["company"]
-
-        beacons = data["beacons"]
-
+        beacons = data["beacons"]#includes the data from the MQTT    
+        
+        
+        ##Create the matrix with the relay data
+        #Create the mapping of the relays
+        if relay_id not in self.relay_mapping:
+            self.relay_mapping[relay_id] = len(self.relay_mapping)
+                
+        relay_index = list(map(self.relay_mapping.get, relay_id))
+        
+        if (relay_data[0] and relay_data[1]) not in self.relay_matrix:
+            self.relay_matrix = np.stack((self.relay_matrix, relay_data), axis=0)
+        
+        
+        ##Create the matrix with the beacon data 
         # Filter out empty arrays
         if not beacons:
             logger.warning("No beacon detected, skipping!")
             return
         
-        
-        ### ADD BEACON MAPPING
-        
-        
         # Filter out empty MAC addresses
         macs, rssis = zip(
             *[(beacon["mac"], beacon["rssi"]) for beacon in beacons if beacon["mac"]]
         )
-
-        # Used to remove duplicates through averaging
         
+        #Create the mapping of the beacons
+        if macs not in self.beacon_mapping:
+            self.beacon_mapping[macs] = len(self.beacon_mapping)
+            for k, v in self.beacon_mapping.iteritems():
+                self.inv_beacon_mapping[v] = self.beacon_mapping.get(v, []) + [k]
+                
+        #Get the indexes from of the mapping
+        beacon_indexes = list(map(self.beacon_mapping.get, macs))
         
-        df_beacons = pd.DataFrame(columns=["beacon", "rssi"])
-        df_beacons["beacon"] = macs
-        df_beacons["rssi"] = rssis
-        averaged = df_beacons.groupby("beacon").agg("mean")
-
-        relay = pd.DataFrame(index=["RSSI", "tx", "ref"], columns=averaged.index)
-        relay.loc["RSSI"] = averaged["rssi"]
-        relay.loc["tx"] = 6
-        relay.loc["ref"] = -69
-        relay.loc["dist"] = self._db_to_meters(
-            relay.loc["RSSI"], relay.loc["ref"], relay.loc["tx"]
-        )
-
-        # Update the connectivity matrix with the new distances to the relay
-        distances = relay.loc["dist"].rename(relay_id)
-        OLD_SUFFIX = "_old"
-        self.connectivity_df = pd.merge(
-            self.connectivity_df,
-            distances,
-            how="outer",
-            left_index=True,
-            right_index=True,
-            suffixes=(OLD_SUFFIX, None),
-        )
-
-        # Keep old values if the new ones are NaN
-        if f"{relay_id}{OLD_SUFFIX}" in self.connectivity_df.columns:
-            self.connectivity_df[relay_id].fillna(
-                self.connectivity_df[f"{relay_id}{OLD_SUFFIX}"], inplace=True
+        #For each beacon we add it to our temporary connectivity matrix
+        for i in range (len(beacon_indexes)):
+            beacon_number_temp = beacon_indexes[i]
+            if self.temp_raw[beacon_number_temp, relay_index] !=0:
+                self.temp_raw[beacon_number_temp, relay_index] = rssis[i]
+            else:
+                self.matrix_raw = np.dstack((self.temp_raw, self.matrix_raw))
+                self.temp_raw = np.nan
+        
+        #number of historic values we want to keep
+        self.matrix_raw = self.matrix_raw[:,:,0:max_history]
+        
+        #Starting the filtering job
+        #initial value guess with the nominal model at 1m 
+        self.initial_value_guess[beacon_indexes, relay_index] = np.array(list(map(meters_to_db, self.matrix_dist[beacon_indexes, relay_index].flatten()))).reshape(len(beacon_indexes), len(relay_index))
+        self.matrix_dist[:] = np.nan
+        
+        #Variance of the signal (per beacon/relay)
+        var = np.nanvar(self.matrix_raw[beacon_indexes, 0:relay_index], axis=2)
+        observation_covariance = var ** 2
+        
+        #Flattening the distance matrix
+        matrix_dist_loc = self.matrix_dist[beacon_indexes, relay_index].flatten()
+        
+        for i in range (0,np.size(var)):
+    
+            kf = KalmanFilter(
+                initial_state_mean = self.initial_value_guess.flatten()[i],
+                initial_state_covariance = observation_covariance.flatten()[i],
+                observation_covariance = observation_covariance.flatten()[i]
             )
-
-        # Filter out old measurements
-        self.connectivity_df = self.connectivity_df[
-            [col for col in self.connectivity_df.columns if OLD_SUFFIX not in col]
-        ]
-
-        # Triangulation of each beacon
+            temp = self.matrix_raw[beacon_indexes, relay_index].reshape(len(beacon_indexes)*len(relay_index), max_history)
+            temp = np.flip(temp[i,:])
+            temp,_ = kf.smooth(temp[~np.isnan(temp)])
+            temp = self._feature_augmentation(temp[-1])
+            temp = scaler.transform(np.array(temp).reshape(1, -1))
+            matrix_dist_loc[i] = reg_kalman.predict(np.array(temp).reshape(1, -1))/100
+            
+        self.matrix_dist[beacon_indexes, relay_index] = matrix_dist_loc.reshape(len(beacon_indexes), len(relay_index))
+        
         coordinates = []
-        for mac in macs:
-            beacon_data = next(b for b in beacons if b["mac"] == mac)
-
-            if mac not in self.connectivity_df.index:
-                continue
-
-            status = beacon_data["status"]
-            if status == self.BUTTON_PRESSED:
-                await self._update_beacon_status(company, mac, self.TO_REPAIR)
-                continue
-
-            # Temporary df for the data of the beacon
-            temp_df = pd.DataFrame(
-                self.connectivity_df.loc[mac, :][self.connectivity_df.loc[mac, :] > 0]
-            )
-            temp_df = temp_df.reset_index().rename(
-                columns={"index": "relay", mac: "dist"}
-            )
-            # Only use the 3 closest relays to the beacon
-            temp_df = temp_df.sort_values("dist", axis=0, ascending=True).iloc[:3, :]
-            temp_df = temp_df.reset_index()
-
-            lat = []
-            long = []
-            nb_relays = len(temp_df)
-            if nb_relays > 2:
-                logger.info(
-                    "Beacon '{}' detected by {} relays, starting triangulation...",
-                    mac,
-                    nb_relays,
+        
+        for i, beacon_index in enumerate(beacon_indexes):
+         
+           mac = list(map(self.inv_beacon_mapping.get, beacon_index))
+           beacon_data = next(b for b in beacons if b["mac"] == mac)
+           status = beacon_data["status"]
+           
+           temp = self.matrix_dist[beacon_index, :]
+           relay_indexes = np.argwhere(np.isnan(temp))
+           relay_indexes = temp.argsort(temp[relay_indexes])
+           
+           nb_relays = len(relay_indexes)
+           
+           lat = []
+           long = []
+           if nb_relays > 2:
+               logger.info(
+                    "Beacon detected by {} - Triangulating...",
+                    nb_relays
                 )
-                for relay_1 in range(nb_relays - 1):
+               
+               
+               #Taking only the 5 closest relays for triangulation
+               if nb_relays > 5:
+                   nb_relays = 5
+                   
+               for relay_1 in range(nb_relays - 1):
                     for relay_2 in range(relay_1 + 1, nb_relays):
-                        # Making a vector between the 2 gateways
-                        rel_1 = temp_df.loc[relay_1, "relay"]
-                        rel_2 = temp_df.loc[relay_2, "relay"]
-                        vect_lat = (
-                            self.relay_df.loc["lat", rel_2]
-                            - self.relay_df.loc["lat", rel_1]
-                        )
-                        vect_long = (
-                            self.relay_df.loc["long", rel_2]
-                            - self.relay_df.loc["long", rel_1]
-                        )
-
-                        # Calculating the distance between the 2 gateways in meters
+                        
+                        relay_1_index = relay_indexes[relay_1]
+                        relay_2_index = relay_indexes[relay_2]
+                        
+                        vect_lat = self.relay_data[relay_2_index, 0] - self.relay_data[relay_1_index, 0]
+                        vect_long = self.relay_data[relay_2_index, 1] - self.relay_data[relay_1_index, 1]
+                        
+                        #Calculating the distance between the 2 gateways in meters
                         dist = self._lat_to_meters(
-                            self.relay_df.loc["lat", rel_1],
-                            self.relay_df.loc["long", rel_1],
-                            self.relay_df.loc["lat", rel_2],
-                            self.relay_df.loc["long", rel_2],
+                            self.relay_data[relay_1_index, 0],
+                            self.relay_data[relay_1_index, 1],
+                            self.relay_data[relay_2_index, 0],
+                            self.relay_data[relay_2_index, 1],
                         )
-
+                        
                         # Applying proportionality rule from the origin on the vector to determine the position of the beacon in lat;long coord
                         # ie: x1 = x0 + (dist_beacon/dist_tot) * vector_length
-
-                        dist_1 = temp_df.loc[relay_1, "dist"]
+                        
+                        dist_1 = self.matrix_dist[beacon_index, relay_1_index]
+                        
                         lat.append(
-                            self.relay_df.loc["lat", rel_1] + (dist_1 / dist) * vect_lat
+                            self.relay_data[relay_1_index, 0] + (dist_1 / dist) * vect_lat
                         )
                         long.append(
-                            self.relay_df.loc["long", rel_1]
+                            self.relay_data[relay_1_index, 1]
                             + (dist_1 / dist) * vect_long
                         )
-
-                temp_relay = temp_df.loc[0:3, "relay"]
-                floor = np.mean(self.relay_df.loc["floor", temp_relay])
-
-                if (floor - np.floor(floor)) - 0.5 <= 1e-5:
+                        
+               floor = np.mean(self.relay_data[relay_indexes[0:3], 2])
+               
+               if (floor - np.floor(floor)) - 0.5 <= 1e-5:
                     # Case where we're in the middle, eg: floor = 1.5
                     # Taking the floor of the closest relay
-                    floor = self.relay_df.loc["floor", temp_df.loc[0, "relay"]]
-                else:
+                    floor = self.relay_data[relay_indexes[0], 2]
+               else:
                     # Otherwise taking the mean floor + rounding it
-                    floor = np.around(np.mean(self.relay_df.loc["floor", temp_relay]))
+                    floor = np.around(np.mean(self.relay_data[relay_indexes[0:3], 2]))
 
-                # Add the computed coordinates to the beacon's history
-                self.coordinates_history.update_coordinates_history(
+               floor = np.mean(self.relay_data[relay_indexes[0:3], 2])              
+             
+               #SMA            
+               self.coordinates_history.update_coordinates_history(
                     mac, (np.mean(lat), np.mean(long))
-                )
-
-                # Use the weighted moving average for smoothing coordinates computation
-                (
+               )
+               
+               # Use the weighted moving average for smoothing coordinates computation
+               (
                     weighted_latitude,
                     weighted_longitude,
-                ) = self.coordinates_history.weighted_moving_average(mac)
+               ) = self.coordinates_history.weighted_moving_average(mac)
 
-                new_beacon_status = (
+               new_beacon_status = (
                     self.TO_REPAIR
                     if status == self.MOVEMENT_DETECTED_AND_BUTTON_PRESSED
                     else self.AVAILABLE
-                )
-                coordinates.append(
+               )
+               
+               coordinates.append(
                     (
                         mac,
                         beacon_data["battery"],
@@ -358,16 +408,15 @@ class Triangulator:
                         beacon_data["temperature"],
                     )
                 )
-
-                del temp_df
-
-                status_updated_message = (
+               
+               status_updated_message = (
                     ""
                     if status != self.MOVEMENT_DETECTED_AND_BUTTON_PRESSED
                     else f" and status updated to '{self.TO_REPAIR}'"
-                )
-                logger.info("Triangulation done{}", status_updated_message)
-            elif 1 <= nb_relays and nb_relays <= 2:
+               )
+               logger.info("Triangulation done{}", status_updated_message)
+
+           elif 1 <= nb_relays and nb_relays <= 2:
                 if status == self.MOVEMENT_DETECTED_AND_BUTTON_PRESSED:
                     # Even if we didn't triangulate, we still need to update the status
                     await self._update_beacon_status(company, mac, self.TO_REPAIR)
@@ -375,15 +424,10 @@ class Triangulator:
                 logger.warning(
                     "Beacon '{}' detected by {} relay, skipping!", mac, nb_relays
                 )
-            else:
+            
+           else:
                 logger.warning("Beacon '{}' not detected by any relay, skipping!", mac)
-
-        if coordinates:
-            await self._store_beacons_data(company, coordinates)
-
-        # Garbage collect
-        del df_beacons
-        del averaged
-        del relay
-        del coordinates
-        gc.collect()
+                
+           if coordinates:
+                await self._store_beacons_data(company, coordinates)
+             
