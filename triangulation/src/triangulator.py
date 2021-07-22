@@ -300,7 +300,6 @@ class Triangulator:
         #Starting the filtering job
         #initial value guess with the nominal model at 1m 
         self.initial_value_guess[beacon_indexes, relay_index] = np.array(list(map(meters_to_db, self.matrix_dist[beacon_indexes, relay_index].flatten()))).reshape(len(beacon_indexes))
-        self.matrix_dist[:] = np.nan
         
         #Variance of the signal (per beacon/relay)
         var = np.nanvar(self.matrix_raw, axis =2)
