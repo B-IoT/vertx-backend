@@ -349,10 +349,18 @@ class Triangulator:
             temp = self.matrix_raw[beacon_indexes, relay_index].reshape(len(beacon_indexes), max_history)
             temp = np.flip(temp[i,:])
             temp,_ = kf.smooth(temp[~np.isnan(temp)])
-            temp = self._feature_augmentation(temp[-1])
-            temp = scaler.transform(np.array(temp).reshape(1, -1))
             logger.info(
                     "temp kalman: {}",
+                    temp
+                )
+            temp = self._feature_augmentation(temp[-1])
+            logger.info(
+                    "feature augmentation: {}",
+                    temp
+                )
+            temp = scaler.transform(np.array(temp).reshape(1, -1))
+            logger.info(
+                    "feature normalisation: {}",
                     temp
                 )
             matrix_dist_loc[i] = reg_kalman.predict(np.array(temp).reshape(1, -1))/100
