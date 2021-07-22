@@ -309,7 +309,11 @@ class Triangulator:
         
         #Flattening the distance matrix
         matrix_dist_loc = self.matrix_dist[beacon_indexes, relay_index].flatten()
-    
+        
+        logger.info(
+                    "var:{}, observation_covariance:{}, len(beacon_indexes):{}", 
+                    var,observation_covariance, len(beacon_indexes)
+                )
         
         for i in range (len(beacon_indexes)):
         
