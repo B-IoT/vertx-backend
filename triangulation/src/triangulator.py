@@ -278,6 +278,16 @@ class Triangulator:
         #For each beacon we add it to our temporary connectivity matrix
         for i in range (len(beacon_indexes)):
             beacon_number_temp = beacon_indexes[i]
+            logger.info(
+                    "Beacon nb {}",
+                    beacon_number_temp
+                )
+            logger.info(
+                    " Relay index {}",
+                    relay_index
+                )
+            print(beacon_number_temp)
+            print(relay_index)
             if self.temp_raw[beacon_number_temp, relay_index] !=0:
                 self.temp_raw[beacon_number_temp, relay_index] = rssis[i]
             else:
