@@ -93,7 +93,7 @@ class Triangulator:
         # We need to use this because it is impossible to call await inside __init__()
         self = Triangulator()
         # Data structures
-        self.relay_matrix = np.zeros([3, 0, 0])
+        self.relay_matrix = None
         self.db_pool = await asyncpg.create_pool(
             host=TIMESCALE_HOST,
             port=TIMESCALE_PORT,
@@ -249,7 +249,10 @@ class Triangulator:
         relay_index = list(map(self.relay_mapping.get, relay_id))
         
         if (relay_data[0] and relay_data[1]) not in self.relay_matrix:
-            self.relay_matrix = np.stack((self.relay_matrix, relay_data), axis=0)
+            if self.relay_matrix is None:
+                self.relay_matrix = relay_data
+            else:
+                self.relay_matrix = np.stack((self.relay_matrix, relay_data), axis=0)
         
         
         ##Create the matrix with the beacon data 
