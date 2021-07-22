@@ -340,7 +340,7 @@ class Triangulator:
            
            temp = self.matrix_dist[beacon_index, :]
            relay_indexes = np.argwhere(np.isnan(temp))
-           relay_indexes = temp.argsort(temp[relay_indexes])
+           relay_indexes = np.argsort(temp[relay_indexes])
            
            nb_relays = len(relay_indexes)
            
