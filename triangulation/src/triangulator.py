@@ -288,8 +288,7 @@ class Triangulator:
         for i in range (len(beacon_indexes)):
             beacon_number_temp = beacon_indexes[i]
 
-            if not np.isnan(self.temp_raw[beacon_number_temp, relay_index]):  
-                logger.info("caca")
+            if not np.isnan(self.temp_raw[beacon_number_temp, relay_index]):
                 self.matrix_raw = np.dstack((self.temp_raw, self.matrix_raw))
                 self.temp_raw[:] = np.nan
                 
@@ -304,7 +303,8 @@ class Triangulator:
         self.matrix_dist[:] = np.nan
         
         #Variance of the signal (per beacon/relay)
-        var = np.nanvar(self.matrix_raw[beacon_indexes, relay_index,:])
+        var = np.nanvar(self.matrix_raw, axis =2)
+        var = var[beacon_indexes, relay_index]
         observation_covariance = var ** 2
         
         #Flattening the distance matrix
