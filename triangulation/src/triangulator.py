@@ -267,10 +267,13 @@ class Triangulator:
         )
         
         #Create the mapping of the beacons
-        if macs not in self.beacon_mapping:
-            self.beacon_mapping[macs] = len(self.beacon_mapping)
-            for k in self.beacon_mapping.keys(): 
-                self.inv_beacon_mapping[self.beacon_mapping[k]]= k
+        for mac in macs:
+            if mac not in self.beacon_mapping:
+                self.beacon_mapping[mac] = len(self.beacon_mapping)
+                
+                #Calculate the inverse of the mapping
+                for k in self.beacon_mapping.keys(): 
+                    self.inv_beacon_mapping[self.beacon_mapping[k]]= k
                 
         #Get the indexes from of the mapping
         beacon_indexes = list(map(self.beacon_mapping.get, macs))
@@ -278,6 +281,7 @@ class Triangulator:
         #For each beacon we add it to our temporary connectivity matrix
         for i in range (len(beacon_indexes)):
             beacon_number_temp = beacon_indexes[i]
+            
             logger.info(
                     "Beacon nb {}",
                     beacon_number_temp
@@ -288,6 +292,7 @@ class Triangulator:
                 )
             print(beacon_number_temp)
             print(relay_index)
+            
             if self.temp_raw[beacon_number_temp, relay_index] !=0:
                 self.temp_raw[beacon_number_temp, relay_index] = rssis[i]
             else:
