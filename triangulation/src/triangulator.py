@@ -111,7 +111,7 @@ class Triangulator:
         self.temp_raw[:] = np.nan
         
         self.matrix_raw = np.zeros([self.nb_beacons, self.nb_relays, 1])
-        self.matrix_raw[:] = np.nan
+        self.matrix_raw[:] = 1
         
         self.initial_value_guess = np.empty([self.nb_beacons, self.nb_relays])
         self.initial_value_guess[:] = 3
