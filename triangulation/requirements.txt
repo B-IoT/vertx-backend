@@ -12,4 +12,4 @@ six==1.15.0
 python-math==0.0.1
 pykalman
 pickle5==0.0.11
-
+scipy==1.7.0
