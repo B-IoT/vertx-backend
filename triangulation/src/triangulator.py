@@ -311,7 +311,7 @@ class Triangulator:
         matrix_dist_loc = self.matrix_dist[beacon_indexes, relay_index].flatten()
     
         
-        for i in range (0,np.size(beacon_indexes)):
+        for i in range (len(beacon_indexes)):
         
             
             kf = KalmanFilter(
