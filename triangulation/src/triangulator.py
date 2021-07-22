@@ -309,11 +309,6 @@ class Triangulator:
         #Flattening the distance matrix
         matrix_dist_loc = self.matrix_dist[beacon_indexes, relay_index].flatten()
         
-        logger.info(
-                    "var:{}, observation_covariance:{}, len(beacon_indexes):{}, initial value: {}",  self.initial_value_guess.flatten(),
-                    var,observation_covariance, len(beacon_indexes)
-                )
-        
         for i in range (len(beacon_indexes)):
         
             
@@ -323,39 +318,15 @@ class Triangulator:
                 observation_covariance = observation_covariance.flatten()[i]
             )
             temp = self.matrix_raw[beacon_indexes, relay_index].reshape(len(beacon_indexes), max_history)
-            logger.info(
-                    "i: {}, temp raw: {}",i,
-                    temp
-                )
             temp = np.flip(temp[i,:])
             temp,_ = kf.smooth(temp[~np.isnan(temp)])
-            logger.info(
-                    "i: {}, kf smoothed: {}",i,
-                    temp
-                )
             temp = self._feature_augmentation(temp[-1])
-            logger.info(
-                    "i: {}, feature_augmentation: {}",i,
-                    temp
-                )
             temp = scaler.transform(np.array(temp).reshape(1, -1))
-            logger.info(
-                    "i: {}, feature normalisation: {}",i,
-                    temp
-                )
             
             matrix_dist_loc[i] = reg_kalman.predict(np.array(temp).reshape(1, -1))/100
-            logger.info(
-                        "matrix dist loc  {}",
-                        matrix_dist_loc[i]
-                        )
             
             
         self.matrix_dist[beacon_indexes, relay_index] = matrix_dist_loc.reshape(len(beacon_indexes))
-        logger.info(
-                        "matrix dist global  {}",
-                        self.matrix_dist
-                        )
         
         coordinates = []
         
@@ -366,13 +337,18 @@ class Triangulator:
            status = beacon_data["status"]
            
            temp = self.matrix_dist[beacon_index, :]
-           logger.info(
-                    "temp {}",
-                    temp
-                )
            
            relay_indexes = np.argwhere(~np.isnan(temp)).flatten()
+           logger.info(
+                    "1- relay_indexes {}",
+                    relay_indexes
+                )
+           
            relay_indexes = temp[relay_indexes].argsort()
+           logger.info(
+                    "2- relay_indexes {}",
+                    relay_indexes
+                )
            
            nb_relays = len(relay_indexes)
            
@@ -389,7 +365,14 @@ class Triangulator:
                         
                         relay_1_index = relay_indexes[relay_1]
                         relay_2_index = relay_indexes[relay_2]
-                        
+                        logger.info(
+                                " relay_2_index {}",
+                                    relay_2_index
+                )       
+                        logger.info(
+                                " relay_matrix {}",
+                                    self.relay_matrix
+                )      
                         vect_lat = self.relay_matrix[relay_2_index, 0] - self.relay_matrix[relay_1_index, 0]
                         vect_long = self.relay_matrix[relay_2_index, 1] - self.relay_matrix[relay_1_index, 1]                
                         
