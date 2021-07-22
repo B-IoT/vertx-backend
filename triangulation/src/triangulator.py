@@ -107,8 +107,7 @@ class Triangulator:
         self.nb_relays = 1000
         self.max_history = 30        
         
-        self.temp_raw = np.empty([self.nb_beacons, self.nb_relays])
-        self.temp_raw[:] = np.nan
+        self.temp_raw = np.zeros([self.nb_beacons, self.nb_relays])
         
         self.matrix_raw = np.zeros([self.nb_beacons, self.nb_relays, 0])
         
@@ -282,11 +281,11 @@ class Triangulator:
         for i in range (len(beacon_indexes)):
             beacon_number_temp = beacon_indexes[i]
                         
-            if self.temp_raw[beacon_number_temp, relay_index] !=0:
-                self.temp_raw[beacon_number_temp, relay_index] = rssis[i]
-            else:
+            if self.temp_raw[beacon_number_temp, relay_index] !=0:          
                 self.matrix_raw = np.dstack((self.temp_raw, self.matrix_raw))
-                self.temp_raw = np.nan
+                self.temp_raw[:] = 0
+            else:
+                self.temp_raw[beacon_number_temp, relay_index] = rssis[i]
         
         #number of historic values we want to keep
         self.matrix_raw = self.matrix_raw[:,:,0:max_history]
