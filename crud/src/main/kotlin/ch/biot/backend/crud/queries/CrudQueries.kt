@@ -13,11 +13,14 @@ fun insertItem(itemsTable: String, customId: Boolean = false) =
 fun getItems(itemsTable: String, beaconDataTable: String) =
   "SELECT DISTINCT ON (I.id) * FROM $itemsTable I LEFT JOIN $beaconDataTable D ON I.beacon = D.mac ORDER BY I.id, D.time DESC"
 
-//fun getItemsWithAC(itemsTable: String, beaconDataTable: String) =
-//  "SELECT DISTINCT ON (I.id) * FROM $itemsTable I LEFT JOIN $beaconDataTable D ON I.beacon = D.mac ORDER BY I.id, D.time DESC WHERE I.accessControlString %STARTWITH $1"
+fun getItemsWithAC(itemsTable: String, beaconDataTable: String) =
+  "SELECT DISTINCT ON (I.id) * FROM $itemsTable I LEFT JOIN $beaconDataTable D ON I.beacon = D.mac WHERE I.accessControlString LIKE $1 ORDER BY I.id, D.time DESC"
 
 fun getItemsWithCategory(itemsTable: String, beaconDataTable: String) =
   "SELECT DISTINCT ON (I.id) * FROM $itemsTable I LEFT JOIN $beaconDataTable D ON I.beacon = D.mac WHERE I.category=$1 ORDER BY I.id, D.time DESC"
+
+fun getItemsWithCategoryWithAC(itemsTable: String, beaconDataTable: String) =
+  "SELECT DISTINCT ON (I.id) * FROM $itemsTable I LEFT JOIN $beaconDataTable D ON I.beacon = D.mac WHERE I.category=$1 AND I.accessControlString LIKE $2  ORDER BY I.id, D.time DESC"
 
 fun getClosestItems(itemsTable: String, beaconDataTable: String) =
   "SELECT items_computed.floor, json_agg(row_to_json(items_computed) ORDER BY ST_Distance(ST_SetSRID(ST_MakePoint($2, $1),4326),ST_SetSRID(ST_MakePoint(items_computed.longitude, items_computed.latitude),4326)) ASC) AS closest_items FROM (SELECT DISTINCT ON (I.id) * FROM $itemsTable I LEFT JOIN $beaconDataTable D ON I.beacon = D.mac ORDER BY I.id, D.time DESC) items_computed GROUP BY items_computed.floor"
