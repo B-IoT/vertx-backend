@@ -269,8 +269,8 @@ class Triangulator:
         #Create the mapping of the beacons
         if macs not in self.beacon_mapping:
             self.beacon_mapping[macs] = len(self.beacon_mapping)
-            for k, v in self.beacon_mapping.iteritems():
-                self.inv_beacon_mapping[v] = self.beacon_mapping.get(v, []) + [k]
+            for k in self.beacon_mapping.keys(): 
+                self.inv_beacon_mapping[self.beacon_mapping[k]]= k
                 
         #Get the indexes from of the mapping
         beacon_indexes = list(map(self.beacon_mapping.get, macs))
