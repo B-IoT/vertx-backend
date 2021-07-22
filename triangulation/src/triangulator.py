@@ -311,7 +311,7 @@ class Triangulator:
         matrix_dist_loc = self.matrix_dist[beacon_indexes, relay_index].flatten()
         
         logger.info(
-                    "var:{}, observation_covariance:{}, len(beacon_indexes):{}", 
+                    "var:{}, observation_covariance:{}, len(beacon_indexes):{}, initial value: {}",  self.initial_value_guess.flatten(),
                     var,observation_covariance, len(beacon_indexes)
                 )
         
@@ -324,9 +324,21 @@ class Triangulator:
                 observation_covariance = observation_covariance.flatten()[i]
             )
             temp = self.matrix_raw[beacon_indexes, relay_index].reshape(len(beacon_indexes), max_history)
+            logger.info(
+                    "i: {}, temp raw: {}",i,
+                    temp
+                )
             temp = np.flip(temp[i,:])
             temp,_ = kf.smooth(temp[~np.isnan(temp)])
+            logger.info(
+                    "i: {}, kf smoothed: {}",i,
+                    temp
+                )
             temp = self._feature_augmentation(temp[-1])
+            logger.info(
+                    "i: {}, feature_augmentation: {}",i,
+                    temp
+                )
             temp = scaler.transform(np.array(temp).reshape(1, -1))
             logger.info(
                     "i: {}, feature normalisation: {}",i,
