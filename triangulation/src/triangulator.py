@@ -298,7 +298,7 @@ class Triangulator:
                     "1 - temp raw: {}",
                     self.temp_raw
                 )
-            if np.isnan(self.temp_raw[beacon_number_temp, relay_index]):  
+            if not np.isnan(self.temp_raw[beacon_number_temp, relay_index]):  
                 logger.info("caca")
                 self.matrix_raw = np.dstack((self.temp_raw, self.matrix_raw))
                 self.temp_raw[:] = np.nan
