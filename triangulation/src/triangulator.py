@@ -103,8 +103,8 @@ class Triangulator:
         )
         self.coordinates_history = _CoordinatesHistory()
         
-        self.nb_beacons = 1000 
-        self.nb_relays = 1000
+        self.nb_beacons = 10
+        self.nb_relays = 10
         self.max_history = 30        
         
         self.temp_raw = np.zeros([self.nb_beacons, self.nb_relays])
@@ -323,6 +323,10 @@ class Triangulator:
         self.matrix_dist[beacon_indexes, relay_index] = matrix_dist_loc.reshape(len(beacon_indexes))
         
         coordinates = []
+        logger.info(
+                    "1 - beacon_indexes: {}",
+                    beacon_indexes
+                )
         
         for i, beacon_index in enumerate(beacon_indexes):
          
@@ -335,6 +339,7 @@ class Triangulator:
                     "temp {}",
                     temp
                 )
+           
            relay_indexes = np.argwhere(~np.isnan(temp)).flatten()
            relay_indexes = temp[relay_indexes].argsort()
            
