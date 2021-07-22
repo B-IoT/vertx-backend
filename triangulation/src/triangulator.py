@@ -355,7 +355,7 @@ class Triangulator:
                     relay_indexes
                 )
            
-           nb_relays = relay_matrix.shape[0]
+           nb_relays = self.relay_matrix.shape[0]
            
            lat = []
            long = []
