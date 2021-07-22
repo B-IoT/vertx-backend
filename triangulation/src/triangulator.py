@@ -304,7 +304,7 @@ class Triangulator:
         
         #Starting the filtering job
         #initial value guess with the nominal model at 1m 
-        self.initial_value_guess[beacon_indexes, relay_index] = np.array(list(map(meters_to_db, self.matrix_dist[beacon_indexes, relay_index].flatten()))).reshape(len(beacon_indexes), 1)
+        self.initial_value_guess[beacon_indexes, relay_index] = np.array(list(map(meters_to_db, self.matrix_dist[beacon_indexes, relay_index].flatten()))).reshape(len(beacon_indexes))
         self.matrix_dist[:] = np.nan
         
         #Variance of the signal (per beacon/relay)
@@ -328,7 +328,7 @@ class Triangulator:
             temp = scaler.transform(np.array(temp).reshape(1, -1))
             matrix_dist_loc[i] = reg_kalman.predict(np.array(temp).reshape(1, -1))/100
             
-        self.matrix_dist[beacon_indexes, relay_index] = matrix_dist_loc.reshape(len(beacon_indexes), 1)
+        self.matrix_dist[beacon_indexes, relay_index] = matrix_dist_loc.reshape(len(beacon_indexes))
         
         coordinates = []
         
