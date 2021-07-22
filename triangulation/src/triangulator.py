@@ -281,18 +281,7 @@ class Triangulator:
         #For each beacon we add it to our temporary connectivity matrix
         for i in range (len(beacon_indexes)):
             beacon_number_temp = beacon_indexes[i]
-            
-            logger.info(
-                    "Beacon nb {}",
-                    beacon_number_temp
-                )
-            logger.info(
-                    " Relay index {}",
-                    relay_index
-                )
-            print(beacon_number_temp)
-            print(relay_index)
-            
+                        
             if self.temp_raw[beacon_number_temp, relay_index] !=0:
                 self.temp_raw[beacon_number_temp, relay_index] = rssis[i]
             else:
@@ -359,19 +348,35 @@ class Triangulator:
                    
                for relay_1 in range(nb_relays - 1):
                     for relay_2 in range(relay_1 + 1, nb_relays):
-                        
+            
                         relay_1_index = relay_indexes[relay_1]
                         relay_2_index = relay_indexes[relay_2]
                         
-                        vect_lat = relay_data[relay_2_index, 0] - relay_data[relay_1_index, 0]
-                        vect_long = relay_data[relay_2_index, 1] - relay_data[relay_1_index, 1]
+                        logger.info(
+                        "relay data  {}",
+                        relay_data
+                        )
+                        
+                        logger.info(
+                        "relay 1 index {}",
+                        relay_1_index
+                        )
+                        logger.info(
+                        " Relay 2 index {}",
+                        relay_2_index
+                        )
+                        
+                        vect_lat = self.relay_matrix[relay_2_index, 0] - self.relay_matrix[relay_1_index, 0]
+                        vect_long = self.relay_matrix[relay_2_index, 1] - self.relay_matrix[relay_1_index, 1]
+                        
+                        
                         
                         #Calculating the distance between the 2 gateways in meters
                         dist = self._lat_to_meters(
-                            relay_data[relay_1_index, 0],
-                            relay_data[relay_1_index, 1],
-                            relay_data[relay_2_index, 0],
-                            relay_data[relay_2_index, 1],
+                            self.relay_matrix[relay_1_index, 0],
+                            self.relay_matrix[relay_1_index, 1],
+                            self.relay_matrix[relay_2_index, 0],
+                            self.relay_matrix[relay_2_index, 1],
                         )
                         
                         # Applying proportionality rule from the origin on the vector to determine the position of the beacon in lat;long coord
@@ -380,24 +385,24 @@ class Triangulator:
                         dist_1 = self.matrix_dist[beacon_index, relay_1_index]
                         
                         lat.append(
-                            relay_data[relay_1_index, 0] + (dist_1 / dist) * vect_lat
+                            self.relay_matrix[relay_1_index, 0] + (dist_1 / dist) * vect_lat
                         )
                         long.append(
-                            relay_data[relay_1_index, 1]
+                            self.relay_matrix[relay_1_index, 1]
                             + (dist_1 / dist) * vect_long
                         )
                         
-               floor = np.mean(relay_data[relay_indexes[0:3], 2])
+               floor = np.mean(self.relay_matrix[relay_indexes[0:3], 2])
                
                if (floor - np.floor(floor)) - 0.5 <= 1e-5:
                     # Case where we're in the middle, eg: floor = 1.5
                     # Taking the floor of the closest relay
-                    floor = relay_data[relay_indexes[0], 2]
+                    floor = self.relay_matrix[relay_indexes[0], 2]
                else:
                     # Otherwise taking the mean floor + rounding it
-                    floor = np.around(np.mean(relay_data[relay_indexes[0:3], 2]))
+                    floor = np.around(np.mean(self.relay_matrix[relay_indexes[0:3], 2]))
 
-               floor = np.mean(relay_data[relay_indexes[0:3], 2])              
+               floor = np.mean(self.relay_matrix[relay_indexes[0:3], 2])              
              
                #SMA            
                self.coordinates_history.update_coordinates_history(
