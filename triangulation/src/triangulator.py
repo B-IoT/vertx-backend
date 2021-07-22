@@ -331,8 +331,17 @@ class Triangulator:
            status = beacon_data["status"]
            
            temp = self.matrix_dist[beacon_index, :]
+           logger.info(
+                    "temp {}",
+                    temp
+                )
            relay_indexes = np.argwhere(~np.isnan(temp)).flatten()
            relay_indexes = temp[relay_indexes].argsort()
+           
+           logger.info(
+                    "Relay indexes {} ...",
+                    relay_indexes
+                )
            
            nb_relays = len(relay_indexes)
            
