@@ -465,7 +465,8 @@ class Triangulator:
             
             if not np.isnan(self.temp_raw[beacon_number_temp, relay_index]):
                 self.matrix_raw = np.dstack((self.temp_raw, self.matrix_raw))
-                
+                #number of historic values we want to keep
+                self.matrix_raw = self.matrix_raw[:,:,0:max_history]
                 #Starting the filtering job
                 self._Preprocessing(beacon_indexes, relay_index, max_history,)
             
@@ -474,8 +475,6 @@ class Triangulator:
                 
             self.temp_raw[beacon_number_temp, relay_index] = rssis[i]
         
-        #number of historic values we want to keep
-        self.matrix_raw = self.matrix_raw[:,:,0:max_history]
         
         ### Triangulation engine
         
