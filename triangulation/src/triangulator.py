@@ -122,6 +122,14 @@ class Triangulator:
         
         self.matrix_dist = np.empty([self.nb_beacons, self.nb_relays])
         self.matrix_dist[:] = 3
+        
+        #Importing the scaler model
+        filename = 'src/db_to_m_scaler.sav'
+        self.scaler = pickle.load(open(filename, 'rb'))
+        
+        #Importing the ML model
+        filename = 'src/db_to_m_Kalman+GBR.sav'
+        self.reg_kalman = pickle.load(open(filename, 'rb'))
 
         return self
 
@@ -209,101 +217,24 @@ class Triangulator:
         return d
     
     def _feature_augmentation(self, X):
-        return np.array([np.ones(len(X)), X, X**2, X**3, X**4, X**5]).transpose()
-                     
-    async def triangulate(self, relay_id: str, data: dict):
-        """
-        Triangulates all beacons detected by the given relay, if enough information is available.
-        """
+        return np.array([X, X**2, X**3, X**4, X**5]).transpose()
+    
+    def _Preprocessing(self, beacon_indexes, relay_index, max_history):
         
-        #Importing the scaler model
-        filename = 'src/db_to_m_scaler.sav'
-        scaler = pickle.load(open(filename, 'rb'))
-        
-        #Importing the ML model
-        filename = 'src/db_to_m_Kalman+GBR.sav'
-        reg_kalman = pickle.load(open(filename, 'rb'))
-
-        measured_ref = -64
-        tx = 6
-        max_history = 30 #Number of data hsitory to keep 
+        '''
+        - Takes the max_history RSSI
+        - Apply Kalman Filter
+        - Takes the last value of the Kalman filter (most recent one)
+        - Does polynomial feature augmentation (up to 5th degree)
+        - Convert the db to m value with ML model
+        - Puts the found value in matrix_dist
+        '''
         
         #Convert meters to db -nominal case, should be replaced by a ML approach
+        measured_ref = -64
+        tx = 6
         meters_to_db = lambda x: measured_ref - 10*tx*math.log10(x)
-
-        #Import the data
-        relay_data = [
-            data["latitude"],
-            data["longitude"],
-            int(data["floor"]),
-        ]
         
-        company = data["company"]
-        beacons = data["beacons"]#includes the data from the MQTT    
-        
-        
-        ##Create the matrix with the relay data
-        #Create the mapping of the relays
-        if relay_id not in self.relay_mapping:
-            self.relay_mapping[relay_id] = len(self.relay_mapping)
-                
-        relay_index = self.relay_mapping[relay_id]
-        
-        if self.relay_matrix is None:
-            self.relay_matrix = np.array(relay_data).reshape(1,3)
-                
-        elif (relay_data[0] not in self.relay_matrix) and (relay_data[1] not in self.relay_matrix) :
-            self.relay_matrix = np.concatenate((self.relay_matrix, np.array(relay_data).reshape(1,3)), axis=0)
-        
-        logger.info(
-                    " relay_matrix {}",
-                    self.relay_matrix
-                )
-        
-        
-        ##Create the matrix with the beacon data 
-        # Filter out empty arrays
-        if not beacons:
-            logger.warning("No beacon detected, skipping!")
-            return
-        
-        # Filter out empty MAC addresses
-        macs, rssis = zip(
-            *[(beacon["mac"], beacon["rssi"]) for beacon in beacons if beacon["mac"]]
-        )
-        
-        #Create the mapping of the beacons
-        for mac in macs:
-            if mac not in self.beacon_mapping:
-                self.beacon_mapping[mac] = len(self.beacon_mapping)
-                
-                #Calculate the inverse of the mapping
-                for k in self.beacon_mapping.keys(): 
-                    self.inv_beacon_mapping[self.beacon_mapping[k]]= k
-                
-        #Get the indexes from of the mapping
-        beacon_indexes = list(map(self.beacon_mapping.get, macs))
-        
-        #For each beacon we add it to our temporary connectivity matrix
-        logger.info(
-                    "beacon_indexes: {}",
-                    beacon_indexes
-                )
-        
-        for i in range (len(beacon_indexes)):
-            beacon_number_temp = beacon_indexes[i]
-
-            if not np.isnan(self.temp_raw[beacon_number_temp, relay_index]):
-                self.matrix_raw = np.dstack((self.temp_raw, self.matrix_raw))
-                self.temp_raw[:] = np.nan
-                
-            self.temp_raw[beacon_number_temp, relay_index] = rssis[i]
-        
-        #number of historic values we want to keep
-        self.matrix_raw = self.matrix_raw[:,:,0:max_history]
-        
-        #Starting the filtering job
-        #initial value guess with the nominal model at 1m 
         self.initial_value_guess[beacon_indexes, relay_index] = np.array(list(map(meters_to_db, self.matrix_dist[beacon_indexes, relay_index].flatten()))).reshape(len(beacon_indexes))
         
         #Variance of the signal (per beacon/relay)
@@ -326,12 +257,16 @@ class Triangulator:
             temp = np.flip(temp[i,:])
             temp,_ = kf.smooth(temp[~np.isnan(temp)])
             temp = self._feature_augmentation(temp[-1])
-            temp = scaler.transform(np.array(temp).reshape(1, -1))
+            temp = np.concatenate((np.ones((len(temp),1)), temp), axis =1)
+            temp = self.scaler.transform(np.array(temp).reshape(1, -1))
             
-            matrix_dist_loc[i] = reg_kalman.predict(np.array(temp).reshape(1, -1))/100
+            matrix_dist_loc[i] = self.reg_kalman.predict(np.array(temp).reshape(1, -1))/100
             
-            
-        self.matrix_dist[beacon_indexes, relay_index] = matrix_dist_loc.reshape(len(beacon_indexes))
+        self.matrix_dist[beacon_indexes, relay_index] = matrix_dist_loc.reshape(len(beacon_indexes))    
+        
+        return
+     
+    def _triangulation_engine(self, beacon_indexes, beacons, company):
         
         coordinates = []
         
@@ -415,7 +350,7 @@ class Triangulator:
                     # Otherwise taking the mean floor + rounding it
                     floor = np.around(np.mean(self.relay_matrix[0:3, 2]))
 
-               floor = np.mean(self.relay_matrix[0:3, 2])              
+               floor = np.mean(self.relay_matrix[0:3, 2]) 
              
                #SMA            
                self.coordinates_history.update_coordinates_history(
@@ -464,6 +399,80 @@ class Triangulator:
             
            else:
                 logger.warning("Beacon '{}' not detected by any relay, skipping!", mac)
+        return coordinates
                 
-           if coordinates:
-                await self._store_beacons_data(company, coordinates)          
+    async def triangulate(self, relay_id: str, data: dict):
+        """
+        Triangulates all beacons detected by the given relay, if enough information is available.
+        """
+
+        max_history = 30 #Number of data hsitory to keep 
+
+        #Import the data
+        relay_data = [
+            data["latitude"],
+            data["longitude"],
+            int(data["floor"]),
+        ]
+        
+        company = data["company"]
+        beacons = data["beacons"]#includes the data from the MQTT    
+        coordinates = []        
+        
+        #Create the mapping of the relays [relay name, relay_int_identifier]
+        if relay_id not in self.relay_mapping:
+            self.relay_mapping[relay_id] = len(self.relay_mapping)
+                
+        relay_index = self.relay_mapping[relay_id]
+        
+        
+        ##Create the matrix with the relay data [latitude, longitude, floor]
+        if self.relay_matrix is None:
+            self.relay_matrix = np.array(relay_data).reshape(1,3)             
+        elif (relay_data[0] not in self.relay_matrix) and (relay_data[1] not in self.relay_matrix) :
+            self.relay_matrix = np.concatenate((self.relay_matrix, np.array(relay_data).reshape(1,3)), axis=0)        
+         
+        # Exit if the relay did not detect any beacon
+        if not beacons:
+            logger.warning("No beacon detected, skipping!")
+            return
+        
+        # Filter out empty MAC addresses
+        macs, rssis = zip(
+            *[(beacon["mac"], beacon["rssi"]) for beacon in beacons if beacon["mac"]]
+        )
+        
+        #Create the mapping of the beacons [beacon mac, beacon_int_identifier]
+        for mac in macs:
+            if mac not in self.beacon_mapping:
+                self.beacon_mapping[mac] = len(self.beacon_mapping)
+                
+                #Calculate the inverse of the mapping
+                for k in self.beacon_mapping.keys(): 
+                    self.inv_beacon_mapping[self.beacon_mapping[k]]= k
+                
+        #Convert the mac list to the beacon_int_identifier from of the mapping
+        beacon_indexes = list(map(self.beacon_mapping.get, macs))
+        
+        #We add each beacon to our temporary connectivity matrix     
+        for i in range (len(beacon_indexes)):
+            beacon_number_temp = beacon_indexes[i]
+            
+            
+            if not np.isnan(self.temp_raw[beacon_number_temp, relay_index]):
+                self.matrix_raw = np.dstack((self.temp_raw, self.matrix_raw))
+                coordinates = self._triangulation_engine(beacon_indexes, beacons, company)
+                self.temp_raw[:] = np.nan
+                
+            self.temp_raw[beacon_number_temp, relay_index] = rssis[i]
+        
+        #number of historic values we want to keep
+        self.matrix_raw = self.matrix_raw[:,:,0:max_history]
+        
+        ### Triangulation engine
+        #Starting the filtering job
+        self._Preprocessing(beacon_indexes, relay_index, max_history,)
+        #initial value guess with the nominal model at 1m 
+                     
+        if coordinates:
+             await self._store_beacons_data(company, coordinates)          
