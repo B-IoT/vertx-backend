@@ -225,77 +225,63 @@ class Triangulator:
         tx = 6
         meters_to_db = lambda x: measured_ref - 10*tx*math.log10(x)
         
-        self.initial_value_guess[beacon_indexes, relay_index] = np.array(list(map(meters_to_db, self.matrix_dist[beacon_indexes, relay_index].flatten()))).reshape(len(beacon_indexes))
+        self.initial_value_guess = np.array(list(map(meters_to_db, self.matrix_dist.flatten()))).reshape(self.matrix_dist.shape)
         
         #Variance of the signal (per beacon/relay)
-        var = np.nanvar(self.matrix_raw, axis =2)
-        var = var[beacon_indexes, relay_index]
-        observation_covariance = var ** 2
+        var = np.nanvar(self.matrix_raw, axis =2) #matrix 2D
+        observation_covariance = var ** 2 #matrix 2D with var^2 
         
-        #Flattening the distance matrix
-        matrix_dist_loc = self.matrix_dist[beacon_indexes, relay_index].flatten()
+        indexes = tuple(np.argwhere(~np.isnan(self.matrix_raw[:,:,0]))) #Indexes of beacon/relay pairs
         
-        for i in range (len(beacon_indexes)):
+        logger.info(
+                    "Indexes:{}, initial_value_guess: {}, var: {}",
+                    indexes, self.initial_value_guess, var
+                )
         
+        for index in indexes:
             
+            index = tuple(index) #converting to the right format
+            logger.info(
+                    "0 - index:{}",
+                    index
+                )
             kf = KalmanFilter(
-                initial_state_mean = self.initial_value_guess.flatten()[i],
-                initial_state_covariance = observation_covariance.flatten()[i],
-                observation_covariance = observation_covariance.flatten()[i]
+                initial_state_mean = self.initial_value_guess[index],
+                initial_state_covariance = observation_covariance[index],
+                observation_covariance = observation_covariance[index]
             )
-            logger.info(
-                    "Raw matrix {}",
-                    self.matrix_raw
-                )
             
+            temp = self.matrix_raw[index] #matrix of 1 x Max_history
             logger.info(
-                    "beacon_indexes:{} & relay_index: {}",
-                    beacon_indexes,
-                    relay_index
-                )
-            temp = self.matrix_raw[beacon_indexes, relay_index].reshape(len(beacon_indexes), max_history)
-            logger.info(
-                    "Temp 0 matrix {}",
-                    temp,relay_index
-                )
-            temp = np.flip(temp[i,:])
-            logger.info(
-                    "Temp 1.5 flip matrix {}",
+                    "1 - temp:{}",
                     temp
                 )
+            
+            temp = np.flip(temp) #Flipping to be in the right format for Kalman
+            temp = temp[~np.isnan(temp)] #Removing all nan
             logger.info(
-                "Temp 1.75 temp[~np.isnan(temp)] {}",
-                temp[~np.isnan(temp)]
-            )
-            logger.info(
-                "Temp 1.8 {}",
-                temp
-            )
-            logger.info(
-                "Temp 1.8 temp.shape {}",
-                temp.shape
-            )
-            temp = temp[~np.isnan(temp)]
-            if temp.shape[0] > 1:
+                    "2 - temp:{}",
+                    temp
+                )
+            if temp.shape[0] > 1: #Checking we have more than 1 value
                 temp,_ = kf.smooth(temp)
+            temp = self._feature_augmentation(temp[-1]) #Taking the latest RSSI and augmenting it
             logger.info(
-                    "Temp 1 smmooth matrix {}",
+                    "3 - temp:{}",
                     temp
                 )
-            temp = self._feature_augmentation(temp[-1])
-            
-            temp = np.concatenate((np.ones((len(temp))), temp), axis =1)
-            temp = self.scaler.transform(np.array(temp).reshape(1, -1))
-            
+            temp = self.scaler.transform(np.array(temp).reshape(1, -1)) #Normalizing
             logger.info(
-                    "Temp 2 matrix {}",
+                    "4 - temp:{}",
                     temp
                 )
+            temp = np.concatenate(([1], temp.flatten()))
+            logger.info(
+                    "5 - temp:{}",
+                    temp
+                )
+            self.matrix_dist[index] = self.reg_kalman.predict(np.array(temp).reshape(1, -1))/100
             
-            matrix_dist_loc[i] = self.reg_kalman.predict(np.array(temp).reshape(1, -1))/100
-            
-        self.matrix_dist[beacon_indexes, relay_index] = matrix_dist_loc.reshape(len(beacon_indexes))    
-        
         return
      
     async def _triangulation_engine(self, beacon_indexes, beacons, company):
