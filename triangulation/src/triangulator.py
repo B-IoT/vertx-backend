@@ -470,6 +470,9 @@ class Triangulator:
         ### Triangulation engine
         
         #initial value guess with the nominal model at 1m 
-                  
+        logger.info(
+                    "Coordinates {}",
+                    coordinates
+                )          
         if coordinates:
              await self._store_beacons_data(company, coordinates)          
