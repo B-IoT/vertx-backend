@@ -259,14 +259,32 @@ class Triangulator:
                     temp,relay_index
                 )
             temp = np.flip(temp[i,:])
-            temp,_ = kf.smooth(temp[~np.isnan(temp)])
             logger.info(
-                    "Temp 1 matrix {}",
+                    "Temp 1.5 flip matrix {}",
+                    temp
+                )
+            logger.info(
+                "Temp 1.75 temp[~np.isnan(temp)] {}",
+                temp[~np.isnan(temp)]
+            )
+            logger.info(
+                "Temp 1.8 {}",
+                temp
+            )
+            logger.info(
+                "Temp 1.8 temp.shape {}",
+                temp.shape
+            )
+            temp = temp[~np.isnan(temp)]
+            if temp.shape[0] > 1:
+                temp,_ = kf.smooth(temp)
+            logger.info(
+                    "Temp 1 smmooth matrix {}",
                     temp
                 )
             temp = self._feature_augmentation(temp[-1])
             
-            temp = np.concatenate((np.ones((len(temp),1)), temp), axis =1)
+            temp = np.concatenate((np.ones((len(temp))), temp), axis =1)
             temp = self.scaler.transform(np.array(temp).reshape(1, -1))
             
             logger.info(
