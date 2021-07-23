@@ -111,7 +111,7 @@ class Triangulator:
         self.temp_raw[:] = np.nan
         
         self.matrix_raw = np.zeros([self.nb_beacons, self.nb_relays, self.max_history])
-        self.matrix_raw = np.random.rand(self.nb_beacons, self.nb_relays, self.max_history) ## REplace 1 by np.nan
+        self.matrix_raw[:] = np.nan ## REplace 1 by np.nan
         
         self.initial_value_guess = np.empty([self.nb_beacons, self.nb_relays])
         self.initial_value_guess[:] = 3
@@ -247,6 +247,7 @@ class Triangulator:
             temp = np.flip(temp[i,:])
             temp,_ = kf.smooth(temp[~np.isnan(temp)])
             temp = self._feature_augmentation(temp[-1])
+            
             temp = np.concatenate((np.ones((len(temp),1)), temp), axis =1)
             temp = self.scaler.transform(np.array(temp).reshape(1, -1))
             
