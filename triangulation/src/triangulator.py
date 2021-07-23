@@ -121,7 +121,7 @@ class Triangulator:
         self.inv_beacon_mapping = {}
         
         self.matrix_dist = np.empty([self.nb_beacons, self.nb_relays])
-        self.matrix_dist[:] = 3
+        self.matrix_dist[:] = np.nan
         
         #Importing the scaler model
         filename = 'src/db_to_m_scaler.sav'
