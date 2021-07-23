@@ -244,15 +244,24 @@ class Triangulator:
                 observation_covariance = observation_covariance.flatten()[i]
             )
             temp = self.matrix_raw[beacon_indexes, relay_index].reshape(len(beacon_indexes), max_history)
+            logger.info(
+                    "Raw matrix {}",
+                    self.matrix_raw
+                )
+            
             temp = np.flip(temp[i,:])
             temp,_ = kf.smooth(temp[~np.isnan(temp)])
+            logger.info(
+                    "Temp 1 matrix {}",
+                    temp
+                )
             temp = self._feature_augmentation(temp[-1])
             
             temp = np.concatenate((np.ones((len(temp),1)), temp), axis =1)
             temp = self.scaler.transform(np.array(temp).reshape(1, -1))
             
             logger.info(
-                    "Temp matrix {}",
+                    "Temp 2 matrix {}",
                     temp
                 )
             
