@@ -262,10 +262,6 @@ class Triangulator:
         for i, beacon_index in enumerate(beacon_indexes):
             
            mac = self.inv_beacon_mapping[beacon_index]
-           logger.info(
-            "Starting triangulation for beacon {}, mac: {}",
-                beacon_index, mac
-            ) 
            beacon_data = next(b for b in beacons if b["mac"] == mac)
            status = beacon_data["status"]
            
@@ -274,6 +270,11 @@ class Triangulator:
            relay_indexes = np.argwhere(~np.isnan(temp)).flatten()           
            relay_indexes = temp[relay_indexes].argsort()           
            nb_relays = len(relay_indexes)
+           logger.info(
+            "Starting triangulation for beacon {}, mac: {}, detected nb_relays:{}",
+                beacon_index, mac, nb_relays
+            ) 
+           
            lat = []
            long = []
            if nb_relays > 2:               
