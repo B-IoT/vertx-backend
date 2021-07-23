@@ -261,7 +261,7 @@ class Triangulator:
         
         return
      
-    def _triangulation_engine(self, beacon_indexes, beacons, company):
+    async def _triangulation_engine(self, beacon_indexes, beacons, company):
         
         coordinates = []
         
