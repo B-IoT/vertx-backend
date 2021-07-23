@@ -466,6 +466,10 @@ class Triangulator:
             
             if not np.isnan(self.temp_raw[beacon_number_temp, relay_index]):
                 self.matrix_raw = np.dstack((self.temp_raw, self.matrix_raw))
+                
+                #Starting the filtering job
+                self._Preprocessing(beacon_indexes, relay_index, max_history,)
+            
                 coordinates = self._triangulation_engine(beacon_indexes, beacons, company)
                 self.temp_raw[:] = np.nan
                 
@@ -475,8 +479,7 @@ class Triangulator:
         self.matrix_raw = self.matrix_raw[:,:,0:max_history]
         
         ### Triangulation engine
-        #Starting the filtering job
-        self._Preprocessing(beacon_indexes, relay_index, max_history,)
+        
         #initial value guess with the nominal model at 1m 
                      
         if coordinates:
