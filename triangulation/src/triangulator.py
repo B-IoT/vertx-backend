@@ -233,11 +233,6 @@ class Triangulator:
         
         indexes = tuple(np.argwhere(~np.isnan(self.matrix_raw[:,:,0]))) #Indexes of beacon/relay pairs
         
-        logger.info(
-                    "Indexes:{}, initial_value_guess: {}, var: {}",
-                    indexes, self.initial_value_guess, var
-                )
-        
         for index in indexes:
             
             index = tuple(index) #converting to the right format
@@ -252,36 +247,18 @@ class Triangulator:
             )
             
             temp = self.matrix_raw[index] #matrix of 1 x Max_history
-            logger.info(
-                    "1 - temp:{}",
-                    temp
-                )
-            
             temp = np.flip(temp) #Flipping to be in the right format for Kalman
             temp = temp[~np.isnan(temp)] #Removing all nan
-            logger.info(
-                    "2 - temp:{}",
-                    temp
-                )
             if temp.shape[0] > 1: #Checking we have more than 1 value
                 temp,_ = kf.smooth(temp)
             temp = self._feature_augmentation(temp[-1]) #Taking the latest RSSI and augmenting it
-            logger.info(
-                    "3 - temp:{}",
-                    temp
-                )
             temp = self.scaler.transform(np.array(temp).reshape(1, -1)) #Normalizing
-            logger.info(
-                    "4 - temp:{}",
-                    temp
-                )
             temp = np.concatenate(([1], temp.flatten()))
-            logger.info(
-                    "5 - temp:{}",
-                    temp
-                )
             self.matrix_dist[index] = self.reg_kalman.predict(np.array(temp).reshape(1, -1))/100
-            
+        logger.info(
+                "6 - matrix dist:{}",
+                self.matrix_dist
+            )
         return
      
     async def _triangulation_engine(self, beacon_indexes, beacons, company):
@@ -484,7 +461,7 @@ class Triangulator:
                 #Starting the filtering job
                 self._Preprocessing(beacon_indexes, relay_index, max_history,)
             
-                coordinates = self._triangulation_engine(beacon_indexes, beacons, company)
+                coordinates = await self._triangulation_engine(beacon_indexes, beacons, company)
                 self.temp_raw[:] = np.nan
                 
             self.temp_raw[beacon_number_temp, relay_index] = rssis[i]
@@ -493,6 +470,6 @@ class Triangulator:
         ### Triangulation engine
         
         #initial value guess with the nominal model at 1m 
-                     
+                  
         if coordinates:
              await self._store_beacons_data(company, coordinates)          
