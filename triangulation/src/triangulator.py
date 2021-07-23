@@ -260,8 +260,12 @@ class Triangulator:
         coordinates = []
         
         for i, beacon_index in enumerate(beacon_indexes):
-         
+            
            mac = self.inv_beacon_mapping[beacon_index]
+           logger.info(
+            "Starting triangulation for beacon {}",
+                beacon_index
+            ) 
            beacon_data = next(b for b in beacons if b["mac"] == mac)
            status = beacon_data["status"]
            
@@ -285,13 +289,9 @@ class Triangulator:
                         relay_2_index = relay_indexes[relay_2]
                         
                         logger.info(
-                                " relay_1_index {}, relay_2_index {}",
+                                "relay_1_index {}, relay_2_index {}",
                                     relay_1_index, relay_2_index
-                )       
-                        logger.info(
-                                " relay_matrix {}",
-                                    self.relay_matrix
-                )      
+                                    )       
                         vect_lat = self.relay_matrix[relay_2_index, 0] - self.relay_matrix[relay_1_index, 0]
                         vect_long = self.relay_matrix[relay_2_index, 1] - self.relay_matrix[relay_1_index, 1]                
                         
