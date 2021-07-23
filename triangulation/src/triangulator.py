@@ -236,10 +236,7 @@ class Triangulator:
         for index in indexes:
             
             index = tuple(index) #converting to the right format
-            logger.info(
-                    "0 - index:{}",
-                    index
-                )
+            
             kf = KalmanFilter(
                 initial_state_mean = self.initial_value_guess[index],
                 initial_state_covariance = observation_covariance[index],
@@ -255,10 +252,7 @@ class Triangulator:
             temp = self.scaler.transform(np.array(temp).reshape(1, -1)) #Normalizing
             temp = np.concatenate(([1], temp.flatten()))
             self.matrix_dist[index] = self.reg_kalman.predict(np.array(temp).reshape(1, -1))/100
-        logger.info(
-                "6 - matrix dist:{}",
-                self.matrix_dist
-            )
+            
         return
      
     async def _triangulation_engine(self, beacon_indexes, beacons, company):
@@ -273,23 +267,9 @@ class Triangulator:
            
            temp = self.matrix_dist[beacon_index, :]
            
-           relay_indexes = np.argwhere(~np.isnan(temp)).flatten()
-           logger.info(
-                    "1- relay_indexes {}",
-                    relay_indexes
-                )
-           
-           relay_indexes = temp[relay_indexes].argsort()
-           logger.info(
-                    "2- relay_indexes {}",
-                    relay_indexes
-                )
-           
-           nb_relays = self.relay_matrix.shape[0]
-           logger.info(
-                    "2- nb_relays {}",
-                    nb_relays
-                )
+           relay_indexes = np.argwhere(~np.isnan(temp)).flatten()           
+           relay_indexes = temp[relay_indexes].argsort()           
+           nb_relays = len(relay_indexes)
            lat = []
            long = []
            if nb_relays > 2:               
@@ -303,23 +283,24 @@ class Triangulator:
                         
                         relay_1_index = relay_indexes[relay_1]
                         relay_2_index = relay_indexes[relay_2]
+                        
                         logger.info(
-                                " relay_2_index {}",
-                                    relay_2_index
+                                " relay_1_index {}, relay_2_index {}",
+                                    relay_1_index, relay_2_index
                 )       
                         logger.info(
                                 " relay_matrix {}",
                                     self.relay_matrix
                 )      
-                        vect_lat = self.relay_matrix[relay_2, 0] - self.relay_matrix[relay_1, 0]
-                        vect_long = self.relay_matrix[relay_2, 1] - self.relay_matrix[relay_1, 1]                
+                        vect_lat = self.relay_matrix[relay_2_index, 0] - self.relay_matrix[relay_1_index, 0]
+                        vect_long = self.relay_matrix[relay_2_index, 1] - self.relay_matrix[relay_1_index, 1]                
                         
                         #Calculating the distance between the 2 gateways in meters
                         dist = self._lat_to_meters(
-                            self.relay_matrix[relay_1, 0],
-                            self.relay_matrix[relay_1, 1],
-                            self.relay_matrix[relay_2, 0],
-                            self.relay_matrix[relay_2, 1],
+                            self.relay_matrix[relay_1_index, 0],
+                            self.relay_matrix[relay_1_index, 1],
+                            self.relay_matrix[relay_2_index, 0],
+                            self.relay_matrix[relay_2_index, 1],
                         )
                         
                         # Applying proportionality rule from the origin on the vector to determine the position of the beacon in lat;long coord
@@ -328,10 +309,10 @@ class Triangulator:
                         dist_1 = self.matrix_dist[beacon_index, relay_1_index]
                         
                         lat.append(
-                            self.relay_matrix[relay_1, 0] + (dist_1 / dist) * vect_lat
+                            self.relay_matrix[relay_1_index, 0] + (dist_1 / dist) * vect_lat
                         )
                         long.append(
-                            self.relay_matrix[relay_1, 1]
+                            self.relay_matrix[relay_1_index, 1]
                             + (dist_1 / dist) * vect_long
                         )
                         
