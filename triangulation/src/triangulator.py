@@ -274,6 +274,10 @@ class Triangulator:
             "Starting triangulation for beacon {}, mac: {}, detected nb_relays:{}",
                 beacon_index, mac, nb_relays
             ) 
+           logger.info(
+            "Relays indexes:{}",
+                relay_indexes
+            ) 
            
            lat = []
            long = []
