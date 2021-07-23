@@ -271,8 +271,8 @@ class Triangulator:
            relay_indexes = temp[relay_indexes].argsort()           
            nb_relays = len(relay_indexes)
            logger.info(
-            "Starting triangulation for beacon {}, mac: {}, detected nb_relays:{}",
-                beacon_index, mac, nb_relays
+            "Starting triangulation for beacon: {}, detected by: {} relays",
+                mac, nb_relays
             ) 
            logger.info(
             "Relays indexes:{}",
@@ -293,10 +293,6 @@ class Triangulator:
                         relay_1_index = relay_indexes[relay_1]
                         relay_2_index = relay_indexes[relay_2]
                         
-                        logger.info(
-                                "relay_1_index {}, relay_2_index {}",
-                                    relay_1_index, relay_2_index
-                                    )       
                         vect_lat = self.relay_matrix[relay_2_index, 0] - self.relay_matrix[relay_1_index, 0]
                         vect_long = self.relay_matrix[relay_2_index, 1] - self.relay_matrix[relay_1_index, 1]                
                         
