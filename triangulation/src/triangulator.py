@@ -221,14 +221,6 @@ class Triangulator:
     
     def _Preprocessing(self, beacon_indexes, relay_index, max_history):
         
-        #Importing the scaler model
-        filename = 'src/db_to_m_scaler.sav'
-        scaler = pickle.load(open(filename, 'rb'))
-        
-        #Importing the ML model
-        filename = 'src/db_to_m_Kalman+GBR.sav'
-        reg_kalman = pickle.load(open(filename, 'rb'))
-
         measured_ref = -64
         tx = 6
         meters_to_db = lambda x: measured_ref - 10*tx*math.log10(x)
@@ -257,6 +249,11 @@ class Triangulator:
             temp = self._feature_augmentation(temp[-1])
             temp = np.concatenate((np.ones((len(temp),1)), temp), axis =1)
             temp = self.scaler.transform(np.array(temp).reshape(1, -1))
+            
+            logger.info(
+                    "Temp matrix {}",
+                    temp
+                )
             
             matrix_dist_loc[i] = self.reg_kalman.predict(np.array(temp).reshape(1, -1))/100
             
