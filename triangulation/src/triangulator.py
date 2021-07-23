@@ -263,8 +263,8 @@ class Triangulator:
             
            mac = self.inv_beacon_mapping[beacon_index]
            logger.info(
-            "Starting triangulation for beacon {}",
-                beacon_index
+            "Starting triangulation for beacon {}, mac: {}",
+                beacon_index, mac
             ) 
            beacon_data = next(b for b in beacons if b["mac"] == mac)
            status = beacon_data["status"]
@@ -451,9 +451,9 @@ class Triangulator:
         ### Triangulation engine
         
         #initial value guess with the nominal model at 1m 
-        logger.info(
+        if coordinates:
+            logger.info(
                     "Coordinates {}",
                     coordinates
-                )          
-        if coordinates:
-             await self._store_beacons_data(company, coordinates)          
+                )
+            await self._store_beacons_data(company, coordinates)          
