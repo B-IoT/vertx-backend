@@ -102,17 +102,17 @@ async def test_triangulator_triangulates(mocker):
         "beacons": [
             {
                 "mac": mac1,
-                "rssi": -69,
+                "rssi": -72,
                 "battery": 53,
-                "temperature": 20,
+                "temperature": 23,
                 "status": 0,
             },
             {
                 "mac": mac2,
-                "rssi": -62,
+                "rssi": -59,
                 "battery": 51,
-                "temperature": 21,
-                "status": 0,
+                "temperature": 24,
+                "status": 2,
             },
         ],
         "latitude": 42.34,
@@ -125,7 +125,7 @@ async def test_triangulator_triangulates(mocker):
     await triangulator.triangulate(relay1, msg1)
     await triangulator.triangulate(relay2, msg2)
     await triangulator.triangulate(relay3, msg3)
-    await triangulator.triangulate(relay1, msg1)
+    await triangulator.triangulate(relay1, msg4)
 
     async with db_pool.acquire() as conn:
       fetch_stmt = await conn.prepare("SELECT * from beacon_data WHERE mac = $1 ORDER BY time DESC LIMIT 1")
