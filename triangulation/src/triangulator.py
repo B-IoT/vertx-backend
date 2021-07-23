@@ -250,7 +250,8 @@ class Triangulator:
             
             logger.info(
                     "beacon_indexes:{} & relay_index: {}",
-                    beacon_indexes
+                    beacon_indexes,
+                    relay_index
                 )
             temp = self.matrix_raw[beacon_indexes, relay_index].reshape(len(beacon_indexes), max_history)
             logger.info(
