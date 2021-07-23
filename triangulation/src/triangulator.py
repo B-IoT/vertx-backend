@@ -18,7 +18,7 @@ class _CoordinatesHistory:
     Coordinates history used for weighted moving average.
     """
 
-    MAX_HISTORY_SIZE = 5
+    MAX_HISTORY_SIZE = 1
 
     def __init__(self):
         self.history_per_beacon: DefaultDict[
