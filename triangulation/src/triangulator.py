@@ -24,7 +24,7 @@ class _CoordinatesHistory:
         self.history_per_beacon: DefaultDict[
             str, List[Tuple[float, float]]
         ] = defaultdict(list)
-        self.weights = self._build_weights_dict()
+        self.weights = self.build_weights_dict()
 
     def update_coordinates_history(
         self, beacon: str, new_coordinates: Tuple[float, float]
@@ -41,20 +41,20 @@ class _CoordinatesHistory:
         # Insert the element to the head of the list
         history.insert(0, new_coordinates)
 
-    def _compute_weights(self, length: int):
+    def compute_weights(self, length: int):
         """
         Computes the weights to be used for the moving average.
         """
         denom = (length * (length + 1)) / 2
         return np.array([n / denom for n in range(length, 0, -1)])
 
-    def _build_weights_dict(self):
+    def build_weights_dict(self):
         """
         Builds the dictionary of the weights, with keys (corresponding to the length of the coordinates history)
         from 1 to MAX_HISTORY_SIZE.
         """
         return {
-            i: self._compute_weights(i) for i in range(1, self.MAX_HISTORY_SIZE + 1)
+            i: self.compute_weights(i) for i in range(1, self.MAX_HISTORY_SIZE + 1)
         }
 
     def weighted_moving_average(self, beacon: str) -> Tuple[float, float]:
@@ -133,29 +133,29 @@ class Triangulator:
 
         return self
 
-    def _get_table_name(self, company: str) -> str:
+    def get_table_name(self, company: str) -> str:
         """
         Gets the beacon_data table name for the given company.
         """
         return f"beacon_data_{company}" if company != "biot" else "beacon_data"
 
-    async def _store_beacons_data(self, company: str, data: list):
+    async def store_beacons_data(self, company: str, data: list):
         """
         Stores the beacons' data in TimescaleDB.
         Data must be an array of tuples of the following form: ("aa:aa:aa:aa:aa:aa", 10, "available", 2.3, 3.2, 1, 25).
         """
         async with self.db_pool.acquire() as conn:
-            table_name = self._get_table_name(company)
+            table_name = self.get_table_name(company)
             stmt = await conn.prepare(self.INSERT_QUERY(table_name))
             await stmt.executemany(data)
             logger.info("New beacons' data inserted in DB '{}': {}", table_name, data)
 
-    async def _update_beacon_status(self, company: str, mac: str, status: str):
+    async def update_beacon_status(self, company: str, mac: str, status: str):
         """
         Updates the status of the given beacon.
         """
         async with self.db_pool.acquire() as conn:
-            table_name = self._get_table_name(company)
+            table_name = self.get_table_name(company)
 
             fetch_stmt = await conn.prepare(self.FETCH_BEACON_QUERY(table_name))
             beacon = await fetch_stmt.fetchrow(mac)
@@ -193,7 +193,7 @@ class Triangulator:
                     table_name,
                 )
 
-    def _lat_to_meters(self, lat1, lon1, lat2, lon2):
+    def lat_to_meters(self, lat1, lon1, lat2, lon2):
         """
         Converts lat distance to meters.
         """
@@ -209,17 +209,17 @@ class Triangulator:
         d = R * c
         return d * 1000  # meters
 
-    def _db_to_meters(self, RSSI, measure_ref, N):
+    def db_to_meters(self, RSSI, measure_ref, N):
         """
         Converts dB to meters.
         """
         d = 10 ** ((measure_ref - RSSI) / (10 * N))
         return d
     
-    def _feature_augmentation(self, X):
+    def feature_augmentation(self, X):
         return np.array([X, X**2, X**3, X**4, X**5]).transpose()
     
-    def _Preprocessing(self, beacon_indexes, relay_index, max_history):
+    def preprocessing(self, beacon_indexes, relay_index, max_history):
         
         measured_ref = -64
         tx = 6
@@ -248,14 +248,14 @@ class Triangulator:
             temp = temp[~np.isnan(temp)] #Removing all nan
             if temp.shape[0] > 1: #Checking we have more than 1 value
                 temp,_ = kf.smooth(temp)
-            temp = self._feature_augmentation(temp[-1]) #Taking the latest RSSI and augmenting it
+            temp = self.feature_augmentation(temp[-1]) #Taking the latest RSSI and augmenting it
             temp = self.scaler.transform(np.array(temp).reshape(1, -1)) #Normalizing
             temp = np.concatenate(([1], temp.flatten()))
             self.matrix_dist[index] = self.reg_kalman.predict(np.array(temp).reshape(1, -1))/100
             
         return
      
-    async def _triangulation_engine(self, beacon_indexes, beacons, company):
+    async def triangulation_engine(self, beacon_indexes, beacons, company):
         
         coordinates = []
         
@@ -292,7 +292,7 @@ class Triangulator:
                         vect_long = self.relay_matrix[relay_2_index, 1] - self.relay_matrix[relay_1_index, 1]                
                         
                         #Calculating the distance between the 2 gateways in meters
-                        dist = self._lat_to_meters(
+                        dist = self.lat_to_meters(
                             self.relay_matrix[relay_1_index, 0],
                             self.relay_matrix[relay_1_index, 1],
                             self.relay_matrix[relay_2_index, 0],
@@ -363,7 +363,7 @@ class Triangulator:
            elif 1 <= nb_relays and nb_relays <= 2:
                 if status == self.MOVEMENT_DETECTED_AND_BUTTON_PRESSED:
                     # Even if we didn't triangulate, we still need to update the status
-                    await self._update_beacon_status(company, mac, self.TO_REPAIR)
+                    await self.update_beacon_status(company, mac, self.TO_REPAIR)
 
                 logger.warning(
                     "Beacon '{}' detected by {} relay, skipping!", mac, nb_relays
@@ -388,7 +388,7 @@ class Triangulator:
         ]
         
         company = data["company"]
-        beacons = data["beacons"]#includes the data from the MQTT    
+        beacons = data["beacons"] #includes the data from the MQTT    
         coordinates = []        
         
         #Create the mapping of the relays [relay name, relay_int_identifier]
@@ -436,9 +436,9 @@ class Triangulator:
                 #number of historic values we want to keep
                 self.matrix_raw = self.matrix_raw[:,:,0:max_history]
                 #Starting the filtering job
-                self._Preprocessing(beacon_indexes, relay_index, max_history,)
+                self.preprocessing(beacon_indexes, relay_index, max_history,)
             
-                coordinates = await self._triangulation_engine(beacon_indexes, beacons, company)
+                coordinates = await self.triangulation_engine(beacon_indexes, beacons, company)
                 self.temp_raw[:] = np.nan
                 
             self.temp_raw[beacon_number_temp, relay_index] = rssis[i]
@@ -452,4 +452,4 @@ class Triangulator:
                     "Coordinates {}",
                     coordinates
                 )
-            await self._store_beacons_data(company, coordinates)          
+            await self.store_beacons_data(company, coordinates)          
