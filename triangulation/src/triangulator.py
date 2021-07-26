@@ -103,9 +103,9 @@ class Triangulator:
         )
         self.coordinates_history = _CoordinatesHistory()
         
-        self.nb_beacons = 10
-        self.nb_relays = 10
-        self.max_history = 30        
+        self.nb_beacons = 25
+        self.nb_relays = 25
+        self.max_history = 100        
         
         self.temp_raw = np.zeros([self.nb_beacons, self.nb_relays])
         self.temp_raw[:] = np.nan
