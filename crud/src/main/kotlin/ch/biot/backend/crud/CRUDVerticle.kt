@@ -670,13 +670,13 @@ class CRUDVerticle : CoroutineVerticle() {
 
     val executedQuery = if (params.contains("category")) {
       if(params.contains("accessControlString")){
-        pgClient.preparedQuery(getItemsWithCategoryWithAC(itemsTable, beaconDataTable)).execute(Tuple.of(params["category"], params["accessControlString"] + "%"))
+        pgClient.preparedQuery(getItemsWithCategoryWithAC(itemsTable, beaconDataTable)).execute(Tuple.of(params["category"], params["accessControlString"]))
       } else {
         pgClient.preparedQuery(getItemsWithCategory(itemsTable, beaconDataTable)).execute(Tuple.of(params["category"]))
       }
     } else {
       if(params.contains("accessControlString")){
-        pgClient.preparedQuery(getItemsWithAC(itemsTable, beaconDataTable)).execute(Tuple.of(params["accessControlString"] + "%"))
+        pgClient.preparedQuery(getItemsWithAC(itemsTable, beaconDataTable)).execute(Tuple.of(params["accessControlString"]))
       } else {
         pgClient.preparedQuery(getItems(itemsTable, beaconDataTable)).execute()
       }

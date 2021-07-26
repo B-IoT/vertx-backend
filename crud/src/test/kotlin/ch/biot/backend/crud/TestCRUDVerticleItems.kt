@@ -2136,42 +2136,40 @@ class TestCRUDVerticleItems {
     }
   }
 
-  // MAKES THE TEST TestCRUDVerticleItems > Item updates on PUT operations are correctly received on the event bus
-  // it is not directly caused by this test, it is when the 3 are uncommented that the test fails.
-//  @Test
-//  @DisplayName("getItems correctly retrieves accessible items when an accessControlString is passed 3")
-//  fun getItemsIsCorrectWithACString3(vertx: Vertx, testContext: VertxTestContext) {
-//    runBlocking(vertx.dispatcher()) {
-//      insertItemsAccessControl().onFailure {
-//        testContext.failNow("Cannot insert objects prior to the test")
-//      }.onSuccess {
-//        val accessControlString = "biot:grp1:grp3"
-//        val response = Buffer.buffer(
-//          Given {
-//            spec(requestSpecification)
-//            accept(ContentType.JSON)
-//          } When {
-//            queryParam("company", "biot")
-//            queryParam("accessControlString", accessControlString)
-//            get("/items")
-//          } Then {
-//            statusCode(200)
-//          } Extract {
-//            asString()
-//          }
-//        ).toJsonArray()
-//
-//        testContext.verify {
-//          expectThat(response.isEmpty).isFalse()
-//          expectThat(response.size()).isEqualTo(1)
-//          val accessString1 = response.getJsonObject(0).getString("accessControlString")
-//
-//          expectThat(accessString1).startsWith(accessControlString)
-//          testContext.completeNow()
-//        }
-//      }
-//    }
-//  }
+  @Test
+  @DisplayName("getItems correctly retrieves accessible items when an accessControlString is passed 3")
+  fun getItemsIsCorrectWithACString3(vertx: Vertx, testContext: VertxTestContext) {
+    runBlocking(vertx.dispatcher()) {
+      insertItemsAccessControl().onFailure {
+        testContext.failNow("Cannot insert objects prior to the test")
+      }.onSuccess {
+        val accessControlString = "biot:grp1:grp3"
+        val response = Buffer.buffer(
+          Given {
+            spec(requestSpecification)
+            accept(ContentType.JSON)
+          } When {
+            queryParam("company", "biot")
+            queryParam("accessControlString", accessControlString)
+            get("/items")
+          } Then {
+            statusCode(200)
+          } Extract {
+            asString()
+          }
+        ).toJsonArray()
+
+        testContext.verify {
+          expectThat(response.isEmpty).isFalse()
+          expectThat(response.size()).isEqualTo(1)
+          val accessString1 = response.getJsonObject(0).getString("accessControlString")
+
+          expectThat(accessString1).startsWith(accessControlString)
+          testContext.completeNow()
+        }
+      }
+    }
+  }
 
   companion object {
 
