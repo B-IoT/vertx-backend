@@ -1458,7 +1458,7 @@ class TestCRUDVerticleItems {
   @Test
   @DisplayName("Item updates on PUT operations are correctly received on the event bus")
   fun receivePutUpdatesOnEventBus(vertx: Vertx, testContext: VertxTestContext) {
-    val itemId = 100
+    val itemId = 999999
     val newItem = jsonObjectOf(
       "id" to itemId,
       "category" to "ECG"
@@ -2099,6 +2099,37 @@ class TestCRUDVerticleItems {
           val accessString1 = response.getJsonObject(0).getString("accessControlString")
 
           expectThat(accessString1).startsWith(accessControlString)
+          testContext.completeNow()
+        }
+      }
+    }
+  }
+
+  @Test
+  @DisplayName("getItems only retrieves accessible items when the accessControlString is prefix and groups are complete")
+  fun getItemsIsCorrectWithACStringNoGroupPrefix(vertx: Vertx, testContext: VertxTestContext) {
+    runBlocking(vertx.dispatcher()) {
+      insertItemsAccessControl().onFailure {
+        testContext.failNow("Cannot insert objects prior to the test")
+      }.onSuccess {
+        val accessControlString = "biot:gr"
+        val response = Buffer.buffer(
+          Given {
+            spec(requestSpecification)
+            accept(ContentType.JSON)
+          } When {
+            queryParam("company", "biot")
+            queryParam("accessControlString", accessControlString)
+            get("/items")
+          } Then {
+            statusCode(200)
+          } Extract {
+            asString()
+          }
+        ).toJsonArray()
+
+        testContext.verify {
+          expectThat(response.isEmpty).isTrue()
           testContext.completeNow()
         }
       }
