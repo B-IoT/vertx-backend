@@ -225,10 +225,10 @@ class Triangulator:
         tx = 6
         meters_to_db = lambda x: measured_ref - 10*tx*math.log10(x)
         
-        self.initial_value_guess = np.array(list(map(meters_to_db, self.matrix_dist.flatten()))).reshape(self.matrix_dist.shape)
+        self.initial_value_guess = np.array(list(map(meters_to_db, self.matrix_dist.flatten()/100))).reshape(self.matrix_dist.shape)
         
         # Variance of the signal (per beacon/relay)
-        var = np.nanvar(self.matrix_raw, axis =2) # Matrix 2D
+        var = np.nanvar(self.matrix_raw, axis = 2) # Matrix 2D
         observation_covariance = var ** 2 # Matrix 2D with var^2 
         
         indexes = tuple(np.argwhere(~np.isnan(self.matrix_raw[:,:,0]))) # Indexes of beacon/relay pairs
