@@ -106,7 +106,7 @@ class Triangulator:
         
         self.nb_beacons = 25
         self.nb_relays = 25
-        self.max_history = 100        
+        self.max_history = 50        
         
         self.temp_raw = np.zeros([self.nb_beacons, self.nb_relays])
         self.temp_raw[:] = np.nan
