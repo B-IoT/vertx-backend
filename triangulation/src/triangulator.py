@@ -9,7 +9,7 @@ from typing import DefaultDict, Tuple, List
 
 import math
 import numpy as np
-from pykalman import KalmanFilter #https://pykalman.github.io/
+from pykalman import KalmanFilter # https://pykalman.github.io/
 import pickle
 
 
@@ -111,7 +111,7 @@ class Triangulator:
         self.temp_raw[:] = np.nan
         
         self.matrix_raw = np.zeros([self.nb_beacons, self.nb_relays, self.max_history])
-        self.matrix_raw[:] = np.nan ## REplace 1 by np.nan
+        self.matrix_raw[:] = np.nan
         
         self.initial_value_guess = np.empty([self.nb_beacons, self.nb_relays])
         self.initial_value_guess[:] = 3
@@ -123,11 +123,11 @@ class Triangulator:
         self.matrix_dist = np.empty([self.nb_beacons, self.nb_relays])
         self.matrix_dist[:] = np.nan
         
-        #Importing the scaler model
+        # Importing the scaler model
         filename = 'src/db_to_m_scaler.sav'
         self.scaler = pickle.load(open(filename, 'rb'))
         
-        #Importing the ML model
+        # Importing the ML model
         filename = 'src/db_to_m_Kalman+GBR.sav'
         self.reg_kalman = pickle.load(open(filename, 'rb'))
 
@@ -227,15 +227,15 @@ class Triangulator:
         
         self.initial_value_guess = np.array(list(map(meters_to_db, self.matrix_dist.flatten()))).reshape(self.matrix_dist.shape)
         
-        #Variance of the signal (per beacon/relay)
-        var = np.nanvar(self.matrix_raw, axis =2) #matrix 2D
-        observation_covariance = var ** 2 #matrix 2D with var^2 
+        # Variance of the signal (per beacon/relay)
+        var = np.nanvar(self.matrix_raw, axis =2) # Matrix 2D
+        observation_covariance = var ** 2 # Matrix 2D with var^2 
         
-        indexes = tuple(np.argwhere(~np.isnan(self.matrix_raw[:,:,0]))) #Indexes of beacon/relay pairs
+        indexes = tuple(np.argwhere(~np.isnan(self.matrix_raw[:,:,0]))) # Indexes of beacon/relay pairs
         
         for index in indexes:
             
-            index = tuple(index) #converting to the right format
+            index = tuple(index) # Converting to the right format
             
             kf = KalmanFilter(
                 initial_state_mean = self.initial_value_guess[index],
@@ -243,13 +243,13 @@ class Triangulator:
                 observation_covariance = observation_covariance[index]
             )
             
-            temp = self.matrix_raw[index] #matrix of 1 x Max_history
-            temp = np.flip(temp) #Flipping to be in the right format for Kalman
-            temp = temp[~np.isnan(temp)] #Removing all nan
-            if temp.shape[0] > 1: #Checking we have more than 1 value
+            temp = self.matrix_raw[index] # Matrix of 1 x Max_history
+            temp = np.flip(temp) # Flipping to be in the right format for Kalman
+            temp = temp[~np.isnan(temp)] # Removing all nan
+            if temp.shape[0] > 1: # Checking we have more than 1 value
                 temp,_ = kf.smooth(temp)
-            temp = self.feature_augmentation(temp[-1]) #Taking the latest RSSI and augmenting it
-            temp = self.scaler.transform(np.array(temp).reshape(1, -1)) #Normalizing
+            temp = self.feature_augmentation(temp[-1]) # Taking the latest RSSI and augmenting it
+            temp = self.scaler.transform(np.array(temp).reshape(1, -1)) # Normalizing
             temp = np.concatenate(([1], temp.flatten()))
             self.matrix_dist[index] = self.reg_kalman.predict(np.array(temp).reshape(1, -1))/100
             
@@ -279,7 +279,7 @@ class Triangulator:
            long = []
            if nb_relays > 2:               
                
-               #Taking only the 5 closest relays for triangulation
+               # Taking only the 5 closest relays for triangulation
                if nb_relays > 5:
                    nb_relays = 5
                    
@@ -291,7 +291,7 @@ class Triangulator:
                         vect_lat = self.relay_matrix[relay_2_index, 0] - self.relay_matrix[relay_1_index, 0]
                         vect_long = self.relay_matrix[relay_2_index, 1] - self.relay_matrix[relay_1_index, 1]                
                         
-                        #Calculating the distance between the 2 gateways in meters
+                        # Calculating the distance between the 2 gateways in meters
                         dist = self.lat_to_meters(
                             self.relay_matrix[relay_1_index, 0],
                             self.relay_matrix[relay_1_index, 1],
@@ -380,7 +380,7 @@ class Triangulator:
 
         max_history = 30 #Number of data hsitory to keep 
 
-        #Import the data
+        # Import the data
         relay_data = [
             data["latitude"],
             data["longitude"],
@@ -388,17 +388,17 @@ class Triangulator:
         ]
         
         company = data["company"]
-        beacons = data["beacons"] #includes the data from the MQTT    
+        beacons = data["beacons"] # Includes the data from the MQTT    
         coordinates = []        
         
-        #Create the mapping of the relays [relay name, relay_int_identifier]
+        # Create the mapping of the relays [relay name, relay_int_identifier]
         if relay_id not in self.relay_mapping:
             self.relay_mapping[relay_id] = len(self.relay_mapping)
                 
         relay_index = self.relay_mapping[relay_id]
         
         
-        ##Create the matrix with the relay data [latitude, longitude, floor]
+        # Create the matrix with the relay data [latitude, longitude, floor]
         if self.relay_matrix is None:
             self.relay_matrix = np.array(relay_data).reshape(1,3)             
         elif (relay_data[0] not in self.relay_matrix) and (relay_data[1] not in self.relay_matrix) :
@@ -414,7 +414,7 @@ class Triangulator:
             *[(beacon["mac"], beacon["rssi"]) for beacon in beacons if beacon["mac"]]
         )
         
-        #Create the mapping of the beacons [beacon mac, beacon_int_identifier]
+        # Create the mapping of the beacons [beacon mac, beacon_int_identifier]
         for mac in macs:
             if mac not in self.beacon_mapping:
                 self.beacon_mapping[mac] = len(self.beacon_mapping)
@@ -423,19 +423,19 @@ class Triangulator:
                 for k in self.beacon_mapping.keys(): 
                     self.inv_beacon_mapping[self.beacon_mapping[k]]= k
                 
-        #Convert the mac list to the beacon_int_identifier from of the mapping
+        # Convert the mac list to the beacon_int_identifier from of the mapping
         beacon_indexes = list(map(self.beacon_mapping.get, macs))
         
-        #We add each beacon to our temporary connectivity matrix     
+        # We add each beacon to our temporary connectivity matrix     
         for i in range (len(beacon_indexes)):
             beacon_number_temp = beacon_indexes[i]
             
             
             if not np.isnan(self.temp_raw[beacon_number_temp, relay_index]):
                 self.matrix_raw = np.dstack((self.temp_raw, self.matrix_raw))
-                #number of historic values we want to keep
+                # Number of historic values we want to keep
                 self.matrix_raw = self.matrix_raw[:,:,0:max_history]
-                #Starting the filtering job
+                # Starting the filtering job
                 self.preprocessing(beacon_indexes, relay_index, max_history,)
             
                 coordinates = await self.triangulation_engine(beacon_indexes, beacons, company)
@@ -446,7 +446,7 @@ class Triangulator:
         
         ### Triangulation engine
         
-        #initial value guess with the nominal model at 1m 
+        # Initial value guess with the nominal model at 1m 
         if coordinates:
             logger.info(
                     "Coordinates {}",
