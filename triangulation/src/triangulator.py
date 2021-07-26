@@ -94,6 +94,7 @@ class Triangulator:
         self = Triangulator()
         # Data structures
         self.relay_matrix = None
+        self.relay_matrix_name = None
         self.db_pool = await asyncpg.create_pool(
             host=TIMESCALE_HOST,
             port=TIMESCALE_PORT,
@@ -267,9 +268,12 @@ class Triangulator:
            
            temp = self.matrix_dist[beacon_index, :]
            
+           
            relay_indexes = np.argwhere(~np.isnan(temp)).flatten()           
-           relay_indexes = temp[relay_indexes].argsort()           
+           relay_indexes = temp[relay_indexes].argsort()        
+           
            nb_relays = len(relay_indexes)
+           
            logger.info(
             "Starting triangulation for beacon: {}, with: {} relays",
                 mac, nb_relays
@@ -284,12 +288,12 @@ class Triangulator:
                    nb_relays = 5
                    
                for relay_1 in range(nb_relays-1):
-                    for relay_2 in range(relay_1 + 1, nb_relays):
+                    for relay_2 in range(relay_1+1, nb_relays):
                         
                         relay_1_index = relay_indexes[relay_1]
                         relay_2_index = relay_indexes[relay_2]
                         vect_lat = self.relay_matrix[relay_2_index, 0] - self.relay_matrix[relay_1_index, 0]
-                        vect_long = self.relay_matrix[relay_2_index, 1] - self.relay_matrix[relay_1_index, 1]                
+                        vect_long = self.relay_matrix[relay_2_index, 1] - self.relay_matrix[relay_1_index, 1]
                         
                         # Calculating the distance between the 2 gateways in meters
                         dist = self.lat_to_meters(
@@ -341,17 +345,18 @@ class Triangulator:
                     else self.AVAILABLE
                )
                
-               coordinates.append(
-                    (
-                        mac,
-                        beacon_data["battery"],
-                        new_beacon_status,
-                        weighted_latitude,  #     ,    np.mean(lat)   weighted_latitude
-                        weighted_longitude,  #     ,np.mean(long) weighted_longitude
-                        floor,
-                        beacon_data["temperature"],
+               if not np.isnan(weighted_latitude) and not np.isnan(weighted_longitude):
+                coordinates.append(
+                        (
+                            mac,
+                            beacon_data["battery"],
+                            new_beacon_status,
+                            weighted_latitude,  #     ,    np.mean(lat)   weighted_latitude
+                            weighted_longitude,  #     ,np.mean(long) weighted_longitude
+                            floor,
+                            beacon_data["temperature"],
+                        )
                     )
-                )
                
                status_updated_message = (
                     ""
@@ -371,6 +376,8 @@ class Triangulator:
             
            else:
                 logger.warning("Beacon '{}' not detected by any relay, skipping!", mac)
+
+        # return None
         return coordinates
                 
     async def triangulate(self, relay_id: str, data: dict):
@@ -384,12 +391,15 @@ class Triangulator:
         relay_data = [
             data["latitude"],
             data["longitude"],
-            int(data["floor"]),
+            data["floor"]
         ]
+
+        relay_data = np.array(relay_data).astype(np.float)
+        relay_name = data["relayID"]
         
         company = data["company"]
         beacons = data["beacons"] # Includes the data from the MQTT    
-        coordinates = []        
+        coordinates = []   
         
         # Create the mapping of the relays [relay name, relay_int_identifier]
         if relay_id not in self.relay_mapping:
@@ -400,9 +410,11 @@ class Triangulator:
         
         # Create the matrix with the relay data [latitude, longitude, floor]
         if self.relay_matrix is None:
-            self.relay_matrix = np.array(relay_data).reshape(1,3)             
-        elif (relay_data[0] not in self.relay_matrix) and (relay_data[1] not in self.relay_matrix) :
-            self.relay_matrix = np.concatenate((self.relay_matrix, np.array(relay_data).reshape(1,3)), axis=0)        
+            self.relay_matrix = np.array(relay_data).reshape(1,len(relay_data))  
+            self.relay_matrix_name = np.array(relay_name).reshape(1, 1)           
+        elif relay_name not in self.relay_matrix_name :
+            self.relay_matrix = np.concatenate((self.relay_matrix, np.array(relay_data).reshape(1,len(relay_data))), axis=0)
+            self.relay_matrix_name = np.concatenate((self.relay_matrix_name, np.array(relay_name).reshape(1, 1)), axis=0)
          
         # Exit if the relay did not detect any beacon
         if not beacons:
