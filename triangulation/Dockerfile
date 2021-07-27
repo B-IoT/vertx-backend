@@ -12,6 +12,7 @@ COPY requirements.txt requirements.txt
 # upgrade packages
 RUN apt-get update
 RUN apt-get upgrade -y
+RUN apt-get -y install gcc
 
 # install dependencies
 RUN pip install -U pip
