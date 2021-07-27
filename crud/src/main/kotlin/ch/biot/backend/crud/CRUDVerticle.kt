@@ -635,24 +635,30 @@ class CRUDVerticle : CoroutineVerticle() {
       val id: Int? = json["id"]
       val company: String = ctx.queryParams()["company"]
       // If no accessControlString is given, put the company
-      if(!json.containsKey("accessControlString") || !validateAccessControlString( json.getString("accessControlString"), company)){
-        json.remove("accessControlString")
+      if(!json.containsKey("accessControlString")){
         json.put("accessControlString", company)
       }
-      val info = extractItemInformation(json).map { pair -> pair.second }
 
-      val table = ctx.getCollection(ITEMS_TABLE)
+      // If an invalid accessControlString is given, send Bad Gateway
+      if(!validateAccessControlString( json.getString("accessControlString"), company)){
+        ctx.fail(java.lang.Exception("Item register: Invalid accessControlString"))
+      } else {
+        val info = extractItemInformation(json).map { pair -> pair.second }
 
-      val executedQuery =
-        if (id != null) pgClient.preparedQuery(insertItem(table, true)).execute(Tuple.of(id, *info.toTypedArray()))
-        else pgClient.preparedQuery(insertItem(table, false)).execute(Tuple.tuple(info))
+        val table = ctx.getCollection(ITEMS_TABLE)
 
-      executeWithErrorHandling("Could not register item", ctx) {
-        val row = executedQuery.await().iterator().next()
-        val itemID = row.getInteger("id").toString()
-        LOGGER.info { "New item $itemID registered" }
-        ctx.end(itemID)
+        val executedQuery =
+          if (id != null) pgClient.preparedQuery(insertItem(table, true)).execute(Tuple.of(id, *info.toTypedArray()))
+          else pgClient.preparedQuery(insertItem(table, false)).execute(Tuple.tuple(info))
+
+        executeWithErrorHandling("Could not register item", ctx) {
+          val row = executedQuery.await().iterator().next()
+          val itemID = row.getInteger("id").toString()
+          LOGGER.info { "New item $itemID registered" }
+          ctx.end(itemID)
+        }
       }
+
     }
   }
 
