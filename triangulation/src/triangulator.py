@@ -387,6 +387,11 @@ class Triangulator:
 
         max_history = 30 #Number of data hsitory to keep 
 
+        logger.info(
+                    "Matrix dist {}",
+                    self.matrix_dist
+                )
+
         # Import the data
         relay_data = [
             data["latitude"],
