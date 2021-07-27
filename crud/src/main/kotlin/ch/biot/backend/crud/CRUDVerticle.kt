@@ -639,9 +639,9 @@ class CRUDVerticle : CoroutineVerticle() {
         json.put("accessControlString", company)
       }
 
-      // If an invalid accessControlString is given, send Bad Gateway
+      // If an invalid accessControlString is given, send error 400
       if(!validateAccessControlString( json.getString("accessControlString"), company)){
-        ctx.fail(java.lang.Exception("Item register: Invalid accessControlString"))
+        ctx.fail(400)
       } else {
         val info = extractItemInformation(json).map { pair -> pair.second }
 
@@ -676,13 +676,13 @@ class CRUDVerticle : CoroutineVerticle() {
 
     val executedQuery = if (params.contains("category")) {
       if(params.contains("accessControlString")){
-        pgClient.preparedQuery(getItemsWithCategoryWithAC(itemsTable, beaconDataTable)).execute(Tuple.of(params["category"], params["accessControlString"]))
+        pgClient.preparedQuery(getItemsWithCategoryWithAC(itemsTable, beaconDataTable, params["accessControlString"])).execute(Tuple.of(params["category"]))
       } else {
         pgClient.preparedQuery(getItemsWithCategory(itemsTable, beaconDataTable)).execute(Tuple.of(params["category"]))
       }
     } else {
       if(params.contains("accessControlString")){
-        pgClient.preparedQuery(getItemsWithAC(itemsTable, beaconDataTable)).execute(Tuple.of(params["accessControlString"]))
+        pgClient.preparedQuery(getItemsWithAC(itemsTable, beaconDataTable, params["accessControlString"])).execute()
       } else {
         pgClient.preparedQuery(getItems(itemsTable, beaconDataTable)).execute()
       }

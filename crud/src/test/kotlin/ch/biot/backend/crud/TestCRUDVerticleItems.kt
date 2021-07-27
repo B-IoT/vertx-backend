@@ -1636,8 +1636,7 @@ class TestCRUDVerticleItems {
   // Access Control tests
 
   @Test
-  @DisplayName("registerItem by specifying the accessControlString wrongly registers a new item with " +
-    "the accessControlString set to '<company>' (here 'biot') 1")
+  @DisplayName("registerItem by specifying the accessControlString wrongly sends a 400 error 1")
   fun registerSpecifyingACStringWronglyIsCorrect1(vertx: Vertx, testContext: VertxTestContext): Unit =
     runBlocking(vertx.dispatcher()) {
       val newItem = jsonObjectOf(
@@ -1675,61 +1674,19 @@ class TestCRUDVerticleItems {
         queryParam("company", "biot")
         post("/items")
       } Then {
-        statusCode(200)
+        statusCode(400)
       } Extract {
         asString()
       }
 
       testContext.verify {
-        expectThat(response).isNotEmpty() // it returns the id of the registered item
-      }
-
-      val id = response.toInt()
-
-      try {
-        val res = pgClient.preparedQuery(getItem("items", "beacon_data")).execute(Tuple.of(id)).await()
-        val json = res.iterator().next().toItemJson()
-        expect {
-          that(json.getString("beacon")).isEqualTo(newItem.getString("beacon"))
-          that(json.getString("category")).isEqualTo(newItem.getString("category"))
-          that(json.getString("service")).isEqualTo(newItem.getString("service"))
-          that(json.getString("itemID")).isEqualTo(newItem.getString("itemID"))
-          that(json.getString("accessControlString")).isEqualTo("biot")
-          that(json.getString("brand")).isEqualTo(newItem.getString("brand"))
-          that(json.getString("model")).isEqualTo(newItem.getString("model"))
-          that(json.getString("supplier")).isEqualTo(newItem.getString("supplier"))
-          that(json.getString("purchaseDate")).isEqualTo(newItem.getString("purchaseDate"))
-          that(json.getDouble("purchasePrice")).isEqualTo(newItem.getDouble("purchasePrice"))
-          that(json.getString("originLocation")).isEqualTo(newItem.getString("originLocation"))
-          that(json.getString("currentLocation")).isEqualTo(newItem.getString("currentLocation"))
-          that(json.getString("room")).isEqualTo(newItem.getString("room"))
-          that(json.getString("contact")).isEqualTo(newItem.getString("contact"))
-          that(json.getString("currentOwner")).isEqualTo(newItem.getString("currentOwner"))
-          that(json.getString("previousOwner")).isEqualTo(newItem.getString("previousOwner"))
-          that(json.getString("orderNumber")).isEqualTo(newItem.getString("orderNumber"))
-          that(json.getString("color")).isEqualTo(newItem.getString("color"))
-          that(json.getString("serialNumber")).isEqualTo(newItem.getString("serialNumber"))
-          that(json.getString("maintenanceDate")).isEqualTo(newItem.getString("maintenanceDate"))
-          that(json.getString("status")).isEqualTo(newItem.getString("status"))
-          that(json.getString("comments")).isEqualTo(newItem.getString("comments"))
-          that(json.getString("lastModifiedDate")).isEqualTo(newItem.getString("lastModifiedDate"))
-          that(json.getString("lastModifiedBy")).isEqualTo(newItem.getString("lastModifiedBy"))
-          that(json.getInteger("battery")).isNull()
-          that(json.getString("beaconStatus")).isNull()
-          that(json.getDouble("latitude")).isNull()
-          that(json.getDouble("longitude")).isNull()
-          that(json.getInteger("floor")).isNull()
-          that(json.getDouble("temperature")).isNull()
-        }
+        expectThat(response).isNotEmpty()
         testContext.completeNow()
-      } catch (error: Throwable) {
-        testContext.failNow(error)
       }
     }
 
   @Test
-  @DisplayName("registerItem by specifying the accessControlString wrongly registers a new item with " +
-    "the accessControlString set to '<company>' (here 'biot') 2")
+  @DisplayName("registerItem by specifying the accessControlString wrongly sends a 400 error 2")
   fun registerSpecifyingACStringWronglyIsCorrect2(vertx: Vertx, testContext: VertxTestContext): Unit =
     runBlocking(vertx.dispatcher()) {
       val newItem = jsonObjectOf(
@@ -1737,7 +1694,7 @@ class TestCRUDVerticleItems {
         "category" to "Lit",
         "service" to "Bloc 1",
         "itemID" to "ee",
-        "accessControlString" to "biot21:fdas",
+        "accessControlString" to "biot21:fdsa",
         "brand" to "oo",
         "model" to "aa",
         "supplier" to "uu",
@@ -1767,61 +1724,19 @@ class TestCRUDVerticleItems {
         queryParam("company", "biot")
         post("/items")
       } Then {
-        statusCode(200)
+        statusCode(400)
       } Extract {
         asString()
       }
 
       testContext.verify {
-        expectThat(response).isNotEmpty() // it returns the id of the registered item
-      }
-
-      val id = response.toInt()
-
-      try {
-        val res = pgClient.preparedQuery(getItem("items", "beacon_data")).execute(Tuple.of(id)).await()
-        val json = res.iterator().next().toItemJson()
-        expect {
-          that(json.getString("beacon")).isEqualTo(newItem.getString("beacon"))
-          that(json.getString("category")).isEqualTo(newItem.getString("category"))
-          that(json.getString("service")).isEqualTo(newItem.getString("service"))
-          that(json.getString("itemID")).isEqualTo(newItem.getString("itemID"))
-          that(json.getString("accessControlString")).isEqualTo("biot")
-          that(json.getString("brand")).isEqualTo(newItem.getString("brand"))
-          that(json.getString("model")).isEqualTo(newItem.getString("model"))
-          that(json.getString("supplier")).isEqualTo(newItem.getString("supplier"))
-          that(json.getString("purchaseDate")).isEqualTo(newItem.getString("purchaseDate"))
-          that(json.getDouble("purchasePrice")).isEqualTo(newItem.getDouble("purchasePrice"))
-          that(json.getString("originLocation")).isEqualTo(newItem.getString("originLocation"))
-          that(json.getString("currentLocation")).isEqualTo(newItem.getString("currentLocation"))
-          that(json.getString("room")).isEqualTo(newItem.getString("room"))
-          that(json.getString("contact")).isEqualTo(newItem.getString("contact"))
-          that(json.getString("currentOwner")).isEqualTo(newItem.getString("currentOwner"))
-          that(json.getString("previousOwner")).isEqualTo(newItem.getString("previousOwner"))
-          that(json.getString("orderNumber")).isEqualTo(newItem.getString("orderNumber"))
-          that(json.getString("color")).isEqualTo(newItem.getString("color"))
-          that(json.getString("serialNumber")).isEqualTo(newItem.getString("serialNumber"))
-          that(json.getString("maintenanceDate")).isEqualTo(newItem.getString("maintenanceDate"))
-          that(json.getString("status")).isEqualTo(newItem.getString("status"))
-          that(json.getString("comments")).isEqualTo(newItem.getString("comments"))
-          that(json.getString("lastModifiedDate")).isEqualTo(newItem.getString("lastModifiedDate"))
-          that(json.getString("lastModifiedBy")).isEqualTo(newItem.getString("lastModifiedBy"))
-          that(json.getInteger("battery")).isNull()
-          that(json.getString("beaconStatus")).isNull()
-          that(json.getDouble("latitude")).isNull()
-          that(json.getDouble("longitude")).isNull()
-          that(json.getInteger("floor")).isNull()
-          that(json.getDouble("temperature")).isNull()
-        }
+        expectThat(response).isNotEmpty()
         testContext.completeNow()
-      } catch (error: Throwable) {
-        testContext.failNow(error)
       }
     }
 
   @Test
-  @DisplayName("registerItem by specifying the accessControlString wrongly registers a new item with " +
-    "the accessControlString set to '<company>' (here 'biot') 3")
+  @DisplayName("registerItem by specifying the accessControlString wrongly sends a 400 error 3")
   fun registerSpecifyingACStringWronglyIsCorrect3(vertx: Vertx, testContext: VertxTestContext): Unit =
     runBlocking(vertx.dispatcher()) {
       val newItem = jsonObjectOf(
@@ -1859,55 +1774,14 @@ class TestCRUDVerticleItems {
         queryParam("company", "biot")
         post("/items")
       } Then {
-        statusCode(200)
+        statusCode(400)
       } Extract {
         asString()
       }
 
       testContext.verify {
-        expectThat(response).isNotEmpty() // it returns the id of the registered item
-      }
-
-      val id = response.toInt()
-
-      try {
-        val res = pgClient.preparedQuery(getItem("items", "beacon_data")).execute(Tuple.of(id)).await()
-        val json = res.iterator().next().toItemJson()
-        expect {
-          that(json.getString("beacon")).isEqualTo(newItem.getString("beacon"))
-          that(json.getString("category")).isEqualTo(newItem.getString("category"))
-          that(json.getString("service")).isEqualTo(newItem.getString("service"))
-          that(json.getString("itemID")).isEqualTo(newItem.getString("itemID"))
-          that(json.getString("accessControlString")).isEqualTo("biot")
-          that(json.getString("brand")).isEqualTo(newItem.getString("brand"))
-          that(json.getString("model")).isEqualTo(newItem.getString("model"))
-          that(json.getString("supplier")).isEqualTo(newItem.getString("supplier"))
-          that(json.getString("purchaseDate")).isEqualTo(newItem.getString("purchaseDate"))
-          that(json.getDouble("purchasePrice")).isEqualTo(newItem.getDouble("purchasePrice"))
-          that(json.getString("originLocation")).isEqualTo(newItem.getString("originLocation"))
-          that(json.getString("currentLocation")).isEqualTo(newItem.getString("currentLocation"))
-          that(json.getString("room")).isEqualTo(newItem.getString("room"))
-          that(json.getString("contact")).isEqualTo(newItem.getString("contact"))
-          that(json.getString("currentOwner")).isEqualTo(newItem.getString("currentOwner"))
-          that(json.getString("previousOwner")).isEqualTo(newItem.getString("previousOwner"))
-          that(json.getString("orderNumber")).isEqualTo(newItem.getString("orderNumber"))
-          that(json.getString("color")).isEqualTo(newItem.getString("color"))
-          that(json.getString("serialNumber")).isEqualTo(newItem.getString("serialNumber"))
-          that(json.getString("maintenanceDate")).isEqualTo(newItem.getString("maintenanceDate"))
-          that(json.getString("status")).isEqualTo(newItem.getString("status"))
-          that(json.getString("comments")).isEqualTo(newItem.getString("comments"))
-          that(json.getString("lastModifiedDate")).isEqualTo(newItem.getString("lastModifiedDate"))
-          that(json.getString("lastModifiedBy")).isEqualTo(newItem.getString("lastModifiedBy"))
-          that(json.getInteger("battery")).isNull()
-          that(json.getString("beaconStatus")).isNull()
-          that(json.getDouble("latitude")).isNull()
-          that(json.getDouble("longitude")).isNull()
-          that(json.getInteger("floor")).isNull()
-          that(json.getDouble("temperature")).isNull()
-        }
+        expectThat(response).isNotEmpty()
         testContext.completeNow()
-      } catch (error: Throwable) {
-        testContext.failNow(error)
       }
     }
 
@@ -1971,6 +1845,97 @@ class TestCRUDVerticleItems {
           that(json.getString("service")).isEqualTo(newItem.getString("service"))
           that(json.getString("itemID")).isEqualTo(newItem.getString("itemID"))
           that(json.getString("accessControlString")).isEqualTo(newItem.getString("accessControlString"))
+          that(json.getString("brand")).isEqualTo(newItem.getString("brand"))
+          that(json.getString("model")).isEqualTo(newItem.getString("model"))
+          that(json.getString("supplier")).isEqualTo(newItem.getString("supplier"))
+          that(json.getString("purchaseDate")).isEqualTo(newItem.getString("purchaseDate"))
+          that(json.getDouble("purchasePrice")).isEqualTo(newItem.getDouble("purchasePrice"))
+          that(json.getString("originLocation")).isEqualTo(newItem.getString("originLocation"))
+          that(json.getString("currentLocation")).isEqualTo(newItem.getString("currentLocation"))
+          that(json.getString("room")).isEqualTo(newItem.getString("room"))
+          that(json.getString("contact")).isEqualTo(newItem.getString("contact"))
+          that(json.getString("currentOwner")).isEqualTo(newItem.getString("currentOwner"))
+          that(json.getString("previousOwner")).isEqualTo(newItem.getString("previousOwner"))
+          that(json.getString("orderNumber")).isEqualTo(newItem.getString("orderNumber"))
+          that(json.getString("color")).isEqualTo(newItem.getString("color"))
+          that(json.getString("serialNumber")).isEqualTo(newItem.getString("serialNumber"))
+          that(json.getString("maintenanceDate")).isEqualTo(newItem.getString("maintenanceDate"))
+          that(json.getString("status")).isEqualTo(newItem.getString("status"))
+          that(json.getString("comments")).isEqualTo(newItem.getString("comments"))
+          that(json.getString("lastModifiedDate")).isEqualTo(newItem.getString("lastModifiedDate"))
+          that(json.getString("lastModifiedBy")).isEqualTo(newItem.getString("lastModifiedBy"))
+          that(json.getInteger("battery")).isNull()
+          that(json.getString("beaconStatus")).isNull()
+          that(json.getDouble("latitude")).isNull()
+          that(json.getDouble("longitude")).isNull()
+          that(json.getInteger("floor")).isNull()
+          that(json.getDouble("temperature")).isNull()
+        }
+        testContext.completeNow()
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+
+  @Test
+  @DisplayName("registerItem by not specifying the accessControlString registers a new item with " +
+    "the accessControlString set to <company> (here 'biot')")
+  fun registerNotSpecifyingACStringIsCorrect(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      val newItem = jsonObjectOf(
+        "beacon" to "aa:aa:aa:aa:aa:aa",
+        "category" to "Lit",
+        "service" to "Bloc 1",
+        "itemID" to "ee",
+        "brand" to "oo",
+        "model" to "aa",
+        "supplier" to "uu",
+        "purchaseDate" to LocalDate.of(2019, 3, 19).toString(),
+        "purchasePrice" to 102.12,
+        "originLocation" to "or",
+        "currentLocation" to "cur",
+        "room" to "616",
+        "contact" to "Monsieur Poirot",
+        "currentOwner" to "Monsieur Dupont",
+        "previousOwner" to "Monsieur Dupond",
+        "orderNumber" to "abcdf",
+        "color" to "red",
+        "serialNumber" to "abcdf",
+        "status" to "Status",
+        "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
+        "comments" to "A comment",
+        "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+        "lastModifiedBy" to "Monsieur Duport"
+      )
+
+      val response = Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        body(newItem.encode())
+      } When {
+        queryParam("company", "biot")
+        post("/items")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+
+      testContext.verify {
+        expectThat(response).isNotEmpty() // it returns the id of the registered item
+      }
+
+      val id = response.toInt()
+
+      try {
+        val res = pgClient.preparedQuery(getItem("items", "beacon_data")).execute(Tuple.of(id)).await()
+        val json = res.iterator().next().toItemJson()
+        expect {
+          that(json.getString("beacon")).isEqualTo(newItem.getString("beacon"))
+          that(json.getString("category")).isEqualTo(newItem.getString("category"))
+          that(json.getString("service")).isEqualTo(newItem.getString("service"))
+          that(json.getString("itemID")).isEqualTo(newItem.getString("itemID"))
+          that(json.getString("accessControlString")).isEqualTo("biot")
           that(json.getString("brand")).isEqualTo(newItem.getString("brand"))
           that(json.getString("model")).isEqualTo(newItem.getString("model"))
           that(json.getString("supplier")).isEqualTo(newItem.getString("supplier"))
