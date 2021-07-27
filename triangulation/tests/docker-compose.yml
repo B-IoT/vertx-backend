@@ -39,4 +39,4 @@ services:
     environment:
       POSTGRES_PASSWORD: "biot"
     volumes:
-      - /Users/samuel/EPFL/Biot/vertx-backend/init/timescale:/docker-entrypoint-initdb.d/
+      - ~/vertx-backend/init/timescale:/docker-entrypoint-initdb.d/
