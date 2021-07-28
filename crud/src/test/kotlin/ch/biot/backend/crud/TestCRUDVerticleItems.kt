@@ -202,6 +202,7 @@ class TestCRUDVerticleItems {
     "lastModifiedBy" to "Monsieur Duport"
   )
 
+  private var existingItemGrp1Grp3Id: Int = -1
   private val existingItemGrp1Grp3 = jsonObjectOf(
     "id" to 1234,
     "beacon" to "fakegrp1grp3",
@@ -231,7 +232,7 @@ class TestCRUDVerticleItems {
   )
 
   private val closestItemGrp1 = jsonObjectOf(
-    "beacon" to "ff:ff:ab:ab:ab:ab",
+    "beacon" to "fakeClosestGrp1",
     "category" to "Lit",
     "service" to "Bloc 1",
     "itemID" to "cde",
@@ -635,7 +636,7 @@ class TestCRUDVerticleItems {
             Tuple.of(
               "fake5",
               existingBeaconData.getInteger("battery"),
-              existingBeaconData.getString("status"),
+              existingBeaconData.getString("beaconStatus"),
               47,
               -8,
               2,
@@ -705,10 +706,9 @@ class TestCRUDVerticleItems {
         )
       ).await()
 
-    pgClient.preparedQuery(insertItem("items", true))
+    val result = pgClient.preparedQuery(insertItem("items"))
       .execute(
         Tuple.of(
-          existingItemGrp1Grp3["id"],
           existingItemGrp1Grp3["beacon"],
           existingItemGrp1Grp3["category"],
           existingItemGrp1Grp3["service"],
@@ -734,12 +734,14 @@ class TestCRUDVerticleItems {
           LocalDate.parse(existingItemGrp1Grp3["lastModifiedDate"]),
           existingItemGrp1Grp3["lastModifiedBy"]
         )
-      )
+      ).await()
+
+    existingItemGrp1Grp3Id = result.iterator().next().getInteger("id")
 
     pgClient.preparedQuery(INSERT_BEACON_DATA)
       .execute(
         Tuple.of(
-          "fakeClosestGrp1",
+          closestItemGrp1.getString("beacon"),
           existingBeaconData.getInteger("battery"),
           existingBeaconData.getString("beaconStatus"),
           42,
@@ -748,6 +750,8 @@ class TestCRUDVerticleItems {
           existingBeaconData.getDouble("temperature")
         )
       ).await()
+
+    LOGGER.info { "insertACItems beaconStatus = ${existingBeaconData.getString("beaconStatus")}" }
 
     pgClient.preparedQuery(INSERT_BEACON_DATA)
       .execute(
@@ -762,31 +766,31 @@ class TestCRUDVerticleItems {
         )
       ).await()
 
-    pgClient.preparedQuery(INSERT_BEACON_DATA)
-      .execute(
-        Tuple.of(
-          existingItemGrp1Grp3.getString("beacon"),
-          existingBeaconData.getInteger("battery"),
-          existingBeaconData.getString("beaconStatus"),
-          existingBeaconData.getDouble("latitude"),
-          existingBeaconData.getDouble("longitude"),
-          42,
-          existingBeaconData.getDouble("temperature")
-        )
-      ).await()
+//    pgClient.preparedQuery(INSERT_BEACON_DATA)
+//      .execute(
+//        Tuple.of(
+//          existingItemGrp1Grp3.getString("beacon"),
+//          existingBeaconData.getInteger("battery"),
+//          existingBeaconData.getString("beaconStatus"),
+//          existingBeaconData.getDouble("latitude"),
+//          existingBeaconData.getDouble("longitude"),
+//          42,
+//          existingBeaconData.getDouble("temperature")
+//        )
+//      ).await()
 
     pgClient.preparedQuery(INSERT_BEACON_DATA)
       .execute(
         Tuple.of(
           existingItemGrp1Grp3.getString("beacon"),
           existingBeaconData.getInteger("battery"),
-          existingBeaconData.getString("status"),
+          existingBeaconData.getString("beaconStatus"),
           47,
           -8,
           2,
           3.3
         )
-      )
+      ).await()
 
     pgClient.preparedQuery(insertItem("items"))
       .execute(
@@ -816,12 +820,12 @@ class TestCRUDVerticleItems {
           LocalDate.parse(closestItemGrp1Cat2["lastModifiedDate"]),
           closestItemGrp1Cat2["lastModifiedBy"]
         )
-      )
+      ).await()
 
     return pgClient.preparedQuery(insertItem("items"))
       .execute(
         Tuple.of(
-          "fakeClosestGrp1",
+          closestItemGrp1["beacon"],
           closestItemGrp1["category"],
           closestItemGrp1["service"],
           closestItemGrp1["itemID"],
@@ -2516,7 +2520,7 @@ class TestCRUDVerticleItems {
           val firstFloor: JsonArray = response["1"]
           expectThat(firstFloor.size()).isEqualTo(2)
           val closestFirstFloor = firstFloor.getJsonObject(0)
-          expectThat(closestFirstFloor.getString("beacon")).isEqualTo("fakeClosestGrp1")
+          expectThat(closestFirstFloor.getString("beacon")).isEqualTo(closestItemGrp1.getString("beacon"))
 
           val secondFloor: JsonArray = response["2"]
           expectThat(secondFloor.size()).isEqualTo(1)
@@ -2644,13 +2648,13 @@ class TestCRUDVerticleItems {
         val expected = existingItemGrp1Grp3.copy().apply {
           put("battery", existingBeaconData.getInteger("battery"))
           put("beaconStatus", existingBeaconData.getString("beaconStatus"))
-          put("latitude", existingBeaconData.getDouble("latitude"))
-          put("longitude", existingBeaconData.getDouble("longitude"))
-          put("floor", 42)
-          put("temperature", existingBeaconData.getDouble("temperature"))
+          put("latitude", 47)
+          put("longitude", -8)
+          put("floor", 2)
+          put("temperature", 3.3)
+          remove("id")
         }
 
-        val itemId = existingItemGrp1Grp3.getString("id")
 
         val response = Buffer.buffer(
           Given {
@@ -2659,7 +2663,7 @@ class TestCRUDVerticleItems {
           } When {
             queryParam("company", "biot")
             queryParam("accessControlString", existingItemGrp1Grp3.getString("accessControlString"))
-            get("/items/$itemId")
+            get("/items/$existingItemGrp1Grp3Id")
           } Then {
             statusCode(200)
           } Extract {
@@ -2671,7 +2675,7 @@ class TestCRUDVerticleItems {
           val id = response.remove("id")
           val timestamp: String = response.remove("timestamp") as String
           expectThat(response).isEqualTo(expected)
-          expectThat(id).isEqualTo(existingItemID)
+          expectThat(id).isEqualTo(existingItemGrp1Grp3Id)
           expectThat(timestamp).isNotEmpty()
           testContext.completeNow()
         }
@@ -2689,13 +2693,13 @@ class TestCRUDVerticleItems {
         val expected = existingItemGrp1Grp3.copy().apply {
           put("battery", existingBeaconData.getInteger("battery"))
           put("beaconStatus", existingBeaconData.getString("beaconStatus"))
-          put("latitude", existingBeaconData.getDouble("latitude"))
-          put("longitude", existingBeaconData.getDouble("longitude"))
-          put("floor", 42)
-          put("temperature", existingBeaconData.getDouble("temperature"))
+          put("latitude", 47)
+          put("longitude", -8)
+          put("floor", 2)
+          put("temperature", 3.3)
+          remove("id")
         }
 
-        val itemId = existingItemGrp1Grp3.getString("id")
 
         val response = Buffer.buffer(
           Given {
@@ -2704,7 +2708,7 @@ class TestCRUDVerticleItems {
           } When {
             queryParam("company", "biot")
             queryParam("accessControlString", "biot:grp1")
-            get("/items/$itemId")
+            get("/items/$existingItemGrp1Grp3Id")
           } Then {
             statusCode(200)
           } Extract {
@@ -2716,7 +2720,7 @@ class TestCRUDVerticleItems {
           val id = response.remove("id")
           val timestamp: String = response.remove("timestamp") as String
           expectThat(response).isEqualTo(expected)
-          expectThat(id).isEqualTo(existingItemID)
+          expectThat(id).isEqualTo(existingItemGrp1Grp3Id)
           expectThat(timestamp).isNotEmpty()
           testContext.completeNow()
         }
@@ -2734,13 +2738,13 @@ class TestCRUDVerticleItems {
         val expected = existingItemGrp1Grp3.copy().apply {
           put("battery", existingBeaconData.getInteger("battery"))
           put("beaconStatus", existingBeaconData.getString("beaconStatus"))
-          put("latitude", existingBeaconData.getDouble("latitude"))
-          put("longitude", existingBeaconData.getDouble("longitude"))
-          put("floor", 42)
-          put("temperature", existingBeaconData.getDouble("temperature"))
+          put("latitude", 47)
+          put("longitude", -8)
+          put("floor", 2)
+          put("temperature", 3.3)
+          remove("id")
         }
 
-        val itemId = existingItemGrp1Grp3.getString("id")
 
         val response =
           Given {
@@ -2749,7 +2753,7 @@ class TestCRUDVerticleItems {
           } When {
             queryParam("company", "biot")
             queryParam("accessControlString", "biot:grp1:grp4")
-            get("/items/$itemId")
+            get("/items/$existingItemGrp1Grp3Id")
           } Then {
             statusCode(404)
           } Extract {

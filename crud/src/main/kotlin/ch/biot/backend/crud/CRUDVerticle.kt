@@ -757,10 +757,19 @@ class CRUDVerticle : CoroutineVerticle() {
     val itemID = ctx.pathParam("id").toInt() // the id needs to be converted to Int, as the DB stores it as an integer
     LOGGER.info { "New getItem request for item $itemID" }
 
+    val params = ctx.queryParams()
+
     val itemsTable = ctx.getCollection(ITEMS_TABLE)
     val beaconDataTable = ctx.getCollection(BEACON_DATA_TABLE)
+
+    val executedQuery = if(params.contains("accessControlString")) {
+      pgClient.preparedQuery(getItemWithAC(itemsTable, beaconDataTable, params["accessControlString"])).execute(Tuple.of(itemID))
+    } else {
+      pgClient.preparedQuery(getItem(itemsTable, beaconDataTable)).execute(Tuple.of(itemID))
+    }
     executeWithErrorHandling("Could not get item", ctx) {
-      val queryResult = pgClient.preparedQuery(getItem(itemsTable, beaconDataTable)).execute(Tuple.of(itemID)).await()
+
+      val queryResult = executedQuery.await()
       if (queryResult.size() == 0) {
         // No item found, answer with 404
         ctx.response().statusCode = 404
@@ -769,6 +778,7 @@ class CRUDVerticle : CoroutineVerticle() {
       }
 
       val result: JsonObject = queryResult.iterator().next().toItemJson()
+      LOGGER.info {  "getItem json object returned by the DB: $result" }
 
       ctx.response()
         .putHeader(CONTENT_TYPE, APPLICATION_JSON)
