@@ -203,7 +203,8 @@ class TestCRUDVerticleItems {
   )
 
   private val existingItemGrp1Grp3 = jsonObjectOf(
-    "beacon" to "ab:ab:ab:ff:ff:ff",
+    "id" to 1234,
+    "beacon" to "fakegrp1grp3",
     "category" to "ECG",
     "service" to "Bloc 2",
     "itemID" to "abc",
@@ -704,10 +705,11 @@ class TestCRUDVerticleItems {
         )
       ).await()
 
-    pgClient.preparedQuery(insertItem("items"))
+    pgClient.preparedQuery(insertItem("items", true))
       .execute(
         Tuple.of(
-          "fake8",
+          existingItemGrp1Grp3["id"],
+          existingItemGrp1Grp3["beacon"],
           existingItemGrp1Grp3["category"],
           existingItemGrp1Grp3["service"],
           existingItemGrp1Grp3["itemID"],
@@ -754,7 +756,7 @@ class TestCRUDVerticleItems {
           existingBeaconData.getInteger("battery"),
           existingBeaconData.getString("beaconStatus"),
           42,
-          -8,
+          -7.99,
           existingBeaconData.getInteger("floor"),
           existingBeaconData.getDouble("temperature")
         )
@@ -763,7 +765,20 @@ class TestCRUDVerticleItems {
     pgClient.preparedQuery(INSERT_BEACON_DATA)
       .execute(
         Tuple.of(
-          "fake8",
+          existingItemGrp1Grp3.getString("beacon"),
+          existingBeaconData.getInteger("battery"),
+          existingBeaconData.getString("beaconStatus"),
+          existingBeaconData.getDouble("latitude"),
+          existingBeaconData.getDouble("longitude"),
+          42,
+          existingBeaconData.getDouble("temperature")
+        )
+      ).await()
+
+    pgClient.preparedQuery(INSERT_BEACON_DATA)
+      .execute(
+        Tuple.of(
+          existingItemGrp1Grp3.getString("beacon"),
           existingBeaconData.getInteger("battery"),
           existingBeaconData.getString("status"),
           47,
@@ -1259,7 +1274,7 @@ class TestCRUDVerticleItems {
     ).toJsonArray()
 
     testContext.verify {
-      expectThat(response).isEqualTo(expected)
+      expectThat(response.toHashSet()).isEqualTo(expected.toHashSet())
       testContext.completeNow()
     }
   }
@@ -2506,7 +2521,7 @@ class TestCRUDVerticleItems {
           val secondFloor: JsonArray = response["2"]
           expectThat(secondFloor.size()).isEqualTo(1)
           val closestSecondFloor = secondFloor.getJsonObject(0)
-          expectThat(closestSecondFloor.getString("beacon")).isEqualTo("fake8")
+          expectThat(closestSecondFloor.getString("beacon")).isEqualTo(existingItemGrp1Grp3.getString("beacon"))
 
           testContext.completeNow()
         }
@@ -2613,6 +2628,136 @@ class TestCRUDVerticleItems {
 
         testContext.verify {
           expectThat(response.size()).isEqualTo(0)
+          testContext.completeNow()
+        }
+      }
+    }
+  }
+
+  @Test
+  @DisplayName("getItem correctly retrieves the desired item if the accessString has the right to access 1")
+  fun getItemIsCorrectWithCorrectAC1(vertx: Vertx, testContext: VertxTestContext) {
+    runBlocking(vertx.dispatcher()) {
+      insertItemsAccessControl().onFailure {
+        testContext.failNow("Cannot insert objects prior to the test")
+      }.onSuccess {
+        val expected = existingItemGrp1Grp3.copy().apply {
+          put("battery", existingBeaconData.getInteger("battery"))
+          put("beaconStatus", existingBeaconData.getString("beaconStatus"))
+          put("latitude", existingBeaconData.getDouble("latitude"))
+          put("longitude", existingBeaconData.getDouble("longitude"))
+          put("floor", 42)
+          put("temperature", existingBeaconData.getDouble("temperature"))
+        }
+
+        val itemId = existingItemGrp1Grp3.getString("id")
+
+        val response = Buffer.buffer(
+          Given {
+            spec(requestSpecification)
+            accept(ContentType.JSON)
+          } When {
+            queryParam("company", "biot")
+            queryParam("accessControlString", existingItemGrp1Grp3.getString("accessControlString"))
+            get("/items/$itemId")
+          } Then {
+            statusCode(200)
+          } Extract {
+            asString()
+          }
+        ).toJsonObject()
+
+        testContext.verify {
+          val id = response.remove("id")
+          val timestamp: String = response.remove("timestamp") as String
+          expectThat(response).isEqualTo(expected)
+          expectThat(id).isEqualTo(existingItemID)
+          expectThat(timestamp).isNotEmpty()
+          testContext.completeNow()
+        }
+      }
+    }
+  }
+
+  @Test
+  @DisplayName("getItem correctly retrieves the desired item if the accessString has the right to access 2")
+  fun getItemIsCorrectWithCorrectAC2(vertx: Vertx, testContext: VertxTestContext) {
+    runBlocking(vertx.dispatcher()) {
+      insertItemsAccessControl().onFailure {
+        testContext.failNow("Cannot insert objects prior to the test")
+      }.onSuccess {
+        val expected = existingItemGrp1Grp3.copy().apply {
+          put("battery", existingBeaconData.getInteger("battery"))
+          put("beaconStatus", existingBeaconData.getString("beaconStatus"))
+          put("latitude", existingBeaconData.getDouble("latitude"))
+          put("longitude", existingBeaconData.getDouble("longitude"))
+          put("floor", 42)
+          put("temperature", existingBeaconData.getDouble("temperature"))
+        }
+
+        val itemId = existingItemGrp1Grp3.getString("id")
+
+        val response = Buffer.buffer(
+          Given {
+            spec(requestSpecification)
+            accept(ContentType.JSON)
+          } When {
+            queryParam("company", "biot")
+            queryParam("accessControlString", "biot:grp1")
+            get("/items/$itemId")
+          } Then {
+            statusCode(200)
+          } Extract {
+            asString()
+          }
+        ).toJsonObject()
+
+        testContext.verify {
+          val id = response.remove("id")
+          val timestamp: String = response.remove("timestamp") as String
+          expectThat(response).isEqualTo(expected)
+          expectThat(id).isEqualTo(existingItemID)
+          expectThat(timestamp).isNotEmpty()
+          testContext.completeNow()
+        }
+      }
+    }
+  }
+
+  @Test
+  @DisplayName("getItem returns not found if the accessString has not the right to access")
+  fun getItemIsCorrectWithInsufficientAC(vertx: Vertx, testContext: VertxTestContext) {
+    runBlocking(vertx.dispatcher()) {
+      insertItemsAccessControl().onFailure {
+        testContext.failNow("Cannot insert objects prior to the test")
+      }.onSuccess {
+        val expected = existingItemGrp1Grp3.copy().apply {
+          put("battery", existingBeaconData.getInteger("battery"))
+          put("beaconStatus", existingBeaconData.getString("beaconStatus"))
+          put("latitude", existingBeaconData.getDouble("latitude"))
+          put("longitude", existingBeaconData.getDouble("longitude"))
+          put("floor", 42)
+          put("temperature", existingBeaconData.getDouble("temperature"))
+        }
+
+        val itemId = existingItemGrp1Grp3.getString("id")
+
+        val response =
+          Given {
+            spec(requestSpecification)
+            accept(ContentType.JSON)
+          } When {
+            queryParam("company", "biot")
+            queryParam("accessControlString", "biot:grp1:grp4")
+            get("/items/$itemId")
+          } Then {
+            statusCode(404)
+          } Extract {
+            asString()
+          }
+
+        testContext.verify {
+          expectThat(response).isEmpty()
           testContext.completeNow()
         }
       }
