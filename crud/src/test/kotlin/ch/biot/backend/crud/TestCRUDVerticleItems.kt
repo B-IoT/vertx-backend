@@ -2892,6 +2892,81 @@ class TestCRUDVerticleItems {
     }
   }
 
+  @Test
+  @DisplayName("getCategories correctly retrieves only categories of accessible items when a accessControlString is passed 1")
+  fun getCategoriesIsCorrectWithAC1(testContext: VertxTestContext) {
+    val categoryTest1 = "Lit-AccessControlTests"
+    val categoryTest2 = "ECG-AccessControlTests"
+    val expected = JsonArray(listOf(categoryTest1, categoryTest2))
+
+    val acString = "biot:grp1:grp2:grpTests"
+    val newItem1 = jsonObjectOf(
+      "beacon" to "ab:cd:ef:aa:aa:aa",
+      "category" to categoryTest1,
+      "accessControlString" to acString,
+      "service" to "Bloc 42"
+    )
+
+    // Register the item
+    val id1 = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      body(newItem1.encode())
+    } When {
+      queryParam("company", "biot")
+      post("/items")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    val newItem2 = jsonObjectOf(
+      "beacon" to "ab:cd:ef:ag:ff:ff",
+      "category" to categoryTest2,
+      "accessControlString" to acString,
+      "service" to "Bloc 42"
+    )
+
+    // Register the item
+    val id2 = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      body(newItem2.encode())
+    } When {
+      queryParam("company", "biot")
+      post("/items")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify{
+      expectThat(id2).isNotEmpty()
+    }
+
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        accept(ContentType.JSON)
+      } When {
+        queryParam("company", "biot")
+        queryParam("accessControlString", acString)
+        get("/items/categories")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonArray()
+
+    testContext.verify {
+      expectThat(response.toHashSet()).isEqualTo(expected.toHashSet())
+      testContext.completeNow()
+    }
+  }
+
   companion object {
 
     private const val ITEMS_UPDATES_ADDRESS = "items.updates.biot"

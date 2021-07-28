@@ -50,3 +50,4 @@ fun deleteItem(itemsTable: String) = "DELETE FROM $itemsTable WHERE id=$1"
 fun deleteItemWithAC(itemsTable: String, accessControlString: String) = "DELETE FROM $itemsTable WHERE id=$1 AND (accessControlString LIKE '$accessControlString:%' OR accessControlString LIKE '$accessControlString')"
 
 fun getCategories(itemsTable: String) = "SELECT DISTINCT I.category FROM $itemsTable I"
+fun getCategoriesWithAC(itemsTable: String, accessControlString: String) = "SELECT DISTINCT I.category FROM $itemsTable I WHERE (accessControlString LIKE '$accessControlString:%' OR accessControlString LIKE '$accessControlString')"

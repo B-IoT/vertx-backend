@@ -841,8 +841,16 @@ class CRUDVerticle : CoroutineVerticle() {
     LOGGER.info { "New getCategories request" }
 
     val table = ctx.getCollection(ITEMS_TABLE)
+
+    val params = ctx.queryParams()
+
+    val executedQuery = if(params.contains("accessControlString")){
+      pgClient.preparedQuery(getCategoriesWithAC(table, params["accessControlString"])).execute()
+    } else {
+      pgClient.preparedQuery(getCategories(table)).execute()
+    }
     executeWithErrorHandling("Could not get categories", ctx) {
-      val queryResult = pgClient.preparedQuery(getCategories(table)).execute().await()
+      val queryResult = executedQuery.await()
       val result = if (queryResult.size() == 0) listOf() else queryResult.map { it.getString("category") }
 
       ctx.response()
