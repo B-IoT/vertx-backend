@@ -120,8 +120,8 @@ class Triangulator:
         self.relay_mapping = {}
         self.beacon_mapping = {}
         self.inv_beacon_mapping = {}
-        
-        self.matrix_dist = np.empty([self.nb_beacons, self.nb_relays])
+
+        self.matrix_dist = np.empty([self.nb_beacons, self.nb_relays, self.max_history])
         self.matrix_dist[:] = np.nan
         
         # Importing the scaler model
@@ -226,7 +226,11 @@ class Triangulator:
         tx = 6
         meters_to_db = lambda x: measured_ref - 10*tx*math.log10(x)
         
-        self.initial_value_guess = np.array(list(map(meters_to_db, self.matrix_dist.flatten()/100))).reshape(self.matrix_dist.shape)
+        matrix_dist_temp = self.matrix_dist[:, :, 0]
+
+        self.initial_value_guess = np.array(list(map(meters_to_db, matrix_dist_temp.flatten()/100))).reshape(matrix_dist_temp.shape)
+
+        matrix_dist_temp[:] = np.nan
         
         # Variance of the signal (per beacon/relay)
         var = np.nanvar(self.matrix_raw, axis = 2) # Matrix 2D
@@ -252,7 +256,11 @@ class Triangulator:
             temp = self.feature_augmentation(temp[-1]) # Taking the latest RSSI and augmenting it
             temp = self.scaler.transform(np.array(temp).reshape(1, -1)) # Normalizing
             temp = np.concatenate(([1], temp.flatten()))
-            self.matrix_dist[index] = self.reg_kalman.predict(np.array(temp).reshape(1, -1))/100
+            matrix_dist_temp[index] = self.reg_kalman.predict(np.array(temp).reshape(1, -1))/100
+
+            # Stack matrix_dist_temp onto matrix_dist
+            np.dstack((matrix_dist_temp, self.matrix_dist))
+            self.matrix_dist = self.matrix_dist[:,:,0:max_history]
             
         return
      
@@ -266,7 +274,7 @@ class Triangulator:
            beacon_data = next(b for b in beacons if b["mac"] == mac)
            status = beacon_data["status"]
            
-           temp = self.matrix_dist[beacon_index, :]
+           temp = self.matrix_dist[beacon_index, :, 0]
            
            
            relay_indexes = np.argwhere(~np.isnan(temp)).flatten()           
@@ -306,7 +314,7 @@ class Triangulator:
                         # Applying proportionality rule from the origin on the vector to determine the position of the beacon in lat;long coord
                         # ie: x1 = x0 + (dist_beacon/dist_tot) * vector_length
                         
-                        dist_1 = self.matrix_dist[beacon_index, relay_1_index]
+                        dist_1 = self.matrix_dist[beacon_index, relay_1_index, 0]
                         
                         lat.append(
                             self.relay_matrix[relay_1_index, 0] + (dist_1 / dist) * vect_lat
