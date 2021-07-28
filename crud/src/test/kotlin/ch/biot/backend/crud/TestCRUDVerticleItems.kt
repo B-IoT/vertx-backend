@@ -348,301 +348,301 @@ class TestCRUDVerticleItems {
     existingItemID = result.iterator().next().getInteger("id")
 
     pgClient.preparedQuery(insertItem("items"))
-          .execute(
-            Tuple.of(
-              closestItem["beacon"],
-              closestItem["category"],
-              closestItem["service"],
-              closestItem["itemID"],
-              closestItem["accessControlString"],
-              closestItem["brand"],
-              closestItem["model"],
-              closestItem["supplier"],
-              LocalDate.parse(existingItem["purchaseDate"]),
-              closestItem["purchasePrice"],
-              closestItem["originLocation"],
-              closestItem["currentLocation"],
-              closestItem["room"],
-              closestItem["contact"],
-              closestItem["currentOwner"],
-              closestItem["previousOwner"],
-              closestItem["orderNumber"],
-              closestItem["color"],
-              closestItem["serialNumber"],
-              LocalDate.parse(closestItem["maintenanceDate"]),
-              closestItem["status"],
-              closestItem["comments"],
-              LocalDate.parse(closestItem["lastModifiedDate"]),
-              closestItem["lastModifiedBy"]
-            )
-          ).await()
+      .execute(
+        Tuple.of(
+          closestItem["beacon"],
+          closestItem["category"],
+          closestItem["service"],
+          closestItem["itemID"],
+          closestItem["accessControlString"],
+          closestItem["brand"],
+          closestItem["model"],
+          closestItem["supplier"],
+          LocalDate.parse(existingItem["purchaseDate"]),
+          closestItem["purchasePrice"],
+          closestItem["originLocation"],
+          closestItem["currentLocation"],
+          closestItem["room"],
+          closestItem["contact"],
+          closestItem["currentOwner"],
+          closestItem["previousOwner"],
+          closestItem["orderNumber"],
+          closestItem["color"],
+          closestItem["serialNumber"],
+          LocalDate.parse(closestItem["maintenanceDate"]),
+          closestItem["status"],
+          closestItem["comments"],
+          LocalDate.parse(closestItem["lastModifiedDate"]),
+          closestItem["lastModifiedBy"]
+        )
+      ).await()
 
-        pgClient.preparedQuery(insertItem("items"))
-          .execute(
-            Tuple.of(
-              "fake1",
-              closestItem["category"],
-              closestItem["service"],
-              closestItem["itemID"],
-              closestItem["accessControlString"],
-              closestItem["brand"],
-              closestItem["model"],
-              closestItem["supplier"],
-              LocalDate.parse(closestItem["purchaseDate"]),
-              closestItem["purchasePrice"],
-              closestItem["originLocation"],
-              closestItem["currentLocation"],
-              closestItem["room"],
-              closestItem["contact"],
-              closestItem["currentOwner"],
-              closestItem["previousOwner"],
-              closestItem["orderNumber"],
-              closestItem["color"],
-              closestItem["serialNumber"],
-              LocalDate.parse(closestItem["maintenanceDate"]),
-              closestItem["status"],
-              closestItem["comments"],
-              LocalDate.parse(closestItem["lastModifiedDate"]),
-              closestItem["lastModifiedBy"]
-            )
-          ).await()
+    pgClient.preparedQuery(insertItem("items"))
+      .execute(
+        Tuple.of(
+          "fake1",
+          closestItem["category"],
+          closestItem["service"],
+          closestItem["itemID"],
+          closestItem["accessControlString"],
+          closestItem["brand"],
+          closestItem["model"],
+          closestItem["supplier"],
+          LocalDate.parse(closestItem["purchaseDate"]),
+          closestItem["purchasePrice"],
+          closestItem["originLocation"],
+          closestItem["currentLocation"],
+          closestItem["room"],
+          closestItem["contact"],
+          closestItem["currentOwner"],
+          closestItem["previousOwner"],
+          closestItem["orderNumber"],
+          closestItem["color"],
+          closestItem["serialNumber"],
+          LocalDate.parse(closestItem["maintenanceDate"]),
+          closestItem["status"],
+          closestItem["comments"],
+          LocalDate.parse(closestItem["lastModifiedDate"]),
+          closestItem["lastModifiedBy"]
+        )
+      ).await()
 
-        pgClient.preparedQuery(insertItem("items"))
-          .execute(
-            Tuple.of(
-              "fake2",
-              closestItem["category"],
-              closestItem["service"],
-              closestItem["itemID"],
-              closestItem["accessControlString"],
-              closestItem["brand"],
-              closestItem["model"],
-              closestItem["supplier"],
-              LocalDate.parse(closestItem["purchaseDate"]),
-              closestItem["purchasePrice"],
-              closestItem["originLocation"],
-              closestItem["currentLocation"],
-              closestItem["room"],
-              closestItem["contact"],
-              closestItem["currentOwner"],
-              closestItem["previousOwner"],
-              closestItem["orderNumber"],
-              closestItem["color"],
-              closestItem["serialNumber"],
-              LocalDate.parse(closestItem["maintenanceDate"]),
-              closestItem["status"],
-              closestItem["comments"],
-              LocalDate.parse(closestItem["lastModifiedDate"]),
-              closestItem["lastModifiedBy"]
-            )
-          ).await()
+    pgClient.preparedQuery(insertItem("items"))
+      .execute(
+        Tuple.of(
+          "fake2",
+          closestItem["category"],
+          closestItem["service"],
+          closestItem["itemID"],
+          closestItem["accessControlString"],
+          closestItem["brand"],
+          closestItem["model"],
+          closestItem["supplier"],
+          LocalDate.parse(closestItem["purchaseDate"]),
+          closestItem["purchasePrice"],
+          closestItem["originLocation"],
+          closestItem["currentLocation"],
+          closestItem["room"],
+          closestItem["contact"],
+          closestItem["currentOwner"],
+          closestItem["previousOwner"],
+          closestItem["orderNumber"],
+          closestItem["color"],
+          closestItem["serialNumber"],
+          LocalDate.parse(closestItem["maintenanceDate"]),
+          closestItem["status"],
+          closestItem["comments"],
+          LocalDate.parse(closestItem["lastModifiedDate"]),
+          closestItem["lastModifiedBy"]
+        )
+      ).await()
 
-        pgClient.preparedQuery(insertItem("items"))
-          .execute(
-            Tuple.of(
-              "fake3",
-              closestItem["category"],
-              closestItem["service"],
-              closestItem["itemID"],
-              closestItem["accessControlString"],
-              closestItem["brand"],
-              closestItem["model"],
-              closestItem["supplier"],
-              LocalDate.parse(closestItem["purchaseDate"]),
-              closestItem["purchasePrice"],
-              closestItem["originLocation"],
-              closestItem["currentLocation"],
-              closestItem["room"],
-              closestItem["contact"],
-              closestItem["currentOwner"],
-              closestItem["previousOwner"],
-              closestItem["orderNumber"],
-              closestItem["color"],
-              closestItem["serialNumber"],
-              LocalDate.parse(closestItem["maintenanceDate"]),
-              closestItem["status"],
-              closestItem["comments"],
-              LocalDate.parse(closestItem["lastModifiedDate"]),
-              closestItem["lastModifiedBy"]
-            )
-          ).await()
+    pgClient.preparedQuery(insertItem("items"))
+      .execute(
+        Tuple.of(
+          "fake3",
+          closestItem["category"],
+          closestItem["service"],
+          closestItem["itemID"],
+          closestItem["accessControlString"],
+          closestItem["brand"],
+          closestItem["model"],
+          closestItem["supplier"],
+          LocalDate.parse(closestItem["purchaseDate"]),
+          closestItem["purchasePrice"],
+          closestItem["originLocation"],
+          closestItem["currentLocation"],
+          closestItem["room"],
+          closestItem["contact"],
+          closestItem["currentOwner"],
+          closestItem["previousOwner"],
+          closestItem["orderNumber"],
+          closestItem["color"],
+          closestItem["serialNumber"],
+          LocalDate.parse(closestItem["maintenanceDate"]),
+          closestItem["status"],
+          closestItem["comments"],
+          LocalDate.parse(closestItem["lastModifiedDate"]),
+          closestItem["lastModifiedBy"]
+        )
+      ).await()
 
-        pgClient.preparedQuery(insertItem("items"))
-          .execute(
-            Tuple.of(
-              "fake4",
-              closestItem["category"],
-              closestItem["service"],
-              closestItem["itemID"],
-              closestItem["accessControlString"],
-              closestItem["brand"],
-              closestItem["model"],
-              closestItem["supplier"],
-              LocalDate.parse(closestItem["purchaseDate"]),
-              closestItem["purchasePrice"],
-              closestItem["originLocation"],
-              closestItem["currentLocation"],
-              closestItem["room"],
-              closestItem["contact"],
-              closestItem["currentOwner"],
-              closestItem["previousOwner"],
-              closestItem["orderNumber"],
-              closestItem["color"],
-              closestItem["serialNumber"],
-              LocalDate.parse(closestItem["maintenanceDate"]),
-              closestItem["status"],
-              closestItem["comments"],
-              LocalDate.parse(closestItem["lastModifiedDate"]),
-              closestItem["lastModifiedBy"]
-            )
-          ).await()
+    pgClient.preparedQuery(insertItem("items"))
+      .execute(
+        Tuple.of(
+          "fake4",
+          closestItem["category"],
+          closestItem["service"],
+          closestItem["itemID"],
+          closestItem["accessControlString"],
+          closestItem["brand"],
+          closestItem["model"],
+          closestItem["supplier"],
+          LocalDate.parse(closestItem["purchaseDate"]),
+          closestItem["purchasePrice"],
+          closestItem["originLocation"],
+          closestItem["currentLocation"],
+          closestItem["room"],
+          closestItem["contact"],
+          closestItem["currentOwner"],
+          closestItem["previousOwner"],
+          closestItem["orderNumber"],
+          closestItem["color"],
+          closestItem["serialNumber"],
+          LocalDate.parse(closestItem["maintenanceDate"]),
+          closestItem["status"],
+          closestItem["comments"],
+          LocalDate.parse(closestItem["lastModifiedDate"]),
+          closestItem["lastModifiedBy"]
+        )
+      ).await()
 
-        pgClient.preparedQuery(insertItem("items"))
-          .execute(
-            Tuple.of(
-              "fake5",
-              closestItem["category"],
-              closestItem["service"],
-              closestItem["itemID"],
-              closestItem["accessControlString"],
-              closestItem["brand"],
-              closestItem["model"],
-              closestItem["supplier"],
-              LocalDate.parse(closestItem["purchaseDate"]),
-              closestItem["purchasePrice"],
-              closestItem["originLocation"],
-              closestItem["currentLocation"],
-              closestItem["room"],
-              closestItem["contact"],
-              closestItem["currentOwner"],
-              closestItem["previousOwner"],
-              closestItem["orderNumber"],
-              closestItem["color"],
-              closestItem["serialNumber"],
-              LocalDate.parse(closestItem["maintenanceDate"]),
-              closestItem["status"],
-              closestItem["comments"],
-              LocalDate.parse(closestItem["lastModifiedDate"]),
-              closestItem["lastModifiedBy"]
-            )
-          ).await()
+    pgClient.preparedQuery(insertItem("items"))
+      .execute(
+        Tuple.of(
+          "fake5",
+          closestItem["category"],
+          closestItem["service"],
+          closestItem["itemID"],
+          closestItem["accessControlString"],
+          closestItem["brand"],
+          closestItem["model"],
+          closestItem["supplier"],
+          LocalDate.parse(closestItem["purchaseDate"]),
+          closestItem["purchasePrice"],
+          closestItem["originLocation"],
+          closestItem["currentLocation"],
+          closestItem["room"],
+          closestItem["contact"],
+          closestItem["currentOwner"],
+          closestItem["previousOwner"],
+          closestItem["orderNumber"],
+          closestItem["color"],
+          closestItem["serialNumber"],
+          LocalDate.parse(closestItem["maintenanceDate"]),
+          closestItem["status"],
+          closestItem["comments"],
+          LocalDate.parse(closestItem["lastModifiedDate"]),
+          closestItem["lastModifiedBy"]
+        )
+      ).await()
 
-        pgClient.preparedQuery(INSERT_BEACON_DATA)
-          .execute(
-            Tuple.of(
-              existingBeaconData.getString("mac"),
-              existingBeaconData.getInteger("battery") + 5,
-              existingBeaconData.getString("beaconStatus"),
-              existingBeaconData.getDouble("latitude"),
-              existingBeaconData.getDouble("longitude"),
-              existingBeaconData.getInteger("floor"),
-              existingBeaconData.getDouble("temperature")
-            )
-          ).await()
+    pgClient.preparedQuery(INSERT_BEACON_DATA)
+      .execute(
+        Tuple.of(
+          existingBeaconData.getString("mac"),
+          existingBeaconData.getInteger("battery") + 5,
+          existingBeaconData.getString("beaconStatus"),
+          existingBeaconData.getDouble("latitude"),
+          existingBeaconData.getDouble("longitude"),
+          existingBeaconData.getInteger("floor"),
+          existingBeaconData.getDouble("temperature")
+        )
+      ).await()
 
-        pgClient.preparedQuery(INSERT_BEACON_DATA)
-          .execute(
-            Tuple.of(
-              existingBeaconData.getString("mac"),
-              existingBeaconData.getInteger("battery"),
-              existingBeaconData.getString("beaconStatus"),
-              existingBeaconData.getDouble("latitude"),
-              existingBeaconData.getDouble("longitude"),
-              existingBeaconData.getInteger("floor"),
-              existingBeaconData.getDouble("temperature")
-            )
-          ).await()
+    pgClient.preparedQuery(INSERT_BEACON_DATA)
+      .execute(
+        Tuple.of(
+          existingBeaconData.getString("mac"),
+          existingBeaconData.getInteger("battery"),
+          existingBeaconData.getString("beaconStatus"),
+          existingBeaconData.getDouble("latitude"),
+          existingBeaconData.getDouble("longitude"),
+          existingBeaconData.getInteger("floor"),
+          existingBeaconData.getDouble("temperature")
+        )
+      ).await()
 
-        pgClient.preparedQuery(INSERT_BEACON_DATA)
-          .execute(
-            Tuple.of(
-              updateItemJson.getString("beacon"),
-              existingBeaconData.getInteger("battery"),
-              existingBeaconData.getString("beaconStatus"),
-              existingBeaconData.getDouble("latitude"),
-              existingBeaconData.getDouble("longitude"),
-              existingBeaconData.getInteger("floor"),
-              existingBeaconData.getDouble("temperature")
-            )
-          ).await()
+    pgClient.preparedQuery(INSERT_BEACON_DATA)
+      .execute(
+        Tuple.of(
+          updateItemJson.getString("beacon"),
+          existingBeaconData.getInteger("battery"),
+          existingBeaconData.getString("beaconStatus"),
+          existingBeaconData.getDouble("latitude"),
+          existingBeaconData.getDouble("longitude"),
+          existingBeaconData.getInteger("floor"),
+          existingBeaconData.getDouble("temperature")
+        )
+      ).await()
 
-        pgClient.preparedQuery(INSERT_BEACON_DATA)
-          .execute(
-            Tuple.of(
-              closestItem.getString("beacon"),
-              existingBeaconData.getInteger("battery"),
-              existingBeaconData.getString("beaconStatus"),
-              42,
-              -8,
-              existingBeaconData.getInteger("floor"),
-              existingBeaconData.getDouble("temperature")
-            )
-          ).await()
+    pgClient.preparedQuery(INSERT_BEACON_DATA)
+      .execute(
+        Tuple.of(
+          closestItem.getString("beacon"),
+          existingBeaconData.getInteger("battery"),
+          existingBeaconData.getString("beaconStatus"),
+          42,
+          -8,
+          existingBeaconData.getInteger("floor"),
+          existingBeaconData.getDouble("temperature")
+        )
+      ).await()
 
-        pgClient.preparedQuery(INSERT_BEACON_DATA)
-          .execute(
-            Tuple.of(
-              "fake1",
-              existingBeaconData.getInteger("battery"),
-              existingBeaconData.getString("beaconStatus"),
-              44,
-              -8,
-              existingBeaconData.getInteger("floor"),
-              existingBeaconData.getDouble("temperature")
-            )
-          ).await()
+    pgClient.preparedQuery(INSERT_BEACON_DATA)
+      .execute(
+        Tuple.of(
+          "fake1",
+          existingBeaconData.getInteger("battery"),
+          existingBeaconData.getString("beaconStatus"),
+          44,
+          -8,
+          existingBeaconData.getInteger("floor"),
+          existingBeaconData.getDouble("temperature")
+        )
+      ).await()
 
-        pgClient.preparedQuery(INSERT_BEACON_DATA)
-          .execute(
-            Tuple.of(
-              "fake2",
-              existingBeaconData.getInteger("battery"),
-              existingBeaconData.getString("beaconStatus"),
-              45,
-              -8,
-              existingBeaconData.getInteger("floor"),
-              existingBeaconData.getDouble("temperature")
-            )
-          ).await()
+    pgClient.preparedQuery(INSERT_BEACON_DATA)
+      .execute(
+        Tuple.of(
+          "fake2",
+          existingBeaconData.getInteger("battery"),
+          existingBeaconData.getString("beaconStatus"),
+          45,
+          -8,
+          existingBeaconData.getInteger("floor"),
+          existingBeaconData.getDouble("temperature")
+        )
+      ).await()
 
-        pgClient.preparedQuery(INSERT_BEACON_DATA)
-          .execute(
-            Tuple.of(
-              "fake3",
-              existingBeaconData.getInteger("battery"),
-              existingBeaconData.getString("beaconStatus"),
-              46,
-              -8,
-              existingBeaconData.getInteger("floor"),
-              existingBeaconData.getDouble("temperature")
-            )
-          ).await()
+    pgClient.preparedQuery(INSERT_BEACON_DATA)
+      .execute(
+        Tuple.of(
+          "fake3",
+          existingBeaconData.getInteger("battery"),
+          existingBeaconData.getString("beaconStatus"),
+          46,
+          -8,
+          existingBeaconData.getInteger("floor"),
+          existingBeaconData.getDouble("temperature")
+        )
+      ).await()
 
-        pgClient.preparedQuery(INSERT_BEACON_DATA)
-          .execute(
-            Tuple.of(
-              "fake4",
-              existingBeaconData.getInteger("battery"),
-              existingBeaconData.getString("beaconStatus"),
-              47,
-              -8,
-              existingBeaconData.getInteger("floor"),
-              existingBeaconData.getDouble("temperature")
-            )
-          ).await()
+    pgClient.preparedQuery(INSERT_BEACON_DATA)
+      .execute(
+        Tuple.of(
+          "fake4",
+          existingBeaconData.getInteger("battery"),
+          existingBeaconData.getString("beaconStatus"),
+          47,
+          -8,
+          existingBeaconData.getInteger("floor"),
+          existingBeaconData.getDouble("temperature")
+        )
+      ).await()
 
-        return pgClient.preparedQuery(INSERT_BEACON_DATA)
-          .execute(
-            Tuple.of(
-              "fake5",
-              existingBeaconData.getInteger("battery"),
-              existingBeaconData.getString("beaconStatus"),
-              47,
-              -8,
-              2,
-              3.3
-            )
-          )
+    return pgClient.preparedQuery(INSERT_BEACON_DATA)
+      .execute(
+        Tuple.of(
+          "fake5",
+          existingBeaconData.getInteger("battery"),
+          existingBeaconData.getString("beaconStatus"),
+          47,
+          -8,
+          2,
+          3.3
+        )
+      )
   }
 
   private suspend fun insertItemsAccessControl(): Future<RowSet<Row>> {
@@ -1715,8 +1715,10 @@ class TestCRUDVerticleItems {
   }
 
   @Test
-  @DisplayName("registerItem without specifying the accessControlString correctly registers a new item with " +
-    "the accessControlString set to '<company>' (here 'biot')")
+  @DisplayName(
+    "registerItem without specifying the accessControlString correctly registers a new item with " +
+      "the accessControlString set to '<company>' (here 'biot')"
+  )
   fun registerWithoutSpecifyingACStringIsCorrect(vertx: Vertx, testContext: VertxTestContext): Unit =
     runBlocking(vertx.dispatcher()) {
       val newItem = jsonObjectOf(
@@ -1958,8 +1960,10 @@ class TestCRUDVerticleItems {
     }
 
   @Test
-  @DisplayName("registerItem by specifying the accessControlString correctly registers a new item with " +
-    "the correct accessControlString")
+  @DisplayName(
+    "registerItem by specifying the accessControlString correctly registers a new item with " +
+      "the correct accessControlString"
+  )
   fun registerSpecifyingACStringCorrectlyIsCorrect(vertx: Vertx, testContext: VertxTestContext): Unit =
     runBlocking(vertx.dispatcher()) {
       val newItem = jsonObjectOf(
@@ -2050,8 +2054,10 @@ class TestCRUDVerticleItems {
     }
 
   @Test
-  @DisplayName("registerItem by not specifying the accessControlString registers a new item with " +
-    "the accessControlString set to <company> (here 'biot')")
+  @DisplayName(
+    "registerItem by not specifying the accessControlString registers a new item with " +
+      "the accessControlString set to <company> (here 'biot')"
+  )
   fun registerNotSpecifyingACStringIsCorrect(vertx: Vertx, testContext: VertxTestContext): Unit =
     runBlocking(vertx.dispatcher()) {
       val newItem = jsonObjectOf(
@@ -2547,8 +2553,11 @@ class TestCRUDVerticleItems {
           } When {
             queryParam("latitude", 42)
             queryParam("longitude", -8)
-            queryParam("accessControlString",
-              closestItemGrp1.getString("accessControlString").subSequence(0, closestItemGrp1.getString("accessControlString").length - 1))
+            queryParam(
+              "accessControlString",
+              closestItemGrp1.getString("accessControlString")
+                .subSequence(0, closestItemGrp1.getString("accessControlString").length - 1)
+            )
             get("/items/closest")
           } Then {
             statusCode(200)
@@ -2620,8 +2629,11 @@ class TestCRUDVerticleItems {
             queryParam("latitude", 42)
             queryParam("longitude", -8)
             queryParam("category", closestItemGrp1Cat2.getString("category"))
-            queryParam("accessControlString",
-              closestItemGrp1.getString("accessControlString").subSequence(0, closestItemGrp1.getString("accessControlString").length - 1))
+            queryParam(
+              "accessControlString",
+              closestItemGrp1.getString("accessControlString")
+                .subSequence(0, closestItemGrp1.getString("accessControlString").length - 1)
+            )
             get("/items/closest")
           } Then {
             statusCode(200)
@@ -2874,16 +2886,16 @@ class TestCRUDVerticleItems {
     }
 
     val response2 = Given {
-        spec(requestSpecification)
-        accept(ContentType.JSON)
-      } When {
-        queryParam("company", "biot")
-        get("/items/$id")
-      } Then {
-        statusCode(404)
-      } Extract {
-        asString()
-      }
+      spec(requestSpecification)
+      accept(ContentType.JSON)
+    } When {
+      queryParam("company", "biot")
+      get("/items/$id")
+    } Then {
+      statusCode(404)
+    } Extract {
+      asString()
+    }
 
 
     testContext.verify {
@@ -2942,7 +2954,7 @@ class TestCRUDVerticleItems {
       asString()
     }
 
-    testContext.verify{
+    testContext.verify {
       expectThat(id2).isNotEmpty()
     }
 
@@ -2966,6 +2978,280 @@ class TestCRUDVerticleItems {
       testContext.completeNow()
     }
   }
+
+  @Test
+  @DisplayName("updateItem correctly updates the desired item if the accessControlString authorizes the access 1")
+  fun updateItemIsCorrectWithSufficientACString1(vertx: Vertx, testContext: VertxTestContext) {
+    runBlocking(vertx.dispatcher()) {
+      insertItemsAccessControl().await()
+      val response = Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        accept(ContentType.JSON)
+        body(updateItemJson.encode())
+      } When {
+        queryParam("company", "biot")
+        queryParam("accessControlString", "biot:grp1:grp3")
+        put("/items/$existingItemGrp1Grp3Id")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+
+      testContext.verify {
+        expectThat(response).isEmpty()
+      }
+
+      try {
+        val res = pgClient.preparedQuery(getItem("items", "beacon_data")).execute(Tuple.of(existingItemID)).await()
+        val json = res.iterator().next().toItemJson()
+        expect {
+          that(json.getString("beacon")).isEqualTo(updateItemJson.getString("beacon"))
+          that(json.getString("accessControlString")).isEqualTo(existingItemGrp1Grp3.getString("accessControlString"))
+          that(json.getString("category")).isEqualTo(updateItemJson.getString("category"))
+          that(json.getString("service")).isEqualTo(updateItemJson.getString("service"))
+          that(json.getString("itemID")).isEqualTo(updateItemJson.getString("itemID"))
+          that(json.getString("brand")).isEqualTo(updateItemJson.getString("brand"))
+          that(json.getString("model")).isEqualTo(updateItemJson.getString("model"))
+          that(json.getString("supplier")).isEqualTo(updateItemJson.getString("supplier"))
+          that(json.getString("purchaseDate")).isEqualTo(updateItemJson.getString("purchaseDate"))
+          that(json.getDouble("purchasePrice")).isEqualTo(updateItemJson.getDouble("purchasePrice"))
+          that(json.getString("originLocation")).isEqualTo(updateItemJson.getString("originLocation"))
+          that(json.getString("currentLocation")).isEqualTo(updateItemJson.getString("currentLocation"))
+          that(json.getString("room")).isEqualTo(updateItemJson.getString("room"))
+          that(json.getString("contact")).isEqualTo(updateItemJson.getString("contact"))
+          that(json.getString("currentOwner")).isEqualTo(updateItemJson.getString("currentOwner"))
+          that(json.getString("previousOwner")).isEqualTo(updateItemJson.getString("previousOwner"))
+          that(json.getString("orderNumber")).isEqualTo(updateItemJson.getString("orderNumber"))
+          that(json.getString("color")).isEqualTo(updateItemJson.getString("color"))
+          that(json.getString("serialNumber")).isEqualTo(updateItemJson.getString("serialNumber"))
+          that(json.getString("maintenanceDate")).isEqualTo(updateItemJson.getString("maintenanceDate"))
+          that(json.getString("status")).isEqualTo(updateItemJson.getString("status"))
+          that(json.getString("comments")).isEqualTo(updateItemJson.getString("comments"))
+          that(json.getString("lastModifiedDate")).isEqualTo(updateItemJson.getString("lastModifiedDate"))
+          that(json.getString("lastModifiedBy")).isEqualTo(updateItemJson.getString("lastModifiedBy"))
+          that(json.getInteger("battery")).isEqualTo(existingBeaconData.getInteger("battery"))
+          that(json.getString("beaconStatus")).isEqualTo(existingBeaconData.getString("beaconStatus"))
+          that(json.getDouble("latitude")).isEqualTo(47.0)
+          that(json.getDouble("longitude")).isEqualTo(-8.0)
+          that(json.getInteger("floor")).isEqualTo(2)
+          that(json.getDouble("temperature")).isEqualTo(3.3)
+        }
+
+        testContext.completeNow()
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+  }
+
+
+  @Test
+  @DisplayName("updateItem correctly updates the desired item if the accessControlString authorizes the access 2")
+  fun updateItemIsCorrectWithSufficientACString2(vertx: Vertx, testContext: VertxTestContext) {
+    runBlocking(vertx.dispatcher()) {
+      insertItemsAccessControl().await()
+      val response = Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        accept(ContentType.JSON)
+        body(updateItemJson.encode())
+      } When {
+        queryParam("company", "biot")
+        queryParam("accessControlString", "biot:grp1")
+        put("/items/$existingItemGrp1Grp3Id")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+
+      testContext.verify {
+        expectThat(response).isEmpty()
+      }
+
+      try {
+        val res = pgClient.preparedQuery(getItem("items", "beacon_data")).execute(Tuple.of(existingItemID)).await()
+        val json = res.iterator().next().toItemJson()
+        expect {
+          that(json.getString("beacon")).isEqualTo(updateItemJson.getString("beacon"))
+          that(json.getString("accessControlString")).isEqualTo(existingItemGrp1Grp3.getString("accessControlString"))
+          that(json.getString("category")).isEqualTo(updateItemJson.getString("category"))
+          that(json.getString("service")).isEqualTo(updateItemJson.getString("service"))
+          that(json.getString("itemID")).isEqualTo(updateItemJson.getString("itemID"))
+          that(json.getString("brand")).isEqualTo(updateItemJson.getString("brand"))
+          that(json.getString("model")).isEqualTo(updateItemJson.getString("model"))
+          that(json.getString("supplier")).isEqualTo(updateItemJson.getString("supplier"))
+          that(json.getString("purchaseDate")).isEqualTo(updateItemJson.getString("purchaseDate"))
+          that(json.getDouble("purchasePrice")).isEqualTo(updateItemJson.getDouble("purchasePrice"))
+          that(json.getString("originLocation")).isEqualTo(updateItemJson.getString("originLocation"))
+          that(json.getString("currentLocation")).isEqualTo(updateItemJson.getString("currentLocation"))
+          that(json.getString("room")).isEqualTo(updateItemJson.getString("room"))
+          that(json.getString("contact")).isEqualTo(updateItemJson.getString("contact"))
+          that(json.getString("currentOwner")).isEqualTo(updateItemJson.getString("currentOwner"))
+          that(json.getString("previousOwner")).isEqualTo(updateItemJson.getString("previousOwner"))
+          that(json.getString("orderNumber")).isEqualTo(updateItemJson.getString("orderNumber"))
+          that(json.getString("color")).isEqualTo(updateItemJson.getString("color"))
+          that(json.getString("serialNumber")).isEqualTo(updateItemJson.getString("serialNumber"))
+          that(json.getString("maintenanceDate")).isEqualTo(updateItemJson.getString("maintenanceDate"))
+          that(json.getString("status")).isEqualTo(updateItemJson.getString("status"))
+          that(json.getString("comments")).isEqualTo(updateItemJson.getString("comments"))
+          that(json.getString("lastModifiedDate")).isEqualTo(updateItemJson.getString("lastModifiedDate"))
+          that(json.getString("lastModifiedBy")).isEqualTo(updateItemJson.getString("lastModifiedBy"))
+          that(json.getInteger("battery")).isEqualTo(existingBeaconData.getInteger("battery"))
+          that(json.getString("beaconStatus")).isEqualTo(existingBeaconData.getString("beaconStatus"))
+          that(json.getDouble("latitude")).isEqualTo(47.0)
+          that(json.getDouble("longitude")).isEqualTo(-8.0)
+          that(json.getInteger("floor")).isEqualTo(2)
+          that(json.getDouble("temperature")).isEqualTo(3.3)
+        }
+
+        testContext.completeNow()
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+  }
+
+
+  @Test
+  @DisplayName("updateItem does not update the desired item if the accessControlString does not authorize the access 1")
+  fun updateItemIsCorrectWithInsufficientACString1(vertx: Vertx, testContext: VertxTestContext) {
+    runBlocking(vertx.dispatcher()) {
+      insertItemsAccessControl().await()
+      val response = Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        accept(ContentType.JSON)
+        body(updateItemJson.encode())
+      } When {
+        queryParam("company", "biot")
+        queryParam("accessControlString", "biot:grp1:grp3:grp4")
+        put("/items/$existingItemGrp1Grp3Id")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+
+      testContext.verify {
+        expectThat(response).isEmpty()
+      }
+
+      try {
+        val res = pgClient.preparedQuery(getItem("items", "beacon_data")).execute(Tuple.of(existingItemID)).await()
+        val json = res.iterator().next().toItemJson()
+        expect {
+          that(json.getString("beacon")).isEqualTo(existingItemGrp1Grp3.getString("beacon"))
+          that(json.getString("accessControlString")).isEqualTo(existingItemGrp1Grp3.getString("accessControlString"))
+          that(json.getString("category")).isEqualTo(existingItemGrp1Grp3.getString("category"))
+          that(json.getString("service")).isEqualTo(existingItemGrp1Grp3.getString("service"))
+          that(json.getString("itemID")).isEqualTo(existingItemGrp1Grp3.getString("itemID"))
+          that(json.getString("brand")).isEqualTo(existingItemGrp1Grp3.getString("brand"))
+          that(json.getString("model")).isEqualTo(existingItemGrp1Grp3.getString("model"))
+          that(json.getString("supplier")).isEqualTo(existingItemGrp1Grp3.getString("supplier"))
+          that(json.getString("purchaseDate")).isEqualTo(existingItemGrp1Grp3.getString("purchaseDate"))
+          that(json.getDouble("purchasePrice")).isEqualTo(existingItemGrp1Grp3.getDouble("purchasePrice"))
+          that(json.getString("originLocation")).isEqualTo(existingItemGrp1Grp3.getString("originLocation"))
+          that(json.getString("currentLocation")).isEqualTo(existingItemGrp1Grp3.getString("currentLocation"))
+          that(json.getString("room")).isEqualTo(existingItemGrp1Grp3.getString("room"))
+          that(json.getString("contact")).isEqualTo(existingItemGrp1Grp3.getString("contact"))
+          that(json.getString("currentOwner")).isEqualTo(existingItemGrp1Grp3.getString("currentOwner"))
+          that(json.getString("previousOwner")).isEqualTo(existingItemGrp1Grp3.getString("previousOwner"))
+          that(json.getString("orderNumber")).isEqualTo(existingItemGrp1Grp3.getString("orderNumber"))
+          that(json.getString("color")).isEqualTo(existingItemGrp1Grp3.getString("color"))
+          that(json.getString("serialNumber")).isEqualTo(existingItemGrp1Grp3.getString("serialNumber"))
+          that(json.getString("maintenanceDate")).isEqualTo(existingItemGrp1Grp3.getString("maintenanceDate"))
+          that(json.getString("status")).isEqualTo(existingItemGrp1Grp3.getString("status"))
+          that(json.getString("comments")).isEqualTo(existingItemGrp1Grp3.getString("comments"))
+          that(json.getString("lastModifiedDate")).isEqualTo(existingItemGrp1Grp3.getString("lastModifiedDate"))
+          that(json.getString("lastModifiedBy")).isEqualTo(existingItemGrp1Grp3.getString("lastModifiedBy"))
+          that(json.getInteger("battery")).isEqualTo(existingBeaconData.getInteger("battery"))
+          that(json.getString("beaconStatus")).isEqualTo(existingBeaconData.getString("beaconStatus"))
+          that(json.getDouble("latitude")).isEqualTo(47.0)
+          that(json.getDouble("longitude")).isEqualTo(-8.0)
+          that(json.getInteger("floor")).isEqualTo(2)
+          that(json.getDouble("temperature")).isEqualTo(3.3)
+        }
+
+        testContext.completeNow()
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+  }
+
+
+
+  @Test
+  @DisplayName("updateItem does not update the desired item if the accessControlString does not authorize the access 2")
+  fun updateItemIsCorrectWithInsufficientACString2(vertx: Vertx, testContext: VertxTestContext) {
+      runBlocking(vertx.dispatcher()) {
+        insertItemsAccessControl().await()
+          val response = Given {
+            spec(requestSpecification)
+            contentType(ContentType.JSON)
+            accept(ContentType.JSON)
+            body(updateItemJson.encode())
+          } When {
+            queryParam("company", "biot")
+            queryParam("accessControlString", "biot:grp2")
+            put("/items/$existingItemGrp1Grp3Id")
+          } Then {
+            statusCode(200)
+          } Extract {
+            asString()
+          }
+
+          testContext.verify {
+            expectThat(response).isEmpty()
+          }
+
+          try {
+            val res = pgClient.preparedQuery(getItem("items", "beacon_data")).execute(Tuple.of(existingItemID)).await()
+            val json = res.iterator().next().toItemJson()
+            expect {
+              that(json.getString("beacon")).isEqualTo(existingItemGrp1Grp3.getString("beacon"))
+              that(json.getString("accessControlString")).isEqualTo(existingItemGrp1Grp3.getString("accessControlString"))
+              that(json.getString("category")).isEqualTo(existingItemGrp1Grp3.getString("category"))
+              that(json.getString("service")).isEqualTo(existingItemGrp1Grp3.getString("service"))
+              that(json.getString("itemID")).isEqualTo(existingItemGrp1Grp3.getString("itemID"))
+              that(json.getString("brand")).isEqualTo(existingItemGrp1Grp3.getString("brand"))
+              that(json.getString("model")).isEqualTo(existingItemGrp1Grp3.getString("model"))
+              that(json.getString("supplier")).isEqualTo(existingItemGrp1Grp3.getString("supplier"))
+              that(json.getString("purchaseDate")).isEqualTo(existingItemGrp1Grp3.getString("purchaseDate"))
+              that(json.getDouble("purchasePrice")).isEqualTo(existingItemGrp1Grp3.getDouble("purchasePrice"))
+              that(json.getString("originLocation")).isEqualTo(existingItemGrp1Grp3.getString("originLocation"))
+              that(json.getString("currentLocation")).isEqualTo(existingItemGrp1Grp3.getString("currentLocation"))
+              that(json.getString("room")).isEqualTo(existingItemGrp1Grp3.getString("room"))
+              that(json.getString("contact")).isEqualTo(existingItemGrp1Grp3.getString("contact"))
+              that(json.getString("currentOwner")).isEqualTo(existingItemGrp1Grp3.getString("currentOwner"))
+              that(json.getString("previousOwner")).isEqualTo(existingItemGrp1Grp3.getString("previousOwner"))
+              that(json.getString("orderNumber")).isEqualTo(existingItemGrp1Grp3.getString("orderNumber"))
+              that(json.getString("color")).isEqualTo(existingItemGrp1Grp3.getString("color"))
+              that(json.getString("serialNumber")).isEqualTo(existingItemGrp1Grp3.getString("serialNumber"))
+              that(json.getString("maintenanceDate")).isEqualTo(existingItemGrp1Grp3.getString("maintenanceDate"))
+              that(json.getString("status")).isEqualTo(existingItemGrp1Grp3.getString("status"))
+              that(json.getString("comments")).isEqualTo(existingItemGrp1Grp3.getString("comments"))
+              that(json.getString("lastModifiedDate")).isEqualTo(existingItemGrp1Grp3.getString("lastModifiedDate"))
+              that(json.getString("lastModifiedBy")).isEqualTo(existingItemGrp1Grp3.getString("lastModifiedBy"))
+              that(json.getInteger("battery")).isEqualTo(existingBeaconData.getInteger("battery"))
+              that(json.getString("beaconStatus")).isEqualTo(existingBeaconData.getString("beaconStatus"))
+              that(json.getDouble("latitude")).isEqualTo(47.0)
+              that(json.getDouble("longitude")).isEqualTo(-8.0)
+              that(json.getInteger("floor")).isEqualTo(2)
+              that(json.getDouble("temperature")).isEqualTo(3.3)
+            }
+
+            testContext.completeNow()
+          } catch (error: Throwable) {
+            testContext.failNow(error)
+          }
+        }
+      }
+
+
 
   companion object {
 

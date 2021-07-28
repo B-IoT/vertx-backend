@@ -804,8 +804,16 @@ class CRUDVerticle : CoroutineVerticle() {
       val info = extractItemInformation(json, keepNulls = false)
       val data = listOf(id.toInt(), *info.map { it.second }.toTypedArray())
       val table = ctx.getCollection(ITEMS_TABLE)
+
+      val params = ctx.queryParams()
+
+      val executedQuery = if(params.contains("accessControlString")){
+        pgClient.preparedQuery(updateItemWithAC(table, info.map { it.first }, params["accessControlString"])).execute(Tuple.tuple(data))
+      } else {
+        pgClient.preparedQuery(updateItem(table, info.map { it.first })).execute(Tuple.tuple(data))
+      }
       executeWithErrorHandling("Could not update item $id", ctx) {
-        pgClient.preparedQuery(updateItem(table, info.map { it.first })).execute(Tuple.tuple(data)).await()
+        executedQuery.await()
         LOGGER.info { "Successfully updated item $id" }
         ctx.end()
       }

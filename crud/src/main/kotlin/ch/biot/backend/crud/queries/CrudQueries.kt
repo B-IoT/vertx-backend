@@ -46,6 +46,11 @@ fun updateItem(itemsTable: String, updatedColumns: List<String>): String {
   return "UPDATE $itemsTable SET $columnsWithValues WHERE id = $1"
 }
 
+fun updateItemWithAC(itemsTable: String, updatedColumns: List<String>, accessControlString: String): String {
+  val columnsWithValues = updatedColumns.mapIndexed { index, colName -> "$colName = \$${index + 2}" }.joinToString()
+  return "UPDATE $itemsTable SET $columnsWithValues WHERE id = $1 AND (accessControlString LIKE '$accessControlString:%' OR accessControlString LIKE '$accessControlString')"
+}
+
 fun deleteItem(itemsTable: String) = "DELETE FROM $itemsTable WHERE id=$1"
 fun deleteItemWithAC(itemsTable: String, accessControlString: String) = "DELETE FROM $itemsTable WHERE id=$1 AND (accessControlString LIKE '$accessControlString:%' OR accessControlString LIKE '$accessControlString')"
 
