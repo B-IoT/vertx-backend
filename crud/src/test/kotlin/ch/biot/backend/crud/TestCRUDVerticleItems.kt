@@ -2515,7 +2515,40 @@ class TestCRUDVerticleItems {
   }
 
   @Test
-  @DisplayName("getClosestItems correctly retrieves the 1 closest items of the given category per floor with AC")
+  @DisplayName("getClosestItems correctly retrieves nothing per floor with partially prefix AC")
+  fun getClosestItemsIsCorrectWithIncorrectAC(vertx: Vertx, testContext: VertxTestContext) {
+    runBlocking(vertx.dispatcher()) {
+      insertItemsAccessControl().onFailure {
+        testContext.failNow("Cannot insert objects prior to the test")
+      }.onSuccess {
+        val response = Buffer.buffer(
+          Given {
+            spec(requestSpecification)
+            accept(ContentType.JSON)
+          } When {
+            queryParam("latitude", 42)
+            queryParam("longitude", -8)
+            queryParam("accessControlString",
+              closestItemGrp1.getString("accessControlString").subSequence(0, closestItemGrp1.getString("accessControlString").length - 1))
+            get("/items/closest")
+          } Then {
+            statusCode(200)
+          } Extract {
+            asString()
+          }
+        ).toJsonObject()
+
+        testContext.verify {
+          expectThat(response.size()).isEqualTo(0)
+
+          testContext.completeNow()
+        }
+      }
+    }
+  }
+
+  @Test
+  @DisplayName("getClosestItems correctly retrieves nothing with a category per floor with AC")
   fun getClosestItemsWithCategoryIsCorrectWithAC(vertx: Vertx, testContext: VertxTestContext) {
     runBlocking(vertx.dispatcher()) {
       insertItemsAccessControl().onFailure {
@@ -2546,11 +2579,40 @@ class TestCRUDVerticleItems {
           expectThat(closestFirstFloor.getString("category")).isEqualTo(closestItemGrp1Cat2.getString("category"))
           expectThat(closestFirstFloor.getString("beacon")).isEqualTo(closestItemGrp1Cat2.getString("beacon"))
 
-//          val secondFloor: JsonArray = response["2"]
-//          val closestSecondFloor = secondFloor.getJsonObject(0)
-//          expectThat(closestSecondFloor.getString("category")).isEqualTo(closestItem.getString("category"))
-//          expectThat(closestSecondFloor.getString("beacon")).isEqualTo("fake5")
+          testContext.completeNow()
+        }
+      }
+    }
+  }
 
+
+  @Test
+  @DisplayName("getClosestItems correctly retrieves the 1 closest items of the given category per floor with partially prefix AC")
+  fun getClosestItemsWithCategoryIsCorrectWithIncorrectAC(vertx: Vertx, testContext: VertxTestContext) {
+    runBlocking(vertx.dispatcher()) {
+      insertItemsAccessControl().onFailure {
+        testContext.failNow("Cannot insert objects prior to the test")
+      }.onSuccess {
+        val response = Buffer.buffer(
+          Given {
+            spec(requestSpecification)
+            accept(ContentType.JSON)
+          } When {
+            queryParam("latitude", 42)
+            queryParam("longitude", -8)
+            queryParam("category", closestItemGrp1Cat2.getString("category"))
+            queryParam("accessControlString",
+              closestItemGrp1.getString("accessControlString").subSequence(0, closestItemGrp1.getString("accessControlString").length - 1))
+            get("/items/closest")
+          } Then {
+            statusCode(200)
+          } Extract {
+            asString()
+          }
+        ).toJsonObject()
+
+        testContext.verify {
+          expectThat(response.size()).isEqualTo(0)
           testContext.completeNow()
         }
       }
