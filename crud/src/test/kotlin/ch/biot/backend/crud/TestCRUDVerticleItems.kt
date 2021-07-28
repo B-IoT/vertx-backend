@@ -2768,6 +2768,130 @@ class TestCRUDVerticleItems {
     }
   }
 
+  @Test
+  @DisplayName("deleteItem does not delete the item if the accessString does not allow access")
+  fun deleteItemIsCorrectWithInsufficientAccessString(testContext: VertxTestContext) {
+    val newItem = jsonObjectOf(
+      "beacon" to "ab:cd:ef:aa:aa:aa",
+      "category" to "Lit",
+      "accessControlString" to "biot:grp1",
+      "service" to "Bloc 42"
+    )
+
+    // Register the item
+    val id = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      body(newItem.encode())
+    } When {
+      queryParam("company", "biot")
+      post("/items")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    // Delete the item
+    val response = Given {
+      spec(requestSpecification)
+    } When {
+      queryParam("company", "biot")
+      queryParam("accessControlString", "biot:grp1:grp2")
+      delete("/items/$id")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEmpty()
+    }
+
+    val response2 = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        accept(ContentType.JSON)
+      } When {
+        queryParam("company", "biot")
+        get("/items/$id")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonObject()
+
+    testContext.verify {
+      val idBis = response2.remove("id")
+      expectThat(idBis).isEqualTo(id.toInt())
+      val beacon: String = response2.remove("beacon") as String
+      expectThat(beacon).isEqualTo(newItem.getString("beacon"))
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("deleteItem does delete the item if the accessString does allow access")
+  fun deleteItemIsCorrectWithSufficientAccessString(testContext: VertxTestContext) {
+    val newItem = jsonObjectOf(
+      "beacon" to "ab:cd:ef:aa:aa:aa",
+      "category" to "Lit",
+      "accessControlString" to "biot:grp1",
+      "service" to "Bloc 42"
+    )
+
+    // Register the item
+    val id = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      body(newItem.encode())
+    } When {
+      queryParam("company", "biot")
+      post("/items")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    // Delete the item
+    val response = Given {
+      spec(requestSpecification)
+    } When {
+      queryParam("company", "biot")
+      queryParam("accessControlString", "biot:grp1")
+      delete("/items/$id")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEmpty()
+    }
+
+    val response2 = Given {
+        spec(requestSpecification)
+        accept(ContentType.JSON)
+      } When {
+        queryParam("company", "biot")
+        get("/items/$id")
+      } Then {
+        statusCode(404)
+      } Extract {
+        asString()
+      }
+
+
+    testContext.verify {
+      expectThat(response2).isEmpty()
+      testContext.completeNow()
+    }
+  }
+
   companion object {
 
     private const val ITEMS_UPDATES_ADDRESS = "items.updates.biot"

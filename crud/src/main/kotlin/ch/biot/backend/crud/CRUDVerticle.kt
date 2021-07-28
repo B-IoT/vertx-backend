@@ -819,9 +819,17 @@ class CRUDVerticle : CoroutineVerticle() {
     val itemID = ctx.pathParam("id").toInt() // the id needs to be converted to Int, as the DB stores it as an integer
     LOGGER.info { "New deleteItem request for item $itemID" }
 
+    val params = ctx.queryParams()
+
     val table = ctx.getCollection(ITEMS_TABLE)
+
+    val executedQuery = if(params.contains("accessControlString")){
+      pgClient.preparedQuery(deleteItemWithAC(table, params["accessControlString"])).execute(Tuple.of(itemID))
+    } else {
+      pgClient.preparedQuery(deleteItem(table)).execute(Tuple.of(itemID))
+    }
     executeWithErrorHandling("Could not delete item", ctx) {
-      pgClient.preparedQuery(deleteItem(table)).execute(Tuple.of(itemID)).await()
+      executedQuery.await()
       ctx.end()
     }
   }
