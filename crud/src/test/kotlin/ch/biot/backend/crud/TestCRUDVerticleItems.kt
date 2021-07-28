@@ -229,6 +229,60 @@ class TestCRUDVerticleItems {
     "lastModifiedBy" to "Monsieur Duport"
   )
 
+  private val closestItemGrp1 = jsonObjectOf(
+    "beacon" to "ff:ff:ab:ab:ab:ab",
+    "category" to "Lit",
+    "service" to "Bloc 1",
+    "itemID" to "cde",
+    "accessControlString" to "biot:grp1",
+    "brand" to "mazda",
+    "model" to "mx5",
+    "supplier" to "plier",
+    "purchaseDate" to LocalDate.of(2021, 8, 20).toString(),
+    "purchasePrice" to 57.8,
+    "originLocation" to "center3",
+    "currentLocation" to "center4",
+    "room" to "614",
+    "contact" to "Monsieur Delacroix",
+    "currentOwner" to "Monsieur Dupont",
+    "previousOwner" to "Monsieur Dupond",
+    "orderNumber" to "abcdf",
+    "color" to "red",
+    "serialNumber" to "abcdf",
+    "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
+    "status" to "In maintenance",
+    "comments" to "A comment",
+    "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+    "lastModifiedBy" to "Monsieur Duport"
+  )
+
+  private val closestItemGrp1Cat2 = jsonObjectOf(
+    "beacon" to "fakeCloseGrp1Ct2",
+    "category" to "Lit2",
+    "service" to "Bloc 1",
+    "itemID" to "cde",
+    "accessControlString" to "biot:grp1",
+    "brand" to "mazda",
+    "model" to "mx5",
+    "supplier" to "plier",
+    "purchaseDate" to LocalDate.of(2021, 8, 20).toString(),
+    "purchasePrice" to 57.8,
+    "originLocation" to "center3",
+    "currentLocation" to "center4",
+    "room" to "614",
+    "contact" to "Monsieur Delacroix",
+    "currentOwner" to "Monsieur Dupont",
+    "previousOwner" to "Monsieur Dupond",
+    "orderNumber" to "abcdf",
+    "color" to "red",
+    "serialNumber" to "abcdf",
+    "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
+    "status" to "In maintenance",
+    "comments" to "A comment",
+    "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+    "lastModifiedBy" to "Monsieur Duport"
+  )
+
   @BeforeEach
   fun setup(vertx: Vertx, testContext: VertxTestContext) = runBlocking(vertx.dispatcher()) {
     val pgConnectOptions =
@@ -650,7 +704,7 @@ class TestCRUDVerticleItems {
         )
       ).await()
 
-    return pgClient.preparedQuery(insertItem("items"))
+    pgClient.preparedQuery(insertItem("items"))
       .execute(
         Tuple.of(
           "fake8",
@@ -677,6 +731,105 @@ class TestCRUDVerticleItems {
           existingItemGrp1Grp3["comments"],
           LocalDate.parse(existingItemGrp1Grp3["lastModifiedDate"]),
           existingItemGrp1Grp3["lastModifiedBy"]
+        )
+      )
+
+    pgClient.preparedQuery(INSERT_BEACON_DATA)
+      .execute(
+        Tuple.of(
+          "fakeClosestGrp1",
+          existingBeaconData.getInteger("battery"),
+          existingBeaconData.getString("beaconStatus"),
+          42,
+          -8,
+          existingBeaconData.getInteger("floor"),
+          existingBeaconData.getDouble("temperature")
+        )
+      ).await()
+
+    pgClient.preparedQuery(INSERT_BEACON_DATA)
+      .execute(
+        Tuple.of(
+          closestItemGrp1Cat2.getString("beacon"),
+          existingBeaconData.getInteger("battery"),
+          existingBeaconData.getString("beaconStatus"),
+          42,
+          -8,
+          existingBeaconData.getInteger("floor"),
+          existingBeaconData.getDouble("temperature")
+        )
+      ).await()
+
+    pgClient.preparedQuery(INSERT_BEACON_DATA)
+      .execute(
+        Tuple.of(
+          "fake8",
+          existingBeaconData.getInteger("battery"),
+          existingBeaconData.getString("status"),
+          47,
+          -8,
+          2,
+          3.3
+        )
+      )
+
+    pgClient.preparedQuery(insertItem("items"))
+      .execute(
+        Tuple.of(
+          closestItemGrp1Cat2["beacon"],
+          closestItemGrp1Cat2["category"],
+          closestItemGrp1Cat2["service"],
+          closestItemGrp1Cat2["itemID"],
+          closestItemGrp1Cat2["accessControlString"],
+          closestItemGrp1Cat2["brand"],
+          closestItemGrp1Cat2["model"],
+          closestItemGrp1Cat2["supplier"],
+          LocalDate.parse(closestItemGrp1Cat2["purchaseDate"]),
+          closestItemGrp1Cat2["purchasePrice"],
+          closestItemGrp1Cat2["originLocation"],
+          closestItemGrp1Cat2["currentLocation"],
+          closestItemGrp1Cat2["room"],
+          closestItemGrp1Cat2["contact"],
+          closestItemGrp1Cat2["currentOwner"],
+          closestItemGrp1Cat2["previousOwner"],
+          closestItemGrp1Cat2["orderNumber"],
+          closestItemGrp1Cat2["color"],
+          closestItemGrp1Cat2["serialNumber"],
+          LocalDate.parse(closestItemGrp1Cat2["maintenanceDate"]),
+          closestItemGrp1Cat2["status"],
+          closestItemGrp1Cat2["comments"],
+          LocalDate.parse(closestItemGrp1Cat2["lastModifiedDate"]),
+          closestItemGrp1Cat2["lastModifiedBy"]
+        )
+      )
+
+    return pgClient.preparedQuery(insertItem("items"))
+      .execute(
+        Tuple.of(
+          "fakeClosestGrp1",
+          closestItemGrp1["category"],
+          closestItemGrp1["service"],
+          closestItemGrp1["itemID"],
+          closestItemGrp1["accessControlString"],
+          closestItemGrp1["brand"],
+          closestItemGrp1["model"],
+          closestItemGrp1["supplier"],
+          LocalDate.parse(closestItemGrp1["purchaseDate"]),
+          closestItemGrp1["purchasePrice"],
+          closestItemGrp1["originLocation"],
+          closestItemGrp1["currentLocation"],
+          closestItemGrp1["room"],
+          closestItemGrp1["contact"],
+          closestItemGrp1["currentOwner"],
+          closestItemGrp1["previousOwner"],
+          closestItemGrp1["orderNumber"],
+          closestItemGrp1["color"],
+          closestItemGrp1["serialNumber"],
+          LocalDate.parse(closestItemGrp1["maintenanceDate"]),
+          closestItemGrp1["status"],
+          closestItemGrp1["comments"],
+          LocalDate.parse(closestItemGrp1["lastModifiedDate"]),
+          closestItemGrp1["lastModifiedBy"]
         )
       )
   }
@@ -1991,7 +2144,7 @@ class TestCRUDVerticleItems {
 
         testContext.verify {
           expectThat(response.isEmpty).isFalse()
-          expectThat(response.size()).isEqualTo(10)
+          expectThat(response.size()).isEqualTo(12)
           testContext.completeNow()
         }
       }
@@ -2023,12 +2176,16 @@ class TestCRUDVerticleItems {
 
         testContext.verify {
           expectThat(response.isEmpty).isFalse()
-          expectThat(response.size()).isEqualTo(2)
+          expectThat(response.size()).isEqualTo(4)
           val accessString1 = response.getJsonObject(0).getString("accessControlString")
           val accessString2 = response.getJsonObject(1).getString("accessControlString")
+          val accessString3 = response.getJsonObject(2).getString("accessControlString")
+          val accessString4 = response.getJsonObject(3).getString("accessControlString")
 
           expectThat(accessString1).startsWith(accessControlString)
           expectThat(accessString2).startsWith(accessControlString)
+          expectThat(accessString3).startsWith(accessControlString)
+          expectThat(accessString4).startsWith(accessControlString)
           testContext.completeNow()
         }
       }
@@ -2313,6 +2470,89 @@ class TestCRUDVerticleItems {
         testContext.completeNow()
       } catch (error: Throwable) {
         testContext.failNow(error)
+      }
+    }
+  }
+
+  @Test
+  @DisplayName("getClosestItems correctly retrieves the closest items per floor with correct AC")
+  fun getClosestItemsIsCorrectWithAC(vertx: Vertx, testContext: VertxTestContext) {
+    runBlocking(vertx.dispatcher()) {
+      insertItemsAccessControl().onFailure {
+        testContext.failNow("Cannot insert objects prior to the test")
+      }.onSuccess {
+        val response = Buffer.buffer(
+          Given {
+            spec(requestSpecification)
+            accept(ContentType.JSON)
+          } When {
+            queryParam("latitude", 42)
+            queryParam("longitude", -8)
+            queryParam("accessControlString", closestItemGrp1.getString("accessControlString"))
+            get("/items/closest")
+          } Then {
+            statusCode(200)
+          } Extract {
+            asString()
+          }
+        ).toJsonObject()
+
+        testContext.verify {
+          val firstFloor: JsonArray = response["1"]
+          expectThat(firstFloor.size()).isEqualTo(2)
+          val closestFirstFloor = firstFloor.getJsonObject(0)
+          expectThat(closestFirstFloor.getString("beacon")).isEqualTo("fakeClosestGrp1")
+
+          val secondFloor: JsonArray = response["2"]
+          expectThat(secondFloor.size()).isEqualTo(1)
+          val closestSecondFloor = secondFloor.getJsonObject(0)
+          expectThat(closestSecondFloor.getString("beacon")).isEqualTo("fake8")
+
+          testContext.completeNow()
+        }
+      }
+    }
+  }
+
+  @Test
+  @DisplayName("getClosestItems correctly retrieves the 1 closest items of the given category per floor with AC")
+  fun getClosestItemsWithCategoryIsCorrectWithAC(vertx: Vertx, testContext: VertxTestContext) {
+    runBlocking(vertx.dispatcher()) {
+      insertItemsAccessControl().onFailure {
+        testContext.failNow("Cannot insert objects prior to the test")
+      }.onSuccess {
+        val response = Buffer.buffer(
+          Given {
+            spec(requestSpecification)
+            accept(ContentType.JSON)
+          } When {
+            queryParam("latitude", 42)
+            queryParam("longitude", -8)
+            queryParam("category", closestItemGrp1Cat2.getString("category"))
+            queryParam("accessControlString", closestItemGrp1Cat2.getString("accessControlString"))
+            get("/items/closest")
+          } Then {
+            statusCode(200)
+          } Extract {
+            asString()
+          }
+        ).toJsonObject()
+
+        testContext.verify {
+          expectThat(response.size()).isEqualTo(1)
+          val firstFloor: JsonArray = response["1"]
+          expectThat(firstFloor.size()).isEqualTo(1)
+          val closestFirstFloor = firstFloor.getJsonObject(0)
+          expectThat(closestFirstFloor.getString("category")).isEqualTo(closestItemGrp1Cat2.getString("category"))
+          expectThat(closestFirstFloor.getString("beacon")).isEqualTo(closestItemGrp1Cat2.getString("beacon"))
+
+//          val secondFloor: JsonArray = response["2"]
+//          val closestSecondFloor = secondFloor.getJsonObject(0)
+//          expectThat(closestSecondFloor.getString("category")).isEqualTo(closestItem.getString("category"))
+//          expectThat(closestSecondFloor.getString("beacon")).isEqualTo("fake5")
+
+          testContext.completeNow()
+        }
       }
     }
   }

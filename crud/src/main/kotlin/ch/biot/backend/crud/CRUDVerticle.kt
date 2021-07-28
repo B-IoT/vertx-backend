@@ -709,11 +709,21 @@ class CRUDVerticle : CoroutineVerticle() {
     val beaconDataTable = ctx.getCollection(BEACON_DATA_TABLE)
 
     val executedQuery = if (params.contains("category")) {
-      pgClient.preparedQuery(getClosestItemsWithCategory(itemsTable, beaconDataTable))
-        .execute(Tuple.of(params["category"], latitude, longitude))
+      if (params.contains("accessControlString")){
+        pgClient.preparedQuery(getClosestItemsWithCategoryWithAC(itemsTable, beaconDataTable, params["accessControlString"]))
+          .execute(Tuple.of(params["category"], latitude, longitude))
+      } else {
+        pgClient.preparedQuery(getClosestItemsWithCategory(itemsTable, beaconDataTable))
+          .execute(Tuple.of(params["category"], latitude, longitude))
+      }
     } else {
-      pgClient.preparedQuery(getClosestItems(itemsTable, beaconDataTable))
-        .execute(Tuple.of(latitude, longitude))
+      if (params.contains("accessControlString")){
+        pgClient.preparedQuery(getClosestItemsWithAC(itemsTable, beaconDataTable, params["accessControlString"]))
+          .execute(Tuple.of(latitude, longitude))
+      } else {
+        pgClient.preparedQuery(getClosestItems(itemsTable, beaconDataTable))
+          .execute(Tuple.of(latitude, longitude))
+      }
     }
 
     executeWithErrorHandling("Could not get closest items", ctx) {
