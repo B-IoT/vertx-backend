@@ -258,9 +258,9 @@ class Triangulator:
             temp = np.concatenate(([1], temp.flatten()))
             matrix_dist_temp[index] = self.reg_kalman.predict(np.array(temp).reshape(1, -1))/100
 
-            # Stack matrix_dist_temp onto matrix_dist
-            np.dstack((matrix_dist_temp, self.matrix_dist))
-            self.matrix_dist = self.matrix_dist[:,:,0:max_history]
+        # Stack matrix_dist_temp onto matrix_dist
+        np.dstack((matrix_dist_temp, self.matrix_dist))
+        self.matrix_dist = self.matrix_dist[:,:,0:max_history]
             
         return
      
