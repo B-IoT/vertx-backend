@@ -3255,6 +3255,151 @@ class TestCRUDVerticleItems {
         }
       }
 
+  @Test
+  @DisplayName("updateItem returns bad request error 400 if the passed accessControlString to update is wrongly formatted" +
+    "and does not modify the item 1")
+  fun updateItemThrowsErrorIfUpdatedACStringIsWrong1(vertx: Vertx, testContext: VertxTestContext) {
+    runBlocking(vertx.dispatcher()) {
+      insertItemsAccessControl().await()
+
+      val newUpdateItem = updateItemJson.copy().apply {
+        remove("accessControlString")
+        put("accessControlString", "bio")
+      }
+      val response = Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        accept(ContentType.JSON)
+        body(newUpdateItem.encode())
+      } When {
+        queryParam("company", "biot")
+        queryParam("accessControlString", "biot:grp1:grp3")
+        put("/items/$existingItemGrp1Grp3Id")
+      } Then {
+        statusCode(400)
+      } Extract {
+        asString()
+      }
+
+      testContext.verify {
+        expectThat(response).isEqualTo("Bad Request")
+      }
+
+      try {
+        val res = pgClient.preparedQuery(getItem("items", "beacon_data")).execute(Tuple.of(existingItemGrp1Grp3Id)).await()
+        val json = res.iterator().next().toItemJson()
+        expect {
+          that(json.getString("beacon")).isEqualTo(existingItemGrp1Grp3.getString("beacon"))
+          that(json.getString("accessControlString")).isEqualTo(existingItemGrp1Grp3.getString("accessControlString"))
+          that(json.getString("category")).isEqualTo(existingItemGrp1Grp3.getString("category"))
+          that(json.getString("service")).isEqualTo(existingItemGrp1Grp3.getString("service"))
+          that(json.getString("itemID")).isEqualTo(existingItemGrp1Grp3.getString("itemID"))
+          that(json.getString("brand")).isEqualTo(existingItemGrp1Grp3.getString("brand"))
+          that(json.getString("model")).isEqualTo(existingItemGrp1Grp3.getString("model"))
+          that(json.getString("supplier")).isEqualTo(existingItemGrp1Grp3.getString("supplier"))
+          that(json.getString("purchaseDate")).isEqualTo(existingItemGrp1Grp3.getString("purchaseDate"))
+          that(json.getDouble("purchasePrice")).isEqualTo(existingItemGrp1Grp3.getDouble("purchasePrice"))
+          that(json.getString("originLocation")).isEqualTo(existingItemGrp1Grp3.getString("originLocation"))
+          that(json.getString("currentLocation")).isEqualTo(existingItemGrp1Grp3.getString("currentLocation"))
+          that(json.getString("room")).isEqualTo(existingItemGrp1Grp3.getString("room"))
+          that(json.getString("contact")).isEqualTo(existingItemGrp1Grp3.getString("contact"))
+          that(json.getString("currentOwner")).isEqualTo(existingItemGrp1Grp3.getString("currentOwner"))
+          that(json.getString("previousOwner")).isEqualTo(existingItemGrp1Grp3.getString("previousOwner"))
+          that(json.getString("orderNumber")).isEqualTo(existingItemGrp1Grp3.getString("orderNumber"))
+          that(json.getString("color")).isEqualTo(existingItemGrp1Grp3.getString("color"))
+          that(json.getString("serialNumber")).isEqualTo(existingItemGrp1Grp3.getString("serialNumber"))
+          that(json.getString("maintenanceDate")).isEqualTo(existingItemGrp1Grp3.getString("maintenanceDate"))
+          that(json.getString("status")).isEqualTo(existingItemGrp1Grp3.getString("status"))
+          that(json.getString("comments")).isEqualTo(existingItemGrp1Grp3.getString("comments"))
+          that(json.getString("lastModifiedDate")).isEqualTo(existingItemGrp1Grp3.getString("lastModifiedDate"))
+          that(json.getString("lastModifiedBy")).isEqualTo(existingItemGrp1Grp3.getString("lastModifiedBy"))
+          that(json.getInteger("battery")).isEqualTo(existingBeaconData.getInteger("battery"))
+          that(json.getString("beaconStatus")).isEqualTo(existingBeaconData.getString("beaconStatus"))
+          that(json.getDouble("latitude")).isEqualTo(47.0)
+          that(json.getDouble("longitude")).isEqualTo(-8.0)
+          that(json.getInteger("floor")).isEqualTo(2)
+          that(json.getDouble("temperature")).isEqualTo(3.3)
+        }
+
+        testContext.completeNow()
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+  }
+
+  @Test
+  @DisplayName("updateItem returns bad request error 400 if the passed accessControlString to update is wrongly formatted" +
+    "and does not modify the item 2")
+  fun updateItemThrowsErrorIfUpdatedACStringIsWrong2(vertx: Vertx, testContext: VertxTestContext) {
+    runBlocking(vertx.dispatcher()) {
+      insertItemsAccessControl().await()
+
+      val newUpdateItem = updateItemJson.copy().apply {
+        remove("accessControlString")
+        put("accessControlString", "biot:grp1:")
+      }
+      val response = Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        accept(ContentType.JSON)
+        body(newUpdateItem.encode())
+      } When {
+        queryParam("company", "biot")
+        queryParam("accessControlString", "biot:grp1:grp3")
+        put("/items/$existingItemGrp1Grp3Id")
+      } Then {
+        statusCode(400)
+      } Extract {
+        asString()
+      }
+
+      testContext.verify {
+        expectThat(response).isEqualTo("Bad Request")
+      }
+
+      try {
+        val res = pgClient.preparedQuery(getItem("items", "beacon_data")).execute(Tuple.of(existingItemGrp1Grp3Id)).await()
+        val json = res.iterator().next().toItemJson()
+        expect {
+          that(json.getString("beacon")).isEqualTo(existingItemGrp1Grp3.getString("beacon"))
+          that(json.getString("accessControlString")).isEqualTo(existingItemGrp1Grp3.getString("accessControlString"))
+          that(json.getString("category")).isEqualTo(existingItemGrp1Grp3.getString("category"))
+          that(json.getString("service")).isEqualTo(existingItemGrp1Grp3.getString("service"))
+          that(json.getString("itemID")).isEqualTo(existingItemGrp1Grp3.getString("itemID"))
+          that(json.getString("brand")).isEqualTo(existingItemGrp1Grp3.getString("brand"))
+          that(json.getString("model")).isEqualTo(existingItemGrp1Grp3.getString("model"))
+          that(json.getString("supplier")).isEqualTo(existingItemGrp1Grp3.getString("supplier"))
+          that(json.getString("purchaseDate")).isEqualTo(existingItemGrp1Grp3.getString("purchaseDate"))
+          that(json.getDouble("purchasePrice")).isEqualTo(existingItemGrp1Grp3.getDouble("purchasePrice"))
+          that(json.getString("originLocation")).isEqualTo(existingItemGrp1Grp3.getString("originLocation"))
+          that(json.getString("currentLocation")).isEqualTo(existingItemGrp1Grp3.getString("currentLocation"))
+          that(json.getString("room")).isEqualTo(existingItemGrp1Grp3.getString("room"))
+          that(json.getString("contact")).isEqualTo(existingItemGrp1Grp3.getString("contact"))
+          that(json.getString("currentOwner")).isEqualTo(existingItemGrp1Grp3.getString("currentOwner"))
+          that(json.getString("previousOwner")).isEqualTo(existingItemGrp1Grp3.getString("previousOwner"))
+          that(json.getString("orderNumber")).isEqualTo(existingItemGrp1Grp3.getString("orderNumber"))
+          that(json.getString("color")).isEqualTo(existingItemGrp1Grp3.getString("color"))
+          that(json.getString("serialNumber")).isEqualTo(existingItemGrp1Grp3.getString("serialNumber"))
+          that(json.getString("maintenanceDate")).isEqualTo(existingItemGrp1Grp3.getString("maintenanceDate"))
+          that(json.getString("status")).isEqualTo(existingItemGrp1Grp3.getString("status"))
+          that(json.getString("comments")).isEqualTo(existingItemGrp1Grp3.getString("comments"))
+          that(json.getString("lastModifiedDate")).isEqualTo(existingItemGrp1Grp3.getString("lastModifiedDate"))
+          that(json.getString("lastModifiedBy")).isEqualTo(existingItemGrp1Grp3.getString("lastModifiedBy"))
+          that(json.getInteger("battery")).isEqualTo(existingBeaconData.getInteger("battery"))
+          that(json.getString("beaconStatus")).isEqualTo(existingBeaconData.getString("beaconStatus"))
+          that(json.getDouble("latitude")).isEqualTo(47.0)
+          that(json.getDouble("longitude")).isEqualTo(-8.0)
+          that(json.getInteger("floor")).isEqualTo(2)
+          that(json.getDouble("temperature")).isEqualTo(3.3)
+        }
+
+        testContext.completeNow()
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+  }
 
 
   companion object {

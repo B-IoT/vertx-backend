@@ -807,6 +807,13 @@ class CRUDVerticle : CoroutineVerticle() {
 
       val params = ctx.queryParams()
 
+      if(info.any { pair ->
+          pair.first == "accessControlString" && !validateAccessControlString(pair.second as String, params["company"]) }) {
+        // The query tries to update the item's accessControlString with an invalid one --> fails
+        ctx.fail(400)
+        return@validateAndThen
+      }
+
       val executedQuery = if(params.contains("accessControlString")){
         pgClient.preparedQuery(updateItemWithAC(table, info.map { it.first }, params["accessControlString"])).execute(Tuple.tuple(data))
       } else {
