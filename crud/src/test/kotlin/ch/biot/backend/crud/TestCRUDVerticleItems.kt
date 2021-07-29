@@ -855,6 +855,7 @@ class TestCRUDVerticleItems {
 
   @AfterEach
   fun cleanup(vertx: Vertx, testContext: VertxTestContext) = runBlocking(vertx.dispatcher()) {
+    existingItemGrp1Grp3Id = -1
     try {
       dropAllItems().await()
       pgClient.close()
@@ -2984,6 +2985,9 @@ class TestCRUDVerticleItems {
   fun updateItemIsCorrectWithSufficientACString1(vertx: Vertx, testContext: VertxTestContext) {
     runBlocking(vertx.dispatcher()) {
       insertItemsAccessControl().await()
+      if(existingItemGrp1Grp3Id == -1){
+        testContext.failNow("existingItemGrp1Grp3Id == -1")
+      }
       val response = Given {
         spec(requestSpecification)
         contentType(ContentType.JSON)
@@ -3004,11 +3008,11 @@ class TestCRUDVerticleItems {
       }
 
       try {
-        val res = pgClient.preparedQuery(getItem("items", "beacon_data")).execute(Tuple.of(existingItemID)).await()
+        val res = pgClient.preparedQuery(getItem("items", "beacon_data")).execute(Tuple.of(existingItemGrp1Grp3Id)).await()
         val json = res.iterator().next().toItemJson()
         expect {
           that(json.getString("beacon")).isEqualTo(updateItemJson.getString("beacon"))
-          that(json.getString("accessControlString")).isEqualTo(existingItemGrp1Grp3.getString("accessControlString"))
+          that(json.getString("accessControlString")).isEqualTo(updateItemJson.getString("accessControlString"))
           that(json.getString("category")).isEqualTo(updateItemJson.getString("category"))
           that(json.getString("service")).isEqualTo(updateItemJson.getString("service"))
           that(json.getString("itemID")).isEqualTo(updateItemJson.getString("itemID"))
@@ -3033,10 +3037,10 @@ class TestCRUDVerticleItems {
           that(json.getString("lastModifiedBy")).isEqualTo(updateItemJson.getString("lastModifiedBy"))
           that(json.getInteger("battery")).isEqualTo(existingBeaconData.getInteger("battery"))
           that(json.getString("beaconStatus")).isEqualTo(existingBeaconData.getString("beaconStatus"))
-          that(json.getDouble("latitude")).isEqualTo(47.0)
-          that(json.getDouble("longitude")).isEqualTo(-8.0)
-          that(json.getInteger("floor")).isEqualTo(2)
-          that(json.getDouble("temperature")).isEqualTo(3.3)
+          that(json.getDouble("latitude")).isEqualTo(existingBeaconData.getDouble("latitude"))
+          that(json.getDouble("longitude")).isEqualTo(existingBeaconData.getDouble("longitude"))
+          that(json.getInteger("floor")).isEqualTo(existingBeaconData.getInteger("floor"))
+          that(json.getDouble("temperature")).isEqualTo(existingBeaconData.getDouble("temperature"))
         }
 
         testContext.completeNow()
@@ -3072,11 +3076,11 @@ class TestCRUDVerticleItems {
       }
 
       try {
-        val res = pgClient.preparedQuery(getItem("items", "beacon_data")).execute(Tuple.of(existingItemID)).await()
+        val res = pgClient.preparedQuery(getItem("items", "beacon_data")).execute(Tuple.of(existingItemGrp1Grp3Id)).await()
         val json = res.iterator().next().toItemJson()
         expect {
           that(json.getString("beacon")).isEqualTo(updateItemJson.getString("beacon"))
-          that(json.getString("accessControlString")).isEqualTo(existingItemGrp1Grp3.getString("accessControlString"))
+          that(json.getString("accessControlString")).isEqualTo(updateItemJson.getString("accessControlString"))
           that(json.getString("category")).isEqualTo(updateItemJson.getString("category"))
           that(json.getString("service")).isEqualTo(updateItemJson.getString("service"))
           that(json.getString("itemID")).isEqualTo(updateItemJson.getString("itemID"))
@@ -3101,10 +3105,10 @@ class TestCRUDVerticleItems {
           that(json.getString("lastModifiedBy")).isEqualTo(updateItemJson.getString("lastModifiedBy"))
           that(json.getInteger("battery")).isEqualTo(existingBeaconData.getInteger("battery"))
           that(json.getString("beaconStatus")).isEqualTo(existingBeaconData.getString("beaconStatus"))
-          that(json.getDouble("latitude")).isEqualTo(47.0)
-          that(json.getDouble("longitude")).isEqualTo(-8.0)
-          that(json.getInteger("floor")).isEqualTo(2)
-          that(json.getDouble("temperature")).isEqualTo(3.3)
+          that(json.getDouble("latitude")).isEqualTo(existingBeaconData.getDouble("latitude"))
+          that(json.getDouble("longitude")).isEqualTo(existingBeaconData.getDouble("longitude"))
+          that(json.getInteger("floor")).isEqualTo(existingBeaconData.getInteger("floor"))
+          that(json.getDouble("temperature")).isEqualTo(existingBeaconData.getDouble("temperature"))
         }
 
         testContext.completeNow()
@@ -3140,7 +3144,7 @@ class TestCRUDVerticleItems {
       }
 
       try {
-        val res = pgClient.preparedQuery(getItem("items", "beacon_data")).execute(Tuple.of(existingItemID)).await()
+        val res = pgClient.preparedQuery(getItem("items", "beacon_data")).execute(Tuple.of(existingItemGrp1Grp3Id)).await()
         val json = res.iterator().next().toItemJson()
         expect {
           that(json.getString("beacon")).isEqualTo(existingItemGrp1Grp3.getString("beacon"))
@@ -3209,7 +3213,7 @@ class TestCRUDVerticleItems {
           }
 
           try {
-            val res = pgClient.preparedQuery(getItem("items", "beacon_data")).execute(Tuple.of(existingItemID)).await()
+            val res = pgClient.preparedQuery(getItem("items", "beacon_data")).execute(Tuple.of(existingItemGrp1Grp3Id)).await()
             val json = res.iterator().next().toItemJson()
             expect {
               that(json.getString("beacon")).isEqualTo(existingItemGrp1Grp3.getString("beacon"))
