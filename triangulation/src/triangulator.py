@@ -227,8 +227,9 @@ class Triangulator:
         meters_to_db = lambda x: measured_ref - 10*tx*math.log10(x)
         
         matrix_dist_temp = self.matrix_dist[:, :, 0]
+        matrix_dist_temp_old = self.matrix_dist[:, :, 0]
 
-        self.initial_value_guess = np.array(list(map(meters_to_db, matrix_dist_temp.flatten()/100))).reshape(matrix_dist_temp.shape)
+        self.initial_value_guess = np.array(list(map(meters_to_db, matrix_dist_temp_old.flatten()/100))).reshape(matrix_dist_temp_old.shape)
 
         matrix_dist_temp[:] = np.nan
         
@@ -239,7 +240,6 @@ class Triangulator:
         indexes = tuple(np.argwhere(~np.isnan(self.matrix_raw[:,:,0]))) # Indexes of beacon/relay pairs
         
         for index in indexes:
-            
             index = tuple(index) # Converting to the right format
             
             kf = KalmanFilter(
@@ -261,6 +261,31 @@ class Triangulator:
         # Stack matrix_dist_temp onto matrix_dist
         np.dstack((matrix_dist_temp, self.matrix_dist))
         self.matrix_dist = self.matrix_dist[:,:,0:max_history]
+
+
+        indexes = tuple(np.argwhere(~np.isnan(self.matrix_dist[:,:,0]))) # Indexes of beacon/relay pairs
+        initial_value_guess_dist = np.array(list(map(meters_to_db, matrix_dist_temp_old.flatten()/100))).reshape(matrix_dist_temp_old.shape)
+
+        # Variance of the signal (per beacon/relay)
+        var_dist = np.nanvar(self.matrix_dist, axis = 2) # Matrix 2D
+        observation_covariance_dist = var ** 2 # Matrix 2D with var^2 
+        
+        for index in indexes:
+            index = tuple(index) # Converting to the right format
+            
+            kf = KalmanFilter(
+                initial_state_mean = self.initial_value_guess[index],
+                initial_state_covariance = observation_covariance[index],
+                observation_covariance = observation_covariance[index]
+            )
+            
+            temp = self.matrix_dist[index] # Matrix of 1 x Max_history
+            temp = np.flip(temp) # Flipping to be in the right format for Kalman
+            temp = temp[~np.isnan(temp)] # Removing all nan
+            if temp.shape[0] > 1: # Checking we have more than 1 value
+                temp,_ = kf.smooth(temp)
+            smooth_dist = temp[-1]
+            self.matrix_dist[index] = smooth_dist
             
         return
      
