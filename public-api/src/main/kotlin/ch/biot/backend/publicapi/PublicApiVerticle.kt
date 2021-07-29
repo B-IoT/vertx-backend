@@ -342,6 +342,7 @@ class PublicApiVerticle : CoroutineVerticle() {
 
     webClient.get(CRUD_PORT, CRUD_HOST, "/$ITEMS_ENDPOINT/closest/?${ctx.request().query()}")
       .addQueryParam("company", ctx.user().principal()["company"])
+//      .addQueryParam("accessControlString", ctx.user().principal()["accessControlString"])
       .timeout(TIMEOUT)
       .`as`(BodyCodec.jsonObject())
       .coroutineSend()

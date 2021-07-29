@@ -52,7 +52,7 @@ class TestPublicApiVerticle {
     "username" to "test2",
     "password" to "password",
     "company" to "biot",
-    "accessControlString" to "biot:grp1"
+    "accessControlString" to "biot"
   )
 
   private val relay = jsonObjectOf(
@@ -70,11 +70,12 @@ class TestPublicApiVerticle {
     )
   )
 
-  private val item = jsonObjectOf(
+  private val item1 = jsonObjectOf(
     "beacon" to "ab:ab:ab:ab:ab:ab",
     "category" to "ECG",
     "service" to "Bloc 2",
     "itemID" to "abc",
+    "accessControlString" to "biot",
     "brand" to "ferrari",
     "model" to "GT",
     "supplier" to "sup",
@@ -504,7 +505,7 @@ class TestPublicApiVerticle {
       spec(requestSpecification)
       contentType(ContentType.JSON)
       header("Authorization", "Bearer $token")
-      body(item.encode())
+      body(item1.encode())
     } When {
       post("/api/items")
     } Then {
@@ -524,7 +525,7 @@ class TestPublicApiVerticle {
   @Order(14)
   @DisplayName("Getting the items succeeds")
   fun getItemsSucceeds(testContext: VertxTestContext) {
-    val expected = item.copy()
+    val expected = item1.copy()
 
     val response = Buffer.buffer(
       Given {
@@ -593,7 +594,7 @@ class TestPublicApiVerticle {
         accept(ContentType.JSON)
         header("Authorization", "Bearer $token")
       } When {
-        queryParam("category", item.getString("category"))
+        queryParam("category", item1.getString("category"))
         get("/api/items")
       } Then {
         statusCode(200)
@@ -610,29 +611,29 @@ class TestPublicApiVerticle {
       val id = obj.remove("id")
       expectThat(id).isEqualTo(itemID)
       expect {
-        that(obj.getString("beacon")).isEqualTo(item.getString("beacon"))
-        that(obj.getString("category")).isEqualTo(item.getString("category"))
-        that(obj.getString("service")).isEqualTo(item.getString("service"))
-        that(obj.getString("itemID")).isEqualTo(item.getString("itemID"))
-        that(obj.getString("brand")).isEqualTo(item.getString("brand"))
-        that(obj.getString("model")).isEqualTo(item.getString("model"))
-        that(obj.getString("supplier")).isEqualTo(item.getString("supplier"))
-        that(obj.getString("purchaseDate")).isEqualTo(item.getString("purchaseDate"))
-        that(obj.getDouble("purchasePrice")).isEqualTo(item.getDouble("purchasePrice"))
-        that(obj.getString("originLocation")).isEqualTo(item.getString("originLocation"))
-        that(obj.getString("currentLocation")).isEqualTo(item.getString("currentLocation"))
-        that(obj.getString("room")).isEqualTo(item.getString("room"))
-        that(obj.getString("contact")).isEqualTo(item.getString("contact"))
-        that(obj.getString("currentOwner")).isEqualTo(item.getString("currentOwner"))
-        that(obj.getString("previousOwner")).isEqualTo(item.getString("previousOwner"))
-        that(obj.getString("orderNumber")).isEqualTo(item.getString("orderNumber"))
-        that(obj.getString("color")).isEqualTo(item.getString("color"))
-        that(obj.getString("serialNumber")).isEqualTo(item.getString("serialNumber"))
-        that(obj.getString("maintenanceDate")).isEqualTo(item.getString("maintenanceDate"))
-        that(obj.getString("status")).isEqualTo(item.getString("status"))
-        that(obj.getString("comments")).isEqualTo(item.getString("comments"))
-        that(obj.getString("lastModifiedDate")).isEqualTo(item.getString("lastModifiedDate"))
-        that(obj.getString("lastModifiedBy")).isEqualTo(item.getString("lastModifiedBy"))
+        that(obj.getString("beacon")).isEqualTo(item1.getString("beacon"))
+        that(obj.getString("category")).isEqualTo(item1.getString("category"))
+        that(obj.getString("service")).isEqualTo(item1.getString("service"))
+        that(obj.getString("itemID")).isEqualTo(item1.getString("itemID"))
+        that(obj.getString("brand")).isEqualTo(item1.getString("brand"))
+        that(obj.getString("model")).isEqualTo(item1.getString("model"))
+        that(obj.getString("supplier")).isEqualTo(item1.getString("supplier"))
+        that(obj.getString("purchaseDate")).isEqualTo(item1.getString("purchaseDate"))
+        that(obj.getDouble("purchasePrice")).isEqualTo(item1.getDouble("purchasePrice"))
+        that(obj.getString("originLocation")).isEqualTo(item1.getString("originLocation"))
+        that(obj.getString("currentLocation")).isEqualTo(item1.getString("currentLocation"))
+        that(obj.getString("room")).isEqualTo(item1.getString("room"))
+        that(obj.getString("contact")).isEqualTo(item1.getString("contact"))
+        that(obj.getString("currentOwner")).isEqualTo(item1.getString("currentOwner"))
+        that(obj.getString("previousOwner")).isEqualTo(item1.getString("previousOwner"))
+        that(obj.getString("orderNumber")).isEqualTo(item1.getString("orderNumber"))
+        that(obj.getString("color")).isEqualTo(item1.getString("color"))
+        that(obj.getString("serialNumber")).isEqualTo(item1.getString("serialNumber"))
+        that(obj.getString("maintenanceDate")).isEqualTo(item1.getString("maintenanceDate"))
+        that(obj.getString("status")).isEqualTo(item1.getString("status"))
+        that(obj.getString("comments")).isEqualTo(item1.getString("comments"))
+        that(obj.getString("lastModifiedDate")).isEqualTo(item1.getString("lastModifiedDate"))
+        that(obj.getString("lastModifiedBy")).isEqualTo(item1.getString("lastModifiedBy"))
         that(obj.containsKey("timestamp")).isTrue()
         that(obj.containsKey("battery")).isTrue()
         that(obj.containsKey("beaconStatus")).isTrue()
@@ -675,7 +676,7 @@ class TestPublicApiVerticle {
   @Order(17)
   @DisplayName("Getting an item succeeds")
   fun getItemSucceeds(testContext: VertxTestContext) {
-    val expected = item.copy()
+    val expected = item1.copy()
 
     val response = Buffer.buffer(
       Given {
@@ -734,7 +735,7 @@ class TestPublicApiVerticle {
   @Order(18)
   @DisplayName("Getting the categories succeeds")
   fun getCategoriesSucceeds(testContext: VertxTestContext) {
-    val expected = JsonArray(listOf(item.getString("category")))
+    val expected = JsonArray(listOf(item1.getString("category")))
 
     val response = Buffer.buffer(
       Given {
