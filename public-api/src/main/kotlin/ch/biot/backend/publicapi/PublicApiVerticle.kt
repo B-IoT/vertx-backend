@@ -47,14 +47,14 @@ internal val LOGGER = KotlinLogging.logger {}
 class PublicApiVerticle : CoroutineVerticle() {
 
   companion object {
-    private const val TIMEOUT: Long = 5000
+    const val TIMEOUT: Long = 5000
 
     private const val APPLICATION_JSON = "application/json"
     private const val CONTENT_TYPE = "Content-Type"
 
     private const val USERS_ENDPOINT = "users"
     private const val RELAYS_ENDPOINT = "relays"
-    private const val ITEMS_ENDPOINT = "items"
+    const val ITEMS_ENDPOINT = "items"
     private const val ANALYTICS_ENDPOINT = "analytics"
 
     private const val UNAUTHORIZED_CODE = 401
@@ -291,9 +291,9 @@ class PublicApiVerticle : CoroutineVerticle() {
    * Handles the token request.
    */
   private suspend fun tokenHandler(ctx: RoutingContext) {
-    fun makeJwtToken(username: String, company: String): String {
+    fun makeJwtToken(username: String, company: String, userID: String): String {
       // Add the company information to the custom claims of the token
-      val claims = jsonObjectOf("company" to company)
+      val claims = jsonObjectOf("company" to company, "userID" to userID)
       // The token expires in 7 days (10080 minutes)
       val jwtOptions = jwtOptionsOf(algorithm = "RS256", expiresInMinutes = 10080, issuer = "BioT", subject = username)
       return jwtAuth.generateToken(claims, jwtOptions)
@@ -301,6 +301,7 @@ class PublicApiVerticle : CoroutineVerticle() {
 
     val payload = ctx.bodyAsJson
     val username: String = payload["username"]
+    val userID: String = payload["userID"]
 
     LOGGER.info { "New token request for user $username" }
 
@@ -316,7 +317,7 @@ class PublicApiVerticle : CoroutineVerticle() {
         },
         { response ->
           val company = response.bodyAsString()
-          val token = makeJwtToken(username, company)
+          val token = makeJwtToken(username, company, userID)
           ctx.response().putHeader(CONTENT_TYPE, "application/jwt").end(token)
         }
       )

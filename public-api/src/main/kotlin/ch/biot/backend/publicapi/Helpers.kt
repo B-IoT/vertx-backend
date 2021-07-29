@@ -12,6 +12,9 @@ import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.client.HttpRequest
 import io.vertx.ext.web.client.HttpResponse
+import io.vertx.ext.web.client.WebClient
+import io.vertx.ext.web.codec.BodyCodec
+import io.vertx.kotlin.core.json.get
 import io.vertx.kotlin.coroutines.await
 
 /**
@@ -91,4 +94,28 @@ internal suspend fun <T> HttpRequest<T>.coroutineSendBuffer(buffer: Buffer): Eit
   } catch (error: Throwable) {
     Either.Left(InternalErrorException("Internal server error:\n${error.message}", error.cause))
   }
+
+/**
+ * Get the accessControlString of the user from the CRUD service and pass it to the function to execute
+ * sends Bad gateway error if it cannot get the user
+ */
+suspend fun executeWithAccessControl(webClient: WebClient, ctx: RoutingContext, block: suspend (String) -> Unit) {
+  val userID: String = ctx.user().principal().getString("userID")
+  webClient
+    .get(PublicApiVerticle.CRUD_PORT, PublicApiVerticle.CRUD_HOST, "/${PublicApiVerticle.ITEMS_ENDPOINT}/${userID}")
+    .addQueryParam("company", ctx.user().principal()["company"])
+    .timeout(PublicApiVerticle.TIMEOUT)
+    .`as`(BodyCodec.jsonObject())
+    .coroutineSend()
+    .bimap(
+      { error ->
+        sendBadGateway(ctx, error)
+      },
+      { resp ->
+        val json = resp.body()
+        val acString = json.getString("accessControlString")
+        block(acString)
+      }
+    )
+}
 
