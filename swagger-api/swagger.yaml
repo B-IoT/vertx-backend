@@ -183,9 +183,10 @@ paths:
         "200":
           description: The company of the authenticated user as a string
           content:
-            application/json:
+            text/plain:
               schema:
-                $ref: '#/components/schemas/UserAuthenticateReturnedInfo'
+                type: string
+                example: biot
         "401":
           description: Authentication error
   /users/{id}:
@@ -556,14 +557,6 @@ components:
           type: string
           format: password
       description: Authenticate information for a user
-    UserAuthenticateReturnedInfo:
-      type: object
-      properties:
-        company:
-          type: string
-        userID:
-          type: string
-      description: Authenticate returned information for a user
     Item:
       type: object
       properties:
