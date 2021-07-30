@@ -294,7 +294,7 @@ class Triangulator:
             if temp.shape[0] > 1: # Checking we have more than 1 value
                 temp,_ = kf.smooth(temp)
             smooth_dist = temp[-1]
-            self.matrix_dist[index, 0] = smooth_dist
+            self.matrix_dist[index[0], index[1], 0] = smooth_dist
             
         return
      
