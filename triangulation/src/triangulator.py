@@ -106,7 +106,14 @@ class Triangulator:
         
         self.nb_beacons = 25
         self.nb_relays = 25
-        self.max_history = 50        
+
+        self.filter_size_raw = 50
+        self.filter_size_dist = 30
+
+        self.max_history = max(self.filter_size_dist, self.filter_size_raw)        
+
+        self.var_coeff_raw = 12
+        self.var_coeff_dist = 10
         
         self.temp_raw = np.zeros([self.nb_beacons, self.nb_relays])
         self.temp_raw[:] = np.nan
@@ -234,7 +241,8 @@ class Triangulator:
         matrix_dist_temp[:] = np.nan
         
         # Variance of the signal (per beacon/relay)
-        var = np.nanvar(self.matrix_raw, axis = 2) # Matrix 2D
+        var = np.nanvar(self.matrix_raw[:, :, 0:self.filter_size_raw], axis = 2) # Matrix 2D
+        var = self.var_coeff_raw * var
         observation_covariance = var ** 2 # Matrix 2D with var^2 
         
         indexes = tuple(np.argwhere(~np.isnan(self.matrix_raw[:,:,0]))) # Indexes of beacon/relay pairs
@@ -248,7 +256,7 @@ class Triangulator:
                 observation_covariance = observation_covariance[index]
             )
             
-            temp = self.matrix_raw[index] # Matrix of 1 x Max_history
+            temp = self.matrix_raw[index[0], index[1], 0:self.filter_size_raw] # Matrix of 1 x Max_history
             temp = np.flip(temp) # Flipping to be in the right format for Kalman
             temp = temp[~np.isnan(temp)] # Removing all nan
             if temp.shape[0] > 1: # Checking we have more than 1 value
@@ -264,28 +272,29 @@ class Triangulator:
 
 
         indexes = tuple(np.argwhere(~np.isnan(self.matrix_dist[:,:,0]))) # Indexes of beacon/relay pairs
-        initial_value_guess_dist = np.array(list(map(meters_to_db, matrix_dist_temp_old.flatten()/100))).reshape(matrix_dist_temp_old.shape)
+        initial_value_guess_dist = self.matrix_dist[:,:,0]
 
         # Variance of the signal (per beacon/relay)
-        var_dist = np.nanvar(self.matrix_dist, axis = 2) # Matrix 2D
-        observation_covariance_dist = var ** 2 # Matrix 2D with var^2 
+        var_dist = np.nanvar(self.matrix_dist[:,:,0:self.filter_size_dist], axis = 2) # Matrix 2D
+        var_dist = self.var_coeff_dist * var_dist
+        observation_covariance_dist = var_dist ** 2 # Matrix 2D with var^2 
         
         for index in indexes:
             index = tuple(index) # Converting to the right format
             
             kf = KalmanFilter(
-                initial_state_mean = self.initial_value_guess[index],
-                initial_state_covariance = observation_covariance[index],
-                observation_covariance = observation_covariance[index]
+                initial_state_mean = initial_value_guess_dist[index],
+                initial_state_covariance = observation_covariance_dist[index],
+                observation_covariance = observation_covariance_dist[index]
             )
             
-            temp = self.matrix_dist[index] # Matrix of 1 x Max_history
+            temp = self.matrix_dist[index[0], index[1], 0:self.filter_size_dist] # Matrix of 1 x filter_size_dist
             temp = np.flip(temp) # Flipping to be in the right format for Kalman
             temp = temp[~np.isnan(temp)] # Removing all nan
             if temp.shape[0] > 1: # Checking we have more than 1 value
                 temp,_ = kf.smooth(temp)
             smooth_dist = temp[-1]
-            self.matrix_dist[index] = smooth_dist
+            self.matrix_dist[index, 0] = smooth_dist
             
         return
      
