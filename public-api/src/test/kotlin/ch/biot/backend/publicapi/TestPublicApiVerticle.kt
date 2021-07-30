@@ -133,7 +133,7 @@ class TestPublicApiVerticle {
   )
 
   private var item2IDGrp1 = -1
-  private var itemID: Int = 1
+  private var itemID: Int = -1
 
   private lateinit var token: String
   private lateinit var tokenGrp1: String
@@ -1206,7 +1206,7 @@ class TestPublicApiVerticle {
       spec(requestSpecification)
       contentType(ContentType.JSON)
       header("Authorization", "Bearer $tokenGrp1")
-      body(item1.encode())
+      body(item2Grp1.encode())
     } When {
       post("/api/items")
     } Then {
@@ -1284,9 +1284,9 @@ class TestPublicApiVerticle {
 
   @Test
   @Order(34)
-  @DisplayName("Getting an item fails with an insufficient ac string")
+  @DisplayName("Getting an item fails (404 as if the item does not exist) with an insufficient ac string")
   fun getItemFailsWithWrongACString(testContext: VertxTestContext) {
-    val response = Buffer.buffer(
+    val response =
       Given {
         spec(requestSpecification)
         accept(ContentType.JSON)
@@ -1294,11 +1294,10 @@ class TestPublicApiVerticle {
       } When {
         get("/api/items/$itemID")
       } Then {
-        statusCode(403)
+        statusCode(404)
       } Extract {
         asString()
       }
-    ).toJsonObject()
 
     testContext.verify {
       expectThat(response).isNotNull()
@@ -1307,30 +1306,48 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(19)
-  @DisplayName("Updating an item fails with insufficient ac string")
+  @Order(35)
+  @DisplayName("Updating an item fails with insufficient ac string (it completes but does not modify the item)")
   fun updateItemFailsWithWrongACString(testContext: VertxTestContext) {
+
+    val expected = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        accept(ContentType.JSON)
+        header("Authorization", "Bearer $token")
+      } When {
+        get("/api/items/$itemID")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonObject()
+
+
+
     val updateJson = jsonObjectOf(
-      "beacon" to "ad:ab:ab:ab:ab:ab",
+      "beacon" to "biot_fake_beacon",
       "category" to "Lit",
-      "service" to "Bloc 42",
-      "itemID" to "sdsddsd",
-      "brand" to "maserati",
-      "model" to "wdwd",
-      "supplier" to "supplier",
-      "purchaseDate" to LocalDate.of(2020, 11, 8).toString(),
-      "purchasePrice" to 1000.3,
-      "originLocation" to "center6",
-      "currentLocation" to "center10",
-      "room" to "2",
-      "contact" to "Monsieur Poire",
-      "currentOwner" to "Monsieur Dupe",
-      "previousOwner" to "Monsieur Pistache",
-      "orderNumber" to "asasas",
-      "color" to "blue",
-      "serialNumber" to "aasasasa",
-      "maintenanceDate" to LocalDate.of(2022, 12, 25).toString(),
-      "status" to "Disponible",
+      "service" to "Chirurgie",
+      "itemID" to "fdasfdsa",
+      "accessControlString" to "biot:grp1",
+      "brand" to "fdasfgt",
+      "model" to "fdgsopo3",
+      "supplier" to "sup",
+      "purchaseDate" to LocalDate.of(2021, 7, 8).toString(),
+      "purchasePrice" to 42.3,
+      "originLocation" to "ni3ofn",
+      "currentLocation" to "kfdsao",
+      "room" to "616",
+      "contact" to "Monsieur Poirot",
+      "currentOwner" to "Monsieur Dupont",
+      "previousOwner" to "Monsieur Dupond",
+      "orderNumber" to "abcdf",
+      "color" to "red",
+      "serialNumber" to "abcdf",
+      "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
+      "status" to "In maintenance",
       "comments" to "A comment",
       "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
       "lastModifiedBy" to "Monsieur Duport"
@@ -1345,13 +1362,65 @@ class TestPublicApiVerticle {
     } When {
       put("/api/items/$itemID")
     } Then {
-      statusCode(403)
+      statusCode(200)
     } Extract {
       asString()
     }
 
     testContext.verify {
       expectThat(response).isNotNull()
+    }
+
+    val response2 = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        accept(ContentType.JSON)
+        header("Authorization", "Bearer $token")
+      } When {
+        get("/api/items/$itemID")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonObject()
+
+    testContext.verify {
+      expectThat(response2).isNotNull()
+      val id = response2.remove("id")
+      expectThat(id).isEqualTo(itemID)
+      expect {
+        that(response2.getString("beacon")).isEqualTo(expected.getString("beacon"))
+        that(response2.getString("category")).isEqualTo(expected.getString("category"))
+        that(response2.getString("service")).isEqualTo(expected.getString("service"))
+        that(response2.getString("itemID")).isEqualTo(expected.getString("itemID"))
+        that(response2.getString("accessControlString")).isEqualTo(expected.getString("accessControlString"))
+        that(response2.getString("brand")).isEqualTo(expected.getString("brand"))
+        that(response2.getString("model")).isEqualTo(expected.getString("model"))
+        that(response2.getString("supplier")).isEqualTo(expected.getString("supplier"))
+        that(response2.getString("purchaseDate")).isEqualTo(expected.getString("purchaseDate"))
+        that(response2.getDouble("purchasePrice")).isEqualTo(expected.getDouble("purchasePrice"))
+        that(response2.getString("originLocation")).isEqualTo(expected.getString("originLocation"))
+        that(response2.getString("currentLocation")).isEqualTo(expected.getString("currentLocation"))
+        that(response2.getString("room")).isEqualTo(expected.getString("room"))
+        that(response2.getString("contact")).isEqualTo(expected.getString("contact"))
+        that(response2.getString("currentOwner")).isEqualTo(expected.getString("currentOwner"))
+        that(response2.getString("previousOwner")).isEqualTo(expected.getString("previousOwner"))
+        that(response2.getString("orderNumber")).isEqualTo(expected.getString("orderNumber"))
+        that(response2.getString("color")).isEqualTo(expected.getString("color"))
+        that(response2.getString("serialNumber")).isEqualTo(expected.getString("serialNumber"))
+        that(response2.getString("maintenanceDate")).isEqualTo(expected.getString("maintenanceDate"))
+        that(response2.getString("status")).isEqualTo(expected.getString("status"))
+        that(response2.getString("comments")).isEqualTo(expected.getString("comments"))
+        that(response2.getString("lastModifiedDate")).isEqualTo(expected.getString("lastModifiedDate"))
+        that(response2.getString("lastModifiedBy")).isEqualTo(expected.getString("lastModifiedBy"))
+        that(response2.containsKey("timestamp")).isTrue()
+        that(response2.containsKey("battery")).isTrue()
+        that(response2.containsKey("beaconStatus")).isTrue()
+        that(response2.containsKey("latitude")).isTrue()
+        that(response2.containsKey("longitude")).isTrue()
+        that(response2.containsKey("floor")).isTrue()
+      }
       testContext.completeNow()
     }
   }

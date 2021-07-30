@@ -52,9 +52,9 @@ class PublicApiVerticle : CoroutineVerticle() {
     private const val APPLICATION_JSON = "application/json"
     private const val CONTENT_TYPE = "Content-Type"
 
-    private const val USERS_ENDPOINT = "users"
+    const val USERS_ENDPOINT = "users"
     private const val RELAYS_ENDPOINT = "relays"
-    const val ITEMS_ENDPOINT = "items"
+    private const val ITEMS_ENDPOINT = "items"
     private const val ANALYTICS_ENDPOINT = "analytics"
 
     private const val UNAUTHORIZED_CODE = 401
@@ -301,7 +301,6 @@ class PublicApiVerticle : CoroutineVerticle() {
 
     val payload = ctx.bodyAsJson
     val username: String = payload["username"]
-    val userID: String = payload["userID"]
 
     LOGGER.info { "New token request for user $username" }
 
@@ -316,7 +315,9 @@ class PublicApiVerticle : CoroutineVerticle() {
           ctx.fail(UNAUTHORIZED_CODE)
         },
         { response ->
-          val company = response.bodyAsString()
+          val json = response.bodyAsJsonObject()
+          val company = json.getString("company")
+          val userID = json.getString("userID")
           val token = makeJwtToken(username, company, userID)
           ctx.response().putHeader(CONTENT_TYPE, "application/jwt").end(token)
         }
@@ -340,21 +341,23 @@ class PublicApiVerticle : CoroutineVerticle() {
   private suspend fun getItemsHandler(ctx: RoutingContext) = getManyHandler(ctx, ITEMS_ENDPOINT)
   private suspend fun getClosestItemsHandler(ctx: RoutingContext) {
     LOGGER.info { "New getClosestItems request" }
+    executeWithAccessControl(webClient, ctx) {acString ->
 
-    webClient.get(CRUD_PORT, CRUD_HOST, "/$ITEMS_ENDPOINT/closest/?${ctx.request().query()}")
-      .addQueryParam("company", ctx.user().principal()["company"])
-//      .addQueryParam("accessControlString", ctx.user().principal()["accessControlString"])
-      .timeout(TIMEOUT)
-      .`as`(BodyCodec.jsonObject())
-      .coroutineSend()
-      .bimap(
-        { error ->
-          sendBadGateway(ctx, error)
-        },
-        { resp ->
-          forwardJsonObjectOrStatusCode(ctx, resp)
-        }
-      )
+      webClient.get(CRUD_PORT, CRUD_HOST, "/$ITEMS_ENDPOINT/closest/?${ctx.request().query()}")
+        .addQueryParam("company", ctx.user().principal()["company"])
+        .addQueryParam("accessControlString", acString)
+        .timeout(TIMEOUT)
+        .`as`(BodyCodec.jsonObject())
+        .coroutineSend()
+        .bimap(
+          { error ->
+            sendBadGateway(ctx, error)
+          },
+          { resp ->
+            forwardJsonObjectOrStatusCode(ctx, resp)
+          }
+        )
+    }
   }
 
   private fun getUserInfoHandler(ctx: RoutingContext) {
@@ -382,25 +385,26 @@ class PublicApiVerticle : CoroutineVerticle() {
    */
   private suspend fun registerHandler(ctx: RoutingContext, endpoint: String, forwardResponse: Boolean = false) {
     LOGGER.info { "New register request on /$endpoint endpoint" }
-
-    webClient
-      .post(CRUD_PORT, CRUD_HOST, "/$endpoint").apply {
-        addQueryParam("company", ctx.user().principal()["company"])
-
-        timeout(TIMEOUT)
-        putHeader(CONTENT_TYPE, APPLICATION_JSON)
-        expect(ResponsePredicate.SC_OK)
-        coroutineSendBuffer(ctx.body)
-          .bimap(
-            { error ->
-              sendBadGateway(ctx, error)
-            },
-            { response ->
-              if (forwardResponse) ctx.end(response.body())
-              else sendStatusCode(ctx, response.statusCode())
-            }
-          )
-      }
+    executeWithAccessControl(webClient, ctx) { acString ->
+      webClient
+        .post(CRUD_PORT, CRUD_HOST, "/$endpoint").apply {
+          addQueryParam("company", ctx.user().principal()["company"])
+          addQueryParam("accessControlString", acString) // Used only by the ITEMS_ENDPOINT for now
+          timeout(TIMEOUT)
+          putHeader(CONTENT_TYPE, APPLICATION_JSON)
+          expect(ResponsePredicate.SC_OK)
+          coroutineSendBuffer(ctx.body)
+            .bimap(
+              { error ->
+                sendBadGateway(ctx, error)
+              },
+              { response ->
+                if (forwardResponse) ctx.end(response.body())
+                else sendStatusCode(ctx, response.statusCode())
+              }
+            )
+        }
+    }
   }
 
   /**
@@ -408,25 +412,27 @@ class PublicApiVerticle : CoroutineVerticle() {
    */
   private suspend fun updateHandler(ctx: RoutingContext, endpoint: String) {
     LOGGER.info { "New update request on /$endpoint endpoint" }
+    executeWithAccessControl(webClient, ctx) {acString ->
+      val query = ctx.request().query()
+      val requestURI =
+        if (query != null && query.isNotEmpty()) "/$endpoint/${ctx.pathParam("id")}?$query"
+        else "/$endpoint/${ctx.pathParam("id")}"
 
-    val query = ctx.request().query()
-    val requestURI =
-      if (query != null && query.isNotEmpty()) "/$endpoint/${ctx.pathParam("id")}?$query"
-      else "/$endpoint/${ctx.pathParam("id")}"
-
-    webClient
-      .put(CRUD_PORT, CRUD_HOST, requestURI)
-      .addQueryParam("company", ctx.user().principal()["company"])
-      .timeout(TIMEOUT)
-      .putHeader(CONTENT_TYPE, APPLICATION_JSON)
-      .expect(ResponsePredicate.SC_OK)
-      .coroutineSendBuffer(ctx.body)
-      .bimap(
-        { error ->
-          sendBadGateway(ctx, error)
-        },
-        { ctx.end() }
-      )
+      webClient
+        .put(CRUD_PORT, CRUD_HOST, requestURI)
+        .addQueryParam("company", ctx.user().principal()["company"])
+        .addQueryParam("accessControlString", acString) // Used only by the ITEMS_ENDPOINT for now
+        .timeout(TIMEOUT)
+        .putHeader(CONTENT_TYPE, APPLICATION_JSON)
+        .expect(ResponsePredicate.SC_OK)
+        .coroutineSendBuffer(ctx.body)
+        .bimap(
+          { error ->
+            sendBadGateway(ctx, error)
+          },
+          { ctx.end() }
+        )
+    }
   }
 
   /**
@@ -434,24 +440,27 @@ class PublicApiVerticle : CoroutineVerticle() {
    */
   private suspend fun getManyHandler(ctx: RoutingContext, endpoint: String) {
     LOGGER.info { "New getMany request on /$endpoint endpoint" }
+    executeWithAccessControl(webClient, ctx) { acString ->
 
-    val query = ctx.request().query()
-    val requestURI = if (query != null && query.isNotEmpty()) "/$endpoint/?$query" else "/$endpoint"
+      val query = ctx.request().query()
+      val requestURI = if (query != null && query.isNotEmpty()) "/$endpoint/?$query" else "/$endpoint"
 
-    webClient
-      .get(CRUD_PORT, CRUD_HOST, requestURI)
-      .addQueryParam("company", ctx.user().principal()["company"])
-      .timeout(TIMEOUT)
-      .`as`(BodyCodec.jsonArray())
-      .coroutineSend()
-      .bimap(
-        { error ->
-          sendBadGateway(ctx, error)
-        },
-        { resp ->
-          forwardJsonArrayOrStatusCode(ctx, resp)
-        }
-      )
+      webClient
+        .get(CRUD_PORT, CRUD_HOST, requestURI)
+        .addQueryParam("company", ctx.user().principal()["company"])
+        .addQueryParam("accessControlString", acString) // Used only by the ITEMS_ENDPOINT for now
+        .timeout(TIMEOUT)
+        .`as`(BodyCodec.jsonArray())
+        .coroutineSend()
+        .bimap(
+          { error ->
+            sendBadGateway(ctx, error)
+          },
+          { resp ->
+            forwardJsonArrayOrStatusCode(ctx, resp)
+          }
+        )
+    }
   }
 
   /**
@@ -459,21 +468,24 @@ class PublicApiVerticle : CoroutineVerticle() {
    */
   private suspend fun getOneHandler(ctx: RoutingContext, endpoint: String) {
     LOGGER.info { "New getOne request on /$endpoint endpoint" }
-
-    webClient
-      .get(CRUD_PORT, CRUD_HOST, "/$endpoint/${ctx.pathParam("id")}")
-      .addQueryParam("company", ctx.user().principal()["company"])
-      .timeout(TIMEOUT)
-      .`as`(BodyCodec.jsonObject())
-      .coroutineSend()
-      .bimap(
-        { error ->
-          sendBadGateway(ctx, error)
-        },
-        { resp ->
-          forwardJsonObjectOrStatusCode(ctx, resp)
-        }
-      )
+    executeWithAccessControl(webClient, ctx) { acString ->
+      LOGGER.info { "id = ${ctx.pathParam("id")}" }
+      webClient
+        .get(CRUD_PORT, CRUD_HOST, "/$endpoint/${ctx.pathParam("id")}")
+        .addQueryParam("company", ctx.user().principal()["company"])
+        .addQueryParam("accessControlString", acString) // Used only by the ITEMS_ENDPOINT for now
+        .timeout(TIMEOUT)
+        .`as`(BodyCodec.jsonObject())
+        .coroutineSend()
+        .bimap(
+          { error ->
+            sendBadGateway(ctx, error)
+          },
+          { resp ->
+            forwardJsonObjectOrStatusCode(ctx, resp)
+          }
+        )
+    }
   }
 
   /**
@@ -482,18 +494,21 @@ class PublicApiVerticle : CoroutineVerticle() {
   private suspend fun deleteHandler(ctx: RoutingContext, endpoint: String) {
     LOGGER.info { "New delete request on /$endpoint endpoint" }
 
-    webClient
-      .delete(CRUD_PORT, CRUD_HOST, "/$endpoint/${ctx.pathParam("id")}")
-      .addQueryParam("company", ctx.user().principal()["company"])
-      .timeout(TIMEOUT)
-      .expect(ResponsePredicate.SC_OK)
-      .coroutineSend()
-      .bimap(
-        { error ->
-          sendBadGateway(ctx, error)
-        },
-        { ctx.end() }
-      )
+    executeWithAccessControl(webClient, ctx) { acString ->
+      webClient
+        .delete(CRUD_PORT, CRUD_HOST, "/$endpoint/${ctx.pathParam("id")}")
+        .addQueryParam("company", ctx.user().principal()["company"])
+        .addQueryParam("accessControlString", acString) // Used only by the ITEMS_ENDPOINT for now
+        .timeout(TIMEOUT)
+        .expect(ResponsePredicate.SC_OK)
+        .coroutineSend()
+        .bimap(
+          { error ->
+            sendBadGateway(ctx, error)
+          },
+          { ctx.end() }
+        )
+    }
   }
 
   /**

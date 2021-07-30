@@ -592,7 +592,8 @@ class TestCRUDVerticleUsers {
       put("password", newPassword)
     }
 
-    val company = Given {
+    val response2 = Buffer.buffer(
+      Given {
       spec(requestSpecification)
       contentType(ContentType.JSON)
       body(updatedUser.encode())
@@ -603,9 +604,14 @@ class TestCRUDVerticleUsers {
     } Extract {
       asString()
     }
+    ).toJsonObject()
 
     testContext.verify {
+      expectThat(response2).isNotNull()
+      val company = response2.remove("company")
+      val userID = response2.remove("userID")
       expectThat(company).isEqualTo(existingUser["company"])
+      expectThat(userID).isEqualTo(existingUser["userID"])
       testContext.completeNow()
     }
   }
@@ -616,6 +622,7 @@ class TestCRUDVerticleUsers {
     val userJson = jsonObjectOf(
       "username" to "username",
       "password" to "password",
+      "userID" to "username_test",
       "company" to "test",
       "accessControlString" to "test:grp"
     )
@@ -629,7 +636,7 @@ class TestCRUDVerticleUsers {
       post("/users")
     }
 
-    val response = Given {
+    val response = Buffer.buffer(Given {
       spec(requestSpecification)
       contentType(ContentType.JSON)
       body(userJson.encode())
@@ -639,10 +646,14 @@ class TestCRUDVerticleUsers {
       statusCode(200)
     } Extract {
       asString()
-    }
+    }).toJsonObject()
 
     testContext.verify {
-      expectThat(response).isEqualTo(userJson["company"])
+      expectThat(response).isNotNull()
+      val company = response.remove("company")
+      val userID = response.remove("userID")
+      expectThat(company).isEqualTo(userJson["company"])
+      expectThat(userID).isEqualTo(userJson["userID"])
       testContext.completeNow()
     }
   }

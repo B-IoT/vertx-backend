@@ -80,6 +80,7 @@ class CRUDVerticle : CoroutineVerticle() {
       "userID" to "biot_biot",
       "username" to "biot",
       "password" to "biot",
+      "accessControlString" to "biot",
       "company" to "biot"
     )
 
@@ -610,7 +611,12 @@ class CRUDVerticle : CoroutineVerticle() {
     try {
       val user = mongoAuthUsers.authenticate(body).await()
       val company: String = user["company"]
-      ctx.end(company)
+      val userID: String = user["userID"]
+
+      val json = jsonObjectOf("company" to company, "userID" to userID)
+      ctx.response()
+        .putHeader(CONTENT_TYPE, APPLICATION_JSON)
+        .end(json.encode())
     } catch (error: Throwable) {
       LOGGER.error(error) { "Authentication error" }
       ctx.fail(UNAUTHORIZED_CODE, error)
