@@ -231,7 +231,8 @@ class TestPublicApiVerticle {
   @Order(4)
   @DisplayName("Getting the users succeeds")
   fun getUsersSucceeds(testContext: VertxTestContext) {
-    val expected = jsonArrayOf(INITIAL_USER.copy().apply { remove("password") }, user.copy().apply { remove("password") })
+    val expected =
+      jsonArrayOf(INITIAL_USER.copy().apply { remove("password") }, user.copy().apply { remove("password") })
 
     val response = Buffer.buffer(
       Given {
@@ -1323,7 +1324,6 @@ class TestPublicApiVerticle {
         asString()
       }
     ).toJsonObject()
-
 
 
     val updateJson = jsonObjectOf(

@@ -98,7 +98,7 @@ class TestHelpers {
     expectThat(validateAccessControlString("biot:group1", company)).isTrue()
     expectThat(validateAccessControlString("biot:group1:group2", company)).isTrue()
     expectThat(validateAccessControlString("biot:group1:group1", company)).isTrue()
-    val longNameGroups = "a".repeat(MAX_ACCESS_CONTROL_STRING_LENGTH-"biot:".length)
+    val longNameGroups = "a".repeat(MAX_ACCESS_CONTROL_STRING_LENGTH - "biot:".length)
     expectThat(validateAccessControlString("biot:$longNameGroups", company)).isTrue()
   }
 
@@ -118,9 +118,10 @@ class TestHelpers {
     expectThat(validateAccessControlString("biot:group1:#", company)).isFalse()
     expectThat(validateAccessControlString("biot:group1:çava", company)).isFalse()
 
-    val longNameGroups = "a".repeat(MAX_ACCESS_CONTROL_STRING_LENGTH-"biot:".length + 1)
+    val longNameGroups = "a".repeat(MAX_ACCESS_CONTROL_STRING_LENGTH - "biot:".length + 1)
     expectThat(validateAccessControlString("biot:$longNameGroups", company)).isFalse() // Too long i.e. 2049 chars
   }
+
   companion object {
 
     private val instance: KDockerComposeContainer by lazy { defineDockerCompose() }

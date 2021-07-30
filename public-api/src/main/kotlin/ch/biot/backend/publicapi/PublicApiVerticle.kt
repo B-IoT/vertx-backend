@@ -341,7 +341,7 @@ class PublicApiVerticle : CoroutineVerticle() {
   private suspend fun getItemsHandler(ctx: RoutingContext) = getManyHandler(ctx, ITEMS_ENDPOINT)
   private suspend fun getClosestItemsHandler(ctx: RoutingContext) {
     LOGGER.info { "New getClosestItems request" }
-    executeWithAccessControl(webClient, ctx) {acString ->
+    executeWithAccessControl(webClient, ctx) { acString ->
 
       webClient.get(CRUD_PORT, CRUD_HOST, "/$ITEMS_ENDPOINT/closest/?${ctx.request().query()}")
         .addQueryParam("company", ctx.user().principal()["company"])
@@ -412,7 +412,7 @@ class PublicApiVerticle : CoroutineVerticle() {
    */
   private suspend fun updateHandler(ctx: RoutingContext, endpoint: String) {
     LOGGER.info { "New update request on /$endpoint endpoint" }
-    executeWithAccessControl(webClient, ctx) {acString ->
+    executeWithAccessControl(webClient, ctx) { acString ->
       val query = ctx.request().query()
       val requestURI =
         if (query != null && query.isNotEmpty()) "/$endpoint/${ctx.pathParam("id")}?$query"
