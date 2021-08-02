@@ -118,6 +118,7 @@ fun JsonObject.toItemJson(): JsonObject = jsonObjectOf(
   "color" to getString("color"),
   "serialNumber" to getString("serialnumber"),
   "maintenanceDate" to getString("maintenancedate"),
+  "status" to getString("status"),
   "comments" to getString("comments"),
   "lastModifiedDate" to getString("lastmodifieddate"),
   "lastModifiedBy" to getString("lastmodifiedby")
