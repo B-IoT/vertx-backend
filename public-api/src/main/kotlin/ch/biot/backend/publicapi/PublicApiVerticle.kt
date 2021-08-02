@@ -390,13 +390,13 @@ class PublicApiVerticle : CoroutineVerticle() {
       val json: JsonObject
       try {
         json = ctx.bodyAsJson
-      } catch (e: Exception){
+      } catch (e: Exception) {
         sendBadGateway(ctx, e)
         return@executeWithAccessControl
       }
-      if(endpoint == ITEMS_ENDPOINT){
+      if (endpoint == ITEMS_ENDPOINT) {
         // Put the accessControlString in the JSON if none is present
-        if(!json.containsKey("accessControlString")){
+        if (!json.containsKey("accessControlString")) {
           json.put("accessControlString", acString)
         }
       }

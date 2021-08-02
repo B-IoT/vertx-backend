@@ -1610,57 +1610,57 @@ class TestPublicApiVerticle {
     }
 
     val expected = insertJson.copy().put("accessControlString", user2.getString("accessControlString"))
-  val response2 = Buffer.buffer(
-    Given {
-      spec(requestSpecification)
-      accept(ContentType.JSON)
-      header("Authorization", "Bearer $token")
-    } When {
-      get("/api/items/$item3ID")
-    } Then {
-      statusCode(200)
-    } Extract {
-      asString()
-    }
-  ).toJsonObject()
+    val response2 = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        accept(ContentType.JSON)
+        header("Authorization", "Bearer $token")
+      } When {
+        get("/api/items/$item3ID")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonObject()
 
-  testContext.verify {
-    expectThat(response2).isNotNull()
-    val id = response2.remove("id")
-    expectThat(id).isEqualTo(item3ID)
-    expect {
-      that(response2.getString("beacon")).isEqualTo(expected.getString("beacon"))
-      that(response2.getString("category")).isEqualTo(expected.getString("category"))
-      that(response2.getString("service")).isEqualTo(expected.getString("service"))
-      that(response2.getString("itemID")).isEqualTo(expected.getString("itemID"))
-      that(response2.getString("accessControlString")).isEqualTo(expected.getString("accessControlString"))
-      that(response2.getString("brand")).isEqualTo(expected.getString("brand"))
-      that(response2.getString("model")).isEqualTo(expected.getString("model"))
-      that(response2.getString("supplier")).isEqualTo(expected.getString("supplier"))
-      that(response2.getString("purchaseDate")).isEqualTo(expected.getString("purchaseDate"))
-      that(response2.getDouble("purchasePrice")).isEqualTo(expected.getDouble("purchasePrice"))
-      that(response2.getString("originLocation")).isEqualTo(expected.getString("originLocation"))
-      that(response2.getString("currentLocation")).isEqualTo(expected.getString("currentLocation"))
-      that(response2.getString("room")).isEqualTo(expected.getString("room"))
-      that(response2.getString("contact")).isEqualTo(expected.getString("contact"))
-      that(response2.getString("currentOwner")).isEqualTo(expected.getString("currentOwner"))
-      that(response2.getString("previousOwner")).isEqualTo(expected.getString("previousOwner"))
-      that(response2.getString("orderNumber")).isEqualTo(expected.getString("orderNumber"))
-      that(response2.getString("color")).isEqualTo(expected.getString("color"))
-      that(response2.getString("serialNumber")).isEqualTo(expected.getString("serialNumber"))
-      that(response2.getString("maintenanceDate")).isEqualTo(expected.getString("maintenanceDate"))
-      that(response2.getString("status")).isEqualTo(expected.getString("status"))
-      that(response2.getString("comments")).isEqualTo(expected.getString("comments"))
-      that(response2.getString("lastModifiedDate")).isEqualTo(expected.getString("lastModifiedDate"))
-      that(response2.getString("lastModifiedBy")).isEqualTo(expected.getString("lastModifiedBy"))
-      that(response2.containsKey("timestamp")).isTrue()
-      that(response2.containsKey("battery")).isTrue()
-      that(response2.containsKey("beaconStatus")).isTrue()
-      that(response2.containsKey("latitude")).isTrue()
-      that(response2.containsKey("longitude")).isTrue()
-      that(response2.containsKey("floor")).isTrue()
+    testContext.verify {
+      expectThat(response2).isNotNull()
+      val id = response2.remove("id")
+      expectThat(id).isEqualTo(item3ID)
+      expect {
+        that(response2.getString("beacon")).isEqualTo(expected.getString("beacon"))
+        that(response2.getString("category")).isEqualTo(expected.getString("category"))
+        that(response2.getString("service")).isEqualTo(expected.getString("service"))
+        that(response2.getString("itemID")).isEqualTo(expected.getString("itemID"))
+        that(response2.getString("accessControlString")).isEqualTo(expected.getString("accessControlString"))
+        that(response2.getString("brand")).isEqualTo(expected.getString("brand"))
+        that(response2.getString("model")).isEqualTo(expected.getString("model"))
+        that(response2.getString("supplier")).isEqualTo(expected.getString("supplier"))
+        that(response2.getString("purchaseDate")).isEqualTo(expected.getString("purchaseDate"))
+        that(response2.getDouble("purchasePrice")).isEqualTo(expected.getDouble("purchasePrice"))
+        that(response2.getString("originLocation")).isEqualTo(expected.getString("originLocation"))
+        that(response2.getString("currentLocation")).isEqualTo(expected.getString("currentLocation"))
+        that(response2.getString("room")).isEqualTo(expected.getString("room"))
+        that(response2.getString("contact")).isEqualTo(expected.getString("contact"))
+        that(response2.getString("currentOwner")).isEqualTo(expected.getString("currentOwner"))
+        that(response2.getString("previousOwner")).isEqualTo(expected.getString("previousOwner"))
+        that(response2.getString("orderNumber")).isEqualTo(expected.getString("orderNumber"))
+        that(response2.getString("color")).isEqualTo(expected.getString("color"))
+        that(response2.getString("serialNumber")).isEqualTo(expected.getString("serialNumber"))
+        that(response2.getString("maintenanceDate")).isEqualTo(expected.getString("maintenanceDate"))
+        that(response2.getString("status")).isEqualTo(expected.getString("status"))
+        that(response2.getString("comments")).isEqualTo(expected.getString("comments"))
+        that(response2.getString("lastModifiedDate")).isEqualTo(expected.getString("lastModifiedDate"))
+        that(response2.getString("lastModifiedBy")).isEqualTo(expected.getString("lastModifiedBy"))
+        that(response2.containsKey("timestamp")).isTrue()
+        that(response2.containsKey("battery")).isTrue()
+        that(response2.containsKey("beaconStatus")).isTrue()
+        that(response2.containsKey("latitude")).isTrue()
+        that(response2.containsKey("longitude")).isTrue()
+        that(response2.containsKey("floor")).isTrue()
+      }
     }
-  }
 
     // Delete the item
     val response3 = Given {
@@ -1679,7 +1679,7 @@ class TestPublicApiVerticle {
       testContext.completeNow()
     }
 
-}
+  }
 
 
   @Test
