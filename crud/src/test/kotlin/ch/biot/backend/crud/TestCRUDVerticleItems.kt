@@ -766,19 +766,6 @@ class TestCRUDVerticleItems {
         )
       ).await()
 
-//    pgClient.preparedQuery(INSERT_BEACON_DATA)
-//      .execute(
-//        Tuple.of(
-//          existingItemGrp1Grp3.getString("beacon"),
-//          existingBeaconData.getInteger("battery"),
-//          existingBeaconData.getString("beaconStatus"),
-//          existingBeaconData.getDouble("latitude"),
-//          existingBeaconData.getDouble("longitude"),
-//          42,
-//          existingBeaconData.getDouble("temperature")
-//        )
-//      ).await()
-
     pgClient.preparedQuery(INSERT_BEACON_DATA)
       .execute(
         Tuple.of(
