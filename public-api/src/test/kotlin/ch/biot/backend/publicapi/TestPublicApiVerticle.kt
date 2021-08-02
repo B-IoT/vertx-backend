@@ -132,6 +132,33 @@ class TestPublicApiVerticle {
     "lastModifiedBy" to "Monsieur Duport"
   )
 
+  private val item3 = jsonObjectOf(
+    "beacon" to "ff:ff:zz:zz:ff:ff",
+    "category" to "EEG",
+    "service" to "Neuro",
+    "itemID" to "hgfds",
+    "accessControlString" to "biot:grp1:grp3",
+    "brand" to "htre",
+    "model" to "dfg",
+    "supplier" to "gfds",
+    "purchaseDate" to LocalDate.of(2021, 7, 8).toString(),
+    "purchasePrice" to 42.3,
+    "originLocation" to "center154",
+    "currentLocation" to "center254",
+    "room" to "616",
+    "contact" to "Monsieur Poirot",
+    "currentOwner" to "Monsieur Dupont",
+    "previousOwner" to "Monsieur Dupond",
+    "orderNumber" to "abcdf",
+    "color" to "red",
+    "serialNumber" to "abcdf",
+    "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
+    "status" to "In maintenance",
+    "comments" to "A comment",
+    "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+    "lastModifiedBy" to "Monsieur Duport"
+  )
+
   private var item2IDGrp1 = -1
   private var itemID: Int = -1
 
@@ -1553,6 +1580,200 @@ class TestPublicApiVerticle {
         that(response.containsKey("longitude")).isTrue()
         that(response.containsKey("floor")).isTrue()
       }
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @Order(38)
+  @DisplayName("Registering an item succeeds with a user with ac string = biot:grp1 without specifying it in the json creates the item correctly with the AC string of the user")
+  fun registerItemSucceeds3(testContext: VertxTestContext) {
+    val insertJson = item3.copy().apply { remove("accessControlString") }
+
+    var item3ID = -1
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      header("Authorization", "Bearer $tokenGrp1")
+      body(insertJson.encode())
+    } When {
+      post("/api/items")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isNotEmpty() // it returns the id of the registered item
+      item3ID = response.toInt()
+    }
+
+    val expected = insertJson.copy().put("accessControlString", user2.getString("accessControlString"))
+  val response2 = Buffer.buffer(
+    Given {
+      spec(requestSpecification)
+      accept(ContentType.JSON)
+      header("Authorization", "Bearer $token")
+    } When {
+      get("/api/items/$item3ID")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+  ).toJsonObject()
+
+  testContext.verify {
+    expectThat(response2).isNotNull()
+    val id = response2.remove("id")
+    expectThat(id).isEqualTo(item3ID)
+    expect {
+      that(response2.getString("beacon")).isEqualTo(expected.getString("beacon"))
+      that(response2.getString("category")).isEqualTo(expected.getString("category"))
+      that(response2.getString("service")).isEqualTo(expected.getString("service"))
+      that(response2.getString("itemID")).isEqualTo(expected.getString("itemID"))
+      that(response2.getString("accessControlString")).isEqualTo(expected.getString("accessControlString"))
+      that(response2.getString("brand")).isEqualTo(expected.getString("brand"))
+      that(response2.getString("model")).isEqualTo(expected.getString("model"))
+      that(response2.getString("supplier")).isEqualTo(expected.getString("supplier"))
+      that(response2.getString("purchaseDate")).isEqualTo(expected.getString("purchaseDate"))
+      that(response2.getDouble("purchasePrice")).isEqualTo(expected.getDouble("purchasePrice"))
+      that(response2.getString("originLocation")).isEqualTo(expected.getString("originLocation"))
+      that(response2.getString("currentLocation")).isEqualTo(expected.getString("currentLocation"))
+      that(response2.getString("room")).isEqualTo(expected.getString("room"))
+      that(response2.getString("contact")).isEqualTo(expected.getString("contact"))
+      that(response2.getString("currentOwner")).isEqualTo(expected.getString("currentOwner"))
+      that(response2.getString("previousOwner")).isEqualTo(expected.getString("previousOwner"))
+      that(response2.getString("orderNumber")).isEqualTo(expected.getString("orderNumber"))
+      that(response2.getString("color")).isEqualTo(expected.getString("color"))
+      that(response2.getString("serialNumber")).isEqualTo(expected.getString("serialNumber"))
+      that(response2.getString("maintenanceDate")).isEqualTo(expected.getString("maintenanceDate"))
+      that(response2.getString("status")).isEqualTo(expected.getString("status"))
+      that(response2.getString("comments")).isEqualTo(expected.getString("comments"))
+      that(response2.getString("lastModifiedDate")).isEqualTo(expected.getString("lastModifiedDate"))
+      that(response2.getString("lastModifiedBy")).isEqualTo(expected.getString("lastModifiedBy"))
+      that(response2.containsKey("timestamp")).isTrue()
+      that(response2.containsKey("battery")).isTrue()
+      that(response2.containsKey("beaconStatus")).isTrue()
+      that(response2.containsKey("latitude")).isTrue()
+      that(response2.containsKey("longitude")).isTrue()
+      that(response2.containsKey("floor")).isTrue()
+    }
+  }
+
+    // Delete the item
+    val response3 = Given {
+      spec(requestSpecification)
+      header("Authorization", "Bearer $token")
+    } When {
+      delete("/api/items/$item3ID")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response3).isEmpty()
+      testContext.completeNow()
+    }
+
+}
+
+
+  @Test
+  @Order(39)
+  @DisplayName("Registering an item succeeds with a user with ac string = biot:grp1 specifying it in the json creates the item correctly with the AC string specified in the JSON")
+  fun registerItemSucceeds4(testContext: VertxTestContext) {
+    val insertJson = item3.copy()
+
+    var item3ID = -1
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      header("Authorization", "Bearer $tokenGrp1")
+      body(insertJson.encode())
+    } When {
+      post("/api/items")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isNotEmpty() // it returns the id of the registered item
+      item3ID = response.toInt()
+    }
+
+    val expected = insertJson.copy()
+    val response2 = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        accept(ContentType.JSON)
+        header("Authorization", "Bearer $token")
+      } When {
+        get("/api/items/$item3ID")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonObject()
+
+    testContext.verify {
+      expectThat(response2).isNotNull()
+      val id = response2.remove("id")
+      expectThat(id).isEqualTo(item3ID)
+      expect {
+        that(response2.getString("beacon")).isEqualTo(expected.getString("beacon"))
+        that(response2.getString("category")).isEqualTo(expected.getString("category"))
+        that(response2.getString("service")).isEqualTo(expected.getString("service"))
+        that(response2.getString("itemID")).isEqualTo(expected.getString("itemID"))
+        that(response2.getString("accessControlString")).isEqualTo(expected.getString("accessControlString"))
+        that(response2.getString("brand")).isEqualTo(expected.getString("brand"))
+        that(response2.getString("model")).isEqualTo(expected.getString("model"))
+        that(response2.getString("supplier")).isEqualTo(expected.getString("supplier"))
+        that(response2.getString("purchaseDate")).isEqualTo(expected.getString("purchaseDate"))
+        that(response2.getDouble("purchasePrice")).isEqualTo(expected.getDouble("purchasePrice"))
+        that(response2.getString("originLocation")).isEqualTo(expected.getString("originLocation"))
+        that(response2.getString("currentLocation")).isEqualTo(expected.getString("currentLocation"))
+        that(response2.getString("room")).isEqualTo(expected.getString("room"))
+        that(response2.getString("contact")).isEqualTo(expected.getString("contact"))
+        that(response2.getString("currentOwner")).isEqualTo(expected.getString("currentOwner"))
+        that(response2.getString("previousOwner")).isEqualTo(expected.getString("previousOwner"))
+        that(response2.getString("orderNumber")).isEqualTo(expected.getString("orderNumber"))
+        that(response2.getString("color")).isEqualTo(expected.getString("color"))
+        that(response2.getString("serialNumber")).isEqualTo(expected.getString("serialNumber"))
+        that(response2.getString("maintenanceDate")).isEqualTo(expected.getString("maintenanceDate"))
+        that(response2.getString("status")).isEqualTo(expected.getString("status"))
+        that(response2.getString("comments")).isEqualTo(expected.getString("comments"))
+        that(response2.getString("lastModifiedDate")).isEqualTo(expected.getString("lastModifiedDate"))
+        that(response2.getString("lastModifiedBy")).isEqualTo(expected.getString("lastModifiedBy"))
+        that(response2.containsKey("timestamp")).isTrue()
+        that(response2.containsKey("battery")).isTrue()
+        that(response2.containsKey("beaconStatus")).isTrue()
+        that(response2.containsKey("latitude")).isTrue()
+        that(response2.containsKey("longitude")).isTrue()
+        that(response2.containsKey("floor")).isTrue()
+      }
+    }
+
+    // Delete the item
+    val response3 = Given {
+      spec(requestSpecification)
+      header("Authorization", "Bearer $token")
+    } When {
+      delete("/api/items/$item3ID")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response3).isEmpty()
       testContext.completeNow()
     }
   }

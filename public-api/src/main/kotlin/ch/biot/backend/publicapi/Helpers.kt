@@ -112,9 +112,15 @@ suspend fun executeWithAccessControl(webClient: WebClient, ctx: RoutingContext, 
         sendBadGateway(ctx, error)
       },
       { resp ->
-        val json = resp.body()
-        val acString = json.getString("accessControlString")
-        LOGGER.info { "AC String used = $acString" }
+        val acString: String
+        try {
+          val json = resp.body()
+          acString = json.getString("accessControlString")
+          LOGGER.info { "AC String used = $acString" }
+        } catch (e: Exception){
+          sendBadGateway(ctx, e)
+          return
+        }
         block(acString)
       }
     )

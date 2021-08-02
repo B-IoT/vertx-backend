@@ -673,7 +673,6 @@ class CRUDVerticle : CoroutineVerticle() {
   private suspend fun getItemsHandler(ctx: RoutingContext) {
     LOGGER.info { "New getItems request" }
     val params = ctx.queryParams()
-    LOGGER.info { "getItems for company ${params["company"]}" }
     val itemsTable = ctx.getCollection(ITEMS_TABLE)
     val beaconDataTable = ctx.getCollection(BEACON_DATA_TABLE)
 
@@ -790,8 +789,6 @@ class CRUDVerticle : CoroutineVerticle() {
       }
 
       val result: JsonObject = queryResult.iterator().next().toItemJson()
-      LOGGER.info { "getItem json object returned by the DB: $result" }
-
       ctx.response()
         .putHeader(CONTENT_TYPE, APPLICATION_JSON)
         .end(result.encode())

@@ -7,6 +7,7 @@ package ch.biot.backend.publicapi
 import arrow.fx.coroutines.parZip
 import io.vertx.core.Vertx
 import io.vertx.core.http.HttpMethod
+import io.vertx.core.json.JsonObject
 import io.vertx.ext.auth.jwt.JWTAuth
 import io.vertx.ext.web.Route
 import io.vertx.ext.web.Router
@@ -386,6 +387,19 @@ class PublicApiVerticle : CoroutineVerticle() {
   private suspend fun registerHandler(ctx: RoutingContext, endpoint: String, forwardResponse: Boolean = false) {
     LOGGER.info { "New register request on /$endpoint endpoint" }
     executeWithAccessControl(webClient, ctx) { acString ->
+      val json: JsonObject
+      try {
+        json = ctx.bodyAsJson
+      } catch (e: Exception){
+        sendBadGateway(ctx, e)
+        return@executeWithAccessControl
+      }
+      if(endpoint == ITEMS_ENDPOINT){
+        // Put the accessControlString in the JSON if none is present
+        if(!json.containsKey("accessControlString")){
+          json.put("accessControlString", acString)
+        }
+      }
       webClient
         .post(CRUD_PORT, CRUD_HOST, "/$endpoint").apply {
           addQueryParam("company", ctx.user().principal()["company"])
@@ -393,7 +407,7 @@ class PublicApiVerticle : CoroutineVerticle() {
           timeout(TIMEOUT)
           putHeader(CONTENT_TYPE, APPLICATION_JSON)
           expect(ResponsePredicate.SC_OK)
-          coroutineSendBuffer(ctx.body)
+          coroutineSendBuffer(json.toBuffer())
             .bimap(
               { error ->
                 sendBadGateway(ctx, error)
