@@ -155,7 +155,16 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
       "username" to mqttAuth.username,
       "password" to mqttAuth.password
     )
-    val company = client.will().willMessage.toJsonObject().getString("company")
+//    val company = client.will().willMessage.toJsonObject().getString("company")
+
+    // TEMP WARNING DEBUG CODE !!!!!! TO REMOVE - SCH - 04.08.2021
+    val company = when(clientIdentifier){
+      "relay_11", "relay_12", "relay_14", "relay_15", "relay_16", "relay_17", "relay_18", "relay_19" -> "hju"
+      else -> client.will().willMessage.toJsonObject().getString("company")
+    }
+    // TEMP WARNING DEBUG CODE !!!!!! TO REMOVE - SCH - 04.08.2021
+
+
     val collection = if (company != "biot") "${RELAYS_COLLECTION}_$company" else RELAYS_COLLECTION
     val mongoAuthRelays = if (mongoAuthRelaysCache.containsKey(collection)) {
       mongoAuthRelaysCache[collection]!!
@@ -199,7 +208,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
           clients[clientIdentifier] = client
 
           // Send last configuration to client
-          launch(vertx.dispatcher()) { sendLastConfiguration(client) }
+          launch(vertx.dispatcher()) { sendLastConfiguration(client, collection) }
         }.unsubscribeHandler { unsubscribe ->
           unsubscribe.topics().forEach { topic ->
             LOGGER.info { "Unsubscription for $topic by client $clientIdentifier" }
@@ -269,7 +278,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
 
     try {
       val message = m.payload().toJsonObject()
-      LOGGER.info { "Received message $message from client ${client.clientIdentifier()}" }
+      LOGGER.info { "Received message $message from client ${client.clientIdentifier()} for company: $company" }
 
       if (m.qosLevel() == MqttQoS.AT_LEAST_ONCE) {
         // Acknowledge the message
@@ -310,11 +319,12 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
   /**
    * Sends the last relay configuration to the given client.
    */
-  private suspend fun sendLastConfiguration(client: MqttEndpoint) {
+  private suspend fun sendLastConfiguration(client: MqttEndpoint, relaysCollection: String) {
     val query = jsonObjectOf("mqttID" to client.clientIdentifier())
     try {
       // Find the last configuration in MongoDB
-      val config = mongoClient.findOne(RELAYS_COLLECTION, query, jsonObjectOf()).await()
+      val config = mongoClient.findOne(relaysCollection, query, jsonObjectOf()).await()
+      LOGGER.info { "Get Last config for relay: ${client.clientIdentifier()} and got: $config from the table $RELAYS_COLLECTION" }
       if (config != null && !config.isEmpty) {
         // The configuration exists
         // Remove useless fields and clean lastModified, then send
