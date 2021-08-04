@@ -314,6 +314,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     val query = jsonObjectOf("mqttID" to client.clientIdentifier())
     try {
       // Find the last configuration in MongoDB
+
       val config = mongoClient.findOne(relaysCollection, query, jsonObjectOf()).await()
       if (config != null && !config.isEmpty) {
         // The configuration exists
