@@ -107,7 +107,7 @@ class Triangulator:
         self.nb_beacons = 25
         self.nb_relays = 25
 
-        self.filter_size_raw = 50
+        self.filter_size_raw = 30
         self.filter_size_dist = 30
 
         self.max_history = max(self.filter_size_dist, self.filter_size_raw)        
@@ -132,11 +132,11 @@ class Triangulator:
         self.matrix_dist[:] = np.nan
         
         # Importing the scaler model
-        filename = 'src/db_to_m_scaler.sav'
+        filename = 'src/scaler.sav'
         self.scaler = pickle.load(open(filename, 'rb'))
         
         # Importing the ML model
-        filename = 'src/db_to_m_Kalman+GBR.sav'
+        filename = 'src/Model_SVC.sav'
         self.reg_kalman = pickle.load(open(filename, 'rb'))
 
         return self
@@ -256,19 +256,23 @@ class Triangulator:
                 observation_covariance = observation_covariance[index]
             )
             
-            temp = self.matrix_raw[index[0], index[1], 0:self.filter_size_raw] # Matrix of 1 x Max_history
+            temp = self.matrix_raw[index[0], index[1], 0:self.filter_size_raw] # Matrix of 1 x filter_size_raw
             temp = np.flip(temp) # Flipping to be in the right format for Kalman
             temp = temp[~np.isnan(temp)] # Removing all nan
-            if temp.shape[0] > 1: # Checking we have more than 1 value
+            if temp.shape[0] > 1 and not np.isnan(self.initial_value_guess[index]): # Checking we have more than 1 value
                 temp,_ = kf.smooth(temp)
+            
             temp = self.feature_augmentation(temp[-1]) # Taking the latest RSSI and augmenting it
             temp = self.scaler.transform(np.array(temp).reshape(1, -1)) # Normalizing
             temp = np.concatenate(([1], temp.flatten()))
+
+
             matrix_dist_temp[index] = self.reg_kalman.predict(np.array(temp).reshape(1, -1))/100
 
-        # Stack matrix_dist_temp onto matrix_dist
-        np.dstack((matrix_dist_temp, self.matrix_dist))
-        self.matrix_dist = self.matrix_dist[:,:,0:max_history]
+        if len(indexes) > 0:
+            # Stack matrix_dist_temp onto matrix_dist
+            np.dstack((matrix_dist_temp, self.matrix_dist))
+            self.matrix_dist = self.matrix_dist[:,:,0:max_history]
 
 
         indexes = tuple(np.argwhere(~np.isnan(self.matrix_dist[:,:,0]))) # Indexes of beacon/relay pairs
@@ -291,7 +295,7 @@ class Triangulator:
             temp = self.matrix_dist[index[0], index[1], 0:self.filter_size_dist] # Matrix of 1 x filter_size_dist
             temp = np.flip(temp) # Flipping to be in the right format for Kalman
             temp = temp[~np.isnan(temp)] # Removing all nan
-            if temp.shape[0] > 1: # Checking we have more than 1 value
+            if temp.shape[0] > 1 and not np.isnan(initial_value_guess_dist[index]): # Checking we have more than 1 value
                 temp,_ = kf.smooth(temp)
             smooth_dist = temp[-1]
             self.matrix_dist[index[0], index[1], 0] = smooth_dist
@@ -427,12 +431,12 @@ class Triangulator:
         Triangulates all beacons detected by the given relay, if enough information is available.
         """
 
-        max_history = 30 #Number of data hsitory to keep 
+        # max_history = 30 #Number of data hsitory to keep 
 
-        logger.info(
-                    "Matrix dist {}",
-                    self.matrix_dist
-                )
+        # logger.info(
+        #             "Matrix dist {}",
+        #             self.matrix_dist
+        #         )
 
         # Import the data
         relay_data = [
@@ -454,7 +458,6 @@ class Triangulator:
                 
         relay_index = self.relay_mapping[relay_id]
         
-        
         # Create the matrix with the relay data [latitude, longitude, floor]
         if self.relay_matrix is None:
             self.relay_matrix = np.array(relay_data).reshape(1,len(relay_data))  
@@ -462,6 +465,13 @@ class Triangulator:
         elif relay_name not in self.relay_matrix_name :
             self.relay_matrix = np.concatenate((self.relay_matrix, np.array(relay_data).reshape(1,len(relay_data))), axis=0)
             self.relay_matrix_name = np.concatenate((self.relay_matrix_name, np.array(relay_name).reshape(1, 1)), axis=0)
+        elif relay_name in self.relay_matrix_name and (self.relay_matrix[relay_index][0] != relay_data[0] or 
+                                                        self.relay_matrix[relay_index][1] != relay_data[1] or 
+                                                        self.relay_matrix[relay_index][2] != relay_data[2]):
+            # It means that the latitude/longitude/floor changed for this relay --> update
+            self.relay_matrix[relay_index] = relay_data
+
+
          
         # Exit if the relay did not detect any beacon
         if not beacons:
@@ -493,9 +503,11 @@ class Triangulator:
             if not np.isnan(self.temp_raw[beacon_number_temp, relay_index]):
                 self.matrix_raw = np.dstack((self.temp_raw, self.matrix_raw))
                 # Number of historic values we want to keep
-                self.matrix_raw = self.matrix_raw[:,:,0:max_history]
+                self.matrix_raw = self.matrix_raw[:,:,0:self.max_history]
+
+                logger.info("Relay_matrix_name before preprocessing: {}", self.relay_matrix_name)
                 # Starting the filtering job
-                self.preprocessing(beacon_indexes, relay_index, max_history,)
+                self.preprocessing(beacon_indexes, relay_index, self.max_history)
             
                 coordinates = await self.triangulation_engine(beacon_indexes, beacons, company)
                 self.temp_raw[:] = np.nan
