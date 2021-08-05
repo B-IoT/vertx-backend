@@ -100,10 +100,11 @@ internal suspend fun <T> HttpRequest<T>.coroutineSendBuffer(buffer: Buffer): Eit
  * It sends a Bad gateway error if it cannot get the user
  */
 suspend fun executeWithAccessControl(webClient: WebClient, ctx: RoutingContext, block: suspend (String) -> Unit) {
-  val userID: String = ctx.user().principal().getString("userID")
+  val userPrincipal = ctx.user().principal()
+  val userID: String =userPrincipal.getString("userID")
   webClient
     .get(PublicApiVerticle.CRUD_PORT, PublicApiVerticle.CRUD_HOST, "/${PublicApiVerticle.USERS_ENDPOINT}/${userID}")
-    .addQueryParam("company", ctx.user().principal()["company"])
+    .addQueryParam("company", userPrincipal.getString("company")g)
     .timeout(PublicApiVerticle.TIMEOUT)
     .`as`(BodyCodec.jsonObject())
     .coroutineSend()
