@@ -152,20 +152,20 @@ class PublicApiVerticle : CoroutineVerticle() {
     }
 
     // Users
-    router.post("$OAUTH_PREFIX/register").handler(jwtAuthHandler).coroutineHandler(::registerUserHandler)
-    router.post("$OAUTH_PREFIX/token").coroutineHandler(::tokenHandler)
-    router.put("$API_PREFIX/$USERS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::updateUserHandler)
-    router.get("$API_PREFIX/$USERS_ENDPOINT").handler(jwtAuthHandler).coroutineHandler(::getUsersHandler)
-    router.get("$API_PREFIX/$USERS_ENDPOINT/me").handler(jwtAuthHandler).handler(::getUserInfoHandler)
-    router.get("$API_PREFIX/$USERS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getUserHandler)
-    router.delete("$API_PREFIX/$USERS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::deleteUserHandler)
+    router.post("$OAUTH_PREFIX/register").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler).coroutineHandler(::registerUserHandler)
+    router.post("$OAUTH_PREFIX/token").coroutineHandler(::tokenHandler).coroutineHandler(::getACStringHandler)
+    router.put("$API_PREFIX/$USERS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler).coroutineHandler(::updateUserHandler)
+    router.get("$API_PREFIX/$USERS_ENDPOINT").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler).coroutineHandler(::getUsersHandler)
+    router.get("$API_PREFIX/$USERS_ENDPOINT/me").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler).handler(::getUserInfoHandler)
+    router.get("$API_PREFIX/$USERS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler).coroutineHandler(::getUserHandler)
+    router.delete("$API_PREFIX/$USERS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler).coroutineHandler(::deleteUserHandler)
 
     // Relays
-    router.post("$API_PREFIX/$RELAYS_ENDPOINT").handler(jwtAuthHandler).coroutineHandler(::registerRelayHandler)
-    router.put("$API_PREFIX/$RELAYS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::updateRelayHandler)
-    router.get("$API_PREFIX/$RELAYS_ENDPOINT").handler(jwtAuthHandler).coroutineHandler(::getRelaysHandler)
-    router.get("$API_PREFIX/$RELAYS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getRelayHandler)
-    router.delete("$API_PREFIX/$RELAYS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::deleteRelayHandler)
+    router.post("$API_PREFIX/$RELAYS_ENDPOINT").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler).coroutineHandler(::registerRelayHandler)
+    router.put("$API_PREFIX/$RELAYS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler).coroutineHandler(::updateRelayHandler)
+    router.get("$API_PREFIX/$RELAYS_ENDPOINT").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler).coroutineHandler(::getRelaysHandler)
+    router.get("$API_PREFIX/$RELAYS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler).coroutineHandler(::getRelayHandler)
+    router.delete("$API_PREFIX/$RELAYS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler).coroutineHandler(::deleteRelayHandler)
 
     // Items
     router.post("$API_PREFIX/$ITEMS_ENDPOINT").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler).coroutineHandler(::registerItemHandler)
@@ -178,7 +178,7 @@ class PublicApiVerticle : CoroutineVerticle() {
     router.delete("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler).coroutineHandler(::deleteItemHandler)
 
     // Analytics
-    router.get("$API_PREFIX/$ANALYTICS_ENDPOINT/status").handler(jwtAuthHandler)
+    router.get("$API_PREFIX/$ANALYTICS_ENDPOINT/status").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler)
       .coroutineHandler(::analyticsGetStatusHandler)
 
     // Health checks
@@ -390,14 +390,9 @@ class PublicApiVerticle : CoroutineVerticle() {
    */
   private suspend fun registerHandler(ctx: RoutingContext, endpoint: String, forwardResponse: Boolean = false) {
     LOGGER.info { "New register request on /$endpoint endpoint" }
-    var acString = ctx.get<String>("accessControlString")
+    val acString = ctx.get<String>("accessControlString")
     if(acString == null) {
-      if (endpoint == ITEMS_ENDPOINT) {
         sendBadGateway(ctx, Error("Cannot get the accessControlString from the context."))
-      } else {
-        // For the endpoints that do not use it -> !!! change when adding AC to all endpoints !!!
-        acString = ""
-      }
     }
       val json: JsonObject
       try {
@@ -438,14 +433,9 @@ class PublicApiVerticle : CoroutineVerticle() {
    */
   private suspend fun updateHandler(ctx: RoutingContext, endpoint: String) {
     LOGGER.info { "New update request on /$endpoint endpoint" }
-    var acString = ctx.get<String>("accessControlString")
+    val acString = ctx.get<String>("accessControlString")
     if(acString == null) {
-      if (endpoint == ITEMS_ENDPOINT) {
         sendBadGateway(ctx, Error("Cannot get the accessControlString from the context."))
-      } else {
-        // For the endpoints that do not use it -> !!! change when adding AC to all endpoints !!!
-        acString = ""
-      }
     }
       val query = ctx.request().query()
       val requestURI =
@@ -475,14 +465,9 @@ class PublicApiVerticle : CoroutineVerticle() {
   private suspend fun getManyHandler(ctx: RoutingContext, endpoint: String) {
     LOGGER.info { "New getMany request on /$endpoint endpoint" }
 
-    var acString = ctx.get<String>("accessControlString")
+    val acString = ctx.get<String>("accessControlString")
     if(acString == null) {
-      if (endpoint == ITEMS_ENDPOINT) {
         sendBadGateway(ctx, Error("Cannot get the accessControlString from the context."))
-      } else {
-        // For the endpoints that do not use it -> !!! change when adding AC to all endpoints !!!
-        acString = ""
-      }
     }
       val query = ctx.request().query()
       val requestURI = if (query != null && query.isNotEmpty()) "/$endpoint/?$query" else "/$endpoint"
