@@ -96,8 +96,8 @@ internal suspend fun <T> HttpRequest<T>.coroutineSendBuffer(buffer: Buffer): Eit
   }
 
 /**
- * Get the accessControlString of the user from the CRUD service and pass it to the function to execute
- * sends Bad gateway error if it cannot get the user
+ * Get the accessControlString of the user from the CRUD service and pass it to the function to execute.
+ * It sends a Bad gateway error if it cannot get the user
  */
 suspend fun executeWithAccessControl(webClient: WebClient, ctx: RoutingContext, block: suspend (String) -> Unit) {
   val userID: String = ctx.user().principal().getString("userID")
@@ -125,4 +125,3 @@ suspend fun executeWithAccessControl(webClient: WebClient, ctx: RoutingContext, 
       }
     )
 }
-
