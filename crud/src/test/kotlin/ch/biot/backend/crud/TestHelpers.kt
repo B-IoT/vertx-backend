@@ -122,6 +122,35 @@ class TestHelpers {
     expectThat(validateAccessControlString("biot:$longNameGroups", company)).isFalse() // Too long i.e. 2049 chars
   }
 
+  @Test
+  fun hasAcStringAccessAuthorizesCorrectStrings(vertx: Vertx): Unit = runBlocking(vertx.dispatcher()) {
+    val company = "biot"
+
+    val itemAcString = "biot:grp1:grp2:grp3"
+
+    expectThat(hasAcStringAccess("biot", itemAcString)).isTrue()
+    expectThat(hasAcStringAccess("biot:grp1", itemAcString)).isTrue()
+    expectThat(hasAcStringAccess("biot:grp1:grp2", itemAcString)).isTrue()
+    expectThat(hasAcStringAccess("biot:grp1:grp2:grp3", itemAcString)).isTrue()
+  }
+
+  @Test
+  fun hasAcStringAccessRefusesIncorrectStrings(vertx: Vertx): Unit = runBlocking(vertx.dispatcher()) {
+    val company = "biot"
+
+    val itemAcString = "biot:grp1:grp2:grp3"
+
+    expectThat(hasAcStringAccess("bio", itemAcString)).isFalse()
+    expectThat(hasAcStringAccess("biot:gr", itemAcString)).isFalse()
+    expectThat(hasAcStringAccess("biot:g", itemAcString)).isFalse()
+    expectThat(hasAcStringAccess("biot:grp2", itemAcString)).isFalse()
+    expectThat(hasAcStringAccess("biot:gpr1:grp5", itemAcString)).isFalse()
+    expectThat(hasAcStringAccess("biot:grp1:grp2:grp", itemAcString)).isFalse()
+    expectThat(hasAcStringAccess("biot:grp1:grp2:grp3:grp4", itemAcString)).isFalse()
+    expectThat(hasAcStringAccess("biot:grp2:grp1", itemAcString)).isFalse()
+    expectThat(hasAcStringAccess("biot:grp1:grp6", itemAcString)).isFalse()
+  }
+
   companion object {
 
     private val instance: KDockerComposeContainer by lazy { defineDockerCompose() }

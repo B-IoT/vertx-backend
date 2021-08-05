@@ -3111,7 +3111,7 @@ class TestCRUDVerticleItems {
 
 
   @Test
-  @DisplayName("updateItem does not update the desired item if the accessControlString does not authorize the access 1")
+  @DisplayName("updateItem does not update the desired item if the accessControlString does not authorize the access and sends a code 403 1")
   fun updateItemIsCorrectWithInsufficientACString1(vertx: Vertx, testContext: VertxTestContext) {
     runBlocking(vertx.dispatcher()) {
       insertItemsAccessControl().await()
@@ -3125,13 +3125,13 @@ class TestCRUDVerticleItems {
         queryParam("accessControlString", "biot:grp1:grp3:grp4")
         put("/items/$existingItemGrp1Grp3Id")
       } Then {
-        statusCode(200)
+        statusCode(403)
       } Extract {
         asString()
       }
 
       testContext.verify {
-        expectThat(response).isEmpty()
+        expectThat(response).isNotNull()
       }
 
       try {
@@ -3180,7 +3180,7 @@ class TestCRUDVerticleItems {
 
 
   @Test
-  @DisplayName("updateItem does not update the desired item if the accessControlString does not authorize the access 2")
+  @DisplayName("updateItem does not update the desired item if the accessControlString does not authorize the access and sends a code 403 2")
   fun updateItemIsCorrectWithInsufficientACString2(vertx: Vertx, testContext: VertxTestContext) {
     runBlocking(vertx.dispatcher()) {
       insertItemsAccessControl().await()
@@ -3194,13 +3194,13 @@ class TestCRUDVerticleItems {
         queryParam("accessControlString", "biot:grp2")
         put("/items/$existingItemGrp1Grp3Id")
       } Then {
-        statusCode(200)
+        statusCode(403)
       } Extract {
         asString()
       }
 
       testContext.verify {
-        expectThat(response).isEmpty()
+        expectThat(response).isNotNull()
       }
 
       try {
@@ -3243,6 +3243,39 @@ class TestCRUDVerticleItems {
         testContext.completeNow()
       } catch (error: Throwable) {
         testContext.failNow(error)
+      }
+    }
+  }
+
+  @Test
+  @DisplayName("updateItem does not fail with the desired item does not exist in the DB")
+  fun updateItemDoesNotFailWhenItemDoesNotExist(vertx: Vertx, testContext: VertxTestContext) {
+    var idOfNonExistingItem = 1543
+    for (i in 1..1000){
+      if(i != existingItemID && i != existingItemGrp1Grp3Id ){
+        idOfNonExistingItem = i
+      }
+    }
+    runBlocking(vertx.dispatcher()) {
+      insertItemsAccessControl().await()
+      val response = Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        accept(ContentType.JSON)
+        body(updateItemJson.encode())
+      } When {
+        queryParam("company", "biot")
+        queryParam("accessControlString", "biot:grp2")
+        put("/items/$idOfNonExistingItem")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+
+      testContext.verify {
+        expectThat(response).isEmpty()
+        testContext.completeNow()
       }
     }
   }

@@ -1335,7 +1335,7 @@ class TestPublicApiVerticle {
 
   @Test
   @Order(35)
-  @DisplayName("Updating an item fails with insufficient ac string (it completes but does not modify the item)")
+  @DisplayName("Updating an item fails with insufficient ac string and does not modify the item")
   fun updateItemFailsWithWrongACString(testContext: VertxTestContext) {
 
     val expected = Buffer.buffer(
@@ -1389,7 +1389,7 @@ class TestPublicApiVerticle {
     } When {
       put("/api/items/$itemID")
     } Then {
-      statusCode(200)
+      statusCode(502)
     } Extract {
       asString()
     }

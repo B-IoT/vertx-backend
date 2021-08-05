@@ -59,6 +59,10 @@ fun validateAccessControlString(s: String, company: String): Boolean =
   s.length <= MAX_ACCESS_CONTROL_STRING_LENGTH && s.matches("^[a-zA-Z]+(:[a-zA-Z0-9]+)*$".toRegex()) && s.split(':')[0] == company
 
 
+fun hasAcStringAccess(acString: String, resourceACString: String): Boolean {
+  return resourceACString.startsWith(acString) && (resourceACString.length == acString.length || resourceACString[acString.length] == ':')
+}
+
 /**
  * Cleans the JSON object, removing the "_id" field and formatting the "lastModified" field.
  *

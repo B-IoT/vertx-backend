@@ -70,6 +70,7 @@ class CRUDVerticle : CoroutineVerticle() {
 
     const val INTERNAL_SERVER_ERROR_CODE = 500
     private const val UNAUTHORIZED_CODE = 401
+    private const val FORBIDEN_CODE = 403
     const val BAD_REQUEST_CODE = 400
 
     private const val SERVER_COMPRESSION_LEVEL = 4
@@ -801,7 +802,8 @@ class CRUDVerticle : CoroutineVerticle() {
       // Extract the information from the payload and update the item in TimescaleDB
       val info = extractItemInformation(json, keepNulls = false)
       val data = listOf(id.toInt(), *info.map { it.second }.toTypedArray())
-      val table = ctx.getCollection(ITEMS_TABLE)
+      val itemsTable = ctx.getCollection(ITEMS_TABLE)
+      val beaconDataTable = ctx.getCollection(BEACON_DATA_TABLE)
 
       val params = ctx.queryParams()
       val company = params["company"]
@@ -813,14 +815,32 @@ class CRUDVerticle : CoroutineVerticle() {
         ctx.fail(BAD_REQUEST_CODE)
         return@validateAndThen
       }
-
       val keys = info.map { it.first }
       val accessControlString: String = if (params.contains("accessControlString")) params["accessControlString"] else company
-      val executedQuery = pgClient.preparedQuery(updateItem(table, keys, accessControlString))
+
+      val getItemExecutedQuery = pgClient.preparedQuery(getItem(itemsTable, beaconDataTable, company)).execute(Tuple.of(id.toInt()))
+      val updateExecutedQuery = pgClient.preparedQuery(updateItem(itemsTable, keys, accessControlString))
           .execute(Tuple.tuple(data))
 
       executeWithErrorHandling("Could not update item $id", ctx) {
-        executedQuery.await()
+        val getQueryResult = getItemExecutedQuery.await()
+        if(!getQueryResult.iterator().hasNext()){
+          LOGGER.info { "updateItem request for item with id $id: item does not exist in the DB" }
+          ctx.end()
+          return@executeWithErrorHandling
+        }
+        val item = getQueryResult.iterator().next().toItemJson()
+        val itemAcString = item.getString("accessControlString")
+
+        // Check that the given accessControlString gives access to the resource
+        if(!hasAcStringAccess(accessControlString, itemAcString)){
+          // Access refused
+          LOGGER.info { "ACCESS FORBIDDEN updateItem" }
+          ctx.fail(FORBIDEN_CODE)
+          return@executeWithErrorHandling
+        }
+
+        updateExecutedQuery.await()
         LOGGER.info { "Successfully updated item $id" }
         ctx.end()
       }
