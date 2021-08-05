@@ -5,6 +5,7 @@
 package ch.biot.backend.publicapi
 
 import arrow.core.Either
+import arrow.core.some
 import io.vertx.core.buffer.Buffer
 import io.vertx.core.file.FileSystem
 import io.vertx.core.json.JsonArray
@@ -94,34 +95,3 @@ internal suspend fun <T> HttpRequest<T>.coroutineSendBuffer(buffer: Buffer): Eit
   } catch (error: Throwable) {
     Either.Left(InternalErrorException("Internal server error:\n${error.message}", error.cause))
   }
-
-/**
- * Get the accessControlString of the user from the CRUD service and pass it to the function to execute.
- * It sends a Bad gateway error if it cannot get the user
- */
-suspend fun executeWithAccessControl(webClient: WebClient, ctx: RoutingContext, block: suspend (String) -> Unit) {
-  val userPrincipal = ctx.user().principal()
-  val userID: String =userPrincipal.getString("userID")
-  webClient
-    .get(PublicApiVerticle.CRUD_PORT, PublicApiVerticle.CRUD_HOST, "/${PublicApiVerticle.USERS_ENDPOINT}/${userID}")
-    .addQueryParam("company", userPrincipal.getString("company"))
-    .timeout(PublicApiVerticle.TIMEOUT)
-    .`as`(BodyCodec.jsonObject())
-    .coroutineSend()
-    .bimap(
-      { error ->
-        sendBadGateway(ctx, error)
-      },
-      { resp ->
-        val acString: String
-        try {
-          val json = resp.body()
-          acString = json.getString("accessControlString")
-        } catch (e: Exception) {
-          sendBadGateway(ctx, e)
-          return
-        }
-        block(acString)
-      }
-    )
-}

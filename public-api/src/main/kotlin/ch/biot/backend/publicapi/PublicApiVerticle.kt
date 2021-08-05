@@ -16,6 +16,7 @@ import io.vertx.ext.web.client.WebClient
 import io.vertx.ext.web.client.predicate.ResponsePredicate
 import io.vertx.ext.web.codec.BodyCodec
 import io.vertx.ext.web.handler.BodyHandler
+import io.vertx.ext.web.handler.ChainAuthHandler
 import io.vertx.ext.web.handler.CorsHandler
 import io.vertx.ext.web.handler.JWTAuthHandler
 import io.vertx.ext.web.handler.sockjs.SockJSHandler
@@ -41,6 +42,7 @@ import io.vertx.spi.cluster.hazelcast.HazelcastClusterManager
 import kotlinx.coroutines.launch
 import mu.KotlinLogging
 import java.net.InetAddress
+import java.util.logging.Logger
 
 
 internal val LOGGER = KotlinLogging.logger {}
@@ -166,14 +168,14 @@ class PublicApiVerticle : CoroutineVerticle() {
     router.delete("$API_PREFIX/$RELAYS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::deleteRelayHandler)
 
     // Items
-    router.post("$API_PREFIX/$ITEMS_ENDPOINT").handler(jwtAuthHandler).coroutineHandler(::registerItemHandler)
-    router.put("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::updateItemHandler)
-    router.get("$API_PREFIX/$ITEMS_ENDPOINT").handler(jwtAuthHandler).coroutineHandler(::getItemsHandler)
-    router.get("$API_PREFIX/$ITEMS_ENDPOINT/categories").handler(jwtAuthHandler)
+    router.post("$API_PREFIX/$ITEMS_ENDPOINT").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler).coroutineHandler(::registerItemHandler)
+    router.put("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler).coroutineHandler(::updateItemHandler)
+    router.get("$API_PREFIX/$ITEMS_ENDPOINT").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler).coroutineHandler(::getItemsHandler)
+    router.get("$API_PREFIX/$ITEMS_ENDPOINT/categories").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler)
       .coroutineHandler(::getCategoriesHandler)
-    router.get("$API_PREFIX/$ITEMS_ENDPOINT/closest").handler(jwtAuthHandler).coroutineHandler(::getClosestItemsHandler)
-    router.get("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getItemHandler)
-    router.delete("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::deleteItemHandler)
+    router.get("$API_PREFIX/$ITEMS_ENDPOINT/closest").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler).coroutineHandler(::getClosestItemsHandler)
+    router.get("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler).coroutineHandler(::getItemHandler)
+    router.delete("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler).coroutineHandler(::deleteItemHandler)
 
     // Analytics
     router.get("$API_PREFIX/$ANALYTICS_ENDPOINT/status").handler(jwtAuthHandler)
@@ -342,7 +344,10 @@ class PublicApiVerticle : CoroutineVerticle() {
   private suspend fun getItemsHandler(ctx: RoutingContext) = getManyHandler(ctx, ITEMS_ENDPOINT)
   private suspend fun getClosestItemsHandler(ctx: RoutingContext) {
     LOGGER.info { "New getClosestItems request" }
-    executeWithAccessControl(webClient, ctx) { acString ->
+    val acString = ctx.get<String>("accessControlString")
+    if(acString == null) {
+        sendBadGateway(ctx, Error("Cannot get the accessControlString from the context."))
+    }
 
       webClient.get(CRUD_PORT, CRUD_HOST, "/$ITEMS_ENDPOINT/closest/?${ctx.request().query()}")
         .addQueryParam("company", ctx.user().principal()["company"])
@@ -358,7 +363,6 @@ class PublicApiVerticle : CoroutineVerticle() {
             forwardJsonObjectOrStatusCode(ctx, resp)
           }
         )
-    }
   }
 
   private fun getUserInfoHandler(ctx: RoutingContext) {
@@ -386,13 +390,21 @@ class PublicApiVerticle : CoroutineVerticle() {
    */
   private suspend fun registerHandler(ctx: RoutingContext, endpoint: String, forwardResponse: Boolean = false) {
     LOGGER.info { "New register request on /$endpoint endpoint" }
-    executeWithAccessControl(webClient, ctx) { acString ->
+    var acString = ctx.get<String>("accessControlString")
+    if(acString == null) {
+      if (endpoint == ITEMS_ENDPOINT) {
+        sendBadGateway(ctx, Error("Cannot get the accessControlString from the context."))
+      } else {
+        // For the endpoints that do not use it -> !!! change when adding AC to all endpoints !!!
+        acString = ""
+      }
+    }
       val json: JsonObject
       try {
         json = ctx.bodyAsJson
       } catch (e: Exception) {
         sendBadGateway(ctx, e)
-        return@executeWithAccessControl
+        return
       }
       if (endpoint == ITEMS_ENDPOINT) {
         // Put the accessControlString in the JSON if none is present
@@ -417,7 +429,7 @@ class PublicApiVerticle : CoroutineVerticle() {
                 else sendStatusCode(ctx, response.statusCode())
               }
             )
-        }
+
     }
   }
 
@@ -426,7 +438,15 @@ class PublicApiVerticle : CoroutineVerticle() {
    */
   private suspend fun updateHandler(ctx: RoutingContext, endpoint: String) {
     LOGGER.info { "New update request on /$endpoint endpoint" }
-    executeWithAccessControl(webClient, ctx) { acString ->
+    var acString = ctx.get<String>("accessControlString")
+    if(acString == null) {
+      if (endpoint == ITEMS_ENDPOINT) {
+        sendBadGateway(ctx, Error("Cannot get the accessControlString from the context."))
+      } else {
+        // For the endpoints that do not use it -> !!! change when adding AC to all endpoints !!!
+        acString = ""
+      }
+    }
       val query = ctx.request().query()
       val requestURI =
         if (query != null && query.isNotEmpty()) "/$endpoint/${ctx.pathParam("id")}?$query"
@@ -446,7 +466,7 @@ class PublicApiVerticle : CoroutineVerticle() {
           },
           { ctx.end() }
         )
-    }
+
   }
 
   /**
@@ -454,8 +474,16 @@ class PublicApiVerticle : CoroutineVerticle() {
    */
   private suspend fun getManyHandler(ctx: RoutingContext, endpoint: String) {
     LOGGER.info { "New getMany request on /$endpoint endpoint" }
-    executeWithAccessControl(webClient, ctx) { acString ->
 
+    var acString = ctx.get<String>("accessControlString")
+    if(acString == null) {
+      if (endpoint == ITEMS_ENDPOINT) {
+        sendBadGateway(ctx, Error("Cannot get the accessControlString from the context."))
+      } else {
+        // For the endpoints that do not use it -> !!! change when adding AC to all endpoints !!!
+        acString = ""
+      }
+    }
       val query = ctx.request().query()
       val requestURI = if (query != null && query.isNotEmpty()) "/$endpoint/?$query" else "/$endpoint"
 
@@ -474,7 +502,6 @@ class PublicApiVerticle : CoroutineVerticle() {
             forwardJsonArrayOrStatusCode(ctx, resp)
           }
         )
-    }
   }
 
   /**
@@ -482,7 +509,15 @@ class PublicApiVerticle : CoroutineVerticle() {
    */
   private suspend fun getOneHandler(ctx: RoutingContext, endpoint: String) {
     LOGGER.info { "New getOne request on /$endpoint endpoint" }
-    executeWithAccessControl(webClient, ctx) { acString ->
+    var acString = ctx.get<String>("accessControlString")
+    if(acString == null) {
+      if (endpoint == ITEMS_ENDPOINT) {
+        sendBadGateway(ctx, Error("Cannot get the accessControlString from the context."))
+      } else {
+        // For the endpoints that do not use it -> !!! change when adding AC to all endpoints !!!
+        acString = ""
+      }
+    }
       LOGGER.info { "id = ${ctx.pathParam("id")}" }
       webClient
         .get(CRUD_PORT, CRUD_HOST, "/$endpoint/${ctx.pathParam("id")}")
@@ -499,7 +534,6 @@ class PublicApiVerticle : CoroutineVerticle() {
             forwardJsonObjectOrStatusCode(ctx, resp)
           }
         )
-    }
   }
 
   /**
@@ -508,7 +542,15 @@ class PublicApiVerticle : CoroutineVerticle() {
   private suspend fun deleteHandler(ctx: RoutingContext, endpoint: String) {
     LOGGER.info { "New delete request on /$endpoint endpoint" }
 
-    executeWithAccessControl(webClient, ctx) { acString ->
+    var acString = ctx.get<String>("accessControlString")
+    if(acString == null) {
+      if (endpoint == ITEMS_ENDPOINT) {
+        sendBadGateway(ctx, Error("Cannot get the accessControlString from the context."))
+      } else {
+        // For the endpoints that do not use it -> !!! change when adding AC to all endpoints !!!
+        acString = ""
+      }
+    }
       webClient
         .delete(CRUD_PORT, CRUD_HOST, "/$endpoint/${ctx.pathParam("id")}")
         .addQueryParam("company", ctx.user().principal()["company"])
@@ -522,7 +564,35 @@ class PublicApiVerticle : CoroutineVerticle() {
           },
           { ctx.end() }
         )
-    }
+
+  }
+
+  private suspend fun getACStringHandler(ctx: RoutingContext) {
+    val userPrincipal = ctx.user().principal()
+    val userID: String = userPrincipal.getString("userID")
+    webClient
+      .get(CRUD_PORT, CRUD_HOST, "/$USERS_ENDPOINT/${userID}")
+      .addQueryParam("company", userPrincipal.getString("company"))
+      .timeout(TIMEOUT)
+      .`as`(BodyCodec.jsonObject())
+      .coroutineSend()
+      .bimap(
+        { error ->
+          sendBadGateway(ctx, error)
+        },
+        { resp ->
+          val acString: String
+          try {
+            val json = resp.body()
+            acString = json.getString("accessControlString")
+          } catch (e: Exception) {
+            sendBadGateway(ctx, e)
+            return
+          }
+          ctx.put("accessControlString", acString)
+          ctx.next()
+        }
+      )
   }
 
   /**
