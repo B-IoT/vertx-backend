@@ -787,6 +787,7 @@ class CRUDVerticle : CoroutineVerticle() {
 
   /**
    * Handles an updateItem request.
+   * Sends back a 403 if the accessControlString passed as query parameters is insufficient
    */
   private suspend fun updateItemHandler(ctx: RoutingContext) {
     val id = ctx.pathParam("id")
