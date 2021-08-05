@@ -267,7 +267,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
             val beacon = it as JsonObject
             val nonEmptyMac = beacon.getString("mac").isNotEmpty()
             val validBattery = beacon.getInteger("battery") in 0..100
-            val validStatus = beacon.getInteger("status") in setOf(0, 1, 2)
+            val validStatus = beacon.getInteger("status") in setOf(0, 1, 2, 3)
             nonEmptyMac && validBattery && validStatus
           }
         }
