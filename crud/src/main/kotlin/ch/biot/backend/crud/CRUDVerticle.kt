@@ -816,8 +816,8 @@ class CRUDVerticle : CoroutineVerticle() {
 
       val params = ctx.queryParams()
 
-      if (info.any { pair ->
-          pair.first == "accessControlString" && !validateAccessControlString(pair.second as String, params["company"])
+      if (info.any { (key, accessControlString) ->
+          key == "accessControlString" && !validateAccessControlString(accessControlString as String, params["company"])
         }) {
         // The query tries to update the item's accessControlString with an invalid one --> fails
         ctx.fail(BAD_REQUEST_CODE)
