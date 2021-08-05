@@ -55,6 +55,8 @@ class PublicApiVerticle : CoroutineVerticle() {
     private const val APPLICATION_JSON = "application/json"
     private const val CONTENT_TYPE = "Content-Type"
 
+    private const val NO_AC_IN_CTX_ERROR_MSG = "Cannot get the accessControlString from the context."
+
     const val USERS_ENDPOINT = "users"
     private const val RELAYS_ENDPOINT = "relays"
     private const val ITEMS_ENDPOINT = "items"
@@ -346,7 +348,8 @@ class PublicApiVerticle : CoroutineVerticle() {
     LOGGER.info { "New getClosestItems request" }
     val acString = ctx.get<String>("accessControlString")
     if(acString == null) {
-        sendBadGateway(ctx, Error("Cannot get the accessControlString from the context."))
+
+      sendBadGateway(ctx, Error(NO_AC_IN_CTX_ERROR_MSG))
     }
 
       webClient.get(CRUD_PORT, CRUD_HOST, "/$ITEMS_ENDPOINT/closest/?${ctx.request().query()}")
@@ -392,7 +395,7 @@ class PublicApiVerticle : CoroutineVerticle() {
     LOGGER.info { "New register request on /$endpoint endpoint" }
     val acString = ctx.get<String>("accessControlString")
     if(acString == null) {
-        sendBadGateway(ctx, Error("Cannot get the accessControlString from the context."))
+        sendBadGateway(ctx, Error(NO_AC_IN_CTX_ERROR_MSG))
     }
       val json: JsonObject
       try {
@@ -401,12 +404,10 @@ class PublicApiVerticle : CoroutineVerticle() {
         sendBadGateway(ctx, e)
         return
       }
-      if (endpoint == ITEMS_ENDPOINT) {
-        // Put the accessControlString in the JSON if none is present
-        if (!json.containsKey("accessControlString")) {
-          json.put("accessControlString", acString)
-        }
-      }
+    // Put the accessControlString in the JSON if none is present
+    if (endpoint == ITEMS_ENDPOINT && !json.containsKey("accessControlString")) {
+      json.put("accessControlString", acString)
+    }
       webClient
         .post(CRUD_PORT, CRUD_HOST, "/$endpoint").apply {
           addQueryParam("company", ctx.user().principal()["company"])
@@ -435,7 +436,7 @@ class PublicApiVerticle : CoroutineVerticle() {
     LOGGER.info { "New update request on /$endpoint endpoint" }
     val acString = ctx.get<String>("accessControlString")
     if(acString == null) {
-        sendBadGateway(ctx, Error("Cannot get the accessControlString from the context."))
+        sendBadGateway(ctx, Error(NO_AC_IN_CTX_ERROR_MSG))
     }
       val query = ctx.request().query()
       val requestURI =
@@ -467,7 +468,7 @@ class PublicApiVerticle : CoroutineVerticle() {
 
     val acString = ctx.get<String>("accessControlString")
     if(acString == null) {
-        sendBadGateway(ctx, Error("Cannot get the accessControlString from the context."))
+        sendBadGateway(ctx, Error(NO_AC_IN_CTX_ERROR_MSG))
     }
       val query = ctx.request().query()
       val requestURI = if (query != null && query.isNotEmpty()) "/$endpoint/?$query" else "/$endpoint"
@@ -497,13 +498,12 @@ class PublicApiVerticle : CoroutineVerticle() {
     var acString = ctx.get<String>("accessControlString")
     if(acString == null) {
       if (endpoint == ITEMS_ENDPOINT) {
-        sendBadGateway(ctx, Error("Cannot get the accessControlString from the context."))
+        sendBadGateway(ctx, Error(NO_AC_IN_CTX_ERROR_MSG))
       } else {
         // For the endpoints that do not use it -> !!! change when adding AC to all endpoints !!!
         acString = ""
       }
     }
-      LOGGER.info { "id = ${ctx.pathParam("id")}" }
       webClient
         .get(CRUD_PORT, CRUD_HOST, "/$endpoint/${ctx.pathParam("id")}")
         .addQueryParam("company", ctx.user().principal()["company"])
@@ -530,7 +530,7 @@ class PublicApiVerticle : CoroutineVerticle() {
     var acString = ctx.get<String>("accessControlString")
     if(acString == null) {
       if (endpoint == ITEMS_ENDPOINT) {
-        sendBadGateway(ctx, Error("Cannot get the accessControlString from the context."))
+        sendBadGateway(ctx, Error(NO_AC_IN_CTX_ERROR_MSG))
       } else {
         // For the endpoints that do not use it -> !!! change when adding AC to all endpoints !!!
         acString = ""
