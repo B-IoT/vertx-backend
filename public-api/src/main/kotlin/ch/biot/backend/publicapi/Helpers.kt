@@ -104,7 +104,7 @@ suspend fun executeWithAccessControl(webClient: WebClient, ctx: RoutingContext, 
   val userID: String =userPrincipal.getString("userID")
   webClient
     .get(PublicApiVerticle.CRUD_PORT, PublicApiVerticle.CRUD_HOST, "/${PublicApiVerticle.USERS_ENDPOINT}/${userID}")
-    .addQueryParam("company", userPrincipal.getString("company")g)
+    .addQueryParam("company", userPrincipal.getString("company"))
     .timeout(PublicApiVerticle.TIMEOUT)
     .`as`(BodyCodec.jsonObject())
     .coroutineSend()
