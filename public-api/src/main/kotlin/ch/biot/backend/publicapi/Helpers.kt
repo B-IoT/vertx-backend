@@ -5,7 +5,6 @@
 package ch.biot.backend.publicapi
 
 import arrow.core.Either
-import arrow.core.some
 import io.vertx.core.buffer.Buffer
 import io.vertx.core.file.FileSystem
 import io.vertx.core.json.JsonArray
@@ -13,9 +12,6 @@ import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.ext.web.client.HttpRequest
 import io.vertx.ext.web.client.HttpResponse
-import io.vertx.ext.web.client.WebClient
-import io.vertx.ext.web.codec.BodyCodec
-import io.vertx.kotlin.core.json.get
 import io.vertx.kotlin.coroutines.await
 
 /**

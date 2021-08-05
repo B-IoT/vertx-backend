@@ -627,6 +627,8 @@ class CRUDVerticle : CoroutineVerticle() {
 
   /**
    * Handles a registerItem request.
+   * If the json does not contain an accessControlString, it puts the <company> by default
+   * If the json contains a wrongly formatted accessControlString, it sends back a BAD REQUEST CODE
    */
   private suspend fun registerItemHandler(ctx: RoutingContext) {
     LOGGER.info { "New registerItem request" }
@@ -645,7 +647,7 @@ class CRUDVerticle : CoroutineVerticle() {
         json.put("accessControlString", company)
       }
 
-      // If an invalid accessControlString is given, send an Bad request code
+      // If an invalid accessControlString is given, it sends a Bad request code
       if (!validateAccessControlString(json.getString("accessControlString"), company)) {
         ctx.fail(BAD_REQUEST_CODE)
       } else {
@@ -678,14 +680,15 @@ class CRUDVerticle : CoroutineVerticle() {
     val beaconDataTable = ctx.getCollection(BEACON_DATA_TABLE)
 
     val company = params["company"]
-    val accessControlString: String = if (params.contains("accessControlString")) params["accessControlString"] else company
+    val accessControlString: String =
+      if (params.contains("accessControlString")) params["accessControlString"] else company
 
 
     val executedQuery = if (params.contains("category")) {
-        pgClient.preparedQuery(getItemsWithCategory(itemsTable, beaconDataTable, accessControlString))
-          .execute(Tuple.of(params["category"]))
+      pgClient.preparedQuery(getItemsWithCategory(itemsTable, beaconDataTable, accessControlString))
+        .execute(Tuple.of(params["category"]))
     } else {
-        pgClient.preparedQuery(getItems(itemsTable, beaconDataTable, accessControlString)).execute()
+      pgClient.preparedQuery(getItems(itemsTable, beaconDataTable, accessControlString)).execute()
     }
 
     executeWithErrorHandling("Could not get items", ctx) {
@@ -709,20 +712,21 @@ class CRUDVerticle : CoroutineVerticle() {
     val beaconDataTable = ctx.getCollection(BEACON_DATA_TABLE)
 
     val company = params["company"]
-    val accessControlString: String = if (params.contains("accessControlString")) params["accessControlString"] else company
+    val accessControlString: String =
+      if (params.contains("accessControlString")) params["accessControlString"] else company
 
     val executedQuery = if (params.contains("category")) {
-        pgClient.preparedQuery(
-          getClosestItemsWithCategory(
-            itemsTable,
-            beaconDataTable,
-            accessControlString
-          )
+      pgClient.preparedQuery(
+        getClosestItemsWithCategory(
+          itemsTable,
+          beaconDataTable,
+          accessControlString
         )
-          .execute(Tuple.of(params["category"], latitude, longitude))
+      )
+        .execute(Tuple.of(params["category"], latitude, longitude))
     } else {
-        pgClient.preparedQuery(getClosestItems(itemsTable, beaconDataTable, accessControlString))
-          .execute(Tuple.of(latitude, longitude))
+      pgClient.preparedQuery(getClosestItems(itemsTable, beaconDataTable, accessControlString))
+        .execute(Tuple.of(latitude, longitude))
     }
 
     executeWithErrorHandling("Could not get closest items", ctx) {
@@ -762,7 +766,8 @@ class CRUDVerticle : CoroutineVerticle() {
     val beaconDataTable = ctx.getCollection(BEACON_DATA_TABLE)
 
     val company = params["company"]
-    val accessControlString: String = if (params.contains("accessControlString")) params["accessControlString"] else company
+    val accessControlString: String =
+      if (params.contains("accessControlString")) params["accessControlString"] else company
 
     val executedQuery =
       pgClient.preparedQuery(getItem(itemsTable, beaconDataTable, accessControlString))
@@ -817,15 +822,17 @@ class CRUDVerticle : CoroutineVerticle() {
         return@validateAndThen
       }
       val keys = info.map { it.first }
-      val accessControlString: String = if (params.contains("accessControlString")) params["accessControlString"] else company
+      val accessControlString: String =
+        if (params.contains("accessControlString")) params["accessControlString"] else company
 
-      val getItemExecutedQuery = pgClient.preparedQuery(getItem(itemsTable, beaconDataTable, company)).execute(Tuple.of(id.toInt()))
+      val getItemExecutedQuery =
+        pgClient.preparedQuery(getItem(itemsTable, beaconDataTable, company)).execute(Tuple.of(id.toInt()))
       val updateExecutedQuery = pgClient.preparedQuery(updateItem(itemsTable, keys, accessControlString))
-          .execute(Tuple.tuple(data))
+        .execute(Tuple.tuple(data))
 
       executeWithErrorHandling("Could not update item $id", ctx) {
         val getQueryResult = getItemExecutedQuery.await()
-        if(!getQueryResult.iterator().hasNext()){
+        if (!getQueryResult.iterator().hasNext()) {
           LOGGER.info { "updateItem request for item with id $id: item does not exist in the DB" }
           ctx.end()
           return@executeWithErrorHandling
@@ -834,7 +841,7 @@ class CRUDVerticle : CoroutineVerticle() {
         val itemAcString = item.getString("accessControlString")
 
         // Check that the given accessControlString gives access to the resource
-        if(!hasAcStringAccess(accessControlString, itemAcString)){
+        if (!hasAcStringAccess(accessControlString, itemAcString)) {
           // Access refused
           LOGGER.info { "ACCESS FORBIDDEN updateItem" }
           ctx.fail(FORBIDEN_CODE)
@@ -860,7 +867,8 @@ class CRUDVerticle : CoroutineVerticle() {
 
     val table = ctx.getCollection(ITEMS_TABLE)
 
-    val accessControlString: String = if (params.contains("accessControlString")) params["accessControlString"] else company
+    val accessControlString: String =
+      if (params.contains("accessControlString")) params["accessControlString"] else company
 
     val executedQuery = pgClient.preparedQuery(deleteItem(table, accessControlString)).execute(Tuple.of(itemID))
 
@@ -872,6 +880,7 @@ class CRUDVerticle : CoroutineVerticle() {
 
   /**
    * Handles a getCategories request.
+   * Returns only the categories in which at least one item is accessible with the given accessControlString
    */
   private suspend fun getCategoriesHandler(ctx: RoutingContext) {
     LOGGER.info { "New getCategories request" }
@@ -881,7 +890,8 @@ class CRUDVerticle : CoroutineVerticle() {
     val params = ctx.queryParams()
 
     val company = params["company"]
-    val accessControlString: String = if (params.contains("accessControlString")) params["accessControlString"] else company
+    val accessControlString: String =
+      if (params.contains("accessControlString")) params["accessControlString"] else company
 
     val executedQuery = pgClient.preparedQuery(getCategories(table, accessControlString)).execute()
 

@@ -1352,7 +1352,8 @@ class TestCRUDVerticleItems {
     }
 
     try {
-      val res = pgClient.preparedQuery(getItem("items", "beacon_data", "biot")).execute(Tuple.of(existingItemID)).await()
+      val res =
+        pgClient.preparedQuery(getItem("items", "beacon_data", "biot")).execute(Tuple.of(existingItemID)).await()
       val json = res.iterator().next().toItemJson()
       expect {
         that(json.getString("beacon")).isEqualTo(updateItemJson.getString("beacon"))
@@ -1417,7 +1418,8 @@ class TestCRUDVerticleItems {
       }
 
       try {
-        val res = pgClient.preparedQuery(getItem("items", "beacon_data", "biot")).execute(Tuple.of(existingItemID)).await()
+        val res =
+          pgClient.preparedQuery(getItem("items", "beacon_data", "biot")).execute(Tuple.of(existingItemID)).await()
         val json = res.iterator().next().toItemJson()
         expect {
           that(json.getString("beacon")).isEqualTo(existingItem.getString("beacon"))
@@ -1482,7 +1484,8 @@ class TestCRUDVerticleItems {
       }
 
       try {
-        val res = pgClient.preparedQuery(getItem("items", "beacon_data", "biot")).execute(Tuple.of(existingItemID)).await()
+        val res =
+          pgClient.preparedQuery(getItem("items", "beacon_data", "biot")).execute(Tuple.of(existingItemID)).await()
         val json = res.iterator().next().toItemJson()
         expect {
           that(json.getString("beacon")).isEqualTo(updateJson.getString("beacon"))
@@ -2998,7 +3001,8 @@ class TestCRUDVerticleItems {
 
       try {
         val res =
-          pgClient.preparedQuery(getItem("items", "beacon_data", "biot")).execute(Tuple.of(existingItemGrp1Grp3Id)).await()
+          pgClient.preparedQuery(getItem("items", "beacon_data", "biot")).execute(Tuple.of(existingItemGrp1Grp3Id))
+            .await()
         val json = res.iterator().next().toItemJson()
         expect {
           that(json.getString("beacon")).isEqualTo(updateItemJson.getString("beacon"))
@@ -3067,7 +3071,8 @@ class TestCRUDVerticleItems {
 
       try {
         val res =
-          pgClient.preparedQuery(getItem("items", "beacon_data", "biot")).execute(Tuple.of(existingItemGrp1Grp3Id)).await()
+          pgClient.preparedQuery(getItem("items", "beacon_data", "biot")).execute(Tuple.of(existingItemGrp1Grp3Id))
+            .await()
         val json = res.iterator().next().toItemJson()
         expect {
           that(json.getString("beacon")).isEqualTo(updateItemJson.getString("beacon"))
@@ -3136,7 +3141,8 @@ class TestCRUDVerticleItems {
 
       try {
         val res =
-          pgClient.preparedQuery(getItem("items", "beacon_data", "biot")).execute(Tuple.of(existingItemGrp1Grp3Id)).await()
+          pgClient.preparedQuery(getItem("items", "beacon_data", "biot")).execute(Tuple.of(existingItemGrp1Grp3Id))
+            .await()
         val json = res.iterator().next().toItemJson()
         expect {
           that(json.getString("beacon")).isEqualTo(existingItemGrp1Grp3.getString("beacon"))
@@ -3205,7 +3211,8 @@ class TestCRUDVerticleItems {
 
       try {
         val res =
-          pgClient.preparedQuery(getItem("items", "beacon_data", "biot")).execute(Tuple.of(existingItemGrp1Grp3Id)).await()
+          pgClient.preparedQuery(getItem("items", "beacon_data", "biot")).execute(Tuple.of(existingItemGrp1Grp3Id))
+            .await()
         val json = res.iterator().next().toItemJson()
         expect {
           that(json.getString("beacon")).isEqualTo(existingItemGrp1Grp3.getString("beacon"))
@@ -3251,8 +3258,8 @@ class TestCRUDVerticleItems {
   @DisplayName("updateItem does not fail with the desired item does not exist in the DB")
   fun updateItemDoesNotFailWhenItemDoesNotExist(vertx: Vertx, testContext: VertxTestContext) {
     var idOfNonExistingItem = 1543
-    for (i in 1..1000){
-      if(i != existingItemID && i != existingItemGrp1Grp3Id ){
+    for (i in 1..1000) {
+      if (i != existingItemID && i != existingItemGrp1Grp3Id) {
         idOfNonExistingItem = i
       }
     }
@@ -3314,7 +3321,8 @@ class TestCRUDVerticleItems {
 
       try {
         val res =
-          pgClient.preparedQuery(getItem("items", "beacon_data", "biot")).execute(Tuple.of(existingItemGrp1Grp3Id)).await()
+          pgClient.preparedQuery(getItem("items", "beacon_data", "biot")).execute(Tuple.of(existingItemGrp1Grp3Id))
+            .await()
         val json = res.iterator().next().toItemJson()
         expect {
           that(json.getString("beacon")).isEqualTo(existingItemGrp1Grp3.getString("beacon"))
@@ -3390,7 +3398,8 @@ class TestCRUDVerticleItems {
 
       try {
         val res =
-          pgClient.preparedQuery(getItem("items", "beacon_data", "biot")).execute(Tuple.of(existingItemGrp1Grp3Id)).await()
+          pgClient.preparedQuery(getItem("items", "beacon_data", "biot")).execute(Tuple.of(existingItemGrp1Grp3Id))
+            .await()
         val json = res.iterator().next().toItemJson()
         expect {
           that(json.getString("beacon")).isEqualTo(existingItemGrp1Grp3.getString("beacon"))
