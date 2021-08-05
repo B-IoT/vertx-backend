@@ -39,7 +39,7 @@ suspend fun JsonObject?.validateAndThen(ctx: RoutingContext, block: suspend (Jso
       ctx.fail(BAD_REQUEST_CODE)
     }
     this.containsKey("accessControlString") && this.containsKey("company") && !validateAccessControlString(this.getString("accessControlString"), this.getString("company")) -> {
-      LOGGER.warn { "Bad request with wrongly formatted accessControlString string" }
+      LOGGER.warn { "Bad request with wrongly formatted accessControlString string (or missing accessControlString or company)" }
       ctx.fail(BAD_REQUEST_CODE)
     }
     else -> block(this)
