@@ -107,12 +107,12 @@ class Triangulator:
         self.nb_beacons = 25
         self.nb_relays = 25
 
-        self.filter_size_raw = 30
+        self.filter_size_raw = 180
         self.filter_size_dist = 30
 
         self.max_history = max(self.filter_size_dist, self.filter_size_raw)        
 
-        self.var_coeff_raw = 12
+        self.var_coeff_raw = 15
         self.var_coeff_dist = 10
         
         self.temp_raw = np.zeros([self.nb_beacons, self.nb_relays])
