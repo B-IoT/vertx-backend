@@ -644,9 +644,9 @@ class CRUDVerticle : CoroutineVerticle() {
         json.put("accessControlString", company)
       }
 
-      // If an invalid accessControlString is given, send error 400
+      // If an invalid accessControlString is given, send an Bad request code
       if (!validateAccessControlString(json.getString("accessControlString"), company)) {
-        ctx.fail(400)
+        ctx.fail(BAD_REQUEST_CODE)
       } else {
         val info = extractItemInformation(json).map { pair -> pair.second }
 
@@ -820,7 +820,7 @@ class CRUDVerticle : CoroutineVerticle() {
           pair.first == "accessControlString" && !validateAccessControlString(pair.second as String, params["company"])
         }) {
         // The query tries to update the item's accessControlString with an invalid one --> fails
-        ctx.fail(400)
+        ctx.fail(BAD_REQUEST_CODE)
         return@validateAndThen
       }
 
