@@ -684,7 +684,7 @@ class TestRelaysCommunicationVerticle {
         mqttClientOptionsOf(
           clientId = configurationAnotherCompany["mqttID"],
           username = configurationAnotherCompany["mqttUsername"],
-          password = configurationAnotherCompany["mqttPassword"],
+          password = mqttPassword,
           willFlag = true,
           willMessage = jsonObjectOf("company" to anotherCompanyName).encode()
         )
@@ -706,7 +706,7 @@ class TestRelaysCommunicationVerticle {
           }
         }.subscribe(UPDATE_PARAMETERS_TOPIC, MqttQoS.AT_LEAST_ONCE.value()).await()
       } catch (error: Throwable) {
-        testContext.completeNow()
+        testContext.failNow(error)
       }
     }
 
