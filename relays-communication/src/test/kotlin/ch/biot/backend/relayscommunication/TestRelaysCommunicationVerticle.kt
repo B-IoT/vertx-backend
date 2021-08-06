@@ -52,7 +52,9 @@ class TestRelaysCommunicationVerticle {
 
   private lateinit var mongoClient: MongoClient
   private lateinit var mongoUserUtil: MongoUserUtil
+  private lateinit var mongoUserUtilAnotherCompany: MongoUserUtil
   private lateinit var mongoAuth: MongoAuthentication
+  private lateinit var mongoAuthAnotherCompany: MongoAuthentication
   private lateinit var mqttClient: MqttClient
 
   private val mqttPassword = "password"
@@ -128,6 +130,21 @@ class TestRelaysCommunicationVerticle {
     )
     mongoAuth = MongoAuthentication.create(mongoClient, mongoAuthOptions)
 
+    val usernameFieldAnotherCompany = "mqttUsername"
+    val passwordFieldAnotherCompany = "mqttPassword"
+    val mongoAuthOptionsAnotherCompany = mongoAuthenticationOptionsOf(
+      collectionName = anotherCompanyCollection,
+      passwordCredentialField = passwordFieldAnotherCompany,
+      passwordField = passwordFieldAnotherCompany,
+      usernameCredentialField = usernameFieldAnotherCompany,
+      usernameField = usernameFieldAnotherCompany
+    )
+
+    mongoUserUtilAnotherCompany = MongoUserUtil.create(
+      mongoClient, mongoAuthOptionsAnotherCompany, mongoAuthorizationOptionsOf()
+    )
+    mongoAuthAnotherCompany = MongoAuthentication.create(mongoClient, mongoAuthOptionsAnotherCompany)
+
     try {
       mongoClient
         .createIndexWithOptions(RELAYS_COLLECTION, jsonObjectOf("relayID" to 1), indexOptionsOf().unique(true)).await()
@@ -184,8 +201,8 @@ class TestRelaysCommunicationVerticle {
 
       val salt2 = ByteArray(16)
       SecureRandom().nextBytes(salt2)
-      val hashedPassword2 = mongoAuth.hash("pbkdf2", String(Base64.getEncoder().encode(salt2)), mqttPassword)
-      val docID2 = mongoUserUtil.createHashedUser("test2", hashedPassword2).await()
+      val hashedPassword2 = mongoAuthAnotherCompany.hash("pbkdf2", String(Base64.getEncoder().encode(salt2)), mqttPassword)
+      val docID2 = mongoUserUtilAnotherCompany.createHashedUser("test2", hashedPassword2).await()
       val query2 = jsonObjectOf("_id" to docID2)
       val extraInfo2 = jsonObjectOf(
         "\$set" to configurationAnotherCompany
