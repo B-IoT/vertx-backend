@@ -154,7 +154,7 @@ class PublicApiVerticle : CoroutineVerticle() {
     // Users
     router.post("$OAUTH_PREFIX/register").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler)
       .coroutineHandler(::registerUserHandler)
-    router.post("$OAUTH_PREFIX/token").coroutineHandler(::tokenHandler).coroutineHandler(::getACStringHandler)
+    router.post("$OAUTH_PREFIX/token").coroutineHandler(::tokenHandler)
     router.put("$API_PREFIX/$USERS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler)
       .coroutineHandler(::updateUserHandler)
     router.get("$API_PREFIX/$USERS_ENDPOINT").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler)
@@ -433,7 +433,7 @@ class PublicApiVerticle : CoroutineVerticle() {
         timeout(TIMEOUT)
         putHeader(CONTENT_TYPE, APPLICATION_JSON)
         expect(ResponsePredicate.SC_OK)
-        coroutineSendBuffer(json.toBuffer())
+        coroutineSendJsonObject(json)
           .bimap(
             { error ->
               sendBadGateway(ctx, error)
