@@ -54,7 +54,7 @@ suspend fun JsonObject?.validateAndThen(ctx: RoutingContext, block: suspend (Jso
  * Validates an access string using a company. An access string is valid if it has the following
  * format: <company>:<group1>:<group2>:...:<groupN> where <company> is the company passed as argument and each <groupX>
  * contains only alphanumeric characters (majuscule or minuscule). The length of the string must also be smaller or equal
- * too MAX_ACCESS_CONTROL_STRING_LENGTH
+ * to MAX_ACCESS_CONTROL_STRING_LENGTH
  *
  * @param s the string to validate
  * @param company the company to which the string belongs
