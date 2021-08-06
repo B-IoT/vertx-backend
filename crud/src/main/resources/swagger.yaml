@@ -324,6 +324,34 @@ paths:
                 type: array
                 items:
                   type: string
+  /items/snapshots:
+    get:
+      tags:
+        - Snapshot
+      description: returns all snapshots
+      operationId: getSnapshots
+      responses:
+        "200":
+          description: All the snapshots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Snapshot'
+    post:
+      tags:
+        - Item
+      operationId: createSnapshot
+      responses:
+        "200":
+          description: the created snapshot id
+          content:
+            text/plain:
+              schema:
+                type: integer
+                format: int32
+                example: 1
   /items/closest:
     get:
       tags:
@@ -742,6 +770,15 @@ components:
         lastModifiedBy:
           type: string
       description: Update information for an item
+    Snapshot:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int32
+        date:
+          type: string
+          format: date
     Status:
       type: object
       properties:

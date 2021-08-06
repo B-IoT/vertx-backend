@@ -41,6 +41,12 @@ CREATE TABLE IF NOT EXISTS items
     lastModifiedBy VARCHAR(100)
 );
 
+CREATE TABLE IF NOT EXISTS items_snapshots
+(
+    id SERIAL PRIMARY KEY,
+    snapshotDate DATE,
+);
+
 CREATE TABLE IF NOT EXISTS beacon_data
 (
     time TIMESTAMPTZ NOT NULL,

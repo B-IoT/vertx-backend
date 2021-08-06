@@ -144,7 +144,6 @@ class CRUDVerticle : CoroutineVerticle() {
     )
     mongoAuthUsers = MongoAuthentication.create(mongoClient, mongoAuthUsersOptions)
 
-
     checkInitialUserAndAdd()
 
     // Initialize TimescaleDB
@@ -201,6 +200,9 @@ class CRUDVerticle : CoroutineVerticle() {
       routerBuilder.operation("deleteItem").coroutineHandler(::deleteItemHandler)
       routerBuilder.operation("updateItem").coroutineHandler(::updateItemHandler)
       routerBuilder.operation("getCategories").coroutineHandler(::getCategoriesHandler)
+      routerBuilder.operation("getSnapshots").coroutineHandler(::getSnapshotsHandler)
+      routerBuilder.operation("compareSnapshots").coroutineHandler(::compareSnapshotsHandler)
+      routerBuilder.operation("createSnapshot").coroutineHandler(::createSnapshotHandler)
 
       // Analytics
       routerBuilder.operation("analyticsGetStatus").coroutineHandler(::analyticsGetStatusHandler)
@@ -787,6 +789,59 @@ class CRUDVerticle : CoroutineVerticle() {
       ctx.response()
         .putHeader(CONTENT_TYPE, APPLICATION_JSON)
         .end(JsonArray(result).encode())
+    }
+  }
+
+  /**
+   * Handles a getSnapshots request.
+   */
+  private suspend fun getSnapshotsHandler(ctx: RoutingContext) {
+    LOGGER.info { "New getSnapshots request" }
+
+    val table = ctx.getCollection(ITEMS_TABLE)
+    executeWithErrorHandling("Could not get snapshots", ctx) {
+      val queryResult = pgClient.preparedQuery(getSnapshots(table)).execute().await()
+      val result = if (queryResult.size() == 0) listOf() else queryResult.map { row ->
+        jsonObjectOf(
+          "id" to row.getInteger("id"),
+          "date" to row.getLocalDate("snapshotdate")?.toString()
+        )
+      }
+
+      ctx.response()
+        .putHeader(CONTENT_TYPE, APPLICATION_JSON)
+        .end(JsonArray(result).encode())
+    }
+  }
+
+  /**
+   * Handles a compareSnapshots request.
+   */
+  private suspend fun compareSnapshotsHandler(ctx: RoutingContext) {
+    LOGGER.info { "New compareSnapshots request" }
+
+    val table = ctx.getCollection(ITEMS_TABLE)
+    executeWithErrorHandling("Could not compare snapshots", ctx) {
+      // TODO
+    }
+  }
+
+  /**
+   * Handles a createSnapshot request.
+   */
+  private suspend fun createSnapshotHandler(ctx: RoutingContext) {
+    LOGGER.info { "New createSnapshot request" }
+
+    val table = ctx.getCollection(ITEMS_TABLE)
+    executeWithErrorHandling("Could not create snapshot", ctx) {
+      // Insert a new snapshot in the snapshots table
+      val snapshotID = pgClient.preparedQuery(createSnapshot(table)).execute().await().iterator().next().getInteger("id")
+
+      // Copy the table, creating a new one representing the snapshot
+      pgClient.preparedQuery(copyTable(table, snapshotID)).execute().await()
+
+      LOGGER.info { "New snapshot $snapshotID created" }
+      ctx.end(snapshotID.toString())
     }
   }
 

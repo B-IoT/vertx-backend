@@ -33,3 +33,13 @@ fun updateItem(itemsTable: String, updatedColumns: List<String>): String {
 fun deleteItem(itemsTable: String) = "DELETE from $itemsTable WHERE id=$1"
 
 fun getCategories(itemsTable: String) = "SELECT DISTINCT I.category FROM $itemsTable I"
+
+fun createSnapshot(itemsTable: String) =
+  "INSERT INTO ${itemsTable}_snapshots (snapshotdate) VALUES (NOW()) RETURNING id"
+
+fun getSnapshots(itemsTable: String) = "SELECT * FROM ${itemsTable}_snapshots"
+
+// TODO compareSnapshots
+
+fun copyTable(itemsTable: String, snapshotId: Int) =
+  "CREATE TABLE ${itemsTable}_snapshot_$snapshotId AS TABLE $itemsTable"
