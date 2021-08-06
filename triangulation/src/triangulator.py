@@ -108,7 +108,7 @@ class Triangulator:
         self.nb_relays = 25
 
         self.filter_size_raw = 180
-        self.filter_size_dist = 30
+        self.filter_size_dist = 15
 
         self.max_history = max(self.filter_size_dist, self.filter_size_raw)        
 
