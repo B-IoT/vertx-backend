@@ -832,18 +832,19 @@ class CRUDVerticle : CoroutineVerticle() {
 
       executeWithErrorHandling("Could not update item $id", ctx) {
         val getQueryResult = getItemExecutedQuery.await()
-        if (!getQueryResult.iterator().hasNext()) {
-          LOGGER.info { "updateItem request for item with id $id: item does not exist in the DB" }
+        val iterator = getQueryResult.iterator()
+        if (!iterator.hasNext()) {
+          LOGGER.error { "updateItem request for item with id $id: item does not exist in the DB" }
           ctx.end()
           return@executeWithErrorHandling
         }
-        val item = getQueryResult.iterator().next().toItemJson()
+        val item = iterator.next().toItemJson()
         val itemAcString = item.getString("accessControlString")
 
         // Check that the given accessControlString gives access to the resource
         if (!hasAcStringAccess(accessControlString, itemAcString)) {
           // Access refused
-          LOGGER.info { "ACCESS FORBIDDEN updateItem" }
+          LOGGER.error { "ACCESS FORBIDDEN updateItem" }
           ctx.fail(FORBIDEN_CODE)
           return@executeWithErrorHandling
         }
