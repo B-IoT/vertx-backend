@@ -352,6 +352,45 @@ paths:
                 type: integer
                 format: int32
                 example: 1
+  /items/snapshots/{id}:
+    get:
+      tags:
+        - Item
+      description: returns a specific snapshot
+      operationId: getSnapshot
+      parameters:
+        - name: id
+          in: path
+          required: true
+          style: simple
+          explode: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: a snapshot
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ItemNoBeaconData'
+    delete:
+      tags:
+        - Item
+      description: deletes a specific snapshot
+      operationId: deleteSnapshot
+      parameters:
+        - name: id
+          in: path
+          required: true
+          style: simple
+          explode: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: successfully deleted snapshot
   /items/closest:
     get:
       tags:
@@ -663,6 +702,61 @@ components:
           type: number
           format: double
       description: An item
+    ItemNoBeaconData:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int32
+        beacon:
+          type: string
+        category:
+          type: string
+        service:
+          type: string
+        itemID:
+          type: string
+        brand:
+          type: string
+        model:
+          type: string
+        supplier:
+          type: string
+        purchaseDate:
+          type: string
+          format: date
+        purchasePrice:
+          minimum: 0
+          type: number
+        originLocation:
+          type: string
+        currentLocation:
+          type: string
+        room:
+          type: string
+        contact:
+          type: string
+        currentOwner:
+          type: string
+        previousOwner:
+          type: string
+        orderNumber:
+          type: string
+        color:
+          type: string
+        serialNumber:
+          type: string
+        maintenanceDate:
+          type: string
+          format: date
+        comments:
+          type: string
+        lastModifiedDate:
+          type: string
+          format: date
+        lastModifiedBy:
+          type: string
+      description: An item to register
     ItemRegisterInfo:
       type: object
       properties:

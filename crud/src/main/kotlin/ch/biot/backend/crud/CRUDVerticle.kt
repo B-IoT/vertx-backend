@@ -201,6 +201,8 @@ class CRUDVerticle : CoroutineVerticle() {
       routerBuilder.operation("updateItem").coroutineHandler(::updateItemHandler)
       routerBuilder.operation("getCategories").coroutineHandler(::getCategoriesHandler)
       routerBuilder.operation("getSnapshots").coroutineHandler(::getSnapshotsHandler)
+      routerBuilder.operation("getSnapshot").coroutineHandler(::getSnapshotHandler)
+      routerBuilder.operation("deleteSnapshot").coroutineHandler(::deleteSnapshotHandler)
       routerBuilder.operation("compareSnapshots").coroutineHandler(::compareSnapshotsHandler)
       routerBuilder.operation("createSnapshot").coroutineHandler(::createSnapshotHandler)
 
@@ -815,6 +817,39 @@ class CRUDVerticle : CoroutineVerticle() {
   }
 
   /**
+   * Handles a getSnapshot request.
+   */
+  private suspend fun getSnapshotHandler(ctx: RoutingContext) {
+    val snapshotID = ctx.pathParam("id").toInt()
+    LOGGER.info { "New getSnapshot request for snapshot $snapshotID" }
+
+    val table = ctx.getCollection(ITEMS_TABLE)
+    executeWithErrorHandling("Could not get snapshot", ctx) {
+      val queryResult = pgClient.preparedQuery(getSnapshot(table, snapshotID)).execute().await()
+      val result =
+        if (queryResult.size() == 0) listOf() else queryResult.map { it.toItemJson(includeBeaconData = false) }
+
+      ctx.response()
+        .putHeader(CONTENT_TYPE, APPLICATION_JSON)
+        .end(JsonArray(result).encode())
+    }
+  }
+
+  /**
+   * Handles a deleteSnapshot request.
+   */
+  private suspend fun deleteSnapshotHandler(ctx: RoutingContext) {
+    val snapshotID = ctx.pathParam("id").toInt()
+    LOGGER.info { "New deleteSnapshot request for snapshot $snapshotID" }
+
+    val table = ctx.getCollection(ITEMS_TABLE)
+    executeWithErrorHandling("Could not delete snapshot", ctx) {
+      pgClient.preparedQuery(deleteSnapshot(table, snapshotID)).execute().await()
+      ctx.end()
+    }
+  }
+
+  /**
    * Handles a compareSnapshots request.
    */
   private suspend fun compareSnapshotsHandler(ctx: RoutingContext) {
@@ -835,7 +870,8 @@ class CRUDVerticle : CoroutineVerticle() {
     val table = ctx.getCollection(ITEMS_TABLE)
     executeWithErrorHandling("Could not create snapshot", ctx) {
       // Insert a new snapshot in the snapshots table
-      val snapshotID = pgClient.preparedQuery(createSnapshot(table)).execute().await().iterator().next().getInteger("id")
+      val snapshotID =
+        pgClient.preparedQuery(createSnapshot(table)).execute().await().iterator().next().getInteger("id")
 
       // Copy the table, creating a new one representing the snapshot
       pgClient.preparedQuery(copyTable(table, snapshotID)).execute().await()

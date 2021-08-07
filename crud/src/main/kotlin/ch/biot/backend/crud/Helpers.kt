@@ -117,7 +117,7 @@ fun JsonObject.toItemJson(): JsonObject = jsonObjectOf(
 /**
  * Converts the row to a JSON representation corresponding to an item.
  */
-fun Row.toItemJson(): JsonObject = jsonObjectOf(
+fun Row.toItemJson(includeBeaconData: Boolean = true): JsonObject = jsonObjectOf(
   "id" to getInteger("id"),
   "beacon" to getString("beacon"),
   "category" to getString("category"),
@@ -140,16 +140,23 @@ fun Row.toItemJson(): JsonObject = jsonObjectOf(
   "maintenanceDate" to getLocalDate("maintenancedate")?.toString(),
   "comments" to getString("comments"),
   "lastModifiedDate" to getLocalDate("lastmodifieddate")?.toString(),
-  "lastModifiedBy" to getString("lastmodifiedby"),
-  "timestamp" to getOffsetDateTime("time")?.toString(),
-  "battery" to getInteger("battery"),
-  "status" to getString("status"),
-  "beaconStatus" to getString("beaconstatus"),
-  "latitude" to getDouble("latitude"),
-  "longitude" to getDouble("longitude"),
-  "floor" to getInteger("floor"),
-  "temperature" to getDouble("temperature")
-)
+  "lastModifiedBy" to getString("lastmodifiedby")
+).apply {
+  if (includeBeaconData) {
+    mergeIn(
+      jsonObjectOf(
+        "timestamp" to getOffsetDateTime("time")?.toString(),
+        "battery" to getInteger("battery"),
+        "status" to getString("status"),
+        "beaconStatus" to getString("beaconstatus"),
+        "latitude" to getDouble("latitude"),
+        "longitude" to getDouble("longitude"),
+        "floor" to getInteger("floor"),
+        "temperature" to getDouble("temperature")
+      )
+    )
+  }
+}
 
 /**
  * Extracts the relevant item information from a given json, returning a list of pairs from column name to column value.
