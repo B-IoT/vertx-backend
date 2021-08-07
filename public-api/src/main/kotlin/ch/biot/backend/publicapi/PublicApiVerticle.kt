@@ -171,6 +171,10 @@ class PublicApiVerticle : CoroutineVerticle() {
     router.get("$API_PREFIX/$ITEMS_ENDPOINT/categories").handler(jwtAuthHandler)
       .coroutineHandler(::getCategoriesHandler)
     router.get("$API_PREFIX/$ITEMS_ENDPOINT/closest").handler(jwtAuthHandler).coroutineHandler(::getClosestItemsHandler)
+    router.get("$API_PREFIX/$ITEMS_ENDPOINT/snapshots").handler(jwtAuthHandler).coroutineHandler(::getSnapshotsHandler)
+    router.post("$API_PREFIX/$ITEMS_ENDPOINT/snapshots").handler(jwtAuthHandler).coroutineHandler(::createSnapshotHandler)
+    router.delete("$API_PREFIX/$ITEMS_ENDPOINT/snapshots").handler(jwtAuthHandler).coroutineHandler(::deleteSnapshotHandler)
+    router.get("$API_PREFIX/$ITEMS_ENDPOINT/snapshots/:id").handler(jwtAuthHandler).coroutineHandler(::getSnapshotHandler)
     router.get("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getItemHandler)
     router.delete("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::deleteItemHandler)
 
@@ -369,7 +373,13 @@ class PublicApiVerticle : CoroutineVerticle() {
 
   private suspend fun getItemHandler(ctx: RoutingContext) = getOneHandler(ctx, ITEMS_ENDPOINT)
   private suspend fun deleteItemHandler(ctx: RoutingContext) = deleteHandler(ctx, ITEMS_ENDPOINT)
+
   private suspend fun getCategoriesHandler(ctx: RoutingContext) = getManyHandler(ctx, "$ITEMS_ENDPOINT/categories")
+
+  private suspend fun getSnapshotsHandler(ctx: RoutingContext) = getManyHandler(ctx, "$ITEMS_ENDPOINT/snapshots")
+  private suspend fun getSnapshotHandler(ctx: RoutingContext) = getOneHandler(ctx, "$ITEMS_ENDPOINT/snapshots")
+  private suspend fun createSnapshotHandler(ctx: RoutingContext) = registerHandler(ctx, "$ITEMS_ENDPOINT/snapshots", forwardResponse = true)
+  private suspend fun deleteSnapshotHandler(ctx: RoutingContext) = deleteHandler(ctx, "$ITEMS_ENDPOINT/snapshots")
 
   // Helpers
 

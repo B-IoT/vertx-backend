@@ -39,9 +39,9 @@ fun createSnapshot(itemsTable: String) =
 
 fun getSnapshots(itemsTable: String) = "SELECT * FROM ${itemsTable}_snapshots"
 
-fun getSnapshot(itemsTable: String, snapshotId: Int) = "SELECT * FROM ${itemsTable}_snapshots_$snapshotId"
+fun getSnapshot(itemsTable: String, snapshotId: Int) = "SELECT * FROM ${itemsTable}_snapshot_$snapshotId"
 
-fun deleteSnapshot(itemsTable: String, snapshotId: Int) = "DROP TABLE ${itemsTable}_snapshots_$snapshotId"
+fun deleteSnapshot(itemsTable: String, snapshotId: Int) = "DROP TABLE ${itemsTable}_snapshot_$snapshotId"
 
 // TODO compareSnapshots
 
