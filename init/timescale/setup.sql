@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS items
 CREATE TABLE IF NOT EXISTS items_snapshots
 (
     id SERIAL PRIMARY KEY,
-    snapshotDate DATE,
+    snapshotDate DATE
 );
 
 CREATE TABLE IF NOT EXISTS beacon_data

@@ -172,9 +172,12 @@ class PublicApiVerticle : CoroutineVerticle() {
       .coroutineHandler(::getCategoriesHandler)
     router.get("$API_PREFIX/$ITEMS_ENDPOINT/closest").handler(jwtAuthHandler).coroutineHandler(::getClosestItemsHandler)
     router.get("$API_PREFIX/$ITEMS_ENDPOINT/snapshots").handler(jwtAuthHandler).coroutineHandler(::getSnapshotsHandler)
-    router.post("$API_PREFIX/$ITEMS_ENDPOINT/snapshots").handler(jwtAuthHandler).coroutineHandler(::createSnapshotHandler)
-    router.delete("$API_PREFIX/$ITEMS_ENDPOINT/snapshots").handler(jwtAuthHandler).coroutineHandler(::deleteSnapshotHandler)
-    router.get("$API_PREFIX/$ITEMS_ENDPOINT/snapshots/:id").handler(jwtAuthHandler).coroutineHandler(::getSnapshotHandler)
+    router.post("$API_PREFIX/$ITEMS_ENDPOINT/snapshots").handler(jwtAuthHandler)
+      .coroutineHandler(::createSnapshotHandler)
+    router.delete("$API_PREFIX/$ITEMS_ENDPOINT/snapshots").handler(jwtAuthHandler)
+      .coroutineHandler(::deleteSnapshotHandler)
+    router.get("$API_PREFIX/$ITEMS_ENDPOINT/snapshots/:id").handler(jwtAuthHandler)
+      .coroutineHandler(::getSnapshotHandler)
     router.get("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getItemHandler)
     router.delete("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::deleteItemHandler)
 
@@ -377,9 +380,51 @@ class PublicApiVerticle : CoroutineVerticle() {
   private suspend fun getCategoriesHandler(ctx: RoutingContext) = getManyHandler(ctx, "$ITEMS_ENDPOINT/categories")
 
   private suspend fun getSnapshotsHandler(ctx: RoutingContext) = getManyHandler(ctx, "$ITEMS_ENDPOINT/snapshots")
-  private suspend fun getSnapshotHandler(ctx: RoutingContext) = getOneHandler(ctx, "$ITEMS_ENDPOINT/snapshots")
-  private suspend fun createSnapshotHandler(ctx: RoutingContext) = registerHandler(ctx, "$ITEMS_ENDPOINT/snapshots", forwardResponse = true)
   private suspend fun deleteSnapshotHandler(ctx: RoutingContext) = deleteHandler(ctx, "$ITEMS_ENDPOINT/snapshots")
+
+  /**
+   * Handles a getSnapshot request. A snapshot contains multiple items.
+   */
+  private suspend fun getSnapshotHandler(ctx: RoutingContext) {
+    LOGGER.info { "New getSnapshot request" }
+
+    webClient
+      .get(CRUD_PORT, CRUD_HOST, "$ITEMS_ENDPOINT/snapshots/${ctx.pathParam("id")}")
+      .addQueryParam("company", ctx.user().principal()["company"])
+      .timeout(TIMEOUT)
+      .`as`(BodyCodec.jsonArray())
+      .coroutineSend()
+      .bimap(
+        { error ->
+          sendBadGateway(ctx, error)
+        },
+        { resp ->
+          forwardJsonArrayOrStatusCode(ctx, resp)
+        }
+      )
+  }
+
+  /**
+   * Handles a create snapshot request.
+   */
+  private suspend fun createSnapshotHandler(ctx: RoutingContext) {
+    LOGGER.info { "New createSnapshot request" }
+
+    webClient
+      .post(CRUD_PORT, CRUD_HOST, "/$ITEMS_ENDPOINT/snapshots")
+      .addQueryParam("company", ctx.user().principal()["company"])
+      .timeout(TIMEOUT)
+      .expect(ResponsePredicate.SC_OK)
+      .coroutineSend()
+      .bimap(
+        { error ->
+          sendBadGateway(ctx, error)
+        },
+        { response ->
+          ctx.end(response.body())
+        }
+      )
+  }
 
   // Helpers
 
@@ -392,23 +437,21 @@ class PublicApiVerticle : CoroutineVerticle() {
     LOGGER.info { "New register request on /$endpoint endpoint" }
 
     webClient
-      .post(CRUD_PORT, CRUD_HOST, "/$endpoint").apply {
-        addQueryParam("company", ctx.user().principal()["company"])
-
-        timeout(TIMEOUT)
-        putHeader(CONTENT_TYPE, APPLICATION_JSON)
-        expect(ResponsePredicate.SC_OK)
-        coroutineSendBuffer(ctx.body)
-          .bimap(
-            { error ->
-              sendBadGateway(ctx, error)
-            },
-            { response ->
-              if (forwardResponse) ctx.end(response.body())
-              else sendStatusCode(ctx, response.statusCode())
-            }
-          )
-      }
+      .post(CRUD_PORT, CRUD_HOST, "/$endpoint")
+      .addQueryParam("company", ctx.user().principal()["company"])
+      .timeout(TIMEOUT)
+      .putHeader(CONTENT_TYPE, APPLICATION_JSON)
+      .expect(ResponsePredicate.SC_OK)
+      .coroutineSendBuffer(ctx.body)
+      .bimap(
+        { error ->
+          sendBadGateway(ctx, error)
+        },
+        { response ->
+          if (forwardResponse) ctx.end(response.body())
+          else sendStatusCode(ctx, response.statusCode())
+        }
+      )
   }
 
   /**

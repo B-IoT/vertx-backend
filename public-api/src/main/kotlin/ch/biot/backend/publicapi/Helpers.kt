@@ -78,7 +78,7 @@ internal suspend fun <T> HttpRequest<T>.coroutineSend(): Either<InternalErrorExc
     val result = send().await()
     Either.Right(result)
   } catch (error: Throwable) {
-    Either.Left(InternalErrorException("Internal server error", error.cause))
+    Either.Left(InternalErrorException("Internal server error:\n${error.message}", error.cause))
   }
 
 /**

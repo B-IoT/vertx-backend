@@ -203,7 +203,7 @@ class CRUDVerticle : CoroutineVerticle() {
       routerBuilder.operation("getSnapshots").coroutineHandler(::getSnapshotsHandler)
       routerBuilder.operation("getSnapshot").coroutineHandler(::getSnapshotHandler)
       routerBuilder.operation("deleteSnapshot").coroutineHandler(::deleteSnapshotHandler)
-      routerBuilder.operation("compareSnapshots").coroutineHandler(::compareSnapshotsHandler)
+//      routerBuilder.operation("compareSnapshots").coroutineHandler(::compareSnapshotsHandler)
       routerBuilder.operation("createSnapshot").coroutineHandler(::createSnapshotHandler)
 
       // Analytics
