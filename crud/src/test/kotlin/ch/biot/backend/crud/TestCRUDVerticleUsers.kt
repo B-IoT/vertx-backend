@@ -176,7 +176,8 @@ class TestCRUDVerticleUsers {
   @Test
   @DisplayName("getUsers correctly retrieves all users")
   fun getUsersIsCorrect(testContext: VertxTestContext) {
-    val expected = jsonArrayOf(existingUser.copy().apply { remove("password") }, INITIAL_USER.copy().apply { remove("password") })
+    val expected =
+      jsonArrayOf(existingUser.copy().apply { remove("password") }, INITIAL_USER.copy().apply { remove("password") })
 
     val response = Buffer.buffer(
       Given {

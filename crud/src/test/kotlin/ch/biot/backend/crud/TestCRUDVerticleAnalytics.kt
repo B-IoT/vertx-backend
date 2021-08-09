@@ -185,127 +185,127 @@ class TestCRUDVerticleAnalytics {
 
   private suspend fun insertItems(): Future<RowSet<Row>> {
     pgClient.preparedQuery(insertItem("items"))
-        .execute(
-          Tuple.of(
-            existingItemOne["beacon"],
-            existingItemOne["category"],
-            existingItemOne["service"],
-            existingItemOne["itemID"],
-            existingItemOne["brand"],
-            existingItemOne["model"],
-            existingItemOne["supplier"],
-            LocalDate.parse(existingItemOne["purchaseDate"]),
-            existingItemOne["purchasePrice"],
-            existingItemOne["originLocation"],
-            existingItemOne["currentLocation"],
-            existingItemOne["room"],
-            existingItemOne["contact"],
-            existingItemOne["currentOwner"],
-            existingItemOne["previousOwner"],
-            existingItemOne["orderNumber"],
-            existingItemOne["color"],
-            existingItemOne["serialNumber"],
-            LocalDate.parse(existingItemOne["maintenanceDate"]),
-            existingItemOne["status"],
-            existingItemOne["comments"],
-            LocalDate.parse(existingItemOne["lastModifiedDate"]),
-            existingItemOne["lastModifiedBy"]
-          )
-        ).await()
-
-      pgClient.preparedQuery(insertItem("items"))
-        .execute(
-          Tuple.of(
-            existingItemTwo["beacon"],
-            existingItemTwo["category"],
-            existingItemTwo["service"],
-            existingItemTwo["itemID"],
-            existingItemTwo["brand"],
-            existingItemTwo["model"],
-            existingItemTwo["supplier"],
-            LocalDate.parse(existingItemTwo["purchaseDate"]),
-            existingItemTwo["purchasePrice"],
-            existingItemTwo["originLocation"],
-            existingItemTwo["currentLocation"],
-            existingItemTwo["room"],
-            existingItemTwo["contact"],
-            existingItemTwo["currentOwner"],
-            existingItemTwo["previousOwner"],
-            existingItemTwo["orderNumber"],
-            existingItemTwo["color"],
-            existingItemTwo["serialNumber"],
-            LocalDate.parse(existingItemTwo["maintenanceDate"]),
-            existingItemTwo["status"],
-            existingItemTwo["comments"],
-            LocalDate.parse(existingItemTwo["lastModifiedDate"]),
-            existingItemTwo["lastModifiedBy"]
-          )
-        ).await()
-
-      pgClient.preparedQuery(insertItem("items"))
-        .execute(
-          Tuple.of(
-            existingItemThree["beacon"],
-            existingItemThree["category"],
-            existingItemThree["service"],
-            existingItemThree["itemID"],
-            existingItemThree["brand"],
-            existingItemThree["model"],
-            existingItemThree["supplier"],
-            LocalDate.parse(existingItemThree["purchaseDate"]),
-            existingItemThree["purchasePrice"],
-            existingItemThree["originLocation"],
-            existingItemThree["currentLocation"],
-            existingItemThree["room"],
-            existingItemThree["contact"],
-            existingItemThree["currentOwner"],
-            existingItemThree["previousOwner"],
-            existingItemThree["orderNumber"],
-            existingItemThree["color"],
-            existingItemThree["serialNumber"],
-            LocalDate.parse(existingItemThree["maintenanceDate"]),
-            existingItemThree["status"],
-            existingItemThree["comments"],
-            LocalDate.parse(existingItemThree["lastModifiedDate"]),
-            existingItemThree["lastModifiedBy"]
-          )
-        ).await()
-
-      pgClient.preparedQuery(INSERT_BEACON_DATA).execute(
+      .execute(
         Tuple.of(
-          existingBeaconDataOne.getString("mac"),
-          existingBeaconDataOne.getInteger("battery"),
-          existingBeaconDataOne.getString("beaconStatus"),
-          existingBeaconDataOne.getDouble("latitude"),
-          existingBeaconDataOne.getDouble("longitude"),
-          existingBeaconDataOne.getInteger("floor"),
-          existingBeaconDataOne.getDouble("temperature")
+          existingItemOne["beacon"],
+          existingItemOne["category"],
+          existingItemOne["service"],
+          existingItemOne["itemID"],
+          existingItemOne["brand"],
+          existingItemOne["model"],
+          existingItemOne["supplier"],
+          LocalDate.parse(existingItemOne["purchaseDate"]),
+          existingItemOne["purchasePrice"],
+          existingItemOne["originLocation"],
+          existingItemOne["currentLocation"],
+          existingItemOne["room"],
+          existingItemOne["contact"],
+          existingItemOne["currentOwner"],
+          existingItemOne["previousOwner"],
+          existingItemOne["orderNumber"],
+          existingItemOne["color"],
+          existingItemOne["serialNumber"],
+          LocalDate.parse(existingItemOne["maintenanceDate"]),
+          existingItemOne["status"],
+          existingItemOne["comments"],
+          LocalDate.parse(existingItemOne["lastModifiedDate"]),
+          existingItemOne["lastModifiedBy"]
         )
       ).await()
 
-      pgClient.preparedQuery(INSERT_BEACON_DATA).execute(
+    pgClient.preparedQuery(insertItem("items"))
+      .execute(
         Tuple.of(
-          existingBeaconDataTwo.getString("mac"),
-          existingBeaconDataTwo.getInteger("battery"),
-          existingBeaconDataTwo.getString("beaconStatus"),
-          existingBeaconDataTwo.getDouble("latitude"),
-          existingBeaconDataTwo.getDouble("longitude"),
-          existingBeaconDataTwo.getInteger("floor"),
-          existingBeaconDataTwo.getDouble("temperature")
+          existingItemTwo["beacon"],
+          existingItemTwo["category"],
+          existingItemTwo["service"],
+          existingItemTwo["itemID"],
+          existingItemTwo["brand"],
+          existingItemTwo["model"],
+          existingItemTwo["supplier"],
+          LocalDate.parse(existingItemTwo["purchaseDate"]),
+          existingItemTwo["purchasePrice"],
+          existingItemTwo["originLocation"],
+          existingItemTwo["currentLocation"],
+          existingItemTwo["room"],
+          existingItemTwo["contact"],
+          existingItemTwo["currentOwner"],
+          existingItemTwo["previousOwner"],
+          existingItemTwo["orderNumber"],
+          existingItemTwo["color"],
+          existingItemTwo["serialNumber"],
+          LocalDate.parse(existingItemTwo["maintenanceDate"]),
+          existingItemTwo["status"],
+          existingItemTwo["comments"],
+          LocalDate.parse(existingItemTwo["lastModifiedDate"]),
+          existingItemTwo["lastModifiedBy"]
         )
       ).await()
 
-      return pgClient.preparedQuery(INSERT_BEACON_DATA).execute(
+    pgClient.preparedQuery(insertItem("items"))
+      .execute(
         Tuple.of(
-          existingBeaconDataThree.getString("mac"),
-          existingBeaconDataThree.getInteger("battery"),
-          existingBeaconDataThree.getString("beaconStatus"),
-          existingBeaconDataThree.getDouble("latitude"),
-          existingBeaconDataThree.getDouble("longitude"),
-          existingBeaconDataThree.getInteger("floor"),
-          existingBeaconDataThree.getDouble("temperature")
+          existingItemThree["beacon"],
+          existingItemThree["category"],
+          existingItemThree["service"],
+          existingItemThree["itemID"],
+          existingItemThree["brand"],
+          existingItemThree["model"],
+          existingItemThree["supplier"],
+          LocalDate.parse(existingItemThree["purchaseDate"]),
+          existingItemThree["purchasePrice"],
+          existingItemThree["originLocation"],
+          existingItemThree["currentLocation"],
+          existingItemThree["room"],
+          existingItemThree["contact"],
+          existingItemThree["currentOwner"],
+          existingItemThree["previousOwner"],
+          existingItemThree["orderNumber"],
+          existingItemThree["color"],
+          existingItemThree["serialNumber"],
+          LocalDate.parse(existingItemThree["maintenanceDate"]),
+          existingItemThree["status"],
+          existingItemThree["comments"],
+          LocalDate.parse(existingItemThree["lastModifiedDate"]),
+          existingItemThree["lastModifiedBy"]
         )
+      ).await()
+
+    pgClient.preparedQuery(INSERT_BEACON_DATA).execute(
+      Tuple.of(
+        existingBeaconDataOne.getString("mac"),
+        existingBeaconDataOne.getInteger("battery"),
+        existingBeaconDataOne.getString("beaconStatus"),
+        existingBeaconDataOne.getDouble("latitude"),
+        existingBeaconDataOne.getDouble("longitude"),
+        existingBeaconDataOne.getInteger("floor"),
+        existingBeaconDataOne.getDouble("temperature")
       )
+    ).await()
+
+    pgClient.preparedQuery(INSERT_BEACON_DATA).execute(
+      Tuple.of(
+        existingBeaconDataTwo.getString("mac"),
+        existingBeaconDataTwo.getInteger("battery"),
+        existingBeaconDataTwo.getString("beaconStatus"),
+        existingBeaconDataTwo.getDouble("latitude"),
+        existingBeaconDataTwo.getDouble("longitude"),
+        existingBeaconDataTwo.getInteger("floor"),
+        existingBeaconDataTwo.getDouble("temperature")
+      )
+    ).await()
+
+    return pgClient.preparedQuery(INSERT_BEACON_DATA).execute(
+      Tuple.of(
+        existingBeaconDataThree.getString("mac"),
+        existingBeaconDataThree.getInteger("battery"),
+        existingBeaconDataThree.getString("beaconStatus"),
+        existingBeaconDataThree.getDouble("latitude"),
+        existingBeaconDataThree.getDouble("longitude"),
+        existingBeaconDataThree.getInteger("floor"),
+        existingBeaconDataThree.getDouble("temperature")
+      )
+    )
   }
 
   @AfterEach
