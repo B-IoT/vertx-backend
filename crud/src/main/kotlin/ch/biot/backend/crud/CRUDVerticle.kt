@@ -8,6 +8,7 @@ import ch.biot.backend.crud.queries.*
 import ch.biot.backend.crud.updates.PublishMessageException
 import ch.biot.backend.crud.updates.UpdateType
 import ch.biot.backend.crud.updates.UpdatesManager
+import io.vertx.core.CompositeFuture
 import io.vertx.core.Vertx
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
@@ -69,6 +70,7 @@ class CRUDVerticle : CoroutineVerticle() {
     const val INTERNAL_SERVER_ERROR_CODE = 500
     private const val UNAUTHORIZED_CODE = 401
     const val BAD_REQUEST_CODE = 400
+    private const val NOT_FOUND_CODE = 404
 
     private const val SERVER_COMPRESSION_LEVEL = 4
 
@@ -723,8 +725,8 @@ class CRUDVerticle : CoroutineVerticle() {
     executeWithErrorHandling("Could not get item", ctx) {
       val queryResult = pgClient.preparedQuery(getItem(itemsTable, beaconDataTable)).execute(Tuple.of(itemID)).await()
       if (queryResult.size() == 0) {
-        // No item found, answer with 404
-        ctx.response().statusCode = 404
+        // No item found
+        ctx.response().statusCode = NOT_FOUND_CODE
         ctx.end()
         return@executeWithErrorHandling
       }
@@ -825,6 +827,13 @@ class CRUDVerticle : CoroutineVerticle() {
 
     val table = ctx.getCollection(ITEMS_TABLE)
     executeWithErrorHandling("Could not get snapshot", ctx) {
+      if (!pgClient.tableExists("${table}_snapshot_$snapshotID")) {
+        // Snapshot not found
+        ctx.response().statusCode = NOT_FOUND_CODE
+        ctx.end()
+        return@executeWithErrorHandling
+      }
+
       val queryResult = pgClient.preparedQuery(getSnapshot(table, snapshotID)).execute().await()
       val result =
         if (queryResult.size() == 0) listOf() else queryResult.map { it.toItemJson(includeBeaconData = false) }
@@ -844,7 +853,18 @@ class CRUDVerticle : CoroutineVerticle() {
 
     val table = ctx.getCollection(ITEMS_TABLE)
     executeWithErrorHandling("Could not delete snapshot", ctx) {
-      pgClient.preparedQuery(deleteSnapshot(table, snapshotID)).execute().await()
+      if (!pgClient.tableExists("${table}_snapshot_$snapshotID")) {
+        // Snapshot not found
+        ctx.response().statusCode = NOT_FOUND_CODE
+        ctx.end()
+        return@executeWithErrorHandling
+      }
+
+      // In parallel, drop the snapshot table and remove the entry from the snapshots table
+      CompositeFuture.all(
+        pgClient.preparedQuery(dropSnapshotTable(table, snapshotID)).execute(),
+        pgClient.preparedQuery(deleteSnapshot(table)).execute(Tuple.of(snapshotID))
+      ).await()
       ctx.end()
     }
   }
@@ -874,7 +894,7 @@ class CRUDVerticle : CoroutineVerticle() {
         pgClient.preparedQuery(createSnapshot(table)).execute().await().iterator().next().getInteger("id")
 
       // Copy the table, creating a new one representing the snapshot
-      pgClient.preparedQuery(copyTable(table, snapshotID)).execute().await()
+      pgClient.preparedQuery(snapshotTable(table, snapshotID)).execute().await()
 
       LOGGER.info { "New snapshot $snapshotID created" }
       ctx.end(snapshotID.toString())

@@ -375,6 +375,8 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/ItemNoBeaconData'
+        "404":
+          description: snapshot not found
     delete:
       tags:
         - Item
@@ -391,6 +393,8 @@ paths:
       responses:
         "200":
           description: successfully deleted snapshot
+        "404":
+          description: snapshot not found
   /items/closest:
     get:
       tags:

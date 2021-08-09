@@ -41,9 +41,16 @@ fun getSnapshots(itemsTable: String) = "SELECT * FROM ${itemsTable}_snapshots"
 
 fun getSnapshot(itemsTable: String, snapshotId: Int) = "SELECT * FROM ${itemsTable}_snapshot_$snapshotId"
 
-fun deleteSnapshot(itemsTable: String, snapshotId: Int) = "DROP TABLE ${itemsTable}_snapshot_$snapshotId"
+fun dropSnapshotTable(itemsTable: String, snapshotId: Int) = "DROP TABLE ${itemsTable}_snapshot_$snapshotId"
+
+fun deleteSnapshot(itemsTable: String) = "DELETE from ${itemsTable}_snapshots WHERE id=$1"
 
 // TODO compareSnapshots
 
-fun copyTable(itemsTable: String, snapshotId: Int) =
+/**
+ * Makes a copy of the table.
+ */
+fun snapshotTable(itemsTable: String, snapshotId: Int) =
   "CREATE TABLE ${itemsTable}_snapshot_$snapshotId AS TABLE $itemsTable"
+
+fun searchForTable() = "SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = $1"

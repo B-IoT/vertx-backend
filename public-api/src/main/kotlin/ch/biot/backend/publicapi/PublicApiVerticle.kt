@@ -174,10 +174,10 @@ class PublicApiVerticle : CoroutineVerticle() {
     router.get("$API_PREFIX/$ITEMS_ENDPOINT/snapshots").handler(jwtAuthHandler).coroutineHandler(::getSnapshotsHandler)
     router.post("$API_PREFIX/$ITEMS_ENDPOINT/snapshots").handler(jwtAuthHandler)
       .coroutineHandler(::createSnapshotHandler)
-    router.delete("$API_PREFIX/$ITEMS_ENDPOINT/snapshots").handler(jwtAuthHandler)
-      .coroutineHandler(::deleteSnapshotHandler)
     router.get("$API_PREFIX/$ITEMS_ENDPOINT/snapshots/:id").handler(jwtAuthHandler)
       .coroutineHandler(::getSnapshotHandler)
+    router.delete("$API_PREFIX/$ITEMS_ENDPOINT/snapshots/:id").handler(jwtAuthHandler)
+      .coroutineHandler(::deleteSnapshotHandler)
     router.get("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getItemHandler)
     router.delete("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::deleteItemHandler)
 
@@ -392,14 +392,19 @@ class PublicApiVerticle : CoroutineVerticle() {
       .get(CRUD_PORT, CRUD_HOST, "$ITEMS_ENDPOINT/snapshots/${ctx.pathParam("id")}")
       .addQueryParam("company", ctx.user().principal()["company"])
       .timeout(TIMEOUT)
-      .`as`(BodyCodec.jsonArray())
       .coroutineSend()
       .bimap(
         { error ->
           sendBadGateway(ctx, error)
         },
         { resp ->
-          forwardJsonArrayOrStatusCode(ctx, resp)
+          if (resp.statusCode() != 200) {
+            sendStatusCode(ctx, resp.statusCode())
+          } else {
+            ctx.response()
+              .putHeader("Content-Type", "application/json")
+              .end(resp.bodyAsJsonArray().encode())
+          }
         }
       )
   }
@@ -537,13 +542,14 @@ class PublicApiVerticle : CoroutineVerticle() {
       .delete(CRUD_PORT, CRUD_HOST, "/$endpoint/${ctx.pathParam("id")}")
       .addQueryParam("company", ctx.user().principal()["company"])
       .timeout(TIMEOUT)
-      .expect(ResponsePredicate.SC_OK)
       .coroutineSend()
       .bimap(
         { error ->
           sendBadGateway(ctx, error)
         },
-        { ctx.end() }
+        { resp ->
+          if (resp.statusCode() != 200) sendStatusCode(ctx, resp.statusCode()) else ctx.end()
+        }
       )
   }
 

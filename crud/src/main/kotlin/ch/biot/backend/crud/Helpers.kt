@@ -6,12 +6,16 @@ package ch.biot.backend.crud
 
 import ch.biot.backend.crud.CRUDVerticle.Companion.BAD_REQUEST_CODE
 import ch.biot.backend.crud.CRUDVerticle.Companion.INTERNAL_SERVER_ERROR_CODE
+import ch.biot.backend.crud.queries.searchForTable
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.auth.mongo.MongoAuthentication
 import io.vertx.ext.web.RoutingContext
 import io.vertx.kotlin.core.json.get
 import io.vertx.kotlin.core.json.jsonObjectOf
+import io.vertx.kotlin.coroutines.await
 import io.vertx.sqlclient.Row
+import io.vertx.sqlclient.SqlClient
+import io.vertx.sqlclient.Tuple
 import java.security.SecureRandom
 import java.time.LocalDate
 import java.util.*
@@ -244,3 +248,11 @@ suspend fun executeWithErrorHandling(errorMessage: String, ctx: RoutingContext, 
     LOGGER.error(error) { errorMessage }
     ctx.fail(INTERNAL_SERVER_ERROR_CODE, error)
   }
+
+/**
+ * Returns true if the given table exists in the database, false otherwise.
+ *
+ * @param tableName the table name
+ */
+suspend fun SqlClient.tableExists(tableName: String): Boolean =
+  preparedQuery(searchForTable()).execute(Tuple.of(tableName)).await().iterator().hasNext()
