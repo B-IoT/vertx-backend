@@ -94,7 +94,7 @@ internal suspend fun <T> HttpRequest<T>.coroutineSendBuffer(buffer: Buffer): Eit
   }
 
 /**
- * Suspend equivalent of [HttpRequest.sendBuffer].
+ * Suspend equivalent of [HttpRequest.sendJsonObject].
  */
 internal suspend fun <T> HttpRequest<T>.coroutineSendJsonObject(json: JsonObject): Either<InternalErrorException, HttpResponse<T>> =
   try {
