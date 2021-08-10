@@ -58,6 +58,7 @@ class PublicApiVerticle : CoroutineVerticle() {
     private const val ANALYTICS_ENDPOINT = "analytics"
 
     private const val UNAUTHORIZED_CODE = 401
+    internal const val OK_CODE = 200
 
     private const val SERVER_COMPRESSION_LEVEL = 4
 
@@ -165,22 +166,23 @@ class PublicApiVerticle : CoroutineVerticle() {
     router.delete("$API_PREFIX/$RELAYS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::deleteRelayHandler)
 
     // Items
-    router.post("$API_PREFIX/$ITEMS_ENDPOINT").handler(jwtAuthHandler).coroutineHandler(::registerItemHandler)
-    router.put("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::updateItemHandler)
-    router.get("$API_PREFIX/$ITEMS_ENDPOINT").handler(jwtAuthHandler).coroutineHandler(::getItemsHandler)
     router.get("$API_PREFIX/$ITEMS_ENDPOINT/categories").handler(jwtAuthHandler)
       .coroutineHandler(::getCategoriesHandler)
     router.get("$API_PREFIX/$ITEMS_ENDPOINT/closest").handler(jwtAuthHandler).coroutineHandler(::getClosestItemsHandler)
     router.get("$API_PREFIX/$ITEMS_ENDPOINT/snapshots").handler(jwtAuthHandler).coroutineHandler(::getSnapshotsHandler)
-    router.get("$API_PREFIX/$ITEMS_ENDPOINT/snapshots/compare").handler(jwtAuthHandler).coroutineHandler(::compareSnapshotsHandler)
+    router.get("$API_PREFIX/$ITEMS_ENDPOINT/snapshots/compare").handler(jwtAuthHandler)
+      .coroutineHandler(::compareSnapshotsHandler)
     router.post("$API_PREFIX/$ITEMS_ENDPOINT/snapshots").handler(jwtAuthHandler)
       .coroutineHandler(::createSnapshotHandler)
     router.get("$API_PREFIX/$ITEMS_ENDPOINT/snapshots/:id").handler(jwtAuthHandler)
       .coroutineHandler(::getSnapshotHandler)
     router.delete("$API_PREFIX/$ITEMS_ENDPOINT/snapshots/:id").handler(jwtAuthHandler)
       .coroutineHandler(::deleteSnapshotHandler)
+    router.post("$API_PREFIX/$ITEMS_ENDPOINT").handler(jwtAuthHandler).coroutineHandler(::registerItemHandler)
+    router.get("$API_PREFIX/$ITEMS_ENDPOINT").handler(jwtAuthHandler).coroutineHandler(::getItemsHandler)
     router.get("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getItemHandler)
     router.delete("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::deleteItemHandler)
+    router.put("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::updateItemHandler)
 
     // Analytics
     router.get("$API_PREFIX/$ANALYTICS_ENDPOINT/status").handler(jwtAuthHandler)
@@ -371,7 +373,7 @@ class PublicApiVerticle : CoroutineVerticle() {
     )
 
     ctx.response()
-      .putHeader("Content-Type", "application/json")
+      .putHeader(CONTENT_TYPE, APPLICATION_JSON)
       .end(info.encode())
   }
 
@@ -390,7 +392,7 @@ class PublicApiVerticle : CoroutineVerticle() {
     LOGGER.info { "New compareSnapshots request" }
 
     webClient
-      .get(CRUD_PORT, CRUD_HOST, "$ITEMS_ENDPOINT/snapshots/compare/?${ctx.request().query()}")
+      .get(CRUD_PORT, CRUD_HOST, "/$ITEMS_ENDPOINT/snapshots/compare/?${ctx.request().query()}")
       .addQueryParam("company", ctx.user().principal()["company"])
       .timeout(TIMEOUT)
       .coroutineSend()
@@ -399,11 +401,11 @@ class PublicApiVerticle : CoroutineVerticle() {
           sendBadGateway(ctx, error)
         },
         { resp ->
-          if (resp.statusCode() != 200) {
+          if (resp.statusCode() != OK_CODE) {
             sendStatusCode(ctx, resp.statusCode())
           } else {
             ctx.response()
-              .putHeader("Content-Type", "application/json")
+              .putHeader(CONTENT_TYPE, APPLICATION_JSON)
               .end(resp.bodyAsJsonObject().encode())
           }
         }
@@ -416,9 +418,8 @@ class PublicApiVerticle : CoroutineVerticle() {
   private suspend fun getSnapshotHandler(ctx: RoutingContext) {
     LOGGER.info { "New getSnapshot request" }
 
-    // TODO buggy it always returns 404 without sending the request to crud
     webClient
-      .get(CRUD_PORT, CRUD_HOST, "$ITEMS_ENDPOINT/snapshots/${ctx.pathParam("id")}")
+      .get(CRUD_PORT, CRUD_HOST, "/$ITEMS_ENDPOINT/snapshots/${ctx.pathParam("id")}")
       .addQueryParam("company", ctx.user().principal()["company"])
       .timeout(TIMEOUT)
       .coroutineSend()
@@ -427,11 +428,11 @@ class PublicApiVerticle : CoroutineVerticle() {
           sendBadGateway(ctx, error)
         },
         { resp ->
-          if (resp.statusCode() != 200) {
+          if (resp.statusCode() != OK_CODE) {
             sendStatusCode(ctx, resp.statusCode())
           } else {
             ctx.response()
-              .putHeader("Content-Type", "application/json")
+              .putHeader(CONTENT_TYPE, APPLICATION_JSON)
               .end(resp.bodyAsJsonArray().encode())
           }
         }
@@ -577,7 +578,7 @@ class PublicApiVerticle : CoroutineVerticle() {
           sendBadGateway(ctx, error)
         },
         { resp ->
-          if (resp.statusCode() != 200) sendStatusCode(ctx, resp.statusCode()) else ctx.end()
+          if (resp.statusCode() != OK_CODE) sendStatusCode(ctx, resp.statusCode()) else ctx.end()
         }
       )
   }

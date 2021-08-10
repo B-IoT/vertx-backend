@@ -5,6 +5,7 @@
 package ch.biot.backend.publicapi
 
 import arrow.core.Either
+import ch.biot.backend.publicapi.PublicApiVerticle.Companion.OK_CODE
 import io.vertx.core.buffer.Buffer
 import io.vertx.core.file.FileSystem
 import io.vertx.core.json.JsonArray
@@ -29,7 +30,7 @@ internal fun sendStatusCode(ctx: RoutingContext, code: Int) = ctx.response().set
  * @param resp the [HttpResponse] containing a JSON object
  */
 internal fun forwardJsonObjectOrStatusCode(ctx: RoutingContext, resp: HttpResponse<JsonObject>) {
-  if (resp.statusCode() != 200) {
+  if (resp.statusCode() != OK_CODE) {
     sendStatusCode(ctx, resp.statusCode())
   } else {
     ctx.response()
@@ -45,7 +46,7 @@ internal fun forwardJsonObjectOrStatusCode(ctx: RoutingContext, resp: HttpRespon
  * @param resp the [HttpResponse] containing a JSON array
  */
 internal fun forwardJsonArrayOrStatusCode(ctx: RoutingContext, resp: HttpResponse<JsonArray>) {
-  if (resp.statusCode() != 200) {
+  if (resp.statusCode() != OK_CODE) {
     sendStatusCode(ctx, resp.statusCode())
   } else {
     ctx.response()

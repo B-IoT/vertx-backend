@@ -727,6 +727,7 @@ class CRUDVerticle : CoroutineVerticle() {
       val queryResult = pgClient.preparedQuery(getItem(itemsTable, beaconDataTable)).execute(Tuple.of(itemID)).await()
       if (queryResult.size() == 0) {
         // No item found
+        LOGGER.warn { "Item $itemID not found" }
         ctx.response().statusCode = NOT_FOUND_CODE
         ctx.end()
         return@executeWithErrorHandling
@@ -894,12 +895,13 @@ class CRUDVerticle : CoroutineVerticle() {
 
       if (!pgClient.tableExists("${table}_snapshot_$secondSnapshotID")) {
         // Second snapshot not found
-        LOGGER.warn { "Second snapshot $firstSnapshotID not found" }
+        LOGGER.warn { "Second snapshot $secondSnapshotID not found" }
         ctx.response().statusCode = NOT_FOUND_CODE
         ctx.end()
         return@executeWithErrorHandling
       }
 
+      // Compute all the joins in parallel
       parZip(
         vertx.dispatcher(),
         {
