@@ -45,7 +45,14 @@ fun dropSnapshotTable(itemsTable: String, snapshotId: Int) = "DROP TABLE ${items
 
 fun deleteSnapshot(itemsTable: String) = "DELETE from ${itemsTable}_snapshots WHERE id=$1"
 
-// TODO compareSnapshots
+fun leftOuterJoinFromSnapshots(itemsTable: String, firstSnapshotId: Int, secondSnapshotId: Int) =
+  "SELECT F.* FROM ${itemsTable}_snapshot_$firstSnapshotId F LEFT JOIN ${itemsTable}_snapshot_$secondSnapshotId S ON F.id = S.id WHERE S.id is NULL"
+
+fun rightOuterJoinFromSnapshots(itemsTable: String, firstSnapshotId: Int, secondSnapshotId: Int) =
+  "SELECT S.* FROM ${itemsTable}_snapshot_$firstSnapshotId F RIGHT JOIN ${itemsTable}_snapshot_$secondSnapshotId S ON F.id = S.id WHERE F.id is NULL"
+
+fun innerJoinFromSnapshots(itemsTable: String, firstSnapshotId: Int, secondSnapshotId: Int) =
+  "SELECT S.* FROM ${itemsTable}_snapshot_$firstSnapshotId F INNER JOIN ${itemsTable}_snapshot_$secondSnapshotId S ON F.id = S.id"
 
 /**
  * Makes a copy of the table.

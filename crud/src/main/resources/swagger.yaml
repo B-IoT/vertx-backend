@@ -146,7 +146,7 @@ paths:
           format: int32
       responses:
         "200":
-          description: All the users
+          description: all the users
           content:
             application/json:
               schema:
@@ -286,7 +286,7 @@ paths:
           type: string
       responses:
         "200":
-          description: All the items
+          description: all the items
           content:
             application/json:
               schema:
@@ -317,7 +317,7 @@ paths:
       operationId: getCategories
       responses:
         "200":
-          description: All the categories
+          description: all the categories
           content:
             application/json:
               schema:
@@ -327,12 +327,12 @@ paths:
   /items/snapshots:
     get:
       tags:
-        - Snapshot
+        - Item
       description: returns all snapshots
       operationId: getSnapshots
       responses:
         "200":
-          description: All the snapshots
+          description: all the snapshots
           content:
             application/json:
               schema:
@@ -352,6 +352,40 @@ paths:
                 type: integer
                 format: int32
                 example: 1
+  /items/snapshots/compare:
+    get:
+      tags:
+        - Item
+      description: compares the two given snapshots
+      operationId: compareSnapshots
+      parameters:
+        - name: firstSnapshotId
+          in: query
+          description: the first snapshot id
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: integer
+            format: int32
+        - name: secondSnapshotId
+          in: query
+          description: the second snapshot id
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: integer
+            format: int32
+      responses:
+        "200":
+          description: the comparison object
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SnapshotsComparison'
+        "404":
+          description: one of the two snapshots not found
   /items/snapshots/{id}:
     get:
       tags:
@@ -430,7 +464,7 @@ paths:
           type: string
       responses:
         "200":
-          description: The 5 closest items per floor
+          description: the 5 closest items per floor
           content:
             application/json:
               schema:
@@ -877,6 +911,24 @@ components:
         date:
           type: string
           format: date
+    SnapshotsComparison:
+      type: object
+      properties:
+        onlyFirst:
+          description: items only present in the first snapshot
+          type: array
+          items:
+            $ref: '#/components/schemas/ItemNoBeaconData'
+        onlySecond:
+          description: items only present in the second snapshot
+          type: array
+          items:
+            $ref: '#/components/schemas/ItemNoBeaconData'
+        inCommon:
+          description: items present in both snapshots (in common)
+          type: array
+          items:
+            $ref: '#/components/schemas/ItemNoBeaconData'
     Status:
       type: object
       properties:

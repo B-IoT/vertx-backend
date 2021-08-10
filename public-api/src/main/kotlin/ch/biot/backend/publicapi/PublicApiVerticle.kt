@@ -172,6 +172,7 @@ class PublicApiVerticle : CoroutineVerticle() {
       .coroutineHandler(::getCategoriesHandler)
     router.get("$API_PREFIX/$ITEMS_ENDPOINT/closest").handler(jwtAuthHandler).coroutineHandler(::getClosestItemsHandler)
     router.get("$API_PREFIX/$ITEMS_ENDPOINT/snapshots").handler(jwtAuthHandler).coroutineHandler(::getSnapshotsHandler)
+    router.get("$API_PREFIX/$ITEMS_ENDPOINT/snapshots/compare").handler(jwtAuthHandler).coroutineHandler(::compareSnapshotsHandler)
     router.post("$API_PREFIX/$ITEMS_ENDPOINT/snapshots").handler(jwtAuthHandler)
       .coroutineHandler(::createSnapshotHandler)
     router.get("$API_PREFIX/$ITEMS_ENDPOINT/snapshots/:id").handler(jwtAuthHandler)
@@ -383,11 +384,39 @@ class PublicApiVerticle : CoroutineVerticle() {
   private suspend fun deleteSnapshotHandler(ctx: RoutingContext) = deleteHandler(ctx, "$ITEMS_ENDPOINT/snapshots")
 
   /**
+   * Handles a compareSnapshots request.
+   */
+  private suspend fun compareSnapshotsHandler(ctx: RoutingContext) {
+    LOGGER.info { "New compareSnapshots request" }
+
+    webClient
+      .get(CRUD_PORT, CRUD_HOST, "$ITEMS_ENDPOINT/snapshots/compare/?${ctx.request().query()}")
+      .addQueryParam("company", ctx.user().principal()["company"])
+      .timeout(TIMEOUT)
+      .coroutineSend()
+      .bimap(
+        { error ->
+          sendBadGateway(ctx, error)
+        },
+        { resp ->
+          if (resp.statusCode() != 200) {
+            sendStatusCode(ctx, resp.statusCode())
+          } else {
+            ctx.response()
+              .putHeader("Content-Type", "application/json")
+              .end(resp.bodyAsJsonObject().encode())
+          }
+        }
+      )
+  }
+
+  /**
    * Handles a getSnapshot request. A snapshot contains multiple items.
    */
   private suspend fun getSnapshotHandler(ctx: RoutingContext) {
     LOGGER.info { "New getSnapshot request" }
 
+    // TODO buggy it always returns 404 without sending the request to crud
     webClient
       .get(CRUD_PORT, CRUD_HOST, "$ITEMS_ENDPOINT/snapshots/${ctx.pathParam("id")}")
       .addQueryParam("company", ctx.user().principal()["company"])

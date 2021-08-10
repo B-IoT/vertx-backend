@@ -4,6 +4,7 @@
 
 package ch.biot.backend.crud
 
+import arrow.fx.coroutines.parZip
 import ch.biot.backend.crud.queries.*
 import ch.biot.backend.crud.updates.PublishMessageException
 import ch.biot.backend.crud.updates.UpdateType
@@ -205,7 +206,7 @@ class CRUDVerticle : CoroutineVerticle() {
       routerBuilder.operation("getSnapshots").coroutineHandler(::getSnapshotsHandler)
       routerBuilder.operation("getSnapshot").coroutineHandler(::getSnapshotHandler)
       routerBuilder.operation("deleteSnapshot").coroutineHandler(::deleteSnapshotHandler)
-//      routerBuilder.operation("compareSnapshots").coroutineHandler(::compareSnapshotsHandler)
+      routerBuilder.operation("compareSnapshots").coroutineHandler(::compareSnapshotsHandler)
       routerBuilder.operation("createSnapshot").coroutineHandler(::createSnapshotHandler)
 
       // Analytics
@@ -829,6 +830,7 @@ class CRUDVerticle : CoroutineVerticle() {
     executeWithErrorHandling("Could not get snapshot", ctx) {
       if (!pgClient.tableExists("${table}_snapshot_$snapshotID")) {
         // Snapshot not found
+        LOGGER.warn { "Snapshot $snapshotID not found" }
         ctx.response().statusCode = NOT_FOUND_CODE
         ctx.end()
         return@executeWithErrorHandling
@@ -855,6 +857,7 @@ class CRUDVerticle : CoroutineVerticle() {
     executeWithErrorHandling("Could not delete snapshot", ctx) {
       if (!pgClient.tableExists("${table}_snapshot_$snapshotID")) {
         // Snapshot not found
+        LOGGER.warn { "Snapshot $snapshotID not found" }
         ctx.response().statusCode = NOT_FOUND_CODE
         ctx.end()
         return@executeWithErrorHandling
@@ -873,11 +876,63 @@ class CRUDVerticle : CoroutineVerticle() {
    * Handles a compareSnapshots request.
    */
   private suspend fun compareSnapshotsHandler(ctx: RoutingContext) {
-    LOGGER.info { "New compareSnapshots request" }
+    val queryParams = ctx.queryParams()
+    val firstSnapshotID = queryParams["firstSnapshotId"].toInt()
+    val secondSnapshotID = queryParams["secondSnapshotId"].toInt()
+
+    LOGGER.info { "New compareSnapshots request between snapshots $firstSnapshotID and $secondSnapshotID" }
 
     val table = ctx.getCollection(ITEMS_TABLE)
     executeWithErrorHandling("Could not compare snapshots", ctx) {
-      // TODO
+      if (!pgClient.tableExists("${table}_snapshot_$firstSnapshotID")) {
+        // First snapshot not found
+        LOGGER.warn { "First snapshot $firstSnapshotID not found" }
+        ctx.response().statusCode = NOT_FOUND_CODE
+        ctx.end()
+        return@executeWithErrorHandling
+      }
+
+      if (!pgClient.tableExists("${table}_snapshot_$secondSnapshotID")) {
+        // Second snapshot not found
+        LOGGER.warn { "Second snapshot $firstSnapshotID not found" }
+        ctx.response().statusCode = NOT_FOUND_CODE
+        ctx.end()
+        return@executeWithErrorHandling
+      }
+
+      parZip(
+        vertx.dispatcher(),
+        {
+          pgClient.preparedQuery(leftOuterJoinFromSnapshots(table, firstSnapshotID, secondSnapshotID)).execute().await()
+        },
+        {
+          pgClient.preparedQuery(rightOuterJoinFromSnapshots(table, firstSnapshotID, secondSnapshotID)).execute()
+            .await()
+        },
+        {
+          pgClient.preparedQuery(innerJoinFromSnapshots(table, firstSnapshotID, secondSnapshotID)).execute().await()
+        }) { onlyFirstResult, onlySecondResult, inCommonResult ->
+        val onlyFirst =
+          JsonArray(if (onlyFirstResult.size() == 0) listOf() else onlyFirstResult.map {
+            it.toItemJson(includeBeaconData = false)
+          })
+        val onlySecond =
+          JsonArray(if (onlySecondResult.size() == 0) listOf() else onlySecondResult.map {
+            it.toItemJson(includeBeaconData = false)
+          })
+        val inCommon =
+          JsonArray(if (inCommonResult.size() == 0) listOf() else inCommonResult.map {
+            it.toItemJson(includeBeaconData = false)
+          })
+
+        val json = jsonObjectOf(
+          "onlyFirst" to onlyFirst,
+          "onlySecond" to onlySecond,
+          "inCommon" to inCommon
+        )
+
+        ctx.end(json.encode())
+      }
     }
   }
 
