@@ -22,13 +22,13 @@ jacoco {
 allprojects {
     extra["vertxVersion"] = if (project.hasProperty("vertxVersion")) project.property("vertxVersion") else "4.1.1"
     extra["junitJupiterVersion"] = "5.7.2"
-    extra["logbackClassicVersion"] = "1.2.4"
+    extra["logbackClassicVersion"] = "1.2.5"
     extra["kotlinLoggingVersion"] = "2.0.10"
     extra["testContainersVersion"] = "1.16.0"
     extra["restAssuredVersion"] = "4.4.0"
     extra["striktVersion"] = "0.31.0"
     extra["hazelcastVersion"] = "2.2.3"
-    extra["micrometerPrometheusVersion"] = "1.7.1"
+    extra["micrometerPrometheusVersion"] = "1.7.2"
     extra["arrowVersion"] = "0.13.2"
     extra["mockkVersion"] = "1.12.0"
 }
