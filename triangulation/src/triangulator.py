@@ -107,7 +107,7 @@ class Triangulator:
         self.nb_beacons = 25
         self.nb_relays = 25
 
-        self.filter_size_raw = 180
+        self.filter_size_raw = 50
         self.filter_size_dist = 15
 
         self.max_history = max(self.filter_size_dist, self.filter_size_raw)        
@@ -327,7 +327,7 @@ class Triangulator:
            
            lat = []
            long = []
-           if nb_relays > 2:               
+           if nb_relays >= 2:               
                
                # Taking only the 5 closest relays for triangulation
                if nb_relays > 5:
@@ -411,7 +411,7 @@ class Triangulator:
                )
                logger.info("Triangulation done{}", status_updated_message)
 
-           elif 1 <= nb_relays and nb_relays <= 2:
+           elif 1 <= nb_relays and nb_relays < 2:
                 if status == self.MOVEMENT_DETECTED_AND_BUTTON_PRESSED:
                     # Even if we didn't triangulate, we still need to update the status
                     await self.update_beacon_status(company, mac, self.TO_REPAIR)
