@@ -78,6 +78,7 @@ internal suspend fun <T> HttpRequest<T>.coroutineSend(): Either<InternalErrorExc
     val result = send().await()
     Either.Right(result)
   } catch (error: Throwable) {
+
     Either.Left(InternalErrorException("Internal server error", error.cause))
   }
 
@@ -92,3 +93,13 @@ internal suspend fun <T> HttpRequest<T>.coroutineSendBuffer(buffer: Buffer): Eit
     Either.Left(InternalErrorException("Internal server error:\n${error.message}", error.cause))
   }
 
+/**
+ * Suspend equivalent of [HttpRequest.sendJsonObject].
+ */
+internal suspend fun <T> HttpRequest<T>.coroutineSendJsonObject(json: JsonObject): Either<InternalErrorException, HttpResponse<T>> =
+  try {
+    val result = sendJsonObject(json).await()
+    Either.Right(result)
+  } catch (error: Throwable) {
+    Either.Left(InternalErrorException("Internal server error:\n${error.message}", error.cause))
+  }

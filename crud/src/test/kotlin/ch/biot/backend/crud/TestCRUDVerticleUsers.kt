@@ -62,7 +62,8 @@ class TestCRUDVerticleUsers {
     "userID" to "test2",
     "username" to "test2",
     "password" to password,
-    "company" to "biot"
+    "company" to "biot",
+    "accessControlString" to "biot:grp1"
   )
 
   @BeforeEach
@@ -151,7 +152,339 @@ class TestCRUDVerticleUsers {
       "userID" to "wrong",
       "username" to "wrong",
       "password" to "wrong",
-      "company" to "wrong company"
+      "company" to "wrong company",
+      "accessControlString" to "biot:grp1"
+    )
+
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      body(wrongUser.encode())
+    } When {
+      post("/users")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Bad Request")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("registerUser fails with empty company")
+  fun registerUserFailsWithEmptyCompany(testContext: VertxTestContext) {
+    val wrongUser = jsonObjectOf(
+      "userID" to "wrong",
+      "username" to "wrong",
+      "password" to "wrong",
+      "company" to "",
+      "accessControlString" to "biot:grp1"
+    )
+
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      body(wrongUser.encode())
+    } When {
+      post("/users")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Bad Request")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("registerUser fails with no company property")
+  fun registerUserFailsWithNoCompanyProperty(testContext: VertxTestContext) {
+    val wrongUser = jsonObjectOf(
+      "userID" to "wrong",
+      "username" to "wrong",
+      "password" to "wrong",
+      "accessControlString" to "biot:grp1"
+    )
+
+
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      body(wrongUser.encode())
+    } When {
+      post("/users")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Bad Request")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("registerUser fails with empty accessControlString")
+  fun registerUserFailsWithEmptyAccessControlString(testContext: VertxTestContext) {
+    val wrongUser = jsonObjectOf(
+      "userID" to "wrong",
+      "username" to "wrong",
+      "password" to "wrong",
+      "company" to "biot",
+      "accessControlString" to ""
+    )
+
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      body(wrongUser.encode())
+    } When {
+      post("/users")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Bad Request")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("registerUser fails with no accessControlString property")
+  fun registerUserFailsWithNoAccessControlStringProperty(testContext: VertxTestContext) {
+    val wrongUser = jsonObjectOf(
+      "userID" to "wrong",
+      "username" to "wrong",
+      "password" to "wrong",
+      "company" to "biot"
+    )
+
+
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      body(wrongUser.encode())
+    } When {
+      post("/users")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Bad Request")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("registerUser fails with wrongly formatted acccessControlString 1")
+  fun registerUserFailsWithWronglyFormattedAccessControlString1(testContext: VertxTestContext) {
+    val wrongUser = jsonObjectOf(
+      "userID" to "wrong",
+      "username" to "wrong",
+      "password" to "wrong",
+      "company" to "biot",
+      "accessControlString" to "biot:grp 1"
+    )
+
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      body(wrongUser.encode())
+    } When {
+      post("/users")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Bad Request")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("registerUser fails with wrongly formatted acccessControlString 2")
+  fun registerUserFailsWithWronglyFormattedAccessControlString2(testContext: VertxTestContext) {
+    val wrongUser = jsonObjectOf(
+      "userID" to "wrong",
+      "username" to "wrong",
+      "password" to "wrong",
+      "company" to "biot",
+      "accessControlString" to "biott:grp1"
+    )
+
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      body(wrongUser.encode())
+    } When {
+      post("/users")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Bad Request")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("registerUser fails with wrongly formatted acccessControlString 3")
+  fun registerUserFailsWithWronglyFormattedAccessControlString3(testContext: VertxTestContext) {
+    val wrongUser = jsonObjectOf(
+      "userID" to "wrong",
+      "username" to "wrong",
+      "password" to "wrong",
+      "company" to "biot",
+      "accessControlString" to "biot:grp1 "
+    )
+
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      body(wrongUser.encode())
+    } When {
+      post("/users")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Bad Request")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("registerUser fails with wrongly formatted acccessControlString 4")
+  fun registerUserFailsWithWronglyFormattedAccessControlString4(testContext: VertxTestContext) {
+    val wrongUser = jsonObjectOf(
+      "userID" to "wrong",
+      "username" to "wrong",
+      "password" to "wrong",
+      "company" to "biot",
+      "accessControlString" to "biot:grp$*1"
+    )
+
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      body(wrongUser.encode())
+    } When {
+      post("/users")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Bad Request")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("registerUser fails with wrongly formatted acccessControlString 5")
+  fun registerUserFailsWithWronglyFormattedAccessControlString5(testContext: VertxTestContext) {
+    val wrongUser = jsonObjectOf(
+      "userID" to "wrong",
+      "username" to "wrong",
+      "password" to "wrong",
+      "company" to "biot",
+      "accessControlString" to " biot:grp1"
+    )
+
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      body(wrongUser.encode())
+    } When {
+      post("/users")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Bad Request")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("registerUser fails with wrongly formatted acccessControlString 6")
+  fun registerUserFailsWithWronglyFormattedAccessControlString6(testContext: VertxTestContext) {
+    val wrongUser = jsonObjectOf(
+      "userID" to "wrong",
+      "username" to "wrong",
+      "password" to "wrong",
+      "company" to "biot",
+      "accessControlString" to "biot:grp1:"
+    )
+
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      body(wrongUser.encode())
+    } When {
+      post("/users")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Bad Request")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("registerUser fails with wrongly formatted acccessControlString 7")
+  fun registerUserFailsWithWronglyFormattedAccessControlString7(testContext: VertxTestContext) {
+    val tooLongGroups = "a".repeat(2048)
+    val wrongUser = jsonObjectOf(
+      "userID" to "wrong",
+      "username" to "wrong",
+      "password" to "wrong",
+      "company" to "biot",
+      "accessControlString" to "biot:${tooLongGroups}"
     )
 
     val response = Given {
@@ -260,20 +593,26 @@ class TestCRUDVerticleUsers {
       put("password", newPassword)
     }
 
-    val company = Given {
-      spec(requestSpecification)
-      contentType(ContentType.JSON)
-      body(updatedUser.encode())
-    } When {
-      post("/users/authenticate")
-    } Then {
-      statusCode(200)
-    } Extract {
-      asString()
-    }
+    val response2 = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        body(updatedUser.encode())
+      } When {
+        post("/users/authenticate")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonObject()
 
     testContext.verify {
+      expectThat(response2).isNotNull()
+      val company = response2.remove("company")
+      val userID = response2.remove("userID")
       expectThat(company).isEqualTo(existingUser["company"])
+      expectThat(userID).isEqualTo(existingUser["userID"])
       testContext.completeNow()
     }
   }
@@ -284,7 +623,9 @@ class TestCRUDVerticleUsers {
     val userJson = jsonObjectOf(
       "username" to "username",
       "password" to "password",
-      "company" to "test"
+      "userID" to "username_test",
+      "company" to "test",
+      "accessControlString" to "test:grp"
     )
 
     Given {
@@ -296,7 +637,7 @@ class TestCRUDVerticleUsers {
       post("/users")
     }
 
-    val response = Given {
+    val response = Buffer.buffer(Given {
       spec(requestSpecification)
       contentType(ContentType.JSON)
       body(userJson.encode())
@@ -306,10 +647,14 @@ class TestCRUDVerticleUsers {
       statusCode(200)
     } Extract {
       asString()
-    }
+    }).toJsonObject()
 
     testContext.verify {
-      expectThat(response).isEqualTo(userJson["company"])
+      expectThat(response).isNotNull()
+      val company = response.remove("company")
+      val userID = response.remove("userID")
+      expectThat(company).isEqualTo(userJson["company"])
+      expectThat(userID).isEqualTo(userJson["userID"])
       testContext.completeNow()
     }
   }
@@ -321,7 +666,8 @@ class TestCRUDVerticleUsers {
       "userID" to "test42",
       "username" to "test42",
       "password" to password,
-      "company" to "biot"
+      "company" to "biot",
+      "accessControlString" to "biot:grp1"
     )
 
     // Register the user

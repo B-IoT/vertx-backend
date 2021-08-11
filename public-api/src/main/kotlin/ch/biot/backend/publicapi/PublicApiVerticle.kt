@@ -7,6 +7,7 @@ package ch.biot.backend.publicapi
 import arrow.fx.coroutines.parZip
 import io.vertx.core.Vertx
 import io.vertx.core.http.HttpMethod
+import io.vertx.core.json.JsonObject
 import io.vertx.ext.auth.jwt.JWTAuth
 import io.vertx.ext.web.Route
 import io.vertx.ext.web.Router
@@ -47,12 +48,14 @@ internal val LOGGER = KotlinLogging.logger {}
 class PublicApiVerticle : CoroutineVerticle() {
 
   companion object {
-    private const val TIMEOUT: Long = 5000
+    const val TIMEOUT: Long = 5000
 
     private const val APPLICATION_JSON = "application/json"
     private const val CONTENT_TYPE = "Content-Type"
 
-    private const val USERS_ENDPOINT = "users"
+    private const val NO_AC_IN_CTX_ERROR_MSG = "Cannot get the accessControlString from the context."
+
+    const val USERS_ENDPOINT = "users"
     private const val RELAYS_ENDPOINT = "relays"
     private const val ITEMS_ENDPOINT = "items"
     private const val ANALYTICS_ENDPOINT = "analytics"
@@ -149,33 +152,50 @@ class PublicApiVerticle : CoroutineVerticle() {
     }
 
     // Users
-    router.post("$OAUTH_PREFIX/register").handler(jwtAuthHandler).coroutineHandler(::registerUserHandler)
+    router.post("$OAUTH_PREFIX/register").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler)
+      .coroutineHandler(::registerUserHandler)
     router.post("$OAUTH_PREFIX/token").coroutineHandler(::tokenHandler)
-    router.put("$API_PREFIX/$USERS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::updateUserHandler)
-    router.get("$API_PREFIX/$USERS_ENDPOINT").handler(jwtAuthHandler).coroutineHandler(::getUsersHandler)
-    router.get("$API_PREFIX/$USERS_ENDPOINT/me").handler(jwtAuthHandler).handler(::getUserInfoHandler)
-    router.get("$API_PREFIX/$USERS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getUserHandler)
-    router.delete("$API_PREFIX/$USERS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::deleteUserHandler)
+    router.put("$API_PREFIX/$USERS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler)
+      .coroutineHandler(::updateUserHandler)
+    router.get("$API_PREFIX/$USERS_ENDPOINT").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler)
+      .coroutineHandler(::getUsersHandler)
+    router.get("$API_PREFIX/$USERS_ENDPOINT/me").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler)
+      .handler(::getUserInfoHandler)
+    router.get("$API_PREFIX/$USERS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler)
+      .coroutineHandler(::getUserHandler)
+    router.delete("$API_PREFIX/$USERS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler)
+      .coroutineHandler(::deleteUserHandler)
 
     // Relays
-    router.post("$API_PREFIX/$RELAYS_ENDPOINT").handler(jwtAuthHandler).coroutineHandler(::registerRelayHandler)
-    router.put("$API_PREFIX/$RELAYS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::updateRelayHandler)
-    router.get("$API_PREFIX/$RELAYS_ENDPOINT").handler(jwtAuthHandler).coroutineHandler(::getRelaysHandler)
-    router.get("$API_PREFIX/$RELAYS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getRelayHandler)
-    router.delete("$API_PREFIX/$RELAYS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::deleteRelayHandler)
+    router.post("$API_PREFIX/$RELAYS_ENDPOINT").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler)
+      .coroutineHandler(::registerRelayHandler)
+    router.put("$API_PREFIX/$RELAYS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler)
+      .coroutineHandler(::updateRelayHandler)
+    router.get("$API_PREFIX/$RELAYS_ENDPOINT").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler)
+      .coroutineHandler(::getRelaysHandler)
+    router.get("$API_PREFIX/$RELAYS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler)
+      .coroutineHandler(::getRelayHandler)
+    router.delete("$API_PREFIX/$RELAYS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler)
+      .coroutineHandler(::deleteRelayHandler)
 
     // Items
-    router.post("$API_PREFIX/$ITEMS_ENDPOINT").handler(jwtAuthHandler).coroutineHandler(::registerItemHandler)
-    router.put("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::updateItemHandler)
-    router.get("$API_PREFIX/$ITEMS_ENDPOINT").handler(jwtAuthHandler).coroutineHandler(::getItemsHandler)
-    router.get("$API_PREFIX/$ITEMS_ENDPOINT/categories").handler(jwtAuthHandler)
+    router.post("$API_PREFIX/$ITEMS_ENDPOINT").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler)
+      .coroutineHandler(::registerItemHandler)
+    router.put("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler)
+      .coroutineHandler(::updateItemHandler)
+    router.get("$API_PREFIX/$ITEMS_ENDPOINT").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler)
+      .coroutineHandler(::getItemsHandler)
+    router.get("$API_PREFIX/$ITEMS_ENDPOINT/categories").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler)
       .coroutineHandler(::getCategoriesHandler)
-    router.get("$API_PREFIX/$ITEMS_ENDPOINT/closest").handler(jwtAuthHandler).coroutineHandler(::getClosestItemsHandler)
-    router.get("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getItemHandler)
-    router.delete("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::deleteItemHandler)
+    router.get("$API_PREFIX/$ITEMS_ENDPOINT/closest").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler)
+      .coroutineHandler(::getClosestItemsHandler)
+    router.get("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler)
+      .coroutineHandler(::getItemHandler)
+    router.delete("$API_PREFIX/$ITEMS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler)
+      .coroutineHandler(::deleteItemHandler)
 
     // Analytics
-    router.get("$API_PREFIX/$ANALYTICS_ENDPOINT/status").handler(jwtAuthHandler)
+    router.get("$API_PREFIX/$ANALYTICS_ENDPOINT/status").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler)
       .coroutineHandler(::analyticsGetStatusHandler)
 
     // Health checks
@@ -291,9 +311,9 @@ class PublicApiVerticle : CoroutineVerticle() {
    * Handles the token request.
    */
   private suspend fun tokenHandler(ctx: RoutingContext) {
-    fun makeJwtToken(username: String, company: String): String {
+    fun makeJwtToken(username: String, company: String, userID: String): String {
       // Add the company information to the custom claims of the token
-      val claims = jsonObjectOf("company" to company)
+      val claims = jsonObjectOf("company" to company, "userID" to userID)
       // The token expires in 7 days (10080 minutes)
       val jwtOptions = jwtOptionsOf(algorithm = "RS256", expiresInMinutes = 10080, issuer = "BioT", subject = username)
       return jwtAuth.generateToken(claims, jwtOptions)
@@ -315,8 +335,10 @@ class PublicApiVerticle : CoroutineVerticle() {
           ctx.fail(UNAUTHORIZED_CODE)
         },
         { response ->
-          val company = response.bodyAsString()
-          val token = makeJwtToken(username, company)
+          val json = response.bodyAsJsonObject()
+          val company = json.getString("company")
+          val userID = json.getString("userID")
+          val token = makeJwtToken(username, company, userID)
           ctx.response().putHeader(CONTENT_TYPE, "application/jwt").end(token)
         }
       )
@@ -339,9 +361,15 @@ class PublicApiVerticle : CoroutineVerticle() {
   private suspend fun getItemsHandler(ctx: RoutingContext) = getManyHandler(ctx, ITEMS_ENDPOINT)
   private suspend fun getClosestItemsHandler(ctx: RoutingContext) {
     LOGGER.info { "New getClosestItems request" }
+    val acString = ctx.get<String>("accessControlString")
+    if (acString == null) {
+
+      sendBadGateway(ctx, Error(NO_AC_IN_CTX_ERROR_MSG))
+    }
 
     webClient.get(CRUD_PORT, CRUD_HOST, "/$ITEMS_ENDPOINT/closest/?${ctx.request().query()}")
       .addQueryParam("company", ctx.user().principal()["company"])
+      .addQueryParam("accessControlString", acString)
       .timeout(TIMEOUT)
       .`as`(BodyCodec.jsonObject())
       .coroutineSend()
@@ -377,18 +405,35 @@ class PublicApiVerticle : CoroutineVerticle() {
    * Handles a register request for the given endpoint. The forwardResponse parameter is set to true when the response
    * from the underlying microservice needs to be forwarded to the user. If it is set to false, only the status code is
    * sent.
+   * When registering an item (i.e. to the ITEMS_ENDPOINT), if the json does not contain an accessControlString, it
+   * puts the accessControlString of the user that requests the registration. Otherwise, the accessControlString of the
+   * JSON is taken.
    */
   private suspend fun registerHandler(ctx: RoutingContext, endpoint: String, forwardResponse: Boolean = false) {
     LOGGER.info { "New register request on /$endpoint endpoint" }
-
+    val acString = ctx.get<String>("accessControlString")
+    if (acString == null) {
+      sendBadGateway(ctx, Error(NO_AC_IN_CTX_ERROR_MSG))
+    }
+    val json: JsonObject
+    try {
+      json = ctx.bodyAsJson
+    } catch (e: Exception) {
+      sendBadGateway(ctx, e)
+      return
+    }
+    // Put the accessControlString in the JSON if none is present
+    if (endpoint == ITEMS_ENDPOINT && !json.containsKey("accessControlString")) {
+      json.put("accessControlString", acString)
+    }
     webClient
       .post(CRUD_PORT, CRUD_HOST, "/$endpoint").apply {
         addQueryParam("company", ctx.user().principal()["company"])
-
+        addQueryParam("accessControlString", acString) // Used only by the ITEMS_ENDPOINT for now
         timeout(TIMEOUT)
         putHeader(CONTENT_TYPE, APPLICATION_JSON)
         expect(ResponsePredicate.SC_OK)
-        coroutineSendBuffer(ctx.body)
+        coroutineSendJsonObject(json)
           .bimap(
             { error ->
               sendBadGateway(ctx, error)
@@ -398,6 +443,7 @@ class PublicApiVerticle : CoroutineVerticle() {
               else sendStatusCode(ctx, response.statusCode())
             }
           )
+
       }
   }
 
@@ -406,7 +452,10 @@ class PublicApiVerticle : CoroutineVerticle() {
    */
   private suspend fun updateHandler(ctx: RoutingContext, endpoint: String) {
     LOGGER.info { "New update request on /$endpoint endpoint" }
-
+    val acString = ctx.get<String>("accessControlString")
+    if (acString == null) {
+      sendBadGateway(ctx, Error(NO_AC_IN_CTX_ERROR_MSG))
+    }
     val query = ctx.request().query()
     val requestURI =
       if (query != null && query.isNotEmpty()) "/$endpoint/${ctx.pathParam("id")}?$query"
@@ -415,6 +464,7 @@ class PublicApiVerticle : CoroutineVerticle() {
     webClient
       .put(CRUD_PORT, CRUD_HOST, requestURI)
       .addQueryParam("company", ctx.user().principal()["company"])
+      .addQueryParam("accessControlString", acString) // Used only by the ITEMS_ENDPOINT for now
       .timeout(TIMEOUT)
       .putHeader(CONTENT_TYPE, APPLICATION_JSON)
       .expect(ResponsePredicate.SC_OK)
@@ -425,6 +475,7 @@ class PublicApiVerticle : CoroutineVerticle() {
         },
         { ctx.end() }
       )
+
   }
 
   /**
@@ -433,12 +484,17 @@ class PublicApiVerticle : CoroutineVerticle() {
   private suspend fun getManyHandler(ctx: RoutingContext, endpoint: String) {
     LOGGER.info { "New getMany request on /$endpoint endpoint" }
 
+    val acString = ctx.get<String>("accessControlString")
+    if (acString == null) {
+      sendBadGateway(ctx, Error(NO_AC_IN_CTX_ERROR_MSG))
+    }
     val query = ctx.request().query()
     val requestURI = if (query != null && query.isNotEmpty()) "/$endpoint/?$query" else "/$endpoint"
 
     webClient
       .get(CRUD_PORT, CRUD_HOST, requestURI)
       .addQueryParam("company", ctx.user().principal()["company"])
+      .addQueryParam("accessControlString", acString) // Used only by the ITEMS_ENDPOINT for now
       .timeout(TIMEOUT)
       .`as`(BodyCodec.jsonArray())
       .coroutineSend()
@@ -457,10 +513,19 @@ class PublicApiVerticle : CoroutineVerticle() {
    */
   private suspend fun getOneHandler(ctx: RoutingContext, endpoint: String) {
     LOGGER.info { "New getOne request on /$endpoint endpoint" }
-
+    var acString = ctx.get<String>("accessControlString")
+    if (acString == null) {
+      if (endpoint == ITEMS_ENDPOINT) {
+        sendBadGateway(ctx, Error(NO_AC_IN_CTX_ERROR_MSG))
+      } else {
+        // For the endpoints that do not use it -> !!! change when adding AC to all endpoints !!!
+        acString = ""
+      }
+    }
     webClient
       .get(CRUD_PORT, CRUD_HOST, "/$endpoint/${ctx.pathParam("id")}")
       .addQueryParam("company", ctx.user().principal()["company"])
+      .addQueryParam("accessControlString", acString) // Used only by the ITEMS_ENDPOINT for now
       .timeout(TIMEOUT)
       .`as`(BodyCodec.jsonObject())
       .coroutineSend()
@@ -480,9 +545,19 @@ class PublicApiVerticle : CoroutineVerticle() {
   private suspend fun deleteHandler(ctx: RoutingContext, endpoint: String) {
     LOGGER.info { "New delete request on /$endpoint endpoint" }
 
+    var acString = ctx.get<String>("accessControlString")
+    if (acString == null) {
+      if (endpoint == ITEMS_ENDPOINT) {
+        sendBadGateway(ctx, Error(NO_AC_IN_CTX_ERROR_MSG))
+      } else {
+        // For the endpoints that do not use it -> !!! change when adding AC to all endpoints !!!
+        acString = ""
+      }
+    }
     webClient
       .delete(CRUD_PORT, CRUD_HOST, "/$endpoint/${ctx.pathParam("id")}")
       .addQueryParam("company", ctx.user().principal()["company"])
+      .addQueryParam("accessControlString", acString) // Used only by the ITEMS_ENDPOINT for now
       .timeout(TIMEOUT)
       .expect(ResponsePredicate.SC_OK)
       .coroutineSend()
@@ -491,6 +566,35 @@ class PublicApiVerticle : CoroutineVerticle() {
           sendBadGateway(ctx, error)
         },
         { ctx.end() }
+      )
+
+  }
+
+  private suspend fun getACStringHandler(ctx: RoutingContext) {
+    val userPrincipal = ctx.user().principal()
+    val userID: String = userPrincipal.getString("userID")
+    webClient
+      .get(CRUD_PORT, CRUD_HOST, "/$USERS_ENDPOINT/${userID}")
+      .addQueryParam("company", userPrincipal.getString("company"))
+      .timeout(TIMEOUT)
+      .`as`(BodyCodec.jsonObject())
+      .coroutineSend()
+      .bimap(
+        { error ->
+          sendBadGateway(ctx, error)
+        },
+        { resp ->
+          val acString: String
+          try {
+            val json = resp.body()
+            acString = json.getString("accessControlString")
+          } catch (e: Exception) {
+            sendBadGateway(ctx, e)
+            return
+          }
+          ctx.put("accessControlString", acString)
+          ctx.next()
+        }
       )
   }
 

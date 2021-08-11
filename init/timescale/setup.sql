@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS items
     category VARCHAR(100),
     service VARCHAR(100),
     itemID VARCHAR(50),
+    accessControlString VARCHAR(2048),
     brand VARCHAR(100),
     model VARCHAR(100),
     supplier VARCHAR(100),

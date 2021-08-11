@@ -6,6 +6,7 @@ package ch.biot.backend.crud
 
 import ch.biot.backend.crud.CRUDVerticle.Companion.BAD_REQUEST_CODE
 import ch.biot.backend.crud.CRUDVerticle.Companion.INTERNAL_SERVER_ERROR_CODE
+import ch.biot.backend.crud.CRUDVerticle.Companion.MAX_ACCESS_CONTROL_STRING_LENGTH
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.auth.mongo.MongoAuthentication
 import io.vertx.ext.web.RoutingContext
@@ -37,8 +38,38 @@ suspend fun JsonObject?.validateAndThen(ctx: RoutingContext, block: suspend (Jso
       LOGGER.warn { "Bad request with wrongly formatted company" }
       ctx.fail(BAD_REQUEST_CODE)
     }
+    this.containsKey("accessControlString") && this.containsKey("company") && !validateAccessControlString(
+      this.getString(
+        "accessControlString"
+      ), this.getString("company")
+    ) -> {
+      LOGGER.warn { "Bad request with wrongly formatted accessControlString string (or missing accessControlString or company)" }
+      ctx.fail(BAD_REQUEST_CODE)
+    }
     else -> block(this)
   }
+}
+
+/**
+ * Validates an access string using a company. An access string is valid if it has the following
+ * format: <company>:<group1>:<group2>:...:<groupN> where <company> is the company passed as argument and each <groupX>
+ * contains only alphanumeric characters (majuscule or minuscule). The length of the string must also be smaller or equal
+ * to MAX_ACCESS_CONTROL_STRING_LENGTH
+ *
+ * @param s the string to validate
+ * @param company the company to which the string belongs
+ */
+fun validateAccessControlString(s: String, company: String): Boolean =
+  s.length <= MAX_ACCESS_CONTROL_STRING_LENGTH && s.matches("^[a-zA-Z]+(:[a-zA-Z0-9]+)*$".toRegex()) && s.split(':')[0] == company
+
+/**
+ * Return true iif the string acString has access to the resourceACString
+ *
+ * @param acString the accessControlString that asks for access
+ * @param resourceACString the accessControlString of the resource to access
+ */
+fun hasAcStringAccess(acString: String, resourceACString: String): Boolean {
+  return resourceACString.startsWith(acString) && (resourceACString.length == acString.length || resourceACString[acString.length] == ':')
 }
 
 /**
@@ -93,6 +124,7 @@ fun JsonObject.toItemJson(): JsonObject = jsonObjectOf(
   "category" to getString("category"),
   "service" to getString("service"),
   "itemID" to getString("itemid"),
+  "accessControlString" to getString("accessControlString"),
   "brand" to getString("brand"),
   "model" to getString("model"),
   "supplier" to getString("supplier"),
@@ -123,6 +155,7 @@ fun Row.toItemJson(): JsonObject = jsonObjectOf(
   "category" to getString("category"),
   "service" to getString("service"),
   "itemID" to getString("itemid"),
+  "accessControlString" to getString("accesscontrolstring"),
   "brand" to getString("brand"),
   "model" to getString("model"),
   "supplier" to getString("supplier"),
@@ -159,6 +192,7 @@ internal fun extractItemInformation(json: JsonObject, keepNulls: Boolean = true)
   val category: String? = json["category"]
   val service: String? = json["service"]
   val itemID: String? = json["itemID"]
+  val accessControlString: String? = json["accessControlString"]
   val brand: String? = json["brand"]
   val model: String? = json["model"]
   val supplier: String? = json["supplier"]
@@ -184,6 +218,7 @@ internal fun extractItemInformation(json: JsonObject, keepNulls: Boolean = true)
     "category" to category,
     "service" to service,
     "itemid" to itemID,
+    "accessControlString" to accessControlString,
     "brand" to brand,
     "model" to model,
     "supplier" to supplier,
