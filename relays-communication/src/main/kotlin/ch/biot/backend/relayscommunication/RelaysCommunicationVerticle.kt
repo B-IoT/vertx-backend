@@ -6,10 +6,7 @@ package ch.biot.backend.relayscommunication
 
 import io.netty.handler.codec.mqtt.MqttConnectReturnCode
 import io.netty.handler.codec.mqtt.MqttQoS
-import io.vertx.core.CompositeFuture
-import io.vertx.core.Future
-import io.vertx.core.Promise
-import io.vertx.core.Vertx
+import io.vertx.core.*
 import io.vertx.core.json.DecodeException
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.auth.mongo.MongoAuthentication
@@ -31,13 +28,13 @@ import io.vertx.mqtt.MqttServer
 import io.vertx.mqtt.messages.MqttPublishMessage
 import io.vertx.pgclient.PgPool
 import io.vertx.pgclient.SslMode
-import io.vertx.pgclient.pubsub.PgSubscriber
 import io.vertx.spi.cluster.hazelcast.HazelcastClusterManager
 import io.vertx.sqlclient.SqlClient
 import kotlinx.coroutines.launch
 import mu.KotlinLogging
 import java.net.InetAddress
 import java.time.Instant
+import java.util.concurrent.TimeUnit
 
 private val LOGGER = KotlinLogging.logger {}
 
@@ -66,7 +63,11 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     private const val LIVENESS_PORT = 1884
     private const val READINESS_PORT = 1885
 
+    private const val UPDATE_CONFIG_INTERVAL_SECONDS: Long = 5
+
     private lateinit var pgClient: SqlClient
+
+    private lateinit var periodicUpdateConfig: Handler<Long>
 
     @JvmStatic
     fun main(args: Array<String>) {
@@ -82,6 +83,8 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
         LOGGER.error(error) { "Could not start" }
       }
     }
+
+
   }
 
   private val clients = mutableMapOf<String, MqttEndpoint>() // map of subscribed clientIdentifier to client
@@ -144,15 +147,6 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
         cachePreparedStatements = true
       )
     pgClient = PgPool.client(vertx, pgConnectOptions, poolOptionsOf())
-    val pgSubscriber = PgSubscriber.subscriber(vertx, pgConnectOptions).apply {
-      reconnectPolicy { retries ->
-        // Reconnect at most 10 times after 1000 ms each
-        if (retries < 10) 1000L else -1L
-      }
-    }
-
-    //TODO add a listener to pg to push update to the relays
-    // or send config to relays periodically (probably overkill to implement push notifications)
 
 //    // Certificate for TLS
 //    val pemKeyCertOptions = pemKeyCertOptionsOf(certPath = "certificate.pem", keyPath = "certificate_key.pem")
@@ -171,6 +165,15 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     } catch (error: Throwable) {
       LOGGER.error(error) { "An error occurred while creating the server" }
     }
+
+    // Periodically send all the config to all relays to keep whiteList consistent with the DB
+    // We use Timer to not have any stacking of operation
+    periodicUpdateConfig = Handler {
+      launch(vertx.dispatcher()) { sendConfigToAllRelays() }
+      vertx.setTimer(TimeUnit.SECONDS.toMillis(UPDATE_CONFIG_INTERVAL_SECONDS), periodicUpdateConfig)
+    }
+    // Schedule the first execution
+    vertx.setTimer(TimeUnit.SECONDS.toMillis(UPDATE_CONFIG_INTERVAL_SECONDS), periodicUpdateConfig)
   }
 
   private suspend fun handleClient(client: MqttEndpoint) {
@@ -380,6 +383,15 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     }
   }
 
+  private suspend fun sendConfigToAllRelays(){
+    LOGGER.info { "Sending configuration to all relays..." }
+    clients.forEach { (_, relayClient) ->
+      val company = relayClient.will().willMessage.toJsonObject().getString("company")
+      val collection = if (company != "biot") "${RELAYS_COLLECTION}_$company" else RELAYS_COLLECTION
+      sendLastConfiguration(relayClient, collection, company)
+    }
+  }
+
   /**
    * Gets the MAC addresses of beacons associated to items in the DB for the given company
    * The MAC addresses are filtered to have only "valid" MAC addresses.
@@ -400,6 +412,5 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
       LOGGER.info { "RelayCommunication: could not get Items' beacons" }
       listOf()
     }
-
   }
 }
