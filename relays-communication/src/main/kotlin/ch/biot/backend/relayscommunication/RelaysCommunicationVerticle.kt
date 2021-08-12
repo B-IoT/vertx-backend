@@ -34,7 +34,6 @@ import io.vertx.pgclient.SslMode
 import io.vertx.pgclient.pubsub.PgSubscriber
 import io.vertx.spi.cluster.hazelcast.HazelcastClusterManager
 import io.vertx.sqlclient.SqlClient
-import io.vertx.sqlclient.Tuple
 import kotlinx.coroutines.launch
 import mu.KotlinLogging
 import java.net.InetAddress

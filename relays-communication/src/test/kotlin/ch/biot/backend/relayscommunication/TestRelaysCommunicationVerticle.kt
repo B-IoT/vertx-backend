@@ -39,6 +39,7 @@ import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
+import mu.KotlinLogging
 import org.junit.jupiter.api.*
 import org.junit.jupiter.api.extension.ExtendWith
 import org.testcontainers.containers.DockerComposeContainer
@@ -55,6 +56,8 @@ import java.util.*
 @ExtendWith(VertxExtension::class)
 @Testcontainers
 class TestRelaysCommunicationVerticle {
+
+  private val LOGGER = KotlinLogging.logger {}
 
   private lateinit var kafkaConsumer: KafkaConsumer<String, JsonObject>
 
@@ -210,7 +213,7 @@ class TestRelaysCommunicationVerticle {
     "category" to "ECG",
     "service" to "Bloc 2",
     "itemID" to "abc",
-    "accessControlString" to "biot",
+    "accessControlString" to anotherCompanyName,
     "brand" to "ferrari",
     "model" to "GT",
     "supplier" to "sup",
@@ -236,7 +239,7 @@ class TestRelaysCommunicationVerticle {
     "category" to "ECG",
     "service" to "Bloc 2",
     "itemID" to "abc",
-    "accessControlString" to "biot",
+    "accessControlString" to anotherCompanyName,
     "brand" to "ferrari",
     "model" to "GT",
     "supplier" to "sup",
@@ -367,6 +370,37 @@ class TestRelaysCommunicationVerticle {
       )
     pgClient = PgPool.client(vertx, pgConnectOptions, poolOptionsOf())
 
+    pgClient.query("""
+      CREATE TABLE IF NOT EXISTS items_$anotherCompanyName
+      (
+          id SERIAL PRIMARY KEY,
+          beacon VARCHAR(17) UNIQUE,
+          category VARCHAR(100),
+          service VARCHAR(100),
+          itemID VARCHAR(50),
+          accessControlString VARCHAR(2048),
+          brand VARCHAR(100),
+          model VARCHAR(100),
+          supplier VARCHAR(100),
+          purchaseDate DATE,
+          purchasePrice DECIMAL(15, 6),
+          originLocation VARCHAR(100),
+          currentLocation VARCHAR(100),
+          room VARCHAR(100),
+          contact VARCHAR(100),
+          currentOwner VARCHAR(100),
+          previousOwner VARCHAR(100),
+          orderNumber VARCHAR(100),
+          color VARCHAR(100),
+          serialNumber VARCHAR(100),
+          maintenanceDate DATE,
+          status VARCHAR(100),
+          comments VARCHAR(200),
+          lastModifiedDate DATE,
+          lastModifiedBy VARCHAR(100)
+      );
+    """.trimIndent()).execute().await()
+
     insertItems()
 
   }
@@ -492,7 +526,7 @@ class TestRelaysCommunicationVerticle {
             )
           ).await()
 
-          pgClient.preparedQuery(insertItem("items"))
+          pgClient.preparedQuery(insertItem("items_$anotherCompanyName"))
           .execute(
             Tuple.of(
               itemAnother1["beacon"],
@@ -522,7 +556,7 @@ class TestRelaysCommunicationVerticle {
             )
           ).await()
 
-          pgClient.preparedQuery(insertItem("items"))
+          pgClient.preparedQuery(insertItem("items_$anotherCompanyName"))
           .execute(
             Tuple.of(
               itemAnother2["beacon"],
@@ -557,7 +591,7 @@ class TestRelaysCommunicationVerticle {
   private fun dropAllItems(): CompositeFuture {
     return CompositeFuture.all(
       pgClient.query("DELETE FROM items").execute(),
-      pgClient.query("DELETE FROM $anotherCompanyCollection").execute()
+      pgClient.query("DELETE FROM items_$anotherCompanyName").execute()
     )
   }
 
@@ -1060,6 +1094,11 @@ class TestRelaysCommunicationVerticle {
   @DisplayName("A MQTT client for another company than biot gets the right last config at subscription")
   fun clientFromAnotherCompanyGetsRightConfig(vertx: Vertx, testContext: VertxTestContext): Unit =
     runBlocking(vertx.dispatcher()) {
+      //DEBUG
+      val test = pgClient.query("SELECT I.beacon FROM items_anotherCompany I  WHERE (I.accessControlString LIKE 'anotherCompany:%' OR I.accessControlString LIKE 'anotherCompany')").execute().await()
+      test.forEach{r -> LOGGER.info { "DEBUG haha: ${r.getString("beacon")}" }}
+
+
       val client = MqttClient.create(
         vertx,
         mqttClientOptionsOf(
@@ -1080,7 +1119,7 @@ class TestRelaysCommunicationVerticle {
                 remove("mqttID")
                 remove("mqttUsername")
                 remove("ledStatus")
-                put("whiteList", "${itemAnother1.getString("beacon")}:${itemAnother2.getString("beacon")}")
+                put("whiteList", "${itemAnother1.getString("beacon")};${itemAnother2.getString("beacon")}")
               }
               expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
               testContext.completeNow()
