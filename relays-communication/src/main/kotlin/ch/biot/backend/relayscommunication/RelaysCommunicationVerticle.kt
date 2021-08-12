@@ -89,6 +89,10 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
 
   private val clients = mutableMapOf<String, MqttEndpoint>() // map of subscribed clientIdentifier to client
 
+  private val whiteListHashes = mutableMapOf<String, Int>() // map of company to the hash of the whiteListString
+                                                            // We use this to check whether the whiteList changed or not since
+                                                            // last sent, so that we do not overwhelm the relays
+
   // Map from collection name to MongoAuthentication
   // It is used since there is a collection per company
   private val mongoAuthRelaysCache: MutableMap<String, MongoAuthentication> = mutableMapOf()
@@ -353,14 +357,14 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     val query = jsonObjectOf("mqttID" to client.clientIdentifier())
     try {
       // Get items mac addresses
-      val macAddresses = getItemsMacAddresses(company)
       // Find the last configuration in MongoDB
       val config = mongoClient.findOne(relaysCollection, query, jsonObjectOf()).await()
       if (config != null && !config.isEmpty) {
         // The configuration exists
         // Remove useless fields and clean lastModified, then send
         val cleanConfig = config.clean()
-        val whiteListString = macAddresses.joinToString(";")
+        val whiteListString = getItemsMacAddressesString(company)
+        whiteListHashes[company] = whiteListString.hashCode()
         cleanConfig.put("whiteList", whiteListString)
         sendMessageTo(client, cleanConfig)
       }
@@ -384,20 +388,29 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
   }
 
   private suspend fun sendConfigToAllRelays(){
-    LOGGER.info { "Sending configuration to all relays..." }
     clients.forEach { (_, relayClient) ->
       val company = relayClient.will().willMessage.toJsonObject().getString("company")
       val collection = if (company != "biot") "${RELAYS_COLLECTION}_$company" else RELAYS_COLLECTION
-      sendLastConfiguration(relayClient, collection, company)
+      val currentWhiteList = getItemsMacAddressesString(company)
+
+      if(!whiteListHashes.containsKey(company) || currentWhiteList.hashCode() != whiteListHashes[company]){
+        // The whiteList changes since last time it was sent to the relays, so we send it again
+        LOGGER.info { "WhiteList changed: sending last configuration to the relay with id:${relayClient.clientIdentifier()}" }
+        sendLastConfiguration(relayClient, collection, company)
+      } else {
+        LOGGER.info { "Skipping sending configuration for the relay ${relayClient.clientIdentifier()}" }
+      }
+
     }
   }
 
   /**
-   * Gets the MAC addresses of beacons associated to items in the DB for the given company
+   * Gets the MAC addresses of beacons associated to items in the DB for the given company and returns them as
+   * a semi-colon separated string
    * The MAC addresses are filtered to have only "valid" MAC addresses.
-   * If it cannot get MAC Addresses from the DB, it returns an empty list and log a message.
+   * If it cannot get MAC Addresses from the DB, it returns an empty string and log a message.
    */
-  private suspend fun getItemsMacAddresses(company: String):List<String> {
+  private suspend fun getItemsMacAddressesString(company: String): String {
     val accessControlString = company
     val itemsTable = if (company != "biot") "${ITEMS_TABLE}_$company" else ITEMS_TABLE
     val executedQuery = pgClient.preparedQuery(getItemsMacs(itemsTable, accessControlString)).execute()
@@ -406,11 +419,11 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
       val result = if (queryResult.size() == 0) listOf() else queryResult.map { it.getString("beacon") }
 
       // Filter result to remove invalid mac addresses
-      result.filter { s -> s.matches("^([a-f0-9]{2}:){5}[a-f0-9]{2}$".toRegex()) }.distinct()
+      result.filter { s -> s.matches("^([a-f0-9]{2}:){5}[a-f0-9]{2}$".toRegex()) }.distinct().joinToString(";")
 
     } catch (e: Exception){
       LOGGER.info { "RelayCommunication: could not get Items' beacons" }
-      listOf()
+      ""
     }
   }
 }
