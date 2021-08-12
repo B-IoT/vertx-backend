@@ -8,8 +8,7 @@ import ch.biot.backend.crud.CRUDVerticle.Companion.BAD_REQUEST_CODE
 import ch.biot.backend.crud.CRUDVerticle.Companion.HTTP_PORT
 import ch.biot.backend.crud.CRUDVerticle.Companion.MONGO_PORT
 import ch.biot.backend.crud.CRUDVerticle.Companion.TIMESCALE_PORT
-import ch.biot.backend.crud.queries.getItem
-import ch.biot.backend.crud.queries.insertItem
+import ch.biot.backend.crud.queries.*
 import ch.biot.backend.crud.updates.UpdateType
 import io.restassured.builder.RequestSpecBuilder
 import io.restassured.filter.log.RequestLoggingFilter
@@ -159,6 +158,7 @@ class TestCRUDVerticleItems {
     pgClient = PgPool.client(vertx, pgConnectOptions, poolOptionsOf())
 
     try {
+      dropAllSnapshots().await()
       dropAllItems().await()
       insertItems().await()
       vertx.deployVerticle(CRUDVerticle(), testContext.succeedingThenComplete())
@@ -171,6 +171,17 @@ class TestCRUDVerticleItems {
     return CompositeFuture.all(
       pgClient.query("DELETE FROM items").execute(),
       pgClient.query("DELETE FROM beacon_data").execute()
+    )
+  }
+
+  private suspend fun dropAllSnapshots(): CompositeFuture {
+    val firstTableExists = pgClient.tableExists("items_snapshot_1")
+    val secondTableExists = pgClient.tableExists("items_snapshot_2")
+
+    return CompositeFuture.all(
+      pgClient.query("DELETE FROM items_snapshots").execute(),
+      if (firstTableExists) pgClient.query("DROP TABLE items_snapshot_1").execute() else Future.succeededFuture(),
+      if (secondTableExists) pgClient.query("DROP TABLE items_snapshot_2").execute() else Future.succeededFuture()
     )
   }
 
@@ -207,300 +218,301 @@ class TestCRUDVerticleItems {
     existingItemID = result.iterator().next().getInteger("id")
 
     pgClient.preparedQuery(insertItem("items"))
-          .execute(
-            Tuple.of(
-              closestItem["beacon"],
-              closestItem["category"],
-              closestItem["service"],
-              closestItem["itemID"],
-              closestItem["brand"],
-              closestItem["model"],
-              closestItem["supplier"],
-              LocalDate.parse(existingItem["purchaseDate"]),
-              closestItem["purchasePrice"],
-              closestItem["originLocation"],
-              closestItem["currentLocation"],
-              closestItem["room"],
-              closestItem["contact"],
-              closestItem["currentOwner"],
-              closestItem["previousOwner"],
-              closestItem["orderNumber"],
-              closestItem["color"],
-              closestItem["serialNumber"],
-              LocalDate.parse(closestItem["maintenanceDate"]),
-              closestItem["status"],
-              closestItem["comments"],
-              LocalDate.parse(closestItem["lastModifiedDate"]),
-              closestItem["lastModifiedBy"]
-            )
-          ).await()
+      .execute(
+        Tuple.of(
+          closestItem["beacon"],
+          closestItem["category"],
+          closestItem["service"],
+          closestItem["itemID"],
+          closestItem["brand"],
+          closestItem["model"],
+          closestItem["supplier"],
+          LocalDate.parse(existingItem["purchaseDate"]),
+          closestItem["purchasePrice"],
+          closestItem["originLocation"],
+          closestItem["currentLocation"],
+          closestItem["room"],
+          closestItem["contact"],
+          closestItem["currentOwner"],
+          closestItem["previousOwner"],
+          closestItem["orderNumber"],
+          closestItem["color"],
+          closestItem["serialNumber"],
+          LocalDate.parse(closestItem["maintenanceDate"]),
+          closestItem["status"],
+          closestItem["comments"],
+          LocalDate.parse(closestItem["lastModifiedDate"]),
+          closestItem["lastModifiedBy"]
+        )
+      ).await()
 
-        pgClient.preparedQuery(insertItem("items"))
-          .execute(
-            Tuple.of(
-              "fake1",
-              closestItem["category"],
-              closestItem["service"],
-              closestItem["itemID"],
-              closestItem["brand"],
-              closestItem["model"],
-              closestItem["supplier"],
-              LocalDate.parse(closestItem["purchaseDate"]),
-              closestItem["purchasePrice"],
-              closestItem["originLocation"],
-              closestItem["currentLocation"],
-              closestItem["room"],
-              closestItem["contact"],
-              closestItem["currentOwner"],
-              closestItem["previousOwner"],
-              closestItem["orderNumber"],
-              closestItem["color"],
-              closestItem["serialNumber"],
-              LocalDate.parse(closestItem["maintenanceDate"]),
-              closestItem["status"],
-              closestItem["comments"],
-              LocalDate.parse(closestItem["lastModifiedDate"]),
-              closestItem["lastModifiedBy"]
-            )
-          ).await()
+    pgClient.preparedQuery(insertItem("items"))
+      .execute(
+        Tuple.of(
+          "fake1",
+          closestItem["category"],
+          closestItem["service"],
+          closestItem["itemID"],
+          closestItem["brand"],
+          closestItem["model"],
+          closestItem["supplier"],
+          LocalDate.parse(closestItem["purchaseDate"]),
+          closestItem["purchasePrice"],
+          closestItem["originLocation"],
+          closestItem["currentLocation"],
+          closestItem["room"],
+          closestItem["contact"],
+          closestItem["currentOwner"],
+          closestItem["previousOwner"],
+          closestItem["orderNumber"],
+          closestItem["color"],
+          closestItem["serialNumber"],
+          LocalDate.parse(closestItem["maintenanceDate"]),
+          closestItem["status"],
+          closestItem["comments"],
+          LocalDate.parse(closestItem["lastModifiedDate"]),
+          closestItem["lastModifiedBy"]
+        )
+      ).await()
 
-        pgClient.preparedQuery(insertItem("items"))
-          .execute(
-            Tuple.of(
-              "fake2",
-              closestItem["category"],
-              closestItem["service"],
-              closestItem["itemID"],
-              closestItem["brand"],
-              closestItem["model"],
-              closestItem["supplier"],
-              LocalDate.parse(closestItem["purchaseDate"]),
-              closestItem["purchasePrice"],
-              closestItem["originLocation"],
-              closestItem["currentLocation"],
-              closestItem["room"],
-              closestItem["contact"],
-              closestItem["currentOwner"],
-              closestItem["previousOwner"],
-              closestItem["orderNumber"],
-              closestItem["color"],
-              closestItem["serialNumber"],
-              LocalDate.parse(closestItem["maintenanceDate"]),
-              closestItem["status"],
-              closestItem["comments"],
-              LocalDate.parse(closestItem["lastModifiedDate"]),
-              closestItem["lastModifiedBy"]
-            )
-          ).await()
+    pgClient.preparedQuery(insertItem("items"))
+      .execute(
+        Tuple.of(
+          "fake2",
+          closestItem["category"],
+          closestItem["service"],
+          closestItem["itemID"],
+          closestItem["brand"],
+          closestItem["model"],
+          closestItem["supplier"],
+          LocalDate.parse(closestItem["purchaseDate"]),
+          closestItem["purchasePrice"],
+          closestItem["originLocation"],
+          closestItem["currentLocation"],
+          closestItem["room"],
+          closestItem["contact"],
+          closestItem["currentOwner"],
+          closestItem["previousOwner"],
+          closestItem["orderNumber"],
+          closestItem["color"],
+          closestItem["serialNumber"],
+          LocalDate.parse(closestItem["maintenanceDate"]),
+          closestItem["status"],
+          closestItem["comments"],
+          LocalDate.parse(closestItem["lastModifiedDate"]),
+          closestItem["lastModifiedBy"]
+        )
+      ).await()
 
-        pgClient.preparedQuery(insertItem("items"))
-          .execute(
-            Tuple.of(
-              "fake3",
-              closestItem["category"],
-              closestItem["service"],
-              closestItem["itemID"],
-              closestItem["brand"],
-              closestItem["model"],
-              closestItem["supplier"],
-              LocalDate.parse(closestItem["purchaseDate"]),
-              closestItem["purchasePrice"],
-              closestItem["originLocation"],
-              closestItem["currentLocation"],
-              closestItem["room"],
-              closestItem["contact"],
-              closestItem["currentOwner"],
-              closestItem["previousOwner"],
-              closestItem["orderNumber"],
-              closestItem["color"],
-              closestItem["serialNumber"],
-              LocalDate.parse(closestItem["maintenanceDate"]),
-              closestItem["status"],
-              closestItem["comments"],
-              LocalDate.parse(closestItem["lastModifiedDate"]),
-              closestItem["lastModifiedBy"]
-            )
-          ).await()
+    pgClient.preparedQuery(insertItem("items"))
+      .execute(
+        Tuple.of(
+          "fake3",
+          closestItem["category"],
+          closestItem["service"],
+          closestItem["itemID"],
+          closestItem["brand"],
+          closestItem["model"],
+          closestItem["supplier"],
+          LocalDate.parse(closestItem["purchaseDate"]),
+          closestItem["purchasePrice"],
+          closestItem["originLocation"],
+          closestItem["currentLocation"],
+          closestItem["room"],
+          closestItem["contact"],
+          closestItem["currentOwner"],
+          closestItem["previousOwner"],
+          closestItem["orderNumber"],
+          closestItem["color"],
+          closestItem["serialNumber"],
+          LocalDate.parse(closestItem["maintenanceDate"]),
+          closestItem["status"],
+          closestItem["comments"],
+          LocalDate.parse(closestItem["lastModifiedDate"]),
+          closestItem["lastModifiedBy"]
+        )
+      ).await()
 
-        pgClient.preparedQuery(insertItem("items"))
-          .execute(
-            Tuple.of(
-              "fake4",
-              closestItem["category"],
-              closestItem["service"],
-              closestItem["itemID"],
-              closestItem["brand"],
-              closestItem["model"],
-              closestItem["supplier"],
-              LocalDate.parse(closestItem["purchaseDate"]),
-              closestItem["purchasePrice"],
-              closestItem["originLocation"],
-              closestItem["currentLocation"],
-              closestItem["room"],
-              closestItem["contact"],
-              closestItem["currentOwner"],
-              closestItem["previousOwner"],
-              closestItem["orderNumber"],
-              closestItem["color"],
-              closestItem["serialNumber"],
-              LocalDate.parse(closestItem["maintenanceDate"]),
-              closestItem["status"],
-              closestItem["comments"],
-              LocalDate.parse(closestItem["lastModifiedDate"]),
-              closestItem["lastModifiedBy"]
-            )
-          ).await()
+    pgClient.preparedQuery(insertItem("items"))
+      .execute(
+        Tuple.of(
+          "fake4",
+          closestItem["category"],
+          closestItem["service"],
+          closestItem["itemID"],
+          closestItem["brand"],
+          closestItem["model"],
+          closestItem["supplier"],
+          LocalDate.parse(closestItem["purchaseDate"]),
+          closestItem["purchasePrice"],
+          closestItem["originLocation"],
+          closestItem["currentLocation"],
+          closestItem["room"],
+          closestItem["contact"],
+          closestItem["currentOwner"],
+          closestItem["previousOwner"],
+          closestItem["orderNumber"],
+          closestItem["color"],
+          closestItem["serialNumber"],
+          LocalDate.parse(closestItem["maintenanceDate"]),
+          closestItem["status"],
+          closestItem["comments"],
+          LocalDate.parse(closestItem["lastModifiedDate"]),
+          closestItem["lastModifiedBy"]
+        )
+      ).await()
 
-        pgClient.preparedQuery(insertItem("items"))
-          .execute(
-            Tuple.of(
-              "fake5",
-              closestItem["category"],
-              closestItem["service"],
-              closestItem["itemID"],
-              closestItem["brand"],
-              closestItem["model"],
-              closestItem["supplier"],
-              LocalDate.parse(closestItem["purchaseDate"]),
-              closestItem["purchasePrice"],
-              closestItem["originLocation"],
-              closestItem["currentLocation"],
-              closestItem["room"],
-              closestItem["contact"],
-              closestItem["currentOwner"],
-              closestItem["previousOwner"],
-              closestItem["orderNumber"],
-              closestItem["color"],
-              closestItem["serialNumber"],
-              LocalDate.parse(closestItem["maintenanceDate"]),
-              closestItem["status"],
-              closestItem["comments"],
-              LocalDate.parse(closestItem["lastModifiedDate"]),
-              closestItem["lastModifiedBy"]
-            )
-          ).await()
+    pgClient.preparedQuery(insertItem("items"))
+      .execute(
+        Tuple.of(
+          "fake5",
+          closestItem["category"],
+          closestItem["service"],
+          closestItem["itemID"],
+          closestItem["brand"],
+          closestItem["model"],
+          closestItem["supplier"],
+          LocalDate.parse(closestItem["purchaseDate"]),
+          closestItem["purchasePrice"],
+          closestItem["originLocation"],
+          closestItem["currentLocation"],
+          closestItem["room"],
+          closestItem["contact"],
+          closestItem["currentOwner"],
+          closestItem["previousOwner"],
+          closestItem["orderNumber"],
+          closestItem["color"],
+          closestItem["serialNumber"],
+          LocalDate.parse(closestItem["maintenanceDate"]),
+          closestItem["status"],
+          closestItem["comments"],
+          LocalDate.parse(closestItem["lastModifiedDate"]),
+          closestItem["lastModifiedBy"]
+        )
+      ).await()
 
-        pgClient.preparedQuery(INSERT_BEACON_DATA)
-          .execute(
-            Tuple.of(
-              existingBeaconData.getString("mac"),
-              existingBeaconData.getInteger("battery") + 5,
-              existingBeaconData.getString("beaconStatus"),
-              existingBeaconData.getDouble("latitude"),
-              existingBeaconData.getDouble("longitude"),
-              existingBeaconData.getInteger("floor"),
-              existingBeaconData.getDouble("temperature")
-            )
-          ).await()
+    pgClient.preparedQuery(INSERT_BEACON_DATA)
+      .execute(
+        Tuple.of(
+          existingBeaconData.getString("mac"),
+          existingBeaconData.getInteger("battery") + 5,
+          existingBeaconData.getString("beaconStatus"),
+          existingBeaconData.getDouble("latitude"),
+          existingBeaconData.getDouble("longitude"),
+          existingBeaconData.getInteger("floor"),
+          existingBeaconData.getDouble("temperature")
+        )
+      ).await()
 
-        pgClient.preparedQuery(INSERT_BEACON_DATA)
-          .execute(
-            Tuple.of(
-              existingBeaconData.getString("mac"),
-              existingBeaconData.getInteger("battery"),
-              existingBeaconData.getString("beaconStatus"),
-              existingBeaconData.getDouble("latitude"),
-              existingBeaconData.getDouble("longitude"),
-              existingBeaconData.getInteger("floor"),
-              existingBeaconData.getDouble("temperature")
-            )
-          ).await()
+    pgClient.preparedQuery(INSERT_BEACON_DATA)
+      .execute(
+        Tuple.of(
+          existingBeaconData.getString("mac"),
+          existingBeaconData.getInteger("battery"),
+          existingBeaconData.getString("beaconStatus"),
+          existingBeaconData.getDouble("latitude"),
+          existingBeaconData.getDouble("longitude"),
+          existingBeaconData.getInteger("floor"),
+          existingBeaconData.getDouble("temperature")
+        )
+      ).await()
 
-        pgClient.preparedQuery(INSERT_BEACON_DATA)
-          .execute(
-            Tuple.of(
-              updateItemJson.getString("beacon"),
-              existingBeaconData.getInteger("battery"),
-              existingBeaconData.getString("beaconStatus"),
-              existingBeaconData.getDouble("latitude"),
-              existingBeaconData.getDouble("longitude"),
-              existingBeaconData.getInteger("floor"),
-              existingBeaconData.getDouble("temperature")
-            )
-          ).await()
+    pgClient.preparedQuery(INSERT_BEACON_DATA)
+      .execute(
+        Tuple.of(
+          updateItemJson.getString("beacon"),
+          existingBeaconData.getInteger("battery"),
+          existingBeaconData.getString("beaconStatus"),
+          existingBeaconData.getDouble("latitude"),
+          existingBeaconData.getDouble("longitude"),
+          existingBeaconData.getInteger("floor"),
+          existingBeaconData.getDouble("temperature")
+        )
+      ).await()
 
-        pgClient.preparedQuery(INSERT_BEACON_DATA)
-          .execute(
-            Tuple.of(
-              closestItem.getString("beacon"),
-              existingBeaconData.getInteger("battery"),
-              existingBeaconData.getString("beaconStatus"),
-              42,
-              -8,
-              existingBeaconData.getInteger("floor"),
-              existingBeaconData.getDouble("temperature")
-            )
-          ).await()
+    pgClient.preparedQuery(INSERT_BEACON_DATA)
+      .execute(
+        Tuple.of(
+          closestItem.getString("beacon"),
+          existingBeaconData.getInteger("battery"),
+          existingBeaconData.getString("beaconStatus"),
+          42,
+          -8,
+          existingBeaconData.getInteger("floor"),
+          existingBeaconData.getDouble("temperature")
+        )
+      ).await()
 
-        pgClient.preparedQuery(INSERT_BEACON_DATA)
-          .execute(
-            Tuple.of(
-              "fake1",
-              existingBeaconData.getInteger("battery"),
-              existingBeaconData.getString("beaconStatus"),
-              44,
-              -8,
-              existingBeaconData.getInteger("floor"),
-              existingBeaconData.getDouble("temperature")
-            )
-          ).await()
+    pgClient.preparedQuery(INSERT_BEACON_DATA)
+      .execute(
+        Tuple.of(
+          "fake1",
+          existingBeaconData.getInteger("battery"),
+          existingBeaconData.getString("beaconStatus"),
+          44,
+          -8,
+          existingBeaconData.getInteger("floor"),
+          existingBeaconData.getDouble("temperature")
+        )
+      ).await()
 
-        pgClient.preparedQuery(INSERT_BEACON_DATA)
-          .execute(
-            Tuple.of(
-              "fake2",
-              existingBeaconData.getInteger("battery"),
-              existingBeaconData.getString("beaconStatus"),
-              45,
-              -8,
-              existingBeaconData.getInteger("floor"),
-              existingBeaconData.getDouble("temperature")
-            )
-          ).await()
+    pgClient.preparedQuery(INSERT_BEACON_DATA)
+      .execute(
+        Tuple.of(
+          "fake2",
+          existingBeaconData.getInteger("battery"),
+          existingBeaconData.getString("beaconStatus"),
+          45,
+          -8,
+          existingBeaconData.getInteger("floor"),
+          existingBeaconData.getDouble("temperature")
+        )
+      ).await()
 
-        pgClient.preparedQuery(INSERT_BEACON_DATA)
-          .execute(
-            Tuple.of(
-              "fake3",
-              existingBeaconData.getInteger("battery"),
-              existingBeaconData.getString("beaconStatus"),
-              46,
-              -8,
-              existingBeaconData.getInteger("floor"),
-              existingBeaconData.getDouble("temperature")
-            )
-          ).await()
+    pgClient.preparedQuery(INSERT_BEACON_DATA)
+      .execute(
+        Tuple.of(
+          "fake3",
+          existingBeaconData.getInteger("battery"),
+          existingBeaconData.getString("beaconStatus"),
+          46,
+          -8,
+          existingBeaconData.getInteger("floor"),
+          existingBeaconData.getDouble("temperature")
+        )
+      ).await()
 
-        pgClient.preparedQuery(INSERT_BEACON_DATA)
-          .execute(
-            Tuple.of(
-              "fake4",
-              existingBeaconData.getInteger("battery"),
-              existingBeaconData.getString("beaconStatus"),
-              47,
-              -8,
-              existingBeaconData.getInteger("floor"),
-              existingBeaconData.getDouble("temperature")
-            )
-          ).await()
+    pgClient.preparedQuery(INSERT_BEACON_DATA)
+      .execute(
+        Tuple.of(
+          "fake4",
+          existingBeaconData.getInteger("battery"),
+          existingBeaconData.getString("beaconStatus"),
+          47,
+          -8,
+          existingBeaconData.getInteger("floor"),
+          existingBeaconData.getDouble("temperature")
+        )
+      ).await()
 
-        return pgClient.preparedQuery(INSERT_BEACON_DATA)
-          .execute(
-            Tuple.of(
-              "fake5",
-              existingBeaconData.getInteger("battery"),
-              existingBeaconData.getString("status"),
-              47,
-              -8,
-              2,
-              3.3
-            )
-          )
+    return pgClient.preparedQuery(INSERT_BEACON_DATA)
+      .execute(
+        Tuple.of(
+          "fake5",
+          existingBeaconData.getInteger("battery"),
+          existingBeaconData.getString("status"),
+          47,
+          -8,
+          2,
+          3.3
+        )
+      )
   }
 
   @AfterEach
   fun cleanup(vertx: Vertx, testContext: VertxTestContext) = runBlocking(vertx.dispatcher()) {
     try {
+      dropAllSnapshots().await()
       dropAllItems().await()
       pgClient.close()
       testContext.completeNow()
@@ -510,8 +522,355 @@ class TestCRUDVerticleItems {
   }
 
   @Test
+  @DisplayName("createSnapshot correctly creates a snapshot")
+  fun createSnapshotIsCorrect(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
+    val snapshotID = Given {
+      spec(requestSpecification)
+    } When {
+      queryParam("company", "biot")
+      post("/items/snapshots")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(snapshotID).isNotEmpty() // it returns the id of the created snapshot
+    }
+
+    try {
+      val snapshotTableExists = pgClient.tableExists("items_snapshot_$snapshotID")
+      testContext.verify {
+        expectThat(snapshotTableExists).isTrue()
+      }
+    } catch (error: Throwable) {
+      testContext.failNow(error)
+    }
+
+    try {
+      val snapshots = pgClient.query(getSnapshots("items")).execute().await().iterator()
+      testContext.verify {
+        expectThat(snapshots.hasNext()).isTrue()
+
+        val id = snapshots.next().getInteger("id")
+        expectThat(id).isEqualTo(snapshotID.toInt())
+        testContext.completeNow()
+      }
+    } catch (error: Throwable) {
+      testContext.failNow(error)
+    }
+  }
+
+  @Test
+  @DisplayName("getSnapshots correctly retrieves the list of snapshots")
+  fun getSnapshotsIsCorrect(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
+    try {
+      val id1 = pgClient.query(createSnapshot("items")).execute().await().iterator().next().getInteger("id")
+      val id2 = pgClient.query(createSnapshot("items")).execute().await().iterator().next().getInteger("id")
+
+      val snapshots = Buffer.buffer(
+        Given {
+          spec(requestSpecification)
+          accept(ContentType.JSON)
+        } When {
+          queryParam("company", "biot")
+          get("/items/snapshots")
+        } Then {
+          statusCode(200)
+        } Extract {
+          asString()
+        }
+      ).toJsonArray()
+
+      testContext.verify {
+        expectThat(snapshots.size()).isEqualTo(2)
+
+        val firstSnapshot = snapshots.getJsonObject(0)
+        val secondSnapshot = snapshots.getJsonObject(1)
+
+        expectThat(firstSnapshot.getInteger("id")).isEqualTo(id1)
+        expectThat(secondSnapshot.getInteger("id")).isEqualTo(id2)
+
+        expectThat(firstSnapshot.getString("date")).isEqualTo(LocalDate.now().toString())
+        expectThat(secondSnapshot.getString("date")).isEqualTo(LocalDate.now().toString())
+
+        testContext.completeNow()
+      }
+    } catch (error: Throwable) {
+      testContext.failNow(error)
+    }
+  }
+
+  @Test
+  @DisplayName("getSnapshot correctly retrieves the list of items contained in a snapshot")
+  fun getSnapshotIsCorrect(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
+    try {
+      val snapshotID = pgClient.query(createSnapshot("items")).execute().await().iterator().next().getInteger("id")
+      pgClient.query(snapshotTable("items", snapshotID)).execute().await()
+
+      val items = Buffer.buffer(
+        Given {
+          spec(requestSpecification)
+          accept(ContentType.JSON)
+        } When {
+          queryParam("company", "biot")
+          get("/items/snapshots/$snapshotID")
+        } Then {
+          statusCode(200)
+        } Extract {
+          asString()
+        }
+      ).toJsonArray()
+
+      testContext.verify {
+        expectThat(items.size()).isGreaterThan(0)
+
+        val firstItem = items.getJsonObject(0).apply { remove("id") }
+        expectThat(firstItem).isEqualTo(existingItem)
+
+        testContext.completeNow()
+      }
+    } catch (error: Throwable) {
+      testContext.failNow(error)
+    }
+  }
+
+  @Test
+  @DisplayName("getSnapshot fails with error 404 if the snapshot does not exist")
+  fun getSnapshotFailsIfTheSnapshotDoesNotExist(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      try {
+        val snapshotID = 1
+
+        val response = Given {
+          spec(requestSpecification)
+          accept(ContentType.JSON)
+        } When {
+          queryParam("company", "biot")
+          get("/items/snapshots/$snapshotID")
+        } Then {
+          statusCode(404)
+        } Extract {
+          asString()
+        }
+
+        testContext.verify {
+          expectThat(response).isEmpty()
+          testContext.completeNow()
+        }
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+
+  @Test
+  @DisplayName("deleteSnapshot correctly deletes the snapshot")
+  fun deleteSnapshotIsCorrect(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
+    try {
+      val snapshotID = pgClient.query(createSnapshot("items")).execute().await().iterator().next().getInteger("id")
+      pgClient.query(snapshotTable("items", snapshotID)).execute().await()
+
+      val response = Given {
+        spec(requestSpecification)
+      } When {
+        queryParam("company", "biot")
+        delete("/items/snapshots/$snapshotID")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+
+      testContext.verify {
+        expectThat(response).isEmpty()
+      }
+
+      val snapshotTableExists = pgClient.tableExists("items_snapshot_$snapshotID")
+      val snapshotEntryExists =
+        pgClient.query("SELECT * FROM items_snapshots WHERE id = $snapshotID").execute().await().iterator().hasNext()
+
+      testContext.verify {
+        expectThat(snapshotTableExists).isFalse()
+        expectThat(snapshotEntryExists).isFalse()
+        testContext.completeNow()
+      }
+    } catch (error: Throwable) {
+      testContext.failNow(error)
+    }
+  }
+
+  @Test
+  @DisplayName("deleteSnapshot fails with error 404 if the snapshot does not exist")
+  fun deleteSnapshotFailsIfTheSnapshotDoesNotExist(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      try {
+        val snapshotID = 1
+
+        val response = Given {
+          spec(requestSpecification)
+        } When {
+          queryParam("company", "biot")
+          delete("/items/snapshots/$snapshotID")
+        } Then {
+          statusCode(404)
+        } Extract {
+          asString()
+        }
+
+        testContext.verify {
+          expectThat(response).isEmpty()
+          testContext.completeNow()
+        }
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+
+  @Test
+  @DisplayName("compareSnapshots fails with error 404 if the first snapshot does not exist")
+  fun compareSnapshotsFailsIfTheFirstSnapshotDoesNotExist(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      try {
+        val firstSnapshotId = 1
+        val secondSnapshotId = 2
+
+        val response = Given {
+          spec(requestSpecification)
+        } When {
+          queryParam("company", "biot")
+          queryParam("firstSnapshotId", firstSnapshotId)
+          queryParam("secondSnapshotId", secondSnapshotId)
+          get("/items/snapshots/compare")
+        } Then {
+          statusCode(404)
+        } Extract {
+          asString()
+        }
+
+        testContext.verify {
+          expectThat(response).isEmpty()
+          testContext.completeNow()
+        }
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+
+  @Test
+  @DisplayName("compareSnapshots fails with error 404 if the second snapshot does not exist")
+  fun compareSnapshotsFailsIfTheSecondSnapshotDoesNotExist(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      try {
+        val secondSnapshotId = 2
+
+        val firstSnapshotId =
+          pgClient.query(createSnapshot("items")).execute().await().iterator().next().getInteger("id")
+        pgClient.query(snapshotTable("items", firstSnapshotId)).execute().await()
+
+        val response = Given {
+          spec(requestSpecification)
+        } When {
+          queryParam("company", "biot")
+          queryParam("firstSnapshotId", firstSnapshotId)
+          queryParam("secondSnapshotId", secondSnapshotId)
+          get("/items/snapshots/compare")
+        } Then {
+          statusCode(404)
+        } Extract {
+          asString()
+        }
+
+        testContext.verify {
+          expectThat(response).isEmpty()
+          testContext.completeNow()
+        }
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+
+  @Test
+  @DisplayName("compareSnapshots correctly returns the comparison object")
+  fun compareSnapshotsIsCorrect(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      try {
+        val firstSnapshotId =
+          pgClient.query(createSnapshot("items")).execute().await().iterator().next().getInteger("id")
+        pgClient.query(snapshotTable("items", firstSnapshotId)).execute().await()
+
+        // Add new items
+        val newItem1 = jsonObjectOf(
+          "beacon" to "ab:cd:ab:cd:ab:cd"
+        )
+        Given {
+          spec(requestSpecification)
+          contentType(ContentType.JSON)
+          body(newItem1.encode())
+        } When {
+          queryParam("company", "biot")
+          post("/items")
+        } Then {
+          statusCode(200)
+        }
+
+        val newItem2 = jsonObjectOf(
+          "beacon" to "cd:ab:cd:ab:cd:ab"
+        )
+        Given {
+          spec(requestSpecification)
+          contentType(ContentType.JSON)
+          body(newItem2.encode())
+        } When {
+          queryParam("company", "biot")
+          post("/items")
+        } Then {
+          statusCode(200)
+        }
+
+        val secondSnapshotId =
+          pgClient.query(createSnapshot("items")).execute().await().iterator().next().getInteger("id")
+        pgClient.query(snapshotTable("items", secondSnapshotId)).execute().await()
+
+        val comparison = Buffer.buffer(Given {
+          spec(requestSpecification)
+        } When {
+          queryParam("company", "biot")
+          queryParam("firstSnapshotId", firstSnapshotId)
+          queryParam("secondSnapshotId", secondSnapshotId)
+          get("/items/snapshots/compare")
+        } Then {
+          statusCode(200)
+        } Extract {
+          asString()
+        }).toJsonObject()
+
+        testContext.verify {
+          val onlyFirst = comparison.getJsonArray("onlyFirst")
+          val onlySecond = comparison.getJsonArray("onlySecond")
+          val inCommon = comparison.getJsonArray("inCommon")
+
+          expectThat(onlyFirst.size()).isEqualTo(0)
+          expectThat(onlySecond.size()).isEqualTo(2)
+          expectThat(inCommon.size()).isEqualTo(7)
+
+          expectThat(onlySecond.getJsonObject(0).apply { remove("id") }
+            .getString("beacon")).isEqualTo(newItem1.getString("beacon"))
+          expectThat(onlySecond.getJsonObject(1).apply { remove("id") }
+            .getString("beacon")).isEqualTo(newItem2.getString("beacon"))
+
+          expectThat(inCommon.getJsonObject(0).apply { remove("id") }).isEqualTo(existingItem)
+
+          testContext.completeNow()
+        }
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+
+  @Test
   @DisplayName("registerItem correctly registers a new item")
-  fun registerIsCorrect(testContext: VertxTestContext) {
+  fun registerItemIsCorrect(testContext: VertxTestContext) {
     val newItem = jsonObjectOf(
       "beacon" to "aa:aa:aa:aa:aa:aa",
       "category" to "Lit",
@@ -559,7 +918,7 @@ class TestCRUDVerticleItems {
 
   @Test
   @DisplayName("registerItem without specifying the status correctly registers a new item with the status set to 'Under creation'")
-  fun registerWithoutSpecifyingStatusIsCorrect(vertx: Vertx, testContext: VertxTestContext): Unit =
+  fun registerItemWithoutSpecifyingStatusIsCorrect(vertx: Vertx, testContext: VertxTestContext): Unit =
     runBlocking(vertx.dispatcher()) {
       val newItem = jsonObjectOf(
         "beacon" to "aa:aa:aa:aa:aa:aa",
@@ -647,7 +1006,7 @@ class TestCRUDVerticleItems {
 
   @Test
   @DisplayName("registerItem correctly registers a new item with a custom id")
-  fun registerWithIdIsCorrect(testContext: VertxTestContext) {
+  fun registerItemWithIdIsCorrect(testContext: VertxTestContext) {
     val newItem = jsonObjectOf(
       "id" to 120,
       "beacon" to "aa:aa:aa:aa:aa:aa",

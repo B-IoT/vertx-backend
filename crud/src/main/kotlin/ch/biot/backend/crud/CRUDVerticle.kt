@@ -43,6 +43,8 @@ import io.vertx.pgclient.PgPool
 import io.vertx.pgclient.SslMode
 import io.vertx.pgclient.pubsub.PgSubscriber
 import io.vertx.spi.cluster.hazelcast.HazelcastClusterManager
+import io.vertx.sqlclient.Row
+import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 import kotlinx.coroutines.launch
@@ -869,6 +871,7 @@ class CRUDVerticle : CoroutineVerticle() {
         pgClient.preparedQuery(dropSnapshotTable(table, snapshotID)).execute(),
         pgClient.preparedQuery(deleteSnapshot(table)).execute(Tuple.of(snapshotID))
       ).await()
+
       ctx.end()
     }
   }
@@ -877,6 +880,10 @@ class CRUDVerticle : CoroutineVerticle() {
    * Handles a compareSnapshots request.
    */
   private suspend fun compareSnapshotsHandler(ctx: RoutingContext) {
+    fun RowSet<Row>.toJsonArray() = JsonArray(if (this.size() == 0) listOf() else this.map {
+      it.toItemJson(includeBeaconData = false)
+    })
+
     val queryParams = ctx.queryParams()
     val firstSnapshotID = queryParams["firstSnapshotId"].toInt()
     val secondSnapshotID = queryParams["secondSnapshotId"].toInt()
@@ -914,23 +921,10 @@ class CRUDVerticle : CoroutineVerticle() {
         {
           pgClient.preparedQuery(innerJoinFromSnapshots(table, firstSnapshotID, secondSnapshotID)).execute().await()
         }) { onlyFirstResult, onlySecondResult, inCommonResult ->
-        val onlyFirst =
-          JsonArray(if (onlyFirstResult.size() == 0) listOf() else onlyFirstResult.map {
-            it.toItemJson(includeBeaconData = false)
-          })
-        val onlySecond =
-          JsonArray(if (onlySecondResult.size() == 0) listOf() else onlySecondResult.map {
-            it.toItemJson(includeBeaconData = false)
-          })
-        val inCommon =
-          JsonArray(if (inCommonResult.size() == 0) listOf() else inCommonResult.map {
-            it.toItemJson(includeBeaconData = false)
-          })
-
         val json = jsonObjectOf(
-          "onlyFirst" to onlyFirst,
-          "onlySecond" to onlySecond,
-          "inCommon" to inCommon
+          "onlyFirst" to onlyFirstResult.toJsonArray(),
+          "onlySecond" to onlySecondResult.toJsonArray(),
+          "inCommon" to inCommonResult.toJsonArray()
         )
 
         ctx.end(json.encode())

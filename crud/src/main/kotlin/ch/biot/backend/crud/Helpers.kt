@@ -121,37 +121,39 @@ fun JsonObject.toItemJson(): JsonObject = jsonObjectOf(
 /**
  * Converts the row to a JSON representation corresponding to an item.
  */
-fun Row.toItemJson(includeBeaconData: Boolean = true): JsonObject = jsonObjectOf(
-  "id" to getInteger("id"),
-  "beacon" to getString("beacon"),
-  "category" to getString("category"),
-  "service" to getString("service"),
-  "itemID" to getString("itemid"),
-  "brand" to getString("brand"),
-  "model" to getString("model"),
-  "supplier" to getString("supplier"),
-  "purchaseDate" to getLocalDate("purchasedate")?.toString(),
-  "purchasePrice" to getDouble("purchaseprice"),
-  "originLocation" to getString("originlocation"),
-  "currentLocation" to getString("currentlocation"),
-  "room" to getString("room"),
-  "contact" to getString("contact"),
-  "currentOwner" to getString("currentowner"),
-  "previousOwner" to getString("previousowner"),
-  "orderNumber" to getString("ordernumber"),
-  "color" to getString("color"),
-  "serialNumber" to getString("serialnumber"),
-  "maintenanceDate" to getLocalDate("maintenancedate")?.toString(),
-  "comments" to getString("comments"),
-  "lastModifiedDate" to getLocalDate("lastmodifieddate")?.toString(),
-  "lastModifiedBy" to getString("lastmodifiedby")
-).apply {
+fun Row.toItemJson(includeBeaconData: Boolean = true): JsonObject {
+  val json = jsonObjectOf(
+    "id" to getInteger("id"),
+    "beacon" to getString("beacon"),
+    "category" to getString("category"),
+    "service" to getString("service"),
+    "itemID" to getString("itemid"),
+    "brand" to getString("brand"),
+    "model" to getString("model"),
+    "supplier" to getString("supplier"),
+    "purchaseDate" to getLocalDate("purchasedate")?.toString(),
+    "purchasePrice" to getDouble("purchaseprice"),
+    "originLocation" to getString("originlocation"),
+    "currentLocation" to getString("currentlocation"),
+    "room" to getString("room"),
+    "contact" to getString("contact"),
+    "currentOwner" to getString("currentowner"),
+    "previousOwner" to getString("previousowner"),
+    "orderNumber" to getString("ordernumber"),
+    "color" to getString("color"),
+    "serialNumber" to getString("serialnumber"),
+    "maintenanceDate" to getLocalDate("maintenancedate")?.toString(),
+    "comments" to getString("comments"),
+    "lastModifiedDate" to getLocalDate("lastmodifieddate")?.toString(),
+    "lastModifiedBy" to getString("lastmodifiedby"),
+    "status" to getString("status")
+  )
+
   if (includeBeaconData) {
-    mergeIn(
+    json.mergeIn(
       jsonObjectOf(
         "timestamp" to getOffsetDateTime("time")?.toString(),
         "battery" to getInteger("battery"),
-        "status" to getString("status"),
         "beaconStatus" to getString("beaconstatus"),
         "latitude" to getDouble("latitude"),
         "longitude" to getDouble("longitude"),
@@ -160,6 +162,8 @@ fun Row.toItemJson(includeBeaconData: Boolean = true): JsonObject = jsonObjectOf
       )
     )
   }
+
+  return json
 }
 
 /**

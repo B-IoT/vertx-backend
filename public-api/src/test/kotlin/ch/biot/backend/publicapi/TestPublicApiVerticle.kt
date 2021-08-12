@@ -115,8 +115,8 @@ class TestPublicApiVerticle {
   @DisplayName("Getting the token for the initial user succeeds")
   fun getTokenSucceeds(testContext: VertxTestContext) {
     val loginInfo = jsonObjectOf(
-      "username" to CRUDVerticle.INITIAL_USER["username"],
-      "password" to CRUDVerticle.INITIAL_USER["password"]
+      "username" to INITIAL_USER["username"],
+      "password" to INITIAL_USER["password"]
     )
 
     val response = Given {
@@ -192,7 +192,8 @@ class TestPublicApiVerticle {
   @Order(4)
   @DisplayName("Getting the users succeeds")
   fun getUsersSucceeds(testContext: VertxTestContext) {
-    val expected = jsonArrayOf(INITIAL_USER.copy().apply { remove("password") }, user.copy().apply { remove("password") })
+    val expected =
+      jsonArrayOf(INITIAL_USER.copy().apply { remove("password") }, user.copy().apply { remove("password") })
 
     val response = Buffer.buffer(
       Given {
@@ -1099,6 +1100,164 @@ class TestPublicApiVerticle {
         testContext.completeNow()
       }
     }.connect()
+  }
+
+  @Test
+  @Order(30)
+  @DisplayName("Creating a snapshot succeeds")
+  fun createSnapshotSucceeds(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      header("Authorization", "Bearer $token")
+      contentType(ContentType.JSON)
+    } When {
+      post("/api/items/snapshots")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isNotEmpty()
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @Order(31)
+  @DisplayName("Getting the list of snapshots succeeds")
+  fun getSnapshotsSucceeds(testContext: VertxTestContext) {
+    val snapshots = Buffer.buffer(Given {
+      spec(requestSpecification)
+      header("Authorization", "Bearer $token")
+      contentType(ContentType.JSON)
+    } When {
+      get("/api/items/snapshots")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }).toJsonArray()
+
+    testContext.verify {
+      expectThat(snapshots.size()).isGreaterThan(0)
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @Order(32)
+  @DisplayName("Getting a snapshot succeeds")
+  fun getSnapshotSucceeds(testContext: VertxTestContext) {
+    val snapshotID = Given {
+      spec(requestSpecification)
+      header("Authorization", "Bearer $token")
+      contentType(ContentType.JSON)
+    } When {
+      post("/api/items/snapshots")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    val items = Buffer.buffer(Given {
+      spec(requestSpecification)
+      header("Authorization", "Bearer $token")
+      contentType(ContentType.JSON)
+    } When {
+      get("/api/items/snapshots/$snapshotID")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }).toJsonArray()
+
+    testContext.verify {
+      expectThat(items.size()).isGreaterThan(0)
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @Order(33)
+  @DisplayName("Deleting a snapshot succeeds")
+  fun deleteSnapshotSucceeds(testContext: VertxTestContext) {
+    val snapshotID = Given {
+      spec(requestSpecification)
+      header("Authorization", "Bearer $token")
+      contentType(ContentType.JSON)
+    } When {
+      post("/api/items/snapshots")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    val response = Given {
+      spec(requestSpecification)
+      header("Authorization", "Bearer $token")
+      contentType(ContentType.JSON)
+    } When {
+      delete("/api/items/snapshots/$snapshotID")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEmpty()
+      testContext.completeNow()
+    }
+  }
+
+  @DisplayName("Comparing two snapshots succeeds")
+  fun compareSnapshotsSucceeds(testContext: VertxTestContext) {
+    val firstSnapshotId = Given {
+      spec(requestSpecification)
+      header("Authorization", "Bearer $token")
+      contentType(ContentType.JSON)
+    } When {
+      post("/api/items/snapshots")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    val secondSnapshotId = Given {
+      spec(requestSpecification)
+      header("Authorization", "Bearer $token")
+      contentType(ContentType.JSON)
+    } When {
+      post("/api/items/snapshots")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    val comparisonObject = Buffer.buffer(Given {
+      spec(requestSpecification)
+      header("Authorization", "Bearer $token")
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("firstSnapshotId", firstSnapshotId)
+      queryParam("secondSnapshotId", secondSnapshotId)
+      get("/api/items/snapshots/compare")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }).toJsonObject()
+
+    testContext.verify {
+      expectThat(comparisonObject.isEmpty).isFalse()
+      testContext.completeNow()
+    }
   }
 
   companion object {
