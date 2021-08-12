@@ -70,8 +70,11 @@ class CRUDVerticle : CoroutineVerticle() {
     private const val ITEM_UNDER_CREATION = "Under creation"
     private const val ITEM_CREATED = "Created"
 
+    const val MAX_ACCESS_CONTROL_STRING_LENGTH = 2048
+
     const val INTERNAL_SERVER_ERROR_CODE = 500
     private const val UNAUTHORIZED_CODE = 401
+    private const val FORBIDEN_CODE = 403
     const val BAD_REQUEST_CODE = 400
     private const val NOT_FOUND_CODE = 404
 
@@ -82,6 +85,7 @@ class CRUDVerticle : CoroutineVerticle() {
       "userID" to "biot_biot",
       "username" to "biot",
       "password" to "biot",
+      "accessControlString" to "biot",
       "company" to "biot"
     )
 
@@ -504,23 +508,30 @@ class CRUDVerticle : CoroutineVerticle() {
     LOGGER.info { "New registerUser request" }
     val json = ctx.bodyAsJson
     json.validateAndThen(ctx) {
-      // Create the user
-      val password: String = json["password"]
-      val hashedPassword = password.saltAndHash(mongoAuthUsers)
-      executeWithErrorHandling("Could not register user", ctx) {
-        val docID = mongoUserUtilUsers.createHashedUser(json["username"], hashedPassword).await()
+      // Ensures that the company and the accessControlString cannot be empty
+      // because json.validateAndThen only checks the format, not the presence
+      if (!json.containsKey("company") || !json.containsKey("accessControlString")) {
+        ctx.fail(BAD_REQUEST_CODE)
+      } else {
+        // Create the user
+        val password: String = json["password"]
+        val hashedPassword = password.saltAndHash(mongoAuthUsers)
+        executeWithErrorHandling("Could not register user", ctx) {
+          val docID = mongoUserUtilUsers.createHashedUser(json["username"], hashedPassword).await()
 
-        // Update the user with the data specified in the HTTP request
-        val query = jsonObjectOf("_id" to docID)
-        val extraInfo = jsonObjectOf(
-          "\$set" to json.copy().apply {
-            remove("password")
-          }
-        )
-        mongoClient.findOneAndUpdate(USERS_COLLECTION, query, extraInfo).await()
-        LOGGER.info { "New user registered" }
-        ctx.end()
+          // Update the user with the data specified in the HTTP request
+          val query = jsonObjectOf("_id" to docID)
+          val extraInfo = jsonObjectOf(
+            "\$set" to json.copy().apply {
+              remove("password")
+            }
+          )
+          mongoClient.findOneAndUpdate(USERS_COLLECTION, query, extraInfo).await()
+          LOGGER.info { "New user registered" }
+          ctx.end()
+        }
       }
+
     }
   }
 
@@ -609,7 +620,12 @@ class CRUDVerticle : CoroutineVerticle() {
     try {
       val user = mongoAuthUsers.authenticate(body).await()
       val company: String = user["company"]
-      ctx.end(company)
+      val userID: String = user["userID"]
+
+      val json = jsonObjectOf("company" to company, "userID" to userID)
+      ctx.response()
+        .putHeader(CONTENT_TYPE, APPLICATION_JSON)
+        .end(json.encode())
     } catch (error: Throwable) {
       LOGGER.error(error) { "Authentication error" }
       ctx.fail(UNAUTHORIZED_CODE, error)
@@ -620,6 +636,8 @@ class CRUDVerticle : CoroutineVerticle() {
 
   /**
    * Handles a registerItem request.
+   * If the json does not contain an accessControlString, it puts the <company> by default
+   * If the json contains a wrongly formatted accessControlString, it sends back a BAD REQUEST CODE
    */
   private suspend fun registerItemHandler(ctx: RoutingContext) {
     LOGGER.info { "New registerItem request" }
@@ -632,19 +650,32 @@ class CRUDVerticle : CoroutineVerticle() {
     }.validateAndThen(ctx) {
       // Extract the information from the payload and insert the item in TimescaleDB
       val id: Int? = json["id"]
-      val info = extractItemInformation(json).map { pair -> pair.second }
-      val table = ctx.getCollection(ITEMS_TABLE)
-
-      val executedQuery =
-        if (id != null) pgClient.preparedQuery(insertItem(table, true)).execute(Tuple.of(id, *info.toTypedArray()))
-        else pgClient.preparedQuery(insertItem(table, false)).execute(Tuple.tuple(info))
-
-      executeWithErrorHandling("Could not register item", ctx) {
-        val row = executedQuery.await().iterator().next()
-        val itemID = row.getInteger("id").toString()
-        LOGGER.info { "New item $itemID registered" }
-        ctx.end(itemID)
+      val company: String = ctx.queryParams()["company"]
+      // If no accessControlString is given, put the company
+      if (!json.containsKey("accessControlString")) {
+        json.put("accessControlString", company)
       }
+
+      // If an invalid accessControlString is given, it sends a Bad request code
+      if (!validateAccessControlString(json.getString("accessControlString"), company)) {
+        ctx.fail(BAD_REQUEST_CODE)
+      } else {
+        val info = extractItemInformation(json).map { pair -> pair.second }
+
+        val table = ctx.getCollection(ITEMS_TABLE)
+
+        val executedQuery =
+          if (id != null) pgClient.preparedQuery(insertItem(table, true)).execute(Tuple.of(id, *info.toTypedArray()))
+          else pgClient.preparedQuery(insertItem(table, false)).execute(Tuple.tuple(info))
+
+        executeWithErrorHandling("Could not register item", ctx) {
+          val row = executedQuery.await().iterator().next()
+          val itemID = row.getInteger("id").toString()
+          LOGGER.info { "New item $itemID registered" }
+          ctx.end(itemID)
+        }
+      }
+
     }
   }
 
@@ -654,14 +685,19 @@ class CRUDVerticle : CoroutineVerticle() {
   private suspend fun getItemsHandler(ctx: RoutingContext) {
     LOGGER.info { "New getItems request" }
     val params = ctx.queryParams()
-
     val itemsTable = ctx.getCollection(ITEMS_TABLE)
     val beaconDataTable = ctx.getCollection(BEACON_DATA_TABLE)
 
+    val company = params["company"]
+    val accessControlString: String =
+      if (params.contains("accessControlString")) params["accessControlString"] else company
+
+
     val executedQuery = if (params.contains("category")) {
-      pgClient.preparedQuery(getItemsWithCategory(itemsTable, beaconDataTable)).execute(Tuple.of(params["category"]))
+      pgClient.preparedQuery(getItemsWithCategory(itemsTable, beaconDataTable, accessControlString))
+        .execute(Tuple.of(params["category"]))
     } else {
-      pgClient.preparedQuery(getItems(itemsTable, beaconDataTable)).execute()
+      pgClient.preparedQuery(getItems(itemsTable, beaconDataTable, accessControlString)).execute()
     }
 
     executeWithErrorHandling("Could not get items", ctx) {
@@ -684,11 +720,21 @@ class CRUDVerticle : CoroutineVerticle() {
     val itemsTable = ctx.getCollection(ITEMS_TABLE)
     val beaconDataTable = ctx.getCollection(BEACON_DATA_TABLE)
 
+    val company = params["company"]
+    val accessControlString: String =
+      if (params.contains("accessControlString")) params["accessControlString"] else company
+
     val executedQuery = if (params.contains("category")) {
-      pgClient.preparedQuery(getClosestItemsWithCategory(itemsTable, beaconDataTable))
+      pgClient.preparedQuery(
+        getClosestItemsWithCategory(
+          itemsTable,
+          beaconDataTable,
+          accessControlString
+        )
+      )
         .execute(Tuple.of(params["category"], latitude, longitude))
     } else {
-      pgClient.preparedQuery(getClosestItems(itemsTable, beaconDataTable))
+      pgClient.preparedQuery(getClosestItems(itemsTable, beaconDataTable, accessControlString))
         .execute(Tuple.of(latitude, longitude))
     }
 
@@ -723,10 +769,22 @@ class CRUDVerticle : CoroutineVerticle() {
     val itemID = ctx.pathParam("id").toInt() // the id needs to be converted to Int, as the DB stores it as an integer
     LOGGER.info { "New getItem request for item $itemID" }
 
+    val params = ctx.queryParams()
+
     val itemsTable = ctx.getCollection(ITEMS_TABLE)
     val beaconDataTable = ctx.getCollection(BEACON_DATA_TABLE)
+
+    val company = params["company"]
+    val accessControlString: String =
+      if (params.contains("accessControlString")) params["accessControlString"] else company
+
+    val executedQuery =
+      pgClient.preparedQuery(getItem(itemsTable, beaconDataTable, accessControlString))
+        .execute(Tuple.of(itemID))
+
     executeWithErrorHandling("Could not get item", ctx) {
-      val queryResult = pgClient.preparedQuery(getItem(itemsTable, beaconDataTable)).execute(Tuple.of(itemID)).await()
+
+      val queryResult = executedQuery.await()
       if (queryResult.size() == 0) {
         // No item found
         LOGGER.warn { "Item $itemID not found" }
@@ -736,7 +794,6 @@ class CRUDVerticle : CoroutineVerticle() {
       }
 
       val result: JsonObject = queryResult.iterator().next().toItemJson()
-
       ctx.response()
         .putHeader(CONTENT_TYPE, APPLICATION_JSON)
         .end(result.encode())
@@ -745,6 +802,7 @@ class CRUDVerticle : CoroutineVerticle() {
 
   /**
    * Handles an updateItem request.
+   * Sends back a 403 if the accessControlString passed as query parameters is insufficient
    */
   private suspend fun updateItemHandler(ctx: RoutingContext) {
     val id = ctx.pathParam("id")
@@ -760,9 +818,48 @@ class CRUDVerticle : CoroutineVerticle() {
       // Extract the information from the payload and update the item in TimescaleDB
       val info = extractItemInformation(json, keepNulls = false)
       val data = listOf(id.toInt(), *info.map { it.second }.toTypedArray())
-      val table = ctx.getCollection(ITEMS_TABLE)
+      val itemsTable = ctx.getCollection(ITEMS_TABLE)
+      val beaconDataTable = ctx.getCollection(BEACON_DATA_TABLE)
+
+      val params = ctx.queryParams()
+      val company = params["company"]
+
+      if (info.any { (key, accessControlString) ->
+          key == "accessControlString" && !validateAccessControlString(accessControlString as String, company)
+        }) {
+        // The query tries to update the item's accessControlString with an invalid one --> fails
+        ctx.fail(BAD_REQUEST_CODE)
+        return@validateAndThen
+      }
+      val keys = info.map { it.first }
+      val accessControlString: String =
+        if (params.contains("accessControlString")) params["accessControlString"] else company
+
+      val getItemExecutedQuery =
+        pgClient.preparedQuery(getItem(itemsTable, beaconDataTable, company)).execute(Tuple.of(id.toInt()))
+      val updateExecutedQuery = pgClient.preparedQuery(updateItem(itemsTable, keys, accessControlString))
+        .execute(Tuple.tuple(data))
+
       executeWithErrorHandling("Could not update item $id", ctx) {
-        pgClient.preparedQuery(updateItem(table, info.map { it.first })).execute(Tuple.tuple(data)).await()
+        val getQueryResult = getItemExecutedQuery.await()
+        val iterator = getQueryResult.iterator()
+        if (!iterator.hasNext()) {
+          LOGGER.error { "updateItem request for item with id $id: item does not exist in the DB" }
+          ctx.end()
+          return@executeWithErrorHandling
+        }
+        val item = iterator.next().toItemJson()
+        val itemAcString = item.getString("accessControlString")
+
+        // Check that the given accessControlString gives access to the resource
+        if (!hasAcStringAccess(accessControlString, itemAcString)) {
+          // Access refused
+          LOGGER.error { "ACCESS FORBIDDEN updateItem" }
+          ctx.fail(FORBIDEN_CODE)
+          return@executeWithErrorHandling
+        }
+
+        updateExecutedQuery.await()
         LOGGER.info { "Successfully updated item $id" }
         ctx.end()
       }
@@ -776,22 +873,41 @@ class CRUDVerticle : CoroutineVerticle() {
     val itemID = ctx.pathParam("id").toInt() // the id needs to be converted to Int, as the DB stores it as an integer
     LOGGER.info { "New deleteItem request for item $itemID" }
 
+    val params = ctx.queryParams()
+    val company = params["company"]
+
     val table = ctx.getCollection(ITEMS_TABLE)
+
+    val accessControlString: String =
+      if (params.contains("accessControlString")) params["accessControlString"] else company
+
+    val executedQuery = pgClient.preparedQuery(deleteItem(table, accessControlString)).execute(Tuple.of(itemID))
+
     executeWithErrorHandling("Could not delete item", ctx) {
-      pgClient.preparedQuery(deleteItem(table)).execute(Tuple.of(itemID)).await()
+      executedQuery.await()
       ctx.end()
     }
   }
 
   /**
    * Handles a getCategories request.
+   * Returns only the categories in which at least one item is accessible with the given accessControlString
    */
   private suspend fun getCategoriesHandler(ctx: RoutingContext) {
     LOGGER.info { "New getCategories request" }
 
     val table = ctx.getCollection(ITEMS_TABLE)
+
+    val params = ctx.queryParams()
+
+    val company = params["company"]
+    val accessControlString: String =
+      if (params.contains("accessControlString")) params["accessControlString"] else company
+
+    val executedQuery = pgClient.preparedQuery(getCategories(table, accessControlString)).execute()
+
     executeWithErrorHandling("Could not get categories", ctx) {
-      val queryResult = pgClient.preparedQuery(getCategories(table)).execute().await()
+      val queryResult = executedQuery.await()
       val result = if (queryResult.size() == 0) listOf() else queryResult.map { it.getString("category") }
 
       ctx.response()

@@ -2,7 +2,7 @@ openapi: 3.0.0
 info:
   title: Vert.x API
   description: BIoT Vert.x API
-  version: 2.3.1
+  version: 2.3.2
 servers:
 - url: https://virtserver.swaggerhub.com/b-iot/Vert.x/2.3.1
   description: SwaggerHub API Auto Mocking
@@ -52,11 +52,7 @@ paths:
               $ref: '#/components/schemas/RelayRegisterInfo'
       responses:
         "200":
-          description: the registered relay
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Relay'
+          description: OK
   /relays/{id}:
     get:
       tags:
@@ -164,11 +160,7 @@ paths:
               $ref: '#/components/schemas/UserRegisterInfo'
       responses:
         "200":
-          description: the registered user
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/User'
+          description: OK
   /users/authenticate:
     post:
       tags:
@@ -183,10 +175,9 @@ paths:
         "200":
           description: The company of the authenticated user as a string
           content:
-            text/plain:
+            application/json:
               schema:
-                type: string
-                example: biot
+                $ref: '#/components/schemas/UserAuthenticateReturnedInfo'
         "401":
           description: Authentication error
   /users/{id}:
@@ -284,9 +275,21 @@ paths:
         explode: true
         schema:
           type: string
+      - name: accessControlString
+        in: query
+        description: accessControlString to access data
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
       responses:
         "200":
+<<<<<<< HEAD
           description: all the items
+=======
+          description: All the items accessible with the given accessControlString
+>>>>>>> main
           content:
             application/json:
               schema:
@@ -306,15 +309,26 @@ paths:
         "200":
           description: the registered item
           content:
-            application/json:
+            text/plain:
               schema:
-                $ref: '#/components/schemas/Item'
+                type: integer
+                format: int32
+                example: 1
   /items/categories:
     get:
       tags:
       - Item
       description: returns all items's categories
       operationId: getCategories
+      parameters:
+      - name: accessControlString
+        in: query
+        description: accessControlString to access data
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
       responses:
         "200":
           description: all the categories
@@ -462,6 +476,14 @@ paths:
         explode: true
         schema:
           type: string
+      - name: accessControlString
+        in: query
+        description: accessControlString to access data
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
       responses:
         "200":
           description: the 5 closest items per floor
@@ -473,7 +495,7 @@ paths:
     get:
       tags:
       - Item
-      description: returns a specific item
+      description: returns a specific item if accessible with this accessControlString
       operationId: getItem
       parameters:
       - name: id
@@ -481,6 +503,14 @@ paths:
         required: true
         style: simple
         explode: false
+        schema:
+          type: string
+      - name: accessControlString
+        in: query
+        description: accessControlString to access data
+        required: false
+        style: form
+        explode: true
         schema:
           type: string
       responses:
@@ -491,11 +521,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Item'
         "404":
-          description: Item not found
+          description: Item not found or inaccessible
     put:
       tags:
       - Item
-      description: updates a specific item
+      description: updates a specific item if the accessControlString has access to
+        the item
       operationId: updateItem
       parameters:
       - name: id
@@ -512,6 +543,14 @@ paths:
         explode: true
         schema:
           type: boolean
+      - name: accessControlString
+        in: query
+        description: accessControlString to access data
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
       requestBody:
         content:
           application/json:
@@ -527,7 +566,8 @@ paths:
     delete:
       tags:
       - Item
-      description: deletes a specific item
+      description: deletes a specific item if the accessControlString has access to
+        the item
       operationId: deleteItem
       parameters:
       - name: id
@@ -535,6 +575,14 @@ paths:
         required: true
         style: simple
         explode: false
+        schema:
+          type: string
+      - name: accessControlString
+        in: query
+        description: accessControlString to access data
+        required: false
+        style: form
+        explode: true
         schema:
           type: string
       responses:
@@ -632,8 +680,16 @@ components:
           type: string
         company:
           type: string
+        accessControlString:
+          type: string
       description: A user
     UserRegisterInfo:
+      required:
+      - accessControlString
+      - company
+      - password
+      - userID
+      - username
       type: object
       properties:
         userID:
@@ -644,6 +700,8 @@ components:
           type: string
           format: password
         company:
+          type: string
+        accessControlString:
           type: string
       description: A user to register
     UserUpdateInfo:
@@ -662,6 +720,14 @@ components:
           type: string
           format: password
       description: Authenticate information for a user
+    UserAuthenticateReturnedInfo:
+      type: object
+      properties:
+        company:
+          type: string
+        userID:
+          type: string
+      description: Authenticate returned information for a user
     Item:
       type: object
       properties:
@@ -674,6 +740,8 @@ components:
         service:
           type: string
         itemID:
+          type: string
+        accessControlString:
           type: string
         brand:
           type: string
@@ -811,6 +879,8 @@ components:
           type: string
         itemID:
           type: string
+        accessControlString:
+          type: string
         brand:
           type: string
         model:
@@ -862,6 +932,8 @@ components:
         service:
           type: string
         itemID:
+          type: string
+        accessControlString:
           type: string
         brand:
           type: string

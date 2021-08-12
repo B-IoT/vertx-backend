@@ -61,6 +61,7 @@ class TestCRUDVerticleItems {
     "category" to "ECG",
     "service" to "Bloc 2",
     "itemID" to "abc",
+    "accessControlString" to "biot",
     "brand" to "ferrari",
     "model" to "GT",
     "supplier" to "sup",
@@ -87,6 +88,7 @@ class TestCRUDVerticleItems {
     "category" to "Lit",
     "service" to "Bloc 1",
     "itemID" to "cde",
+    "accessControlString" to "biot",
     "brand" to "mazda",
     "model" to "mx5",
     "supplier" to "plier",
@@ -123,6 +125,7 @@ class TestCRUDVerticleItems {
     "category" to "Lit",
     "service" to "Bloc 42",
     "itemID" to "new",
+    "accessControlString" to "biot",
     "brand" to "fiat",
     "model" to "panda",
     "supplier" to "rossi",
@@ -132,6 +135,143 @@ class TestCRUDVerticleItems {
     "currentLocation" to "center6",
     "room" to "17",
     "contact" to "Jimmy",
+    "currentOwner" to "Monsieur Dupont",
+    "previousOwner" to "Monsieur Dupond",
+    "orderNumber" to "abcdf",
+    "color" to "red",
+    "serialNumber" to "abcdf",
+    "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
+    "status" to "In maintenance",
+    "comments" to "A comment",
+    "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+    "lastModifiedBy" to "Monsieur Duport"
+  )
+
+  private val existingItemGrp1 = jsonObjectOf(
+    "beacon" to "ab:ab:ab:ab:ff:ff",
+    "category" to "ECG",
+    "service" to "Bloc 2",
+    "itemID" to "abc",
+    "accessControlString" to "biot:grp1",
+    "brand" to "ferrari",
+    "model" to "GT",
+    "supplier" to "sup",
+    "purchaseDate" to LocalDate.of(2021, 7, 8).toString(),
+    "purchasePrice" to 42.3,
+    "originLocation" to "center1",
+    "currentLocation" to "center2",
+    "room" to "616",
+    "contact" to "Monsieur Poirot",
+    "currentOwner" to "Monsieur Dupont",
+    "previousOwner" to "Monsieur Dupond",
+    "orderNumber" to "abcdf",
+    "color" to "red",
+    "serialNumber" to "abcdf",
+    "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
+    "status" to "In maintenance",
+    "comments" to "A comment",
+    "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+    "lastModifiedBy" to "Monsieur Duport"
+  )
+
+  private val existingItemGrp2 = jsonObjectOf(
+    "beacon" to "ab:ab:ab:af:ff:ff",
+    "category" to "ECG",
+    "service" to "Bloc 2",
+    "itemID" to "abc",
+    "accessControlString" to "biot:grp2",
+    "brand" to "ferrari",
+    "model" to "GT",
+    "supplier" to "sup",
+    "purchaseDate" to LocalDate.of(2021, 7, 8).toString(),
+    "purchasePrice" to 42.3,
+    "originLocation" to "center1",
+    "currentLocation" to "center2",
+    "room" to "616",
+    "contact" to "Monsieur Poirot",
+    "currentOwner" to "Monsieur Dupont",
+    "previousOwner" to "Monsieur Dupond",
+    "orderNumber" to "abcdf",
+    "color" to "red",
+    "serialNumber" to "abcdf",
+    "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
+    "status" to "In maintenance",
+    "comments" to "A comment",
+    "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+    "lastModifiedBy" to "Monsieur Duport"
+  )
+
+  private var existingItemGrp1Grp3Id: Int = -1
+  private val existingItemGrp1Grp3 = jsonObjectOf(
+    "id" to 1234,
+    "beacon" to "fakegrp1grp3",
+    "category" to "ECG",
+    "service" to "Bloc 2",
+    "itemID" to "abc",
+    "accessControlString" to "biot:grp1:grp3",
+    "brand" to "ferrari",
+    "model" to "GT",
+    "supplier" to "sup",
+    "purchaseDate" to LocalDate.of(2021, 7, 8).toString(),
+    "purchasePrice" to 42.3,
+    "originLocation" to "center1",
+    "currentLocation" to "center2",
+    "room" to "616",
+    "contact" to "Monsieur Poirot",
+    "currentOwner" to "Monsieur Dupont",
+    "previousOwner" to "Monsieur Dupond",
+    "orderNumber" to "abcdf",
+    "color" to "red",
+    "serialNumber" to "abcdf",
+    "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
+    "status" to "In maintenance",
+    "comments" to "A comment",
+    "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+    "lastModifiedBy" to "Monsieur Duport"
+  )
+
+  private val closestItemGrp1 = jsonObjectOf(
+    "beacon" to "fakeClosestGrp1",
+    "category" to "Lit",
+    "service" to "Bloc 1",
+    "itemID" to "cde",
+    "accessControlString" to "biot:grp1",
+    "brand" to "mazda",
+    "model" to "mx5",
+    "supplier" to "plier",
+    "purchaseDate" to LocalDate.of(2021, 8, 20).toString(),
+    "purchasePrice" to 57.8,
+    "originLocation" to "center3",
+    "currentLocation" to "center4",
+    "room" to "614",
+    "contact" to "Monsieur Delacroix",
+    "currentOwner" to "Monsieur Dupont",
+    "previousOwner" to "Monsieur Dupond",
+    "orderNumber" to "abcdf",
+    "color" to "red",
+    "serialNumber" to "abcdf",
+    "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
+    "status" to "In maintenance",
+    "comments" to "A comment",
+    "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+    "lastModifiedBy" to "Monsieur Duport"
+  )
+
+  private val closestItemGrp1Cat2 = jsonObjectOf(
+    "beacon" to "fakeCloseGrp1Ct2",
+    "category" to "Lit2",
+    "service" to "Bloc 1",
+    "itemID" to "cde",
+    "accessControlString" to "biot:grp1",
+    "brand" to "mazda",
+    "model" to "mx5",
+    "supplier" to "plier",
+    "purchaseDate" to LocalDate.of(2021, 8, 20).toString(),
+    "purchasePrice" to 57.8,
+    "originLocation" to "center3",
+    "currentLocation" to "center4",
+    "room" to "614",
+    "contact" to "Monsieur Delacroix",
     "currentOwner" to "Monsieur Dupont",
     "previousOwner" to "Monsieur Dupond",
     "orderNumber" to "abcdf",
@@ -193,6 +333,7 @@ class TestCRUDVerticleItems {
           existingItem["category"],
           existingItem["service"],
           existingItem["itemID"],
+          existingItem["accessControlString"],
           existingItem["brand"],
           existingItem["model"],
           existingItem["supplier"],
@@ -224,6 +365,7 @@ class TestCRUDVerticleItems {
           closestItem["category"],
           closestItem["service"],
           closestItem["itemID"],
+          closestItem["accessControlString"],
           closestItem["brand"],
           closestItem["model"],
           closestItem["supplier"],
@@ -253,6 +395,7 @@ class TestCRUDVerticleItems {
           closestItem["category"],
           closestItem["service"],
           closestItem["itemID"],
+          closestItem["accessControlString"],
           closestItem["brand"],
           closestItem["model"],
           closestItem["supplier"],
@@ -282,6 +425,7 @@ class TestCRUDVerticleItems {
           closestItem["category"],
           closestItem["service"],
           closestItem["itemID"],
+          closestItem["accessControlString"],
           closestItem["brand"],
           closestItem["model"],
           closestItem["supplier"],
@@ -311,6 +455,7 @@ class TestCRUDVerticleItems {
           closestItem["category"],
           closestItem["service"],
           closestItem["itemID"],
+          closestItem["accessControlString"],
           closestItem["brand"],
           closestItem["model"],
           closestItem["supplier"],
@@ -340,6 +485,7 @@ class TestCRUDVerticleItems {
           closestItem["category"],
           closestItem["service"],
           closestItem["itemID"],
+          closestItem["accessControlString"],
           closestItem["brand"],
           closestItem["model"],
           closestItem["supplier"],
@@ -369,6 +515,7 @@ class TestCRUDVerticleItems {
           closestItem["category"],
           closestItem["service"],
           closestItem["itemID"],
+          closestItem["accessControlString"],
           closestItem["brand"],
           closestItem["model"],
           closestItem["supplier"],
@@ -510,7 +657,8 @@ class TestCRUDVerticleItems {
   }
 
   @AfterEach
-  fun cleanup(vertx: Vertx, testContext: VertxTestContext) = runBlocking(vertx.dispatcher()) {
+  fun cleanup(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
+    existingItemGrp1Grp3Id = -1
     try {
       dropAllSnapshots().await()
       dropAllItems().await()
@@ -916,6 +1064,7 @@ class TestCRUDVerticleItems {
     }
   }
 
+
   @Test
   @DisplayName("registerItem without specifying the status correctly registers a new item with the status set to 'Under creation'")
   fun registerItemWithoutSpecifyingStatusIsCorrect(vertx: Vertx, testContext: VertxTestContext): Unit =
@@ -965,7 +1114,337 @@ class TestCRUDVerticleItems {
       val id = response.toInt()
 
       try {
-        val res = pgClient.preparedQuery(getItem("items", "beacon_data")).execute(Tuple.of(id)).await()
+        val res = pgClient.preparedQuery(getItem("items", "beacon_data", "biot")).execute(Tuple.of(id)).await()
+        val json = res.iterator().next().toItemJson()
+        expect {
+          that(json.getString("beacon")).isEqualTo(newItem.getString("beacon"))
+          that(json.getString("category")).isEqualTo(newItem.getString("category"))
+          that(json.getString("service")).isEqualTo(newItem.getString("service"))
+          that(json.getString("itemID")).isEqualTo(newItem.getString("itemID"))
+          that(json.getString("brand")).isEqualTo(newItem.getString("brand"))
+          that(json.getString("model")).isEqualTo(newItem.getString("model"))
+          that(json.getString("supplier")).isEqualTo(newItem.getString("supplier"))
+          that(json.getString("purchaseDate")).isEqualTo(newItem.getString("purchaseDate"))
+          that(json.getDouble("purchasePrice")).isEqualTo(newItem.getDouble("purchasePrice"))
+          that(json.getString("originLocation")).isEqualTo(newItem.getString("originLocation"))
+          that(json.getString("currentLocation")).isEqualTo(newItem.getString("currentLocation"))
+          that(json.getString("room")).isEqualTo(newItem.getString("room"))
+          that(json.getString("contact")).isEqualTo(newItem.getString("contact"))
+          that(json.getString("currentOwner")).isEqualTo(newItem.getString("currentOwner"))
+          that(json.getString("previousOwner")).isEqualTo(newItem.getString("previousOwner"))
+          that(json.getString("orderNumber")).isEqualTo(newItem.getString("orderNumber"))
+          that(json.getString("color")).isEqualTo(newItem.getString("color"))
+          that(json.getString("serialNumber")).isEqualTo(newItem.getString("serialNumber"))
+          that(json.getString("maintenanceDate")).isEqualTo(newItem.getString("maintenanceDate"))
+          that(json.getString("status")).isEqualTo("Under creation")
+          that(json.getString("comments")).isEqualTo(newItem.getString("comments"))
+          that(json.getString("lastModifiedDate")).isEqualTo(newItem.getString("lastModifiedDate"))
+          that(json.getString("lastModifiedBy")).isEqualTo(newItem.getString("lastModifiedBy"))
+          that(json.getInteger("battery")).isNull()
+          that(json.getString("beaconStatus")).isNull()
+          that(json.getDouble("latitude")).isNull()
+          that(json.getDouble("longitude")).isNull()
+          that(json.getInteger("floor")).isNull()
+          that(json.getDouble("temperature")).isNull()
+        }
+        testContext.completeNow()
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+
+
+  private suspend fun insertItemsAccessControl(): Future<RowSet<Row>> {
+    pgClient.preparedQuery(insertItem("items"))
+      .execute(
+        Tuple.of(
+          "fake6",
+          existingItemGrp1["category"],
+          existingItemGrp1["service"],
+          existingItemGrp1["itemID"],
+          existingItemGrp1["accessControlString"],
+          existingItemGrp1["brand"],
+          existingItemGrp1["model"],
+          existingItemGrp1["supplier"],
+          LocalDate.parse(existingItemGrp1["purchaseDate"]),
+          existingItemGrp1["purchasePrice"],
+          existingItemGrp1["originLocation"],
+          existingItemGrp1["currentLocation"],
+          existingItemGrp1["room"],
+          existingItemGrp1["contact"],
+          existingItemGrp1["currentOwner"],
+          existingItemGrp1["previousOwner"],
+          existingItemGrp1["orderNumber"],
+          existingItemGrp1["color"],
+          existingItemGrp1["serialNumber"],
+          LocalDate.parse(existingItemGrp1["maintenanceDate"]),
+          existingItemGrp1["status"],
+          existingItemGrp1["comments"],
+          LocalDate.parse(existingItemGrp1["lastModifiedDate"]),
+          existingItemGrp1["lastModifiedBy"]
+        )
+      ).await()
+
+    pgClient.preparedQuery(insertItem("items"))
+      .execute(
+        Tuple.of(
+          "fake7",
+          existingItemGrp2["category"],
+          existingItemGrp2["service"],
+          existingItemGrp2["itemID"],
+          existingItemGrp2["accessControlString"],
+          existingItemGrp2["brand"],
+          existingItemGrp2["model"],
+          existingItemGrp2["supplier"],
+          LocalDate.parse(existingItemGrp2["purchaseDate"]),
+          existingItemGrp2["purchasePrice"],
+          existingItemGrp2["originLocation"],
+          existingItemGrp2["currentLocation"],
+          existingItemGrp2["room"],
+          existingItemGrp2["contact"],
+          existingItemGrp2["currentOwner"],
+          existingItemGrp2["previousOwner"],
+          existingItemGrp2["orderNumber"],
+          existingItemGrp2["color"],
+          existingItemGrp2["serialNumber"],
+          LocalDate.parse(existingItemGrp2["maintenanceDate"]),
+          existingItemGrp2["status"],
+          existingItemGrp2["comments"],
+          LocalDate.parse(existingItemGrp2["lastModifiedDate"]),
+          existingItemGrp2["lastModifiedBy"]
+        )
+      ).await()
+
+    val result = pgClient.preparedQuery(insertItem("items"))
+      .execute(
+        Tuple.of(
+          existingItemGrp1Grp3["beacon"],
+          existingItemGrp1Grp3["category"],
+          existingItemGrp1Grp3["service"],
+          existingItemGrp1Grp3["itemID"],
+          existingItemGrp1Grp3["accessControlString"],
+          existingItemGrp1Grp3["brand"],
+          existingItemGrp1Grp3["model"],
+          existingItemGrp1Grp3["supplier"],
+          LocalDate.parse(existingItemGrp1Grp3["purchaseDate"]),
+          existingItemGrp1Grp3["purchasePrice"],
+          existingItemGrp1Grp3["originLocation"],
+          existingItemGrp1Grp3["currentLocation"],
+          existingItemGrp1Grp3["room"],
+          existingItemGrp1Grp3["contact"],
+          existingItemGrp1Grp3["currentOwner"],
+          existingItemGrp1Grp3["previousOwner"],
+          existingItemGrp1Grp3["orderNumber"],
+          existingItemGrp1Grp3["color"],
+          existingItemGrp1Grp3["serialNumber"],
+          LocalDate.parse(existingItemGrp1Grp3["maintenanceDate"]),
+          existingItemGrp1Grp3["status"],
+          existingItemGrp1Grp3["comments"],
+          LocalDate.parse(existingItemGrp1Grp3["lastModifiedDate"]),
+          existingItemGrp1Grp3["lastModifiedBy"]
+        )
+      ).await()
+
+    existingItemGrp1Grp3Id = result.iterator().next().getInteger("id")
+
+    pgClient.preparedQuery(INSERT_BEACON_DATA)
+      .execute(
+        Tuple.of(
+          closestItemGrp1.getString("beacon"),
+          existingBeaconData.getInteger("battery"),
+          existingBeaconData.getString("beaconStatus"),
+          42,
+          -8,
+          existingBeaconData.getInteger("floor"),
+          existingBeaconData.getDouble("temperature")
+        )
+      ).await()
+
+    pgClient.preparedQuery(INSERT_BEACON_DATA)
+      .execute(
+        Tuple.of(
+          closestItemGrp1Cat2.getString("beacon"),
+          existingBeaconData.getInteger("battery"),
+          existingBeaconData.getString("beaconStatus"),
+          42,
+          -7.99,
+          existingBeaconData.getInteger("floor"),
+          existingBeaconData.getDouble("temperature")
+        )
+      ).await()
+
+    pgClient.preparedQuery(INSERT_BEACON_DATA)
+      .execute(
+        Tuple.of(
+          existingItemGrp1Grp3.getString("beacon"),
+          existingBeaconData.getInteger("battery"),
+          existingBeaconData.getString("beaconStatus"),
+          47,
+          -8,
+          2,
+          3.3
+        )
+      ).await()
+
+    pgClient.preparedQuery(insertItem("items"))
+      .execute(
+        Tuple.of(
+          closestItemGrp1Cat2["beacon"],
+          closestItemGrp1Cat2["category"],
+          closestItemGrp1Cat2["service"],
+          closestItemGrp1Cat2["itemID"],
+          closestItemGrp1Cat2["accessControlString"],
+          closestItemGrp1Cat2["brand"],
+          closestItemGrp1Cat2["model"],
+          closestItemGrp1Cat2["supplier"],
+          LocalDate.parse(closestItemGrp1Cat2["purchaseDate"]),
+          closestItemGrp1Cat2["purchasePrice"],
+          closestItemGrp1Cat2["originLocation"],
+          closestItemGrp1Cat2["currentLocation"],
+          closestItemGrp1Cat2["room"],
+          closestItemGrp1Cat2["contact"],
+          closestItemGrp1Cat2["currentOwner"],
+          closestItemGrp1Cat2["previousOwner"],
+          closestItemGrp1Cat2["orderNumber"],
+          closestItemGrp1Cat2["color"],
+          closestItemGrp1Cat2["serialNumber"],
+          LocalDate.parse(closestItemGrp1Cat2["maintenanceDate"]),
+          closestItemGrp1Cat2["status"],
+          closestItemGrp1Cat2["comments"],
+          LocalDate.parse(closestItemGrp1Cat2["lastModifiedDate"]),
+          closestItemGrp1Cat2["lastModifiedBy"]
+        )
+      ).await()
+
+    return pgClient.preparedQuery(insertItem("items"))
+      .execute(
+        Tuple.of(
+          closestItemGrp1["beacon"],
+          closestItemGrp1["category"],
+          closestItemGrp1["service"],
+          closestItemGrp1["itemID"],
+          closestItemGrp1["accessControlString"],
+          closestItemGrp1["brand"],
+          closestItemGrp1["model"],
+          closestItemGrp1["supplier"],
+          LocalDate.parse(closestItemGrp1["purchaseDate"]),
+          closestItemGrp1["purchasePrice"],
+          closestItemGrp1["originLocation"],
+          closestItemGrp1["currentLocation"],
+          closestItemGrp1["room"],
+          closestItemGrp1["contact"],
+          closestItemGrp1["currentOwner"],
+          closestItemGrp1["previousOwner"],
+          closestItemGrp1["orderNumber"],
+          closestItemGrp1["color"],
+          closestItemGrp1["serialNumber"],
+          LocalDate.parse(closestItemGrp1["maintenanceDate"]),
+          closestItemGrp1["status"],
+          closestItemGrp1["comments"],
+          LocalDate.parse(closestItemGrp1["lastModifiedDate"]),
+          closestItemGrp1["lastModifiedBy"]
+        )
+      )
+  }
+
+  @Test
+  @DisplayName("registerItem correctly registers a new item")
+  fun registerIsCorrect(testContext: VertxTestContext) {
+    val newItem = jsonObjectOf(
+      "beacon" to "aa:aa:aa:aa:aa:aa",
+      "category" to "Lit",
+      "service" to "Bloc 1",
+      "itemID" to "ee",
+      "brand" to "oo",
+      "model" to "aa",
+      "supplier" to "uu",
+      "purchaseDate" to LocalDate.of(2019, 3, 19).toString(),
+      "purchasePrice" to 102.12,
+      "originLocation" to "or",
+      "currentLocation" to "cur",
+      "room" to "616",
+      "contact" to "Monsieur Poirot",
+      "currentOwner" to "Monsieur Dupont",
+      "previousOwner" to "Monsieur Dupond",
+      "orderNumber" to "abcdf",
+      "color" to "red",
+      "serialNumber" to "abcdf",
+      "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
+      "status" to "In maintenance",
+      "comments" to "A comment",
+      "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+      "lastModifiedBy" to "Monsieur Duport"
+    )
+
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      body(newItem.encode())
+    } When {
+      queryParam("company", "biot")
+      post("/items")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isNotEmpty() // it returns the id of the registered item
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("registerItem without specifying the status correctly registers a new item with the status set to 'Under creation'")
+  fun registerWithoutSpecifyingStatusIsCorrect(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      val newItem = jsonObjectOf(
+        "beacon" to "aa:aa:aa:aa:aa:aa",
+        "category" to "Lit",
+        "service" to "Bloc 1",
+        "itemID" to "ee",
+        "brand" to "oo",
+        "model" to "aa",
+        "supplier" to "uu",
+        "purchaseDate" to LocalDate.of(2019, 3, 19).toString(),
+        "purchasePrice" to 102.12,
+        "originLocation" to "or",
+        "currentLocation" to "cur",
+        "room" to "616",
+        "contact" to "Monsieur Poirot",
+        "currentOwner" to "Monsieur Dupont",
+        "previousOwner" to "Monsieur Dupond",
+        "orderNumber" to "abcdf",
+        "color" to "red",
+        "serialNumber" to "abcdf",
+        "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
+        "comments" to "A comment",
+        "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+        "lastModifiedBy" to "Monsieur Duport"
+      )
+
+      val response = Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        body(newItem.encode())
+      } When {
+        queryParam("company", "biot")
+        post("/items")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+
+      testContext.verify {
+        expectThat(response).isNotEmpty() // it returns the id of the registered item
+      }
+
+      val id = response.toInt()
+
+      try {
+        val res = pgClient.preparedQuery(getItem("items", "beacon_data", "biot")).execute(Tuple.of(id)).await()
         val json = res.iterator().next().toItemJson()
         expect {
           that(json.getString("beacon")).isEqualTo(newItem.getString("beacon"))
@@ -1088,6 +1567,7 @@ class TestCRUDVerticleItems {
     category VARCHAR(100),
     service VARCHAR(100),
     itemID VARCHAR(50),
+    accessControlString VARCHAR(2048),
     brand VARCHAR(100),
     model VARCHAR(100),
     supplier VARCHAR(100),
@@ -1202,6 +1682,7 @@ class TestCRUDVerticleItems {
       } When {
         queryParam("latitude", 42)
         queryParam("longitude", -8)
+        queryParam("company", "biot")
         get("/items/closest")
       } Then {
         statusCode(200)
@@ -1235,6 +1716,7 @@ class TestCRUDVerticleItems {
       } When {
         queryParam("latitude", 42)
         queryParam("longitude", -8)
+        queryParam("company", "biot")
         queryParam("category", closestItem.getString("category"))
         get("/items/closest")
       } Then {
@@ -1281,7 +1763,7 @@ class TestCRUDVerticleItems {
     ).toJsonArray()
 
     testContext.verify {
-      expectThat(response).isEqualTo(expected)
+      expectThat(response.toHashSet()).isEqualTo(expected.toHashSet())
       testContext.completeNow()
     }
   }
@@ -1365,7 +1847,8 @@ class TestCRUDVerticleItems {
     }
 
     try {
-      val res = pgClient.preparedQuery(getItem("items", "beacon_data")).execute(Tuple.of(existingItemID)).await()
+      val res =
+        pgClient.preparedQuery(getItem("items", "beacon_data", "biot")).execute(Tuple.of(existingItemID)).await()
       val json = res.iterator().next().toItemJson()
       expect {
         that(json.getString("beacon")).isEqualTo(updateItemJson.getString("beacon"))
@@ -1430,7 +1913,8 @@ class TestCRUDVerticleItems {
       }
 
       try {
-        val res = pgClient.preparedQuery(getItem("items", "beacon_data")).execute(Tuple.of(existingItemID)).await()
+        val res =
+          pgClient.preparedQuery(getItem("items", "beacon_data", "biot")).execute(Tuple.of(existingItemID)).await()
         val json = res.iterator().next().toItemJson()
         expect {
           that(json.getString("beacon")).isEqualTo(existingItem.getString("beacon"))
@@ -1495,7 +1979,8 @@ class TestCRUDVerticleItems {
       }
 
       try {
-        val res = pgClient.preparedQuery(getItem("items", "beacon_data")).execute(Tuple.of(existingItemID)).await()
+        val res =
+          pgClient.preparedQuery(getItem("items", "beacon_data", "biot")).execute(Tuple.of(existingItemID)).await()
         val json = res.iterator().next().toItemJson()
         expect {
           that(json.getString("beacon")).isEqualTo(updateJson.getString("beacon"))
@@ -1633,7 +2118,7 @@ class TestCRUDVerticleItems {
   @Test
   @DisplayName("Item updates on PUT operations are correctly received on the event bus")
   fun receivePutUpdatesOnEventBus(vertx: Vertx, testContext: VertxTestContext) {
-    val itemId = 100
+    val itemId = 999999
     val newItem = jsonObjectOf(
       "id" to itemId,
       "category" to "ECG"
@@ -1716,6 +2201,1740 @@ class TestCRUDVerticleItems {
       statusCode(200)
     }
   }
+
+  @Test
+  @DisplayName(
+    "registerItem without specifying the accessControlString correctly registers a new item with " +
+      "the accessControlString set to '<company>' (here 'biot')"
+  )
+  fun registerWithoutSpecifyingACStringIsCorrect(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      val newItem = jsonObjectOf(
+        "beacon" to "aa:aa:aa:aa:aa:aa",
+        "category" to "Lit",
+        "service" to "Bloc 1",
+        "itemID" to "ee",
+        "brand" to "oo",
+        "model" to "aa",
+        "supplier" to "uu",
+        "purchaseDate" to LocalDate.of(2019, 3, 19).toString(),
+        "purchasePrice" to 102.12,
+        "originLocation" to "or",
+        "currentLocation" to "cur",
+        "room" to "616",
+        "contact" to "Monsieur Poirot",
+        "currentOwner" to "Monsieur Dupont",
+        "previousOwner" to "Monsieur Dupond",
+        "orderNumber" to "abcdf",
+        "color" to "red",
+        "serialNumber" to "abcdf",
+        "status" to "Status",
+        "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
+        "comments" to "A comment",
+        "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+        "lastModifiedBy" to "Monsieur Duport"
+      )
+
+      val response = Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        body(newItem.encode())
+      } When {
+        queryParam("company", "biot")
+        post("/items")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+
+      testContext.verify {
+        expectThat(response).isNotEmpty() // it returns the id of the registered item
+      }
+
+      val id = response.toInt()
+
+      try {
+        val res = pgClient.preparedQuery(getItem("items", "beacon_data", "biot")).execute(Tuple.of(id)).await()
+        val json = res.iterator().next().toItemJson()
+        expect {
+          that(json.getString("beacon")).isEqualTo(newItem.getString("beacon"))
+          that(json.getString("category")).isEqualTo(newItem.getString("category"))
+          that(json.getString("service")).isEqualTo(newItem.getString("service"))
+          that(json.getString("itemID")).isEqualTo(newItem.getString("itemID"))
+          that(json.getString("accessControlString")).isEqualTo("biot")
+          that(json.getString("brand")).isEqualTo(newItem.getString("brand"))
+          that(json.getString("model")).isEqualTo(newItem.getString("model"))
+          that(json.getString("supplier")).isEqualTo(newItem.getString("supplier"))
+          that(json.getString("purchaseDate")).isEqualTo(newItem.getString("purchaseDate"))
+          that(json.getDouble("purchasePrice")).isEqualTo(newItem.getDouble("purchasePrice"))
+          that(json.getString("originLocation")).isEqualTo(newItem.getString("originLocation"))
+          that(json.getString("currentLocation")).isEqualTo(newItem.getString("currentLocation"))
+          that(json.getString("room")).isEqualTo(newItem.getString("room"))
+          that(json.getString("contact")).isEqualTo(newItem.getString("contact"))
+          that(json.getString("currentOwner")).isEqualTo(newItem.getString("currentOwner"))
+          that(json.getString("previousOwner")).isEqualTo(newItem.getString("previousOwner"))
+          that(json.getString("orderNumber")).isEqualTo(newItem.getString("orderNumber"))
+          that(json.getString("color")).isEqualTo(newItem.getString("color"))
+          that(json.getString("serialNumber")).isEqualTo(newItem.getString("serialNumber"))
+          that(json.getString("maintenanceDate")).isEqualTo(newItem.getString("maintenanceDate"))
+          that(json.getString("status")).isEqualTo(newItem.getString("status"))
+          that(json.getString("comments")).isEqualTo(newItem.getString("comments"))
+          that(json.getString("lastModifiedDate")).isEqualTo(newItem.getString("lastModifiedDate"))
+          that(json.getString("lastModifiedBy")).isEqualTo(newItem.getString("lastModifiedBy"))
+          that(json.getInteger("battery")).isNull()
+          that(json.getString("beaconStatus")).isNull()
+          that(json.getDouble("latitude")).isNull()
+          that(json.getDouble("longitude")).isNull()
+          that(json.getInteger("floor")).isNull()
+          that(json.getDouble("temperature")).isNull()
+        }
+        testContext.completeNow()
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+
+  // Access Control tests
+
+  @Test
+  @DisplayName("registerItem by specifying the accessControlString wrongly sends a 400 error 1")
+  fun registerSpecifyingACStringWronglyIsCorrect1(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      val newItem = jsonObjectOf(
+        "beacon" to "aa:aa:aa:aa:aa:aa",
+        "category" to "Lit",
+        "service" to "Bloc 1",
+        "itemID" to "ee",
+        "accessControlString" to "grpajfo",
+        "brand" to "oo",
+        "model" to "aa",
+        "supplier" to "uu",
+        "purchaseDate" to LocalDate.of(2019, 3, 19).toString(),
+        "purchasePrice" to 102.12,
+        "originLocation" to "or",
+        "currentLocation" to "cur",
+        "room" to "616",
+        "contact" to "Monsieur Poirot",
+        "currentOwner" to "Monsieur Dupont",
+        "previousOwner" to "Monsieur Dupond",
+        "orderNumber" to "abcdf",
+        "color" to "red",
+        "serialNumber" to "abcdf",
+        "status" to "Status",
+        "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
+        "comments" to "A comment",
+        "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+        "lastModifiedBy" to "Monsieur Duport"
+      )
+
+      val response = Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        body(newItem.encode())
+      } When {
+        queryParam("company", "biot")
+        post("/items")
+      } Then {
+        statusCode(400)
+      } Extract {
+        asString()
+      }
+
+      testContext.verify {
+        expectThat(response).isNotEmpty()
+        testContext.completeNow()
+      }
+    }
+
+  @Test
+  @DisplayName("registerItem by specifying the accessControlString wrongly sends a 400 error 2")
+  fun registerSpecifyingACStringWronglyIsCorrect2(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      val newItem = jsonObjectOf(
+        "beacon" to "aa:aa:aa:aa:aa:aa",
+        "category" to "Lit",
+        "service" to "Bloc 1",
+        "itemID" to "ee",
+        "accessControlString" to "biot21:fdsa",
+        "brand" to "oo",
+        "model" to "aa",
+        "supplier" to "uu",
+        "purchaseDate" to LocalDate.of(2019, 3, 19).toString(),
+        "purchasePrice" to 102.12,
+        "originLocation" to "or",
+        "currentLocation" to "cur",
+        "room" to "616",
+        "contact" to "Monsieur Poirot",
+        "currentOwner" to "Monsieur Dupont",
+        "previousOwner" to "Monsieur Dupond",
+        "orderNumber" to "abcdf",
+        "color" to "red",
+        "serialNumber" to "abcdf",
+        "status" to "Status",
+        "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
+        "comments" to "A comment",
+        "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+        "lastModifiedBy" to "Monsieur Duport"
+      )
+
+      val response = Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        body(newItem.encode())
+      } When {
+        queryParam("company", "biot")
+        post("/items")
+      } Then {
+        statusCode(400)
+      } Extract {
+        asString()
+      }
+
+      testContext.verify {
+        expectThat(response).isNotEmpty()
+        testContext.completeNow()
+      }
+    }
+
+  @Test
+  @DisplayName("registerItem by specifying the accessControlString wrongly sends a 400 error 3")
+  fun registerSpecifyingACStringWronglyIsCorrect3(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      val newItem = jsonObjectOf(
+        "beacon" to "aa:aa:aa:aa:aa:aa",
+        "category" to "Lit",
+        "service" to "Bloc 1",
+        "itemID" to "ee",
+        "accessControlString" to "",
+        "brand" to "oo",
+        "model" to "aa",
+        "supplier" to "uu",
+        "purchaseDate" to LocalDate.of(2019, 3, 19).toString(),
+        "purchasePrice" to 102.12,
+        "originLocation" to "or",
+        "currentLocation" to "cur",
+        "room" to "616",
+        "contact" to "Monsieur Poirot",
+        "currentOwner" to "Monsieur Dupont",
+        "previousOwner" to "Monsieur Dupond",
+        "orderNumber" to "abcdf",
+        "color" to "red",
+        "serialNumber" to "abcdf",
+        "status" to "Status",
+        "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
+        "comments" to "A comment",
+        "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+        "lastModifiedBy" to "Monsieur Duport"
+      )
+
+      val response = Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        body(newItem.encode())
+      } When {
+        queryParam("company", "biot")
+        post("/items")
+      } Then {
+        statusCode(400)
+      } Extract {
+        asString()
+      }
+
+      testContext.verify {
+        expectThat(response).isNotEmpty()
+        testContext.completeNow()
+      }
+    }
+
+  @Test
+  @DisplayName(
+    "registerItem by specifying the accessControlString correctly registers a new item with " +
+      "the correct accessControlString"
+  )
+  fun registerSpecifyingACStringCorrectlyIsCorrect(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      val newItem = jsonObjectOf(
+        "beacon" to "aa:aa:aa:aa:aa:aa",
+        "category" to "Lit",
+        "service" to "Bloc 1",
+        "itemID" to "ee",
+        "accessControlString" to "biot:grp1:grp2",
+        "brand" to "oo",
+        "model" to "aa",
+        "supplier" to "uu",
+        "purchaseDate" to LocalDate.of(2019, 3, 19).toString(),
+        "purchasePrice" to 102.12,
+        "originLocation" to "or",
+        "currentLocation" to "cur",
+        "room" to "616",
+        "contact" to "Monsieur Poirot",
+        "currentOwner" to "Monsieur Dupont",
+        "previousOwner" to "Monsieur Dupond",
+        "orderNumber" to "abcdf",
+        "color" to "red",
+        "serialNumber" to "abcdf",
+        "status" to "Status",
+        "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
+        "comments" to "A comment",
+        "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+        "lastModifiedBy" to "Monsieur Duport"
+      )
+
+      val response = Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        body(newItem.encode())
+      } When {
+        queryParam("company", "biot")
+        post("/items")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+
+      testContext.verify {
+        expectThat(response).isNotEmpty() // it returns the id of the registered item
+      }
+
+      val id = response.toInt()
+
+      try {
+        val res = pgClient.preparedQuery(getItem("items", "beacon_data", "biot")).execute(Tuple.of(id)).await()
+        val json = res.iterator().next().toItemJson()
+        expect {
+          that(json.getString("beacon")).isEqualTo(newItem.getString("beacon"))
+          that(json.getString("category")).isEqualTo(newItem.getString("category"))
+          that(json.getString("service")).isEqualTo(newItem.getString("service"))
+          that(json.getString("itemID")).isEqualTo(newItem.getString("itemID"))
+          that(json.getString("accessControlString")).isEqualTo(newItem.getString("accessControlString"))
+          that(json.getString("brand")).isEqualTo(newItem.getString("brand"))
+          that(json.getString("model")).isEqualTo(newItem.getString("model"))
+          that(json.getString("supplier")).isEqualTo(newItem.getString("supplier"))
+          that(json.getString("purchaseDate")).isEqualTo(newItem.getString("purchaseDate"))
+          that(json.getDouble("purchasePrice")).isEqualTo(newItem.getDouble("purchasePrice"))
+          that(json.getString("originLocation")).isEqualTo(newItem.getString("originLocation"))
+          that(json.getString("currentLocation")).isEqualTo(newItem.getString("currentLocation"))
+          that(json.getString("room")).isEqualTo(newItem.getString("room"))
+          that(json.getString("contact")).isEqualTo(newItem.getString("contact"))
+          that(json.getString("currentOwner")).isEqualTo(newItem.getString("currentOwner"))
+          that(json.getString("previousOwner")).isEqualTo(newItem.getString("previousOwner"))
+          that(json.getString("orderNumber")).isEqualTo(newItem.getString("orderNumber"))
+          that(json.getString("color")).isEqualTo(newItem.getString("color"))
+          that(json.getString("serialNumber")).isEqualTo(newItem.getString("serialNumber"))
+          that(json.getString("maintenanceDate")).isEqualTo(newItem.getString("maintenanceDate"))
+          that(json.getString("status")).isEqualTo(newItem.getString("status"))
+          that(json.getString("comments")).isEqualTo(newItem.getString("comments"))
+          that(json.getString("lastModifiedDate")).isEqualTo(newItem.getString("lastModifiedDate"))
+          that(json.getString("lastModifiedBy")).isEqualTo(newItem.getString("lastModifiedBy"))
+          that(json.getInteger("battery")).isNull()
+          that(json.getString("beaconStatus")).isNull()
+          that(json.getDouble("latitude")).isNull()
+          that(json.getDouble("longitude")).isNull()
+          that(json.getInteger("floor")).isNull()
+          that(json.getDouble("temperature")).isNull()
+        }
+        testContext.completeNow()
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+
+  @Test
+  @DisplayName(
+    "registerItem by not specifying the accessControlString registers a new item with " +
+      "the accessControlString set to <company> (here 'biot')"
+  )
+  fun registerNotSpecifyingACStringIsCorrect(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      val newItem = jsonObjectOf(
+        "beacon" to "aa:aa:aa:aa:aa:aa",
+        "category" to "Lit",
+        "service" to "Bloc 1",
+        "itemID" to "ee",
+        "brand" to "oo",
+        "model" to "aa",
+        "supplier" to "uu",
+        "purchaseDate" to LocalDate.of(2019, 3, 19).toString(),
+        "purchasePrice" to 102.12,
+        "originLocation" to "or",
+        "currentLocation" to "cur",
+        "room" to "616",
+        "contact" to "Monsieur Poirot",
+        "currentOwner" to "Monsieur Dupont",
+        "previousOwner" to "Monsieur Dupond",
+        "orderNumber" to "abcdf",
+        "color" to "red",
+        "serialNumber" to "abcdf",
+        "status" to "Status",
+        "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
+        "comments" to "A comment",
+        "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+        "lastModifiedBy" to "Monsieur Duport"
+      )
+
+      val response = Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        body(newItem.encode())
+      } When {
+        queryParam("company", "biot")
+        post("/items")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+
+      testContext.verify {
+        expectThat(response).isNotEmpty() // it returns the id of the registered item
+      }
+
+      val id = response.toInt()
+
+      try {
+        val res = pgClient.preparedQuery(getItem("items", "beacon_data", "biot")).execute(Tuple.of(id)).await()
+        val json = res.iterator().next().toItemJson()
+        expect {
+          that(json.getString("beacon")).isEqualTo(newItem.getString("beacon"))
+          that(json.getString("category")).isEqualTo(newItem.getString("category"))
+          that(json.getString("service")).isEqualTo(newItem.getString("service"))
+          that(json.getString("itemID")).isEqualTo(newItem.getString("itemID"))
+          that(json.getString("accessControlString")).isEqualTo("biot")
+          that(json.getString("brand")).isEqualTo(newItem.getString("brand"))
+          that(json.getString("model")).isEqualTo(newItem.getString("model"))
+          that(json.getString("supplier")).isEqualTo(newItem.getString("supplier"))
+          that(json.getString("purchaseDate")).isEqualTo(newItem.getString("purchaseDate"))
+          that(json.getDouble("purchasePrice")).isEqualTo(newItem.getDouble("purchasePrice"))
+          that(json.getString("originLocation")).isEqualTo(newItem.getString("originLocation"))
+          that(json.getString("currentLocation")).isEqualTo(newItem.getString("currentLocation"))
+          that(json.getString("room")).isEqualTo(newItem.getString("room"))
+          that(json.getString("contact")).isEqualTo(newItem.getString("contact"))
+          that(json.getString("currentOwner")).isEqualTo(newItem.getString("currentOwner"))
+          that(json.getString("previousOwner")).isEqualTo(newItem.getString("previousOwner"))
+          that(json.getString("orderNumber")).isEqualTo(newItem.getString("orderNumber"))
+          that(json.getString("color")).isEqualTo(newItem.getString("color"))
+          that(json.getString("serialNumber")).isEqualTo(newItem.getString("serialNumber"))
+          that(json.getString("maintenanceDate")).isEqualTo(newItem.getString("maintenanceDate"))
+          that(json.getString("status")).isEqualTo(newItem.getString("status"))
+          that(json.getString("comments")).isEqualTo(newItem.getString("comments"))
+          that(json.getString("lastModifiedDate")).isEqualTo(newItem.getString("lastModifiedDate"))
+          that(json.getString("lastModifiedBy")).isEqualTo(newItem.getString("lastModifiedBy"))
+          that(json.getInteger("battery")).isNull()
+          that(json.getString("beaconStatus")).isNull()
+          that(json.getDouble("latitude")).isNull()
+          that(json.getDouble("longitude")).isNull()
+          that(json.getInteger("floor")).isNull()
+          that(json.getDouble("temperature")).isNull()
+        }
+        testContext.completeNow()
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+
+  @Test
+  @DisplayName("getItems correctly retrieves all items when no accessControlString is passed")
+  fun getItemsIsCorrectWithoutACString(vertx: Vertx, testContext: VertxTestContext) {
+    runBlocking(vertx.dispatcher()) {
+      insertItemsAccessControl().onFailure {
+        testContext.failNow("Cannot insert objects prior to the test")
+      }.onSuccess {
+        val response = Buffer.buffer(
+          Given {
+            spec(requestSpecification)
+            accept(ContentType.JSON)
+          } When {
+            queryParam("company", "biot")
+            get("/items")
+          } Then {
+            statusCode(200)
+          } Extract {
+            asString()
+          }
+        ).toJsonArray()
+
+        testContext.verify {
+          expectThat(response.isEmpty).isFalse()
+          expectThat(response.size()).isEqualTo(12)
+          testContext.completeNow()
+        }
+      }
+    }
+  }
+
+  @Test
+  @DisplayName("getItems correctly retrieves accessible items when an accessControlString is passed 1")
+  fun getItemsIsCorrectWithACString1(vertx: Vertx, testContext: VertxTestContext) {
+    runBlocking(vertx.dispatcher()) {
+      insertItemsAccessControl().onFailure {
+        testContext.failNow("Cannot insert objects prior to the test")
+      }.onSuccess {
+        val accessControlString = "biot:grp1"
+        val response = Buffer.buffer(
+          Given {
+            spec(requestSpecification)
+            accept(ContentType.JSON)
+          } When {
+            queryParam("company", "biot")
+            queryParam("accessControlString", accessControlString)
+            get("/items")
+          } Then {
+            statusCode(200)
+          } Extract {
+            asString()
+          }
+        ).toJsonArray()
+
+        testContext.verify {
+          expectThat(response.isEmpty).isFalse()
+          expectThat(response.size()).isEqualTo(4)
+          val accessString1 = response.getJsonObject(0).getString("accessControlString")
+          val accessString2 = response.getJsonObject(1).getString("accessControlString")
+          val accessString3 = response.getJsonObject(2).getString("accessControlString")
+          val accessString4 = response.getJsonObject(3).getString("accessControlString")
+
+          expectThat(accessString1).startsWith(accessControlString)
+          expectThat(accessString2).startsWith(accessControlString)
+          expectThat(accessString3).startsWith(accessControlString)
+          expectThat(accessString4).startsWith(accessControlString)
+          testContext.completeNow()
+        }
+      }
+    }
+  }
+
+  @Test
+  @DisplayName("getItems correctly retrieves accessible items when an accessControlString is passed 2")
+  fun getItemsIsCorrectWithACString2(vertx: Vertx, testContext: VertxTestContext) {
+    runBlocking(vertx.dispatcher()) {
+      insertItemsAccessControl().onFailure {
+        testContext.failNow("Cannot insert objects prior to the test")
+      }.onSuccess {
+        val accessControlString = "biot:grp2"
+        val response = Buffer.buffer(
+          Given {
+            spec(requestSpecification)
+            accept(ContentType.JSON)
+          } When {
+            queryParam("company", "biot")
+            queryParam("accessControlString", accessControlString)
+            get("/items")
+          } Then {
+            statusCode(200)
+          } Extract {
+            asString()
+          }
+        ).toJsonArray()
+
+        testContext.verify {
+          expectThat(response.isEmpty).isFalse()
+          expectThat(response.size()).isEqualTo(1)
+          val accessString1 = response.getJsonObject(0).getString("accessControlString")
+
+          expectThat(accessString1).startsWith(accessControlString)
+          testContext.completeNow()
+        }
+      }
+    }
+  }
+
+  @Test
+  @DisplayName("getItems correctly retrieves accessible items when an accessControlString is passed 3")
+  fun getItemsIsCorrectWithACString3(vertx: Vertx, testContext: VertxTestContext) {
+    runBlocking(vertx.dispatcher()) {
+      insertItemsAccessControl().onFailure {
+        testContext.failNow("Cannot insert objects prior to the test")
+      }.onSuccess {
+        val accessControlString = "biot:grp1:grp3"
+        val response = Buffer.buffer(
+          Given {
+            spec(requestSpecification)
+            accept(ContentType.JSON)
+          } When {
+            queryParam("company", "biot")
+            queryParam("accessControlString", accessControlString)
+            get("/items")
+          } Then {
+            statusCode(200)
+          } Extract {
+            asString()
+          }
+        ).toJsonArray()
+
+        testContext.verify {
+          expectThat(response.isEmpty).isFalse()
+          expectThat(response.size()).isEqualTo(1)
+          val accessString1 = response.getJsonObject(0).getString("accessControlString")
+
+          expectThat(accessString1).startsWith(accessControlString)
+          testContext.completeNow()
+        }
+      }
+    }
+  }
+
+  @Test
+  @DisplayName("getItems only retrieves accessible items when the accessControlString is prefix and groups are complete")
+  fun getItemsIsCorrectWithACStringNoGroupPrefix(vertx: Vertx, testContext: VertxTestContext) {
+    runBlocking(vertx.dispatcher()) {
+      insertItemsAccessControl().onFailure {
+        testContext.failNow("Cannot insert objects prior to the test")
+      }.onSuccess {
+        val accessControlString = "biot:gr"
+        val response = Buffer.buffer(
+          Given {
+            spec(requestSpecification)
+            accept(ContentType.JSON)
+          } When {
+            queryParam("company", "biot")
+            queryParam("accessControlString", accessControlString)
+            get("/items")
+          } Then {
+            statusCode(200)
+          } Extract {
+            asString()
+          }
+        ).toJsonArray()
+
+        testContext.verify {
+          expectThat(response.isEmpty).isTrue()
+          testContext.completeNow()
+        }
+      }
+    }
+  }
+
+  @Test
+  @DisplayName("registerItem correctly inserts well formed item with an accessControlString")
+  fun registerItemIsCorrectWithValidACString(vertx: Vertx, testContext: VertxTestContext) {
+    runBlocking(vertx.dispatcher()) {
+      val newItem = jsonObjectOf(
+        "beacon" to "ae:ac:ab:aa:aa:ff",
+        "category" to "ECG",
+        "service" to "Bloc 1",
+        "itemID" to "ee",
+        "accessControlString" to "biot:grp1:grp2:grp3",
+        "brand" to "oo",
+        "model" to "aa",
+        "supplier" to "uu",
+        "purchaseDate" to LocalDate.of(2019, 3, 19).toString(),
+        "purchasePrice" to 102.12,
+        "originLocation" to "or",
+        "currentLocation" to "cur",
+        "room" to "616",
+        "contact" to "Monsieur Poirot",
+        "currentOwner" to "Monsieur Dupont",
+        "previousOwner" to "Monsieur Dupond",
+        "orderNumber" to "abcdf",
+        "color" to "red",
+        "serialNumber" to "abcdf",
+        "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
+        "comments" to "A comment",
+        "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+        "lastModifiedBy" to "Monsieur Duport"
+      )
+
+      val response = Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        body(newItem.encode())
+      } When {
+        queryParam("company", "biot")
+        post("/items")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+
+      testContext.verify {
+        expectThat(response).isNotEmpty() // it returns the id of the registered item
+      }
+
+      val id = response.toInt()
+
+      try {
+        val res = pgClient.preparedQuery(getItem("items", "beacon_data", "biot")).execute(Tuple.of(id)).await()
+        val json = res.iterator().next().toItemJson()
+        expect {
+          that(json.getString("beacon")).isEqualTo(newItem.getString("beacon"))
+          that(json.getString("category")).isEqualTo(newItem.getString("category"))
+          that(json.getString("service")).isEqualTo(newItem.getString("service"))
+          that(json.getString("itemID")).isEqualTo(newItem.getString("itemID"))
+          that(json.getString("brand")).isEqualTo(newItem.getString("brand"))
+          that(json.getString("accessControlString")).isEqualTo(newItem.getString("accessControlString"))
+          that(json.getString("model")).isEqualTo(newItem.getString("model"))
+          that(json.getString("supplier")).isEqualTo(newItem.getString("supplier"))
+          that(json.getString("purchaseDate")).isEqualTo(newItem.getString("purchaseDate"))
+          that(json.getDouble("purchasePrice")).isEqualTo(newItem.getDouble("purchasePrice"))
+          that(json.getString("originLocation")).isEqualTo(newItem.getString("originLocation"))
+          that(json.getString("currentLocation")).isEqualTo(newItem.getString("currentLocation"))
+          that(json.getString("room")).isEqualTo(newItem.getString("room"))
+          that(json.getString("contact")).isEqualTo(newItem.getString("contact"))
+          that(json.getString("currentOwner")).isEqualTo(newItem.getString("currentOwner"))
+          that(json.getString("previousOwner")).isEqualTo(newItem.getString("previousOwner"))
+          that(json.getString("orderNumber")).isEqualTo(newItem.getString("orderNumber"))
+          that(json.getString("color")).isEqualTo(newItem.getString("color"))
+          that(json.getString("serialNumber")).isEqualTo(newItem.getString("serialNumber"))
+          that(json.getString("maintenanceDate")).isEqualTo(newItem.getString("maintenanceDate"))
+          that(json.getString("status")).isEqualTo("Under creation")
+          that(json.getString("comments")).isEqualTo(newItem.getString("comments"))
+          that(json.getString("lastModifiedDate")).isEqualTo(newItem.getString("lastModifiedDate"))
+          that(json.getString("lastModifiedBy")).isEqualTo(newItem.getString("lastModifiedBy"))
+          that(json.getInteger("battery")).isNull()
+          that(json.getString("beaconStatus")).isNull()
+          that(json.getDouble("latitude")).isNull()
+          that(json.getDouble("longitude")).isNull()
+          that(json.getInteger("floor")).isNull()
+          that(json.getDouble("temperature")).isNull()
+        }
+        testContext.completeNow()
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+  }
+
+  @Test
+  @DisplayName("registerItem correctly inserts well formed item without an accessControlString and put company")
+  fun registerItemIsCorrectWithNoACString(vertx: Vertx, testContext: VertxTestContext) {
+    runBlocking(vertx.dispatcher()) {
+      val newItem = jsonObjectOf(
+        "beacon" to "ae:ac:ab:aa:aa:ff",
+        "category" to "ECG",
+        "service" to "Bloc 1",
+        "itemID" to "ee",
+        "brand" to "oo",
+        "model" to "aa",
+        "supplier" to "uu",
+        "purchaseDate" to LocalDate.of(2019, 3, 19).toString(),
+        "purchasePrice" to 102.12,
+        "originLocation" to "or",
+        "currentLocation" to "cur",
+        "room" to "616",
+        "contact" to "Monsieur Poirot",
+        "currentOwner" to "Monsieur Dupont",
+        "previousOwner" to "Monsieur Dupond",
+        "orderNumber" to "abcdf",
+        "color" to "red",
+        "serialNumber" to "abcdf",
+        "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
+        "comments" to "A comment",
+        "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+        "lastModifiedBy" to "Monsieur Duport"
+      )
+
+      val response = Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        body(newItem.encode())
+      } When {
+        queryParam("company", "biot")
+        post("/items")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+
+      testContext.verify {
+        expectThat(response).isNotEmpty() // it returns the id of the registered item
+      }
+
+      val id = response.toInt()
+
+      try {
+        val res = pgClient.preparedQuery(getItem("items", "beacon_data", "biot")).execute(Tuple.of(id)).await()
+        val json = res.iterator().next().toItemJson()
+        expect {
+          that(json.getString("beacon")).isEqualTo(newItem.getString("beacon"))
+          that(json.getString("category")).isEqualTo(newItem.getString("category"))
+          that(json.getString("service")).isEqualTo(newItem.getString("service"))
+          that(json.getString("itemID")).isEqualTo(newItem.getString("itemID"))
+          that(json.getString("brand")).isEqualTo(newItem.getString("brand"))
+          that(json.getString("accessControlString")).isEqualTo("biot")
+          that(json.getString("model")).isEqualTo(newItem.getString("model"))
+          that(json.getString("supplier")).isEqualTo(newItem.getString("supplier"))
+          that(json.getString("purchaseDate")).isEqualTo(newItem.getString("purchaseDate"))
+          that(json.getDouble("purchasePrice")).isEqualTo(newItem.getDouble("purchasePrice"))
+          that(json.getString("originLocation")).isEqualTo(newItem.getString("originLocation"))
+          that(json.getString("currentLocation")).isEqualTo(newItem.getString("currentLocation"))
+          that(json.getString("room")).isEqualTo(newItem.getString("room"))
+          that(json.getString("contact")).isEqualTo(newItem.getString("contact"))
+          that(json.getString("currentOwner")).isEqualTo(newItem.getString("currentOwner"))
+          that(json.getString("previousOwner")).isEqualTo(newItem.getString("previousOwner"))
+          that(json.getString("orderNumber")).isEqualTo(newItem.getString("orderNumber"))
+          that(json.getString("color")).isEqualTo(newItem.getString("color"))
+          that(json.getString("serialNumber")).isEqualTo(newItem.getString("serialNumber"))
+          that(json.getString("maintenanceDate")).isEqualTo(newItem.getString("maintenanceDate"))
+          that(json.getString("status")).isEqualTo("Under creation")
+          that(json.getString("comments")).isEqualTo(newItem.getString("comments"))
+          that(json.getString("lastModifiedDate")).isEqualTo(newItem.getString("lastModifiedDate"))
+          that(json.getString("lastModifiedBy")).isEqualTo(newItem.getString("lastModifiedBy"))
+          that(json.getInteger("battery")).isNull()
+          that(json.getString("beaconStatus")).isNull()
+          that(json.getDouble("latitude")).isNull()
+          that(json.getDouble("longitude")).isNull()
+          that(json.getInteger("floor")).isNull()
+          that(json.getDouble("temperature")).isNull()
+        }
+        testContext.completeNow()
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+  }
+
+  @Test
+  @DisplayName("getClosestItems correctly retrieves the closest items per floor with correct AC")
+  fun getClosestItemsIsCorrectWithAC(vertx: Vertx, testContext: VertxTestContext) {
+    runBlocking(vertx.dispatcher()) {
+      try {
+        insertItemsAccessControl().await()
+
+        val response = Buffer.buffer(
+          Given {
+            spec(requestSpecification)
+            accept(ContentType.JSON)
+          } When {
+            queryParam("latitude", 42)
+            queryParam("longitude", -8)
+            queryParam("accessControlString", closestItemGrp1.getString("accessControlString"))
+            get("/items/closest")
+          } Then {
+            statusCode(200)
+          } Extract {
+            asString()
+          }
+        ).toJsonObject()
+
+        testContext.verify {
+          val firstFloor: JsonArray = response["1"]
+          expectThat(firstFloor.size()).isEqualTo(2)
+          val closestFirstFloor = firstFloor.getJsonObject(0)
+          expectThat(closestFirstFloor.getString("beacon")).isEqualTo(closestItemGrp1.getString("beacon"))
+
+          val secondFloor: JsonArray = response["2"]
+          expectThat(secondFloor.size()).isEqualTo(1)
+          val closestSecondFloor = secondFloor.getJsonObject(0)
+          expectThat(closestSecondFloor.getString("beacon")).isEqualTo(existingItemGrp1Grp3.getString("beacon"))
+
+          testContext.completeNow()
+        }
+      } catch (error: Throwable) {
+        testContext.failNow("Cannot insert objects prior to the test")
+      }
+    }
+  }
+
+  @Test
+  @DisplayName("getClosestItems correctly retrieves nothing per floor with partially prefix AC")
+  fun getClosestItemsIsCorrectWithIncorrectAC(vertx: Vertx, testContext: VertxTestContext) {
+    runBlocking(vertx.dispatcher()) {
+      try {
+        insertItemsAccessControl().await()
+
+        val response = Buffer.buffer(
+          Given {
+            spec(requestSpecification)
+            accept(ContentType.JSON)
+          } When {
+            queryParam("latitude", 42)
+            queryParam("longitude", -8)
+            queryParam(
+              "accessControlString",
+              closestItemGrp1.getString("accessControlString")
+                .subSequence(0, closestItemGrp1.getString("accessControlString").length - 1)
+            )
+            get("/items/closest")
+          } Then {
+            statusCode(200)
+          } Extract {
+            asString()
+          }
+        ).toJsonObject()
+
+        testContext.verify {
+          expectThat(response.size()).isEqualTo(0)
+
+          testContext.completeNow()
+        }
+      } catch (error: Throwable) {
+        testContext.failNow("Cannot insert objects prior to the test")
+      }
+    }
+  }
+
+  @Test
+  @DisplayName("getClosestItems correctly retrieves nothing with a category per floor with AC")
+  fun getClosestItemsWithCategoryIsCorrectWithAC(vertx: Vertx, testContext: VertxTestContext) {
+    runBlocking(vertx.dispatcher()) {
+      try {
+        insertItemsAccessControl().await()
+
+        val response = Buffer.buffer(
+          Given {
+            spec(requestSpecification)
+            accept(ContentType.JSON)
+          } When {
+            queryParam("latitude", 42)
+            queryParam("longitude", -8)
+            queryParam("category", closestItemGrp1Cat2.getString("category"))
+            queryParam("accessControlString", closestItemGrp1Cat2.getString("accessControlString"))
+            get("/items/closest")
+          } Then {
+            statusCode(200)
+          } Extract {
+            asString()
+          }
+        ).toJsonObject()
+
+        testContext.verify {
+          expectThat(response.size()).isEqualTo(1)
+          val firstFloor: JsonArray = response["1"]
+          expectThat(firstFloor.size()).isEqualTo(1)
+          val closestFirstFloor = firstFloor.getJsonObject(0)
+          expectThat(closestFirstFloor.getString("category")).isEqualTo(closestItemGrp1Cat2.getString("category"))
+          expectThat(closestFirstFloor.getString("beacon")).isEqualTo(closestItemGrp1Cat2.getString("beacon"))
+
+          testContext.completeNow()
+        }
+      } catch (error: Throwable) {
+        testContext.failNow("Cannot insert objects prior to the test")
+      }
+    }
+  }
+
+
+  @Test
+  @DisplayName("getClosestItems correctly retrieves the 1 closest items of the given category per floor with partially prefix AC")
+  fun getClosestItemsWithCategoryIsCorrectWithIncorrectAC(vertx: Vertx, testContext: VertxTestContext) {
+    runBlocking(vertx.dispatcher()) {
+      try {
+        insertItemsAccessControl().await()
+
+        val response = Buffer.buffer(
+          Given {
+            spec(requestSpecification)
+            accept(ContentType.JSON)
+          } When {
+            queryParam("latitude", 42)
+            queryParam("longitude", -8)
+            queryParam("category", closestItemGrp1Cat2.getString("category"))
+            queryParam(
+              "accessControlString",
+              closestItemGrp1.getString("accessControlString")
+                .subSequence(0, closestItemGrp1.getString("accessControlString").length - 1)
+            )
+            get("/items/closest")
+          } Then {
+            statusCode(200)
+          } Extract {
+            asString()
+          }
+        ).toJsonObject()
+
+        testContext.verify {
+          expectThat(response.size()).isEqualTo(0)
+          testContext.completeNow()
+        }
+      } catch (error: Throwable) {
+        testContext.failNow("Cannot insert objects prior to the test")
+      }
+    }
+  }
+
+  @Test
+  @DisplayName("getItem correctly retrieves the desired item if the accessString has the right to access 1")
+  fun getItemIsCorrectWithCorrectAC1(vertx: Vertx, testContext: VertxTestContext) {
+    runBlocking(vertx.dispatcher()) {
+      try {
+        insertItemsAccessControl().await()
+
+        val expected = existingItemGrp1Grp3.copy().apply {
+          put("battery", existingBeaconData.getInteger("battery"))
+          put("beaconStatus", existingBeaconData.getString("beaconStatus"))
+          put("latitude", 47)
+          put("longitude", -8)
+          put("floor", 2)
+          put("temperature", 3.3)
+          remove("id")
+        }
+
+        val response = Buffer.buffer(
+          Given {
+            spec(requestSpecification)
+            accept(ContentType.JSON)
+          } When {
+            queryParam("company", "biot")
+            queryParam("accessControlString", existingItemGrp1Grp3.getString("accessControlString"))
+            get("/items/$existingItemGrp1Grp3Id")
+          } Then {
+            statusCode(200)
+          } Extract {
+            asString()
+          }
+        ).toJsonObject()
+
+        testContext.verify {
+          val id = response.remove("id")
+          val timestamp: String = response.remove("timestamp") as String
+          expectThat(response).isEqualTo(expected)
+          expectThat(id).isEqualTo(existingItemGrp1Grp3Id)
+          expectThat(timestamp).isNotEmpty()
+          testContext.completeNow()
+        }
+      } catch (error: Throwable) {
+        testContext.failNow("Cannot insert objects prior to the test")
+      }
+    }
+  }
+
+  @Test
+  @DisplayName("getItem correctly retrieves the desired item if the accessString has the right to access 2")
+  fun getItemIsCorrectWithCorrectAC2(vertx: Vertx, testContext: VertxTestContext) {
+    runBlocking(vertx.dispatcher()) {
+      try {
+        insertItemsAccessControl().await()
+
+        val expected = existingItemGrp1Grp3.copy().apply {
+          put("battery", existingBeaconData.getInteger("battery"))
+          put("beaconStatus", existingBeaconData.getString("beaconStatus"))
+          put("latitude", 47)
+          put("longitude", -8)
+          put("floor", 2)
+          put("temperature", 3.3)
+          remove("id")
+        }
+
+        val response = Buffer.buffer(
+          Given {
+            spec(requestSpecification)
+            accept(ContentType.JSON)
+          } When {
+            queryParam("company", "biot")
+            queryParam("accessControlString", "biot:grp1")
+            get("/items/$existingItemGrp1Grp3Id")
+          } Then {
+            statusCode(200)
+          } Extract {
+            asString()
+          }
+        ).toJsonObject()
+
+        testContext.verify {
+          val id = response.remove("id")
+          val timestamp: String = response.remove("timestamp") as String
+          expectThat(response).isEqualTo(expected)
+          expectThat(id).isEqualTo(existingItemGrp1Grp3Id)
+          expectThat(timestamp).isNotEmpty()
+          testContext.completeNow()
+        }
+      } catch (error: Throwable) {
+        testContext.failNow("Cannot insert objects prior to the test")
+      }
+    }
+  }
+
+  @Test
+  @DisplayName("getItem returns not found if the accessString has not the right to access")
+  fun getItemIsCorrectWithInsufficientAC(vertx: Vertx, testContext: VertxTestContext) {
+    runBlocking(vertx.dispatcher()) {
+      try {
+        insertItemsAccessControl().await()
+
+        val response =
+          Given {
+            spec(requestSpecification)
+            accept(ContentType.JSON)
+          } When {
+            queryParam("company", "biot")
+            queryParam("accessControlString", "biot:grp1:grp4")
+            get("/items/$existingItemGrp1Grp3Id")
+          } Then {
+            statusCode(404)
+          } Extract {
+            asString()
+          }
+
+        testContext.verify {
+          expectThat(response).isEmpty()
+          testContext.completeNow()
+        }
+      } catch (error: Throwable) {
+        testContext.failNow("Cannot insert objects prior to the test")
+      }
+    }
+  }
+
+  @Test
+  @DisplayName("deleteItem does not delete the item if the accessString does not allow access")
+  fun deleteItemIsCorrectWithInsufficientAccessString(testContext: VertxTestContext) {
+    val newItem = jsonObjectOf(
+      "beacon" to "ab:cd:ef:aa:aa:aa",
+      "category" to "Lit",
+      "accessControlString" to "biot:grp1",
+      "service" to "Bloc 42"
+    )
+
+    // Register the item
+    val id = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      body(newItem.encode())
+    } When {
+      queryParam("company", "biot")
+      post("/items")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    // Delete the item
+    val response = Given {
+      spec(requestSpecification)
+    } When {
+      queryParam("company", "biot")
+      queryParam("accessControlString", "biot:grp1:grp2")
+      delete("/items/$id")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEmpty()
+    }
+
+    val response2 = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        accept(ContentType.JSON)
+      } When {
+        queryParam("company", "biot")
+        get("/items/$id")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonObject()
+
+    testContext.verify {
+      val idBis = response2.remove("id")
+      expectThat(idBis).isEqualTo(id.toInt())
+      val beacon: String = response2.remove("beacon") as String
+      expectThat(beacon).isEqualTo(newItem.getString("beacon"))
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("deleteItem does delete the item if the accessString does allow access")
+  fun deleteItemIsCorrectWithSufficientAccessString(testContext: VertxTestContext) {
+    val newItem = jsonObjectOf(
+      "beacon" to "ab:cd:ef:aa:aa:aa",
+      "category" to "Lit",
+      "accessControlString" to "biot:grp1",
+      "service" to "Bloc 42"
+    )
+
+    // Register the item
+    val id = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      body(newItem.encode())
+    } When {
+      queryParam("company", "biot")
+      post("/items")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    // Delete the item
+    val response = Given {
+      spec(requestSpecification)
+    } When {
+      queryParam("company", "biot")
+      queryParam("accessControlString", "biot:grp1")
+      delete("/items/$id")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEmpty()
+    }
+
+    val response2 = Given {
+      spec(requestSpecification)
+      accept(ContentType.JSON)
+    } When {
+      queryParam("company", "biot")
+      get("/items/$id")
+    } Then {
+      statusCode(404)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response2).isEmpty()
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("getCategories correctly retrieves only categories of accessible items when a accessControlString is passed 1")
+  fun getCategoriesIsCorrectWithAC1(testContext: VertxTestContext) {
+    val categoryTest1 = "Lit-AccessControlTests"
+    val categoryTest2 = "ECG-AccessControlTests"
+    val expected = JsonArray(listOf(categoryTest1, categoryTest2))
+
+    val acString = "biot:grp1:grp2:grpTests"
+    val newItem1 = jsonObjectOf(
+      "beacon" to "ab:cd:ef:aa:aa:aa",
+      "category" to categoryTest1,
+      "accessControlString" to acString,
+      "service" to "Bloc 42"
+    )
+
+    // Register the item
+    Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      body(newItem1.encode())
+    } When {
+      queryParam("company", "biot")
+      post("/items")
+    } Then {
+      statusCode(200)
+    }
+
+    val newItem2 = jsonObjectOf(
+      "beacon" to "ab:cd:ef:ag:ff:ff",
+      "category" to categoryTest2,
+      "accessControlString" to acString,
+      "service" to "Bloc 42"
+    )
+
+    // Register the item
+    val id2 = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      body(newItem2.encode())
+    } When {
+      queryParam("company", "biot")
+      post("/items")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(id2).isNotEmpty()
+    }
+
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        accept(ContentType.JSON)
+      } When {
+        queryParam("company", "biot")
+        queryParam("accessControlString", acString)
+        get("/items/categories")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonArray()
+
+    testContext.verify {
+      expectThat(response.toHashSet()).isEqualTo(expected.toHashSet())
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("updateItem correctly updates the desired item if the accessControlString authorizes the access 1")
+  fun updateItemIsCorrectWithSufficientACString1(vertx: Vertx, testContext: VertxTestContext) {
+    runBlocking(vertx.dispatcher()) {
+      insertItemsAccessControl().await()
+
+      if (existingItemGrp1Grp3Id == -1) {
+        testContext.failNow("existingItemGrp1Grp3Id == -1")
+      }
+      val response = Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        accept(ContentType.JSON)
+        body(updateItemJson.encode())
+      } When {
+        queryParam("company", "biot")
+        queryParam("accessControlString", "biot:grp1:grp3")
+        put("/items/$existingItemGrp1Grp3Id")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+
+      testContext.verify {
+        expectThat(response).isEmpty()
+      }
+
+      try {
+        val res =
+          pgClient.preparedQuery(getItem("items", "beacon_data", "biot")).execute(Tuple.of(existingItemGrp1Grp3Id))
+            .await()
+        val json = res.iterator().next().toItemJson()
+        expect {
+          that(json.getString("beacon")).isEqualTo(updateItemJson.getString("beacon"))
+          that(json.getString("accessControlString")).isEqualTo(updateItemJson.getString("accessControlString"))
+          that(json.getString("category")).isEqualTo(updateItemJson.getString("category"))
+          that(json.getString("service")).isEqualTo(updateItemJson.getString("service"))
+          that(json.getString("itemID")).isEqualTo(updateItemJson.getString("itemID"))
+          that(json.getString("brand")).isEqualTo(updateItemJson.getString("brand"))
+          that(json.getString("model")).isEqualTo(updateItemJson.getString("model"))
+          that(json.getString("supplier")).isEqualTo(updateItemJson.getString("supplier"))
+          that(json.getString("purchaseDate")).isEqualTo(updateItemJson.getString("purchaseDate"))
+          that(json.getDouble("purchasePrice")).isEqualTo(updateItemJson.getDouble("purchasePrice"))
+          that(json.getString("originLocation")).isEqualTo(updateItemJson.getString("originLocation"))
+          that(json.getString("currentLocation")).isEqualTo(updateItemJson.getString("currentLocation"))
+          that(json.getString("room")).isEqualTo(updateItemJson.getString("room"))
+          that(json.getString("contact")).isEqualTo(updateItemJson.getString("contact"))
+          that(json.getString("currentOwner")).isEqualTo(updateItemJson.getString("currentOwner"))
+          that(json.getString("previousOwner")).isEqualTo(updateItemJson.getString("previousOwner"))
+          that(json.getString("orderNumber")).isEqualTo(updateItemJson.getString("orderNumber"))
+          that(json.getString("color")).isEqualTo(updateItemJson.getString("color"))
+          that(json.getString("serialNumber")).isEqualTo(updateItemJson.getString("serialNumber"))
+          that(json.getString("maintenanceDate")).isEqualTo(updateItemJson.getString("maintenanceDate"))
+          that(json.getString("status")).isEqualTo(updateItemJson.getString("status"))
+          that(json.getString("comments")).isEqualTo(updateItemJson.getString("comments"))
+          that(json.getString("lastModifiedDate")).isEqualTo(updateItemJson.getString("lastModifiedDate"))
+          that(json.getString("lastModifiedBy")).isEqualTo(updateItemJson.getString("lastModifiedBy"))
+          that(json.getInteger("battery")).isEqualTo(existingBeaconData.getInteger("battery"))
+          that(json.getString("beaconStatus")).isEqualTo(existingBeaconData.getString("beaconStatus"))
+          that(json.getDouble("latitude")).isEqualTo(existingBeaconData.getDouble("latitude"))
+          that(json.getDouble("longitude")).isEqualTo(existingBeaconData.getDouble("longitude"))
+          that(json.getInteger("floor")).isEqualTo(existingBeaconData.getInteger("floor"))
+          that(json.getDouble("temperature")).isEqualTo(existingBeaconData.getDouble("temperature"))
+        }
+
+        testContext.completeNow()
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+  }
+
+
+  @Test
+  @DisplayName("updateItem correctly updates the desired item if the accessControlString authorizes the access 2")
+  fun updateItemIsCorrectWithSufficientACString2(vertx: Vertx, testContext: VertxTestContext) {
+    runBlocking(vertx.dispatcher()) {
+      insertItemsAccessControl().await()
+      val response = Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        accept(ContentType.JSON)
+        body(updateItemJson.encode())
+      } When {
+        queryParam("company", "biot")
+        queryParam("accessControlString", "biot:grp1")
+        put("/items/$existingItemGrp1Grp3Id")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+
+      testContext.verify {
+        expectThat(response).isEmpty()
+      }
+
+      try {
+        val res =
+          pgClient.preparedQuery(getItem("items", "beacon_data", "biot")).execute(Tuple.of(existingItemGrp1Grp3Id))
+            .await()
+        val json = res.iterator().next().toItemJson()
+        expect {
+          that(json.getString("beacon")).isEqualTo(updateItemJson.getString("beacon"))
+          that(json.getString("accessControlString")).isEqualTo(updateItemJson.getString("accessControlString"))
+          that(json.getString("category")).isEqualTo(updateItemJson.getString("category"))
+          that(json.getString("service")).isEqualTo(updateItemJson.getString("service"))
+          that(json.getString("itemID")).isEqualTo(updateItemJson.getString("itemID"))
+          that(json.getString("brand")).isEqualTo(updateItemJson.getString("brand"))
+          that(json.getString("model")).isEqualTo(updateItemJson.getString("model"))
+          that(json.getString("supplier")).isEqualTo(updateItemJson.getString("supplier"))
+          that(json.getString("purchaseDate")).isEqualTo(updateItemJson.getString("purchaseDate"))
+          that(json.getDouble("purchasePrice")).isEqualTo(updateItemJson.getDouble("purchasePrice"))
+          that(json.getString("originLocation")).isEqualTo(updateItemJson.getString("originLocation"))
+          that(json.getString("currentLocation")).isEqualTo(updateItemJson.getString("currentLocation"))
+          that(json.getString("room")).isEqualTo(updateItemJson.getString("room"))
+          that(json.getString("contact")).isEqualTo(updateItemJson.getString("contact"))
+          that(json.getString("currentOwner")).isEqualTo(updateItemJson.getString("currentOwner"))
+          that(json.getString("previousOwner")).isEqualTo(updateItemJson.getString("previousOwner"))
+          that(json.getString("orderNumber")).isEqualTo(updateItemJson.getString("orderNumber"))
+          that(json.getString("color")).isEqualTo(updateItemJson.getString("color"))
+          that(json.getString("serialNumber")).isEqualTo(updateItemJson.getString("serialNumber"))
+          that(json.getString("maintenanceDate")).isEqualTo(updateItemJson.getString("maintenanceDate"))
+          that(json.getString("status")).isEqualTo(updateItemJson.getString("status"))
+          that(json.getString("comments")).isEqualTo(updateItemJson.getString("comments"))
+          that(json.getString("lastModifiedDate")).isEqualTo(updateItemJson.getString("lastModifiedDate"))
+          that(json.getString("lastModifiedBy")).isEqualTo(updateItemJson.getString("lastModifiedBy"))
+          that(json.getInteger("battery")).isEqualTo(existingBeaconData.getInteger("battery"))
+          that(json.getString("beaconStatus")).isEqualTo(existingBeaconData.getString("beaconStatus"))
+          that(json.getDouble("latitude")).isEqualTo(existingBeaconData.getDouble("latitude"))
+          that(json.getDouble("longitude")).isEqualTo(existingBeaconData.getDouble("longitude"))
+          that(json.getInteger("floor")).isEqualTo(existingBeaconData.getInteger("floor"))
+          that(json.getDouble("temperature")).isEqualTo(existingBeaconData.getDouble("temperature"))
+        }
+
+        testContext.completeNow()
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+  }
+
+
+  @Test
+  @DisplayName("updateItem does not update the desired item if the accessControlString does not authorize the access and sends a code 403 1")
+  fun updateItemIsCorrectWithInsufficientACString1(vertx: Vertx, testContext: VertxTestContext) {
+    runBlocking(vertx.dispatcher()) {
+      insertItemsAccessControl().await()
+      val response = Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        accept(ContentType.JSON)
+        body(updateItemJson.encode())
+      } When {
+        queryParam("company", "biot")
+        queryParam("accessControlString", "biot:grp1:grp3:grp4")
+        put("/items/$existingItemGrp1Grp3Id")
+      } Then {
+        statusCode(403)
+      } Extract {
+        asString()
+      }
+
+      testContext.verify {
+        expectThat(response).isNotNull()
+      }
+
+      try {
+        val res =
+          pgClient.preparedQuery(getItem("items", "beacon_data", "biot")).execute(Tuple.of(existingItemGrp1Grp3Id))
+            .await()
+        val json = res.iterator().next().toItemJson()
+        expect {
+          that(json.getString("beacon")).isEqualTo(existingItemGrp1Grp3.getString("beacon"))
+          that(json.getString("accessControlString")).isEqualTo(existingItemGrp1Grp3.getString("accessControlString"))
+          that(json.getString("category")).isEqualTo(existingItemGrp1Grp3.getString("category"))
+          that(json.getString("service")).isEqualTo(existingItemGrp1Grp3.getString("service"))
+          that(json.getString("itemID")).isEqualTo(existingItemGrp1Grp3.getString("itemID"))
+          that(json.getString("brand")).isEqualTo(existingItemGrp1Grp3.getString("brand"))
+          that(json.getString("model")).isEqualTo(existingItemGrp1Grp3.getString("model"))
+          that(json.getString("supplier")).isEqualTo(existingItemGrp1Grp3.getString("supplier"))
+          that(json.getString("purchaseDate")).isEqualTo(existingItemGrp1Grp3.getString("purchaseDate"))
+          that(json.getDouble("purchasePrice")).isEqualTo(existingItemGrp1Grp3.getDouble("purchasePrice"))
+          that(json.getString("originLocation")).isEqualTo(existingItemGrp1Grp3.getString("originLocation"))
+          that(json.getString("currentLocation")).isEqualTo(existingItemGrp1Grp3.getString("currentLocation"))
+          that(json.getString("room")).isEqualTo(existingItemGrp1Grp3.getString("room"))
+          that(json.getString("contact")).isEqualTo(existingItemGrp1Grp3.getString("contact"))
+          that(json.getString("currentOwner")).isEqualTo(existingItemGrp1Grp3.getString("currentOwner"))
+          that(json.getString("previousOwner")).isEqualTo(existingItemGrp1Grp3.getString("previousOwner"))
+          that(json.getString("orderNumber")).isEqualTo(existingItemGrp1Grp3.getString("orderNumber"))
+          that(json.getString("color")).isEqualTo(existingItemGrp1Grp3.getString("color"))
+          that(json.getString("serialNumber")).isEqualTo(existingItemGrp1Grp3.getString("serialNumber"))
+          that(json.getString("maintenanceDate")).isEqualTo(existingItemGrp1Grp3.getString("maintenanceDate"))
+          that(json.getString("status")).isEqualTo(existingItemGrp1Grp3.getString("status"))
+          that(json.getString("comments")).isEqualTo(existingItemGrp1Grp3.getString("comments"))
+          that(json.getString("lastModifiedDate")).isEqualTo(existingItemGrp1Grp3.getString("lastModifiedDate"))
+          that(json.getString("lastModifiedBy")).isEqualTo(existingItemGrp1Grp3.getString("lastModifiedBy"))
+          that(json.getInteger("battery")).isEqualTo(existingBeaconData.getInteger("battery"))
+          that(json.getString("beaconStatus")).isEqualTo(existingBeaconData.getString("beaconStatus"))
+          that(json.getDouble("latitude")).isEqualTo(47.0)
+          that(json.getDouble("longitude")).isEqualTo(-8.0)
+          that(json.getInteger("floor")).isEqualTo(2)
+          that(json.getDouble("temperature")).isEqualTo(3.3)
+        }
+
+        testContext.completeNow()
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+  }
+
+
+  @Test
+  @DisplayName("updateItem does not update the desired item if the accessControlString does not authorize the access and sends a code 403 2")
+  fun updateItemIsCorrectWithInsufficientACString2(vertx: Vertx, testContext: VertxTestContext) {
+    runBlocking(vertx.dispatcher()) {
+      insertItemsAccessControl().await()
+      val response = Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        accept(ContentType.JSON)
+        body(updateItemJson.encode())
+      } When {
+        queryParam("company", "biot")
+        queryParam("accessControlString", "biot:grp2")
+        put("/items/$existingItemGrp1Grp3Id")
+      } Then {
+        statusCode(403)
+      } Extract {
+        asString()
+      }
+
+      testContext.verify {
+        expectThat(response).isNotNull()
+      }
+
+      try {
+        val res =
+          pgClient.preparedQuery(getItem("items", "beacon_data", "biot")).execute(Tuple.of(existingItemGrp1Grp3Id))
+            .await()
+        val json = res.iterator().next().toItemJson()
+        expect {
+          that(json.getString("beacon")).isEqualTo(existingItemGrp1Grp3.getString("beacon"))
+          that(json.getString("accessControlString")).isEqualTo(existingItemGrp1Grp3.getString("accessControlString"))
+          that(json.getString("category")).isEqualTo(existingItemGrp1Grp3.getString("category"))
+          that(json.getString("service")).isEqualTo(existingItemGrp1Grp3.getString("service"))
+          that(json.getString("itemID")).isEqualTo(existingItemGrp1Grp3.getString("itemID"))
+          that(json.getString("brand")).isEqualTo(existingItemGrp1Grp3.getString("brand"))
+          that(json.getString("model")).isEqualTo(existingItemGrp1Grp3.getString("model"))
+          that(json.getString("supplier")).isEqualTo(existingItemGrp1Grp3.getString("supplier"))
+          that(json.getString("purchaseDate")).isEqualTo(existingItemGrp1Grp3.getString("purchaseDate"))
+          that(json.getDouble("purchasePrice")).isEqualTo(existingItemGrp1Grp3.getDouble("purchasePrice"))
+          that(json.getString("originLocation")).isEqualTo(existingItemGrp1Grp3.getString("originLocation"))
+          that(json.getString("currentLocation")).isEqualTo(existingItemGrp1Grp3.getString("currentLocation"))
+          that(json.getString("room")).isEqualTo(existingItemGrp1Grp3.getString("room"))
+          that(json.getString("contact")).isEqualTo(existingItemGrp1Grp3.getString("contact"))
+          that(json.getString("currentOwner")).isEqualTo(existingItemGrp1Grp3.getString("currentOwner"))
+          that(json.getString("previousOwner")).isEqualTo(existingItemGrp1Grp3.getString("previousOwner"))
+          that(json.getString("orderNumber")).isEqualTo(existingItemGrp1Grp3.getString("orderNumber"))
+          that(json.getString("color")).isEqualTo(existingItemGrp1Grp3.getString("color"))
+          that(json.getString("serialNumber")).isEqualTo(existingItemGrp1Grp3.getString("serialNumber"))
+          that(json.getString("maintenanceDate")).isEqualTo(existingItemGrp1Grp3.getString("maintenanceDate"))
+          that(json.getString("status")).isEqualTo(existingItemGrp1Grp3.getString("status"))
+          that(json.getString("comments")).isEqualTo(existingItemGrp1Grp3.getString("comments"))
+          that(json.getString("lastModifiedDate")).isEqualTo(existingItemGrp1Grp3.getString("lastModifiedDate"))
+          that(json.getString("lastModifiedBy")).isEqualTo(existingItemGrp1Grp3.getString("lastModifiedBy"))
+          that(json.getInteger("battery")).isEqualTo(existingBeaconData.getInteger("battery"))
+          that(json.getString("beaconStatus")).isEqualTo(existingBeaconData.getString("beaconStatus"))
+          that(json.getDouble("latitude")).isEqualTo(47.0)
+          that(json.getDouble("longitude")).isEqualTo(-8.0)
+          that(json.getInteger("floor")).isEqualTo(2)
+          that(json.getDouble("temperature")).isEqualTo(3.3)
+        }
+
+        testContext.completeNow()
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+  }
+
+  @Test
+  @DisplayName("updateItem does not fail with the desired item does not exist in the DB")
+  fun updateItemDoesNotFailWhenItemDoesNotExist(vertx: Vertx, testContext: VertxTestContext) {
+    var idOfNonExistingItem = 1543
+    for (i in 1..1000) {
+      if (i != existingItemID && i != existingItemGrp1Grp3Id) {
+        idOfNonExistingItem = i
+      }
+    }
+    runBlocking(vertx.dispatcher()) {
+      insertItemsAccessControl().await()
+      val response = Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        accept(ContentType.JSON)
+        body(updateItemJson.encode())
+      } When {
+        queryParam("company", "biot")
+        queryParam("accessControlString", "biot:grp2")
+        put("/items/$idOfNonExistingItem")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+
+      testContext.verify {
+        expectThat(response).isEmpty()
+        testContext.completeNow()
+      }
+    }
+  }
+
+  @Test
+  @DisplayName(
+    "updateItem returns bad request error 400 if the passed accessControlString to update is wrongly formatted" +
+      "and does not modify the item 1"
+  )
+  fun updateItemThrowsErrorIfUpdatedACStringIsWrong1(vertx: Vertx, testContext: VertxTestContext) {
+    runBlocking(vertx.dispatcher()) {
+      insertItemsAccessControl().await()
+
+      val newUpdateItem = updateItemJson.copy().apply {
+        remove("accessControlString")
+        put("accessControlString", "bio")
+      }
+      val response = Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        accept(ContentType.JSON)
+        body(newUpdateItem.encode())
+      } When {
+        queryParam("company", "biot")
+        queryParam("accessControlString", "biot:grp1:grp3")
+        put("/items/$existingItemGrp1Grp3Id")
+      } Then {
+        statusCode(400)
+      } Extract {
+        asString()
+      }
+
+      testContext.verify {
+        expectThat(response).isEqualTo("Bad Request")
+      }
+
+      try {
+        val res =
+          pgClient.preparedQuery(getItem("items", "beacon_data", "biot")).execute(Tuple.of(existingItemGrp1Grp3Id))
+            .await()
+        val json = res.iterator().next().toItemJson()
+        expect {
+          that(json.getString("beacon")).isEqualTo(existingItemGrp1Grp3.getString("beacon"))
+          that(json.getString("accessControlString")).isEqualTo(existingItemGrp1Grp3.getString("accessControlString"))
+          that(json.getString("category")).isEqualTo(existingItemGrp1Grp3.getString("category"))
+          that(json.getString("service")).isEqualTo(existingItemGrp1Grp3.getString("service"))
+          that(json.getString("itemID")).isEqualTo(existingItemGrp1Grp3.getString("itemID"))
+          that(json.getString("brand")).isEqualTo(existingItemGrp1Grp3.getString("brand"))
+          that(json.getString("model")).isEqualTo(existingItemGrp1Grp3.getString("model"))
+          that(json.getString("supplier")).isEqualTo(existingItemGrp1Grp3.getString("supplier"))
+          that(json.getString("purchaseDate")).isEqualTo(existingItemGrp1Grp3.getString("purchaseDate"))
+          that(json.getDouble("purchasePrice")).isEqualTo(existingItemGrp1Grp3.getDouble("purchasePrice"))
+          that(json.getString("originLocation")).isEqualTo(existingItemGrp1Grp3.getString("originLocation"))
+          that(json.getString("currentLocation")).isEqualTo(existingItemGrp1Grp3.getString("currentLocation"))
+          that(json.getString("room")).isEqualTo(existingItemGrp1Grp3.getString("room"))
+          that(json.getString("contact")).isEqualTo(existingItemGrp1Grp3.getString("contact"))
+          that(json.getString("currentOwner")).isEqualTo(existingItemGrp1Grp3.getString("currentOwner"))
+          that(json.getString("previousOwner")).isEqualTo(existingItemGrp1Grp3.getString("previousOwner"))
+          that(json.getString("orderNumber")).isEqualTo(existingItemGrp1Grp3.getString("orderNumber"))
+          that(json.getString("color")).isEqualTo(existingItemGrp1Grp3.getString("color"))
+          that(json.getString("serialNumber")).isEqualTo(existingItemGrp1Grp3.getString("serialNumber"))
+          that(json.getString("maintenanceDate")).isEqualTo(existingItemGrp1Grp3.getString("maintenanceDate"))
+          that(json.getString("status")).isEqualTo(existingItemGrp1Grp3.getString("status"))
+          that(json.getString("comments")).isEqualTo(existingItemGrp1Grp3.getString("comments"))
+          that(json.getString("lastModifiedDate")).isEqualTo(existingItemGrp1Grp3.getString("lastModifiedDate"))
+          that(json.getString("lastModifiedBy")).isEqualTo(existingItemGrp1Grp3.getString("lastModifiedBy"))
+          that(json.getInteger("battery")).isEqualTo(existingBeaconData.getInteger("battery"))
+          that(json.getString("beaconStatus")).isEqualTo(existingBeaconData.getString("beaconStatus"))
+          that(json.getDouble("latitude")).isEqualTo(47.0)
+          that(json.getDouble("longitude")).isEqualTo(-8.0)
+          that(json.getInteger("floor")).isEqualTo(2)
+          that(json.getDouble("temperature")).isEqualTo(3.3)
+        }
+
+        testContext.completeNow()
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+  }
+
+  @Test
+  @DisplayName(
+    "updateItem returns bad request error 400 if the passed accessControlString to update is wrongly formatted" +
+      "and does not modify the item 2"
+  )
+  fun updateItemThrowsErrorIfUpdatedACStringIsWrong2(vertx: Vertx, testContext: VertxTestContext) {
+    runBlocking(vertx.dispatcher()) {
+      insertItemsAccessControl().await()
+
+      val newUpdateItem = updateItemJson.copy().apply {
+        remove("accessControlString")
+        put("accessControlString", "biot:grp1:")
+      }
+      val response = Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        accept(ContentType.JSON)
+        body(newUpdateItem.encode())
+      } When {
+        queryParam("company", "biot")
+        queryParam("accessControlString", "biot:grp1:grp3")
+        put("/items/$existingItemGrp1Grp3Id")
+      } Then {
+        statusCode(400)
+      } Extract {
+        asString()
+      }
+
+      testContext.verify {
+        expectThat(response).isEqualTo("Bad Request")
+      }
+
+      try {
+        val res =
+          pgClient.preparedQuery(getItem("items", "beacon_data", "biot")).execute(Tuple.of(existingItemGrp1Grp3Id))
+            .await()
+        val json = res.iterator().next().toItemJson()
+        expect {
+          that(json.getString("beacon")).isEqualTo(existingItemGrp1Grp3.getString("beacon"))
+          that(json.getString("accessControlString")).isEqualTo(existingItemGrp1Grp3.getString("accessControlString"))
+          that(json.getString("category")).isEqualTo(existingItemGrp1Grp3.getString("category"))
+          that(json.getString("service")).isEqualTo(existingItemGrp1Grp3.getString("service"))
+          that(json.getString("itemID")).isEqualTo(existingItemGrp1Grp3.getString("itemID"))
+          that(json.getString("brand")).isEqualTo(existingItemGrp1Grp3.getString("brand"))
+          that(json.getString("model")).isEqualTo(existingItemGrp1Grp3.getString("model"))
+          that(json.getString("supplier")).isEqualTo(existingItemGrp1Grp3.getString("supplier"))
+          that(json.getString("purchaseDate")).isEqualTo(existingItemGrp1Grp3.getString("purchaseDate"))
+          that(json.getDouble("purchasePrice")).isEqualTo(existingItemGrp1Grp3.getDouble("purchasePrice"))
+          that(json.getString("originLocation")).isEqualTo(existingItemGrp1Grp3.getString("originLocation"))
+          that(json.getString("currentLocation")).isEqualTo(existingItemGrp1Grp3.getString("currentLocation"))
+          that(json.getString("room")).isEqualTo(existingItemGrp1Grp3.getString("room"))
+          that(json.getString("contact")).isEqualTo(existingItemGrp1Grp3.getString("contact"))
+          that(json.getString("currentOwner")).isEqualTo(existingItemGrp1Grp3.getString("currentOwner"))
+          that(json.getString("previousOwner")).isEqualTo(existingItemGrp1Grp3.getString("previousOwner"))
+          that(json.getString("orderNumber")).isEqualTo(existingItemGrp1Grp3.getString("orderNumber"))
+          that(json.getString("color")).isEqualTo(existingItemGrp1Grp3.getString("color"))
+          that(json.getString("serialNumber")).isEqualTo(existingItemGrp1Grp3.getString("serialNumber"))
+          that(json.getString("maintenanceDate")).isEqualTo(existingItemGrp1Grp3.getString("maintenanceDate"))
+          that(json.getString("status")).isEqualTo(existingItemGrp1Grp3.getString("status"))
+          that(json.getString("comments")).isEqualTo(existingItemGrp1Grp3.getString("comments"))
+          that(json.getString("lastModifiedDate")).isEqualTo(existingItemGrp1Grp3.getString("lastModifiedDate"))
+          that(json.getString("lastModifiedBy")).isEqualTo(existingItemGrp1Grp3.getString("lastModifiedBy"))
+          that(json.getInteger("battery")).isEqualTo(existingBeaconData.getInteger("battery"))
+          that(json.getString("beaconStatus")).isEqualTo(existingBeaconData.getString("beaconStatus"))
+          that(json.getDouble("latitude")).isEqualTo(47.0)
+          that(json.getDouble("longitude")).isEqualTo(-8.0)
+          that(json.getInteger("floor")).isEqualTo(2)
+          that(json.getDouble("temperature")).isEqualTo(3.3)
+        }
+
+        testContext.completeNow()
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+  }
+
 
   companion object {
 

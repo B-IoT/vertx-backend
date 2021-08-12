@@ -11,7 +11,6 @@ import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.RELAYS_UPDATE_ADDRESS
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.UPDATE_PARAMETERS_TOPIC
 import io.netty.handler.codec.mqtt.MqttQoS
-import io.vertx.core.Future
 import io.vertx.core.Vertx
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.auth.mongo.MongoAuthentication
@@ -53,7 +52,9 @@ class TestRelaysCommunicationVerticle {
 
   private lateinit var mongoClient: MongoClient
   private lateinit var mongoUserUtil: MongoUserUtil
+  private lateinit var mongoUserUtilAnotherCompany: MongoUserUtil
   private lateinit var mongoAuth: MongoAuthentication
+  private lateinit var mongoAuthAnotherCompany: MongoAuthentication
   private lateinit var mqttClient: MqttClient
 
   private val mqttPassword = "password"
@@ -69,6 +70,23 @@ class TestRelaysCommunicationVerticle {
       "password" to "pass"
     )
   )
+
+  private val configurationAnotherCompany = jsonObjectOf(
+    "mqttID" to "mqtt2",
+    "mqttUsername" to "test2",
+    "relayID" to "relay2",
+    "ledStatus" to false,
+    "latitude" to 2,
+    "longitude" to 3,
+    "wifi" to jsonObjectOf(
+      "ssid" to "ssid2",
+      "password" to "pass2"
+    )
+  )
+
+  private val anotherCompanyName = "anotherCompany"
+  private val anotherCompanyCollection = RELAYS_COLLECTION + "_$anotherCompanyName"
+
 
   @BeforeEach
   fun setup(vertx: Vertx, testContext: VertxTestContext) = runBlocking(vertx.dispatcher()) {
@@ -112,6 +130,21 @@ class TestRelaysCommunicationVerticle {
     )
     mongoAuth = MongoAuthentication.create(mongoClient, mongoAuthOptions)
 
+    val usernameFieldAnotherCompany = "mqttUsername"
+    val passwordFieldAnotherCompany = "mqttPassword"
+    val mongoAuthOptionsAnotherCompany = mongoAuthenticationOptionsOf(
+      collectionName = anotherCompanyCollection,
+      passwordCredentialField = passwordFieldAnotherCompany,
+      passwordField = passwordFieldAnotherCompany,
+      usernameCredentialField = usernameFieldAnotherCompany,
+      usernameField = usernameFieldAnotherCompany
+    )
+
+    mongoUserUtilAnotherCompany = MongoUserUtil.create(
+      mongoClient, mongoAuthOptionsAnotherCompany, mongoAuthorizationOptionsOf()
+    )
+    mongoAuthAnotherCompany = MongoAuthentication.create(mongoClient, mongoAuthOptionsAnotherCompany)
+
     try {
       mongoClient
         .createIndexWithOptions(RELAYS_COLLECTION, jsonObjectOf("relayID" to 1), indexOptionsOf().unique(true)).await()
@@ -127,8 +160,23 @@ class TestRelaysCommunicationVerticle {
         indexOptionsOf().unique(true)
       ).await()
 
-      dropAllRelays().await()
-      insertRelay().await()
+      mongoClient
+        .createIndexWithOptions(anotherCompanyCollection, jsonObjectOf("relayID" to 1), indexOptionsOf().unique(true))
+        .await()
+
+      mongoClient.createIndexWithOptions(
+        anotherCompanyCollection,
+        jsonObjectOf("mqttID" to 1),
+        indexOptionsOf().unique(true)
+      ).await()
+
+      mongoClient.createIndexWithOptions(
+        anotherCompanyCollection, jsonObjectOf("mqttUsername" to 1),
+        indexOptionsOf().unique(true)
+      ).await()
+
+      dropAllRelays()
+      insertRelays()
       vertx.deployVerticle(RelaysCommunicationVerticle()).await()
       testContext.completeNow()
     } catch (error: Throwable) {
@@ -136,9 +184,12 @@ class TestRelaysCommunicationVerticle {
     }
   }
 
-  private fun dropAllRelays() = mongoClient.removeDocuments(RELAYS_COLLECTION, jsonObjectOf())
+  private suspend fun dropAllRelays() {
+    mongoClient.removeDocuments(RELAYS_COLLECTION, jsonObjectOf()).await()
+    mongoClient.removeDocuments(anotherCompanyCollection, jsonObjectOf()).await()
+  }
 
-  private suspend fun insertRelay(): Future<JsonObject> {
+  private suspend fun insertRelays(): JsonObject {
     val salt = ByteArray(16)
     SecureRandom().nextBytes(salt)
     val hashedPassword = mongoAuth.hash("pbkdf2", String(Base64.getEncoder().encode(salt)), mqttPassword)
@@ -147,13 +198,25 @@ class TestRelaysCommunicationVerticle {
     val extraInfo = jsonObjectOf(
       "\$set" to configuration
     )
-    return mongoClient.findOneAndUpdate(RELAYS_COLLECTION, query, extraInfo)
+    mongoClient.findOneAndUpdate(RELAYS_COLLECTION, query, extraInfo).await()
+
+    val salt2 = ByteArray(16)
+    SecureRandom().nextBytes(salt2)
+    val hashedPassword2 =
+      mongoAuthAnotherCompany.hash("pbkdf2", String(Base64.getEncoder().encode(salt2)), mqttPassword)
+    val docID2 = mongoUserUtilAnotherCompany.createHashedUser("test2", hashedPassword2).await()
+    val query2 = jsonObjectOf("_id" to docID2)
+    val extraInfo2 = jsonObjectOf(
+      "\$set" to configurationAnotherCompany
+    )
+    return mongoClient.findOneAndUpdate(anotherCompanyCollection, query2, extraInfo2).await()
+
   }
 
   @AfterEach
   fun cleanup(vertx: Vertx, testContext: VertxTestContext) = runBlocking(vertx.dispatcher()) {
     try {
-      dropAllRelays().await()
+      dropAllRelays()
       mongoClient.close().await()
       testContext.completeNow()
     } catch (error: Throwable) {
@@ -608,6 +671,42 @@ class TestRelaysCommunicationVerticle {
             testContext.failNow("The message was ingested")
           }
         }
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+
+
+  @Test
+  @DisplayName("A MQTT client for another company than biot gets the right last config at subscription")
+  fun clientFromAnotherCompanyGetsRightConfig(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      val client = MqttClient.create(
+        vertx,
+        mqttClientOptionsOf(
+          clientId = configurationAnotherCompany["mqttID"],
+          username = configurationAnotherCompany["mqttUsername"],
+          password = mqttPassword,
+          willFlag = true,
+          willMessage = jsonObjectOf("company" to anotherCompanyName).encode()
+        )
+      )
+
+      try {
+        client.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+        client.publishHandler { msg ->
+          if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
+            testContext.verify {
+              val expected = configurationAnotherCompany.copy().apply {
+                remove("mqttID")
+                remove("mqttUsername")
+                remove("ledStatus")
+              }
+              expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
+              testContext.completeNow()
+            }
+          }
+        }.subscribe(UPDATE_PARAMETERS_TOPIC, MqttQoS.AT_LEAST_ONCE.value()).await()
       } catch (error: Throwable) {
         testContext.failNow(error)
       }

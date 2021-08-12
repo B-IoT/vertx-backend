@@ -199,7 +199,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
           clients[clientIdentifier] = client
 
           // Send last configuration to client
-          launch(vertx.dispatcher()) { sendLastConfiguration(client) }
+          launch(vertx.dispatcher()) { sendLastConfiguration(client, collection) }
         }.unsubscribeHandler { unsubscribe ->
           unsubscribe.topics().forEach { topic ->
             LOGGER.info { "Unsubscription for $topic by client $clientIdentifier" }
@@ -310,11 +310,12 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
   /**
    * Sends the last relay configuration to the given client.
    */
-  private suspend fun sendLastConfiguration(client: MqttEndpoint) {
+  private suspend fun sendLastConfiguration(client: MqttEndpoint, relaysCollection: String) {
     val query = jsonObjectOf("mqttID" to client.clientIdentifier())
     try {
       // Find the last configuration in MongoDB
-      val config = mongoClient.findOne(RELAYS_COLLECTION, query, jsonObjectOf()).await()
+
+      val config = mongoClient.findOne(relaysCollection, query, jsonObjectOf()).await()
       if (config != null && !config.isEmpty) {
         // The configuration exists
         // Remove useless fields and clean lastModified, then send
