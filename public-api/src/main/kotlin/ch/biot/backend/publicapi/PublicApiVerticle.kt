@@ -440,7 +440,7 @@ class PublicApiVerticle : CoroutineVerticle() {
   }
 
   /**
-   * Handles a create snapshot request.
+   * Handles a createSnapshot request.
    */
   private suspend fun createSnapshotHandler(ctx: RoutingContext) {
     LOGGER.info { "New createSnapshot request" }

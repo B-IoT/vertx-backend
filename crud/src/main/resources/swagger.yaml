@@ -794,6 +794,8 @@ components:
           format: date
         lastModifiedBy:
           type: string
+        status:
+          type: string
       description: An item to register
     ItemRegisterInfo:
       type: object
