@@ -230,7 +230,7 @@ class TestCRUDVerticleUsers {
     }
 
     testContext.verify {
-      expectThat(response).isEqualTo("Bad Request")
+      expectThat(response).isEqualTo("Something went while parsing/validating the body.")
       testContext.completeNow()
     }
   }
@@ -290,7 +290,7 @@ class TestCRUDVerticleUsers {
     }
 
     testContext.verify {
-      expectThat(response).isEqualTo("Bad Request")
+      expectThat(response).isEqualTo("Something went while parsing/validating the body.")
       testContext.completeNow()
     }
   }
