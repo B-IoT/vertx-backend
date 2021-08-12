@@ -52,11 +52,7 @@ paths:
               $ref: '#/components/schemas/RelayRegisterInfo'
       responses:
         "200":
-          description: the registered relay
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Relay'
+          description: OK
   /relays/{id}:
     get:
       tags:
@@ -164,11 +160,7 @@ paths:
               $ref: '#/components/schemas/UserRegisterInfo'
       responses:
         "200":
-          description: the registered user
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/User'
+          description: OK
   /users/authenticate:
     post:
       tags:
@@ -313,9 +305,11 @@ paths:
         "200":
           description: the registered item
           content:
-            application/json:
+            text/plain:
               schema:
-                $ref: '#/components/schemas/Item'
+                type: integer
+                format: int32
+                example: 1
   /items/categories:
     get:
       tags:
