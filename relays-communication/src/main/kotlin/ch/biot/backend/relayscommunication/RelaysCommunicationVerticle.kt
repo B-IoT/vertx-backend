@@ -59,8 +59,8 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     private val KAFKA_HOST: String = environment.getOrDefault("KAFKA_HOST", "localhost")
     internal val KAFKA_PORT = environment.getOrDefault("KAFKA_PORT", "9092").toInt()
 
-    private val TIMESCALE_PORT = environment.getOrDefault("TIMESCALE_PORT", "5432").toInt()
-    private val TIMESCALE_HOST: String = environment.getOrDefault("TIMESCALE_HOST", "localhost")
+    val TIMESCALE_PORT = environment.getOrDefault("TIMESCALE_PORT", "5432").toInt()
+    val TIMESCALE_HOST: String = environment.getOrDefault("TIMESCALE_HOST", "localhost")
 
     private const val ITEMS_TABLE = "items"
 
@@ -358,6 +358,8 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
         // The configuration exists
         // Remove useless fields and clean lastModified, then send
         val cleanConfig = config.clean()
+        val whiteListString = macAddresses.joinToString(";")
+        cleanConfig.put("whiteList", whiteListString)
         sendMessageTo(client, cleanConfig)
       }
     } catch (error: Throwable) {
@@ -379,7 +381,11 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     }
   }
 
-  
+  /**
+   * Gets the MAC addresses of beacons associated to items in the DB for the given company
+   * The MAC addresses are filtered to have only "valid" MAC addresses.
+   * If it cannot get MAC Addresses from the DB, it returns an empty list and log a message.
+   */
   private suspend fun getItemsMacAddresses(company: String):List<String> {
     val accessControlString = company
     val itemsTable = if (company != "biot") "${ITEMS_TABLE}_$company" else ITEMS_TABLE
@@ -388,12 +394,12 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
       val queryResult = executedQuery.await()
       val result = if (queryResult.size() == 0) listOf() else queryResult.map { it.getString("beacon") }
 
-      //TODO filter result to remove invalid mac addresses
+      // Filter result to remove invalid mac addresses
+      result.filter { s -> s.matches("^([a-f0-9]{2}:){5}[a-f0-9]{2}$".toRegex()) }.distinct()
 
-      result
     } catch (e: Exception){
       LOGGER.info { "RelayCommunication: could not get Items' beacons" }
-      ArrayList()
+      listOf()
     }
 
   }
