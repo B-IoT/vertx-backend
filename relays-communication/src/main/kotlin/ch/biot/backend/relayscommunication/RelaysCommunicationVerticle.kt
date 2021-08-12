@@ -24,10 +24,17 @@ import io.vertx.kotlin.coroutines.CoroutineVerticle
 import io.vertx.kotlin.coroutines.await
 import io.vertx.kotlin.coroutines.dispatcher
 import io.vertx.kotlin.ext.auth.mongo.mongoAuthenticationOptionsOf
+import io.vertx.kotlin.pgclient.pgConnectOptionsOf
+import io.vertx.kotlin.sqlclient.poolOptionsOf
 import io.vertx.mqtt.MqttEndpoint
 import io.vertx.mqtt.MqttServer
 import io.vertx.mqtt.messages.MqttPublishMessage
+import io.vertx.pgclient.PgPool
+import io.vertx.pgclient.SslMode
+import io.vertx.pgclient.pubsub.PgSubscriber
 import io.vertx.spi.cluster.hazelcast.HazelcastClusterManager
+import io.vertx.sqlclient.SqlClient
+import io.vertx.sqlclient.Tuple
 import kotlinx.coroutines.launch
 import mu.KotlinLogging
 import java.net.InetAddress
@@ -52,8 +59,15 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     private val KAFKA_HOST: String = environment.getOrDefault("KAFKA_HOST", "localhost")
     internal val KAFKA_PORT = environment.getOrDefault("KAFKA_PORT", "9092").toInt()
 
+    private val TIMESCALE_PORT = environment.getOrDefault("TIMESCALE_PORT", "5432").toInt()
+    private val TIMESCALE_HOST: String = environment.getOrDefault("TIMESCALE_HOST", "localhost")
+
+    private const val ITEMS_TABLE = "items"
+
     private const val LIVENESS_PORT = 1884
     private const val READINESS_PORT = 1885
+
+    private lateinit var pgClient: SqlClient
 
     @JvmStatic
     fun main(args: Array<String>) {
@@ -117,6 +131,29 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
       // Send the message to the right relay on the MQTT topic "update.parameters"
       clients[mqttID]?.let { client -> launch(vertx.dispatcher()) { sendMessageTo(client, cleanJson) } }
     }
+
+    // Initialize TimescaleDB
+    val pgConnectOptions =
+      pgConnectOptionsOf(
+        port = TIMESCALE_PORT,
+        host = TIMESCALE_HOST,
+        database = "biot",
+        user = "biot",
+        password = "biot",
+        sslMode = if (TIMESCALE_HOST != "localhost") SslMode.REQUIRE else null, // SSL is disabled when testing
+        trustAll = true,
+        cachePreparedStatements = true
+      )
+    pgClient = PgPool.client(vertx, pgConnectOptions, poolOptionsOf())
+    val pgSubscriber = PgSubscriber.subscriber(vertx, pgConnectOptions).apply {
+      reconnectPolicy { retries ->
+        // Reconnect at most 10 times after 1000 ms each
+        if (retries < 10) 1000L else -1L
+      }
+    }
+
+    //TODO add a listener to pg to push update to the relays
+    // or send config to relays periodically (probably overkill to implement push notifications)
 
 //    // Certificate for TLS
 //    val pemKeyCertOptions = pemKeyCertOptionsOf(certPath = "certificate.pem", keyPath = "certificate_key.pem")
@@ -199,7 +236,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
           clients[clientIdentifier] = client
 
           // Send last configuration to client
-          launch(vertx.dispatcher()) { sendLastConfiguration(client, collection) }
+          launch(vertx.dispatcher()) { sendLastConfiguration(client, collection, company) }
         }.unsubscribeHandler { unsubscribe ->
           unsubscribe.topics().forEach { topic ->
             LOGGER.info { "Unsubscription for $topic by client $clientIdentifier" }
@@ -310,11 +347,12 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
   /**
    * Sends the last relay configuration to the given client.
    */
-  private suspend fun sendLastConfiguration(client: MqttEndpoint, relaysCollection: String) {
+  private suspend fun sendLastConfiguration(client: MqttEndpoint, relaysCollection: String, company: String) {
     val query = jsonObjectOf("mqttID" to client.clientIdentifier())
     try {
+      // Get items mac addresses
+      val macAddresses = getItemsMacAddresses(company)
       // Find the last configuration in MongoDB
-
       val config = mongoClient.findOne(relaysCollection, query, jsonObjectOf()).await()
       if (config != null && !config.isEmpty) {
         // The configuration exists
@@ -339,5 +377,24 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     } catch (error: Throwable) {
       LOGGER.error(error) { "Could not send message $message on topic $UPDATE_PARAMETERS_TOPIC" }
     }
+  }
+
+  
+  private suspend fun getItemsMacAddresses(company: String):List<String> {
+    val accessControlString = company
+    val itemsTable = if (company != "biot") "${ITEMS_TABLE}_$company" else ITEMS_TABLE
+    val executedQuery = pgClient.preparedQuery(getItemsMacs(itemsTable, accessControlString)).execute()
+    return try {
+      val queryResult = executedQuery.await()
+      val result = if (queryResult.size() == 0) listOf() else queryResult.map { it.getString("beacon") }
+
+      //TODO filter result to remove invalid mac addresses
+
+      result
+    } catch (e: Exception){
+      LOGGER.info { "RelayCommunication: could not get Items' beacons" }
+      ArrayList()
+    }
+
   }
 }

@@ -26,6 +26,7 @@ dependencies {
   val hazelcastVersion = project.extra["hazelcastVersion"]
   val arrowVersion = project.extra["arrowVersion"]
 
+  implementation("io.vertx:vertx-pg-client:$vertxVersion")
   implementation("io.vertx:vertx-web:$vertxVersion")
   implementation("io.vertx:vertx-web-openapi:$vertxVersion")
   implementation("io.vertx:vertx-hazelcast:$vertxVersion")
