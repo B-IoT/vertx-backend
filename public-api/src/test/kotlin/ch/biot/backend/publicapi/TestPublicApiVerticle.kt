@@ -1214,6 +1214,8 @@ class TestPublicApiVerticle {
     }
   }
 
+  @Test
+  @Order(34)
   @DisplayName("Comparing two snapshots succeeds")
   fun compareSnapshotsSucceeds(testContext: VertxTestContext) {
     val firstSnapshotId = Given {
