@@ -423,7 +423,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
       result.filter { s -> s.matches("^([a-f0-9]{2}:){5}[a-f0-9]{2}$".toRegex()) }.distinct().joinToString(";")
 
     } catch (e: Exception) {
-      LOGGER.info { "RelayCommunication: could not get Items' beacons" }
+      LOGGER.warn { "Could not get beacons' whitelist" }
       ""
     }
   }
