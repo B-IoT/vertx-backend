@@ -395,7 +395,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
       val currentWhiteList = getItemsMacAddressesString(company)
 
       if(!whiteListHashes.containsKey(company) || currentWhiteList.hashCode() != whiteListHashes[company]){
-        // The whiteList changes since last time it was sent to the relays, so we send it again
+        // The whiteList changed since the last time it was sent to the relays, so we send it again
         LOGGER.info { "WhiteList changed: sending last configuration to the relay with id:${relayClient.clientIdentifier()}" }
         sendLastConfiguration(relayClient, collection, company)
       } else {
