@@ -1175,7 +1175,6 @@ class TestRelaysCommunicationVerticle {
                           put("whiteList", "aabbccddeefff015b5dd2438f5a8ef56d7c0") //itemBiot1, itemBiot2, itemBiot4 mac addresses without :
                         }
                         expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
-                        testContext.completeNow()
                   }
                 }
                 else -> {
@@ -1186,6 +1185,10 @@ class TestRelaysCommunicationVerticle {
         }.subscribe(UPDATE_PARAMETERS_TOPIC, MqttQoS.AT_LEAST_ONCE.value()).await()
       } catch (error: Throwable) {
         testContext.failNow(error)
+      }
+
+      vertx.setTimer(15_000){
+        testContext.completeNow()
       }
     }
 
