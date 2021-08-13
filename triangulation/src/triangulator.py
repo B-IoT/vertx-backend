@@ -141,13 +141,13 @@ class Triangulator:
 
         return self
 
-    def get_table_name(self, company: str) -> str:
+    def _get_table_name(self, company: str) -> str:
         """
         Gets the beacon_data table name for the given company.
         """
         return f"beacon_data_{company}" if company != "biot" else "beacon_data"
 
-    async def store_beacons_data(self, company: str, data: list):
+    async def _store_beacons_data(self, company: str, data: list):
         """
         Stores the beacons' data in TimescaleDB.
         Data must be an array of tuples of the following form: ("aa:aa:aa:aa:aa:aa", 10, "available", 2.3, 3.2, 1, 25).
@@ -158,7 +158,7 @@ class Triangulator:
             await stmt.executemany(data)
             logger.info("New beacons' data inserted in DB '{}': {}", table_name, data)
 
-    async def update_beacon_status(self, company: str, mac: str, status: str):
+    async def _update_beacon_status(self, company: str, mac: str, status: str):
         """
         Updates the status of the given beacon.
         """
@@ -201,7 +201,7 @@ class Triangulator:
                     table_name,
                 )
 
-    def lat_to_meters(self, lat1, lon1, lat2, lon2):
+    def _lat_to_meters(self, lat1, lon1, lat2, lon2):
         """
         Converts lat distance to meters.
         """
@@ -217,17 +217,17 @@ class Triangulator:
         d = R * c
         return d * 1000  # meters
 
-    def db_to_meters(self, RSSI, measure_ref, N):
+    def _db_to_meters(self, RSSI, measure_ref, N):
         """
         Converts dB to meters.
         """
         d = 10 ** ((measure_ref - RSSI) / (10 * N))
         return d
     
-    def feature_augmentation(self, X):
+    def _feature_augmentation(self, X):
         return np.array([X, X**2, X**3, X**4, X**5]).transpose()
     
-    def preprocessing(self, beacon_indexes, relay_index, max_history):
+    def _preprocessing(self, beacon_indexes, relay_index, max_history):
         
         measured_ref = -64
         tx = 6
@@ -302,7 +302,7 @@ class Triangulator:
             
         return
      
-    async def triangulation_engine(self, beacon_indexes, beacons, company):
+    async def _triangulation_engine(self, beacon_indexes, beacons, company):
         
         coordinates = []
         
