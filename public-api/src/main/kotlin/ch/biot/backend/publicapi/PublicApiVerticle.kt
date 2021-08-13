@@ -563,13 +563,12 @@ class PublicApiVerticle : CoroutineVerticle() {
       .addQueryParam("accessControlString", acString) // Used only by the ITEMS_ENDPOINT for now
       .timeout(TIMEOUT)
       .putHeader(CONTENT_TYPE, APPLICATION_JSON)
-      .expect(ResponsePredicate.SC_OK)
       .coroutineSendBuffer(ctx.body)
       .bimap(
         { error ->
           sendBadGateway(ctx, error)
         },
-        { ctx.end() }
+        { resp -> if (resp.statusCode() != OK_CODE) sendStatusCode(ctx, resp.statusCode()) else ctx.end() }
       )
 
   }
@@ -623,14 +622,19 @@ class PublicApiVerticle : CoroutineVerticle() {
       .addQueryParam("company", ctx.user().principal()["company"])
       .addQueryParam("accessControlString", acString) // Used only by the ITEMS_ENDPOINT for now
       .timeout(TIMEOUT)
-      .`as`(BodyCodec.jsonObject())
       .coroutineSend()
       .bimap(
         { error ->
           sendBadGateway(ctx, error)
         },
         { resp ->
-          forwardJsonObjectOrStatusCode(ctx, resp)
+          if (resp.statusCode() != OK_CODE) {
+            sendStatusCode(ctx, resp.statusCode())
+          } else {
+            ctx.response()
+              .putHeader(CONTENT_TYPE, APPLICATION_JSON)
+              .end(resp.bodyAsJsonObject().encode())
+          }
         }
       )
   }

@@ -424,7 +424,7 @@ class CRUDVerticle : CoroutineVerticle() {
       val relays = mongoClient.find(collection, jsonObjectOf()).await()
       ctx.response()
         .putHeader(CONTENT_TYPE, APPLICATION_JSON)
-        .end(JsonArray(relays.map { it.clean() }).encode())
+        .end(JsonArray(relays.map(JsonObject::clean)).encode())
     }
   }
 
@@ -547,7 +547,7 @@ class CRUDVerticle : CoroutineVerticle() {
       val users = mongoClient.find(USERS_COLLECTION, jsonObjectOf()).await()
       ctx.response()
         .putHeader(CONTENT_TYPE, APPLICATION_JSON)
-        .end(JsonArray(users.map { it.clean() }).encode())
+        .end(JsonArray(users.map(JsonObject::clean)).encode())
     }
   }
 
@@ -701,7 +701,7 @@ class CRUDVerticle : CoroutineVerticle() {
 
     executeWithErrorHandling("Could not get items", ctx) {
       val queryResult = executedQuery.await()
-      val result = if (queryResult.size() == 0) listOf() else queryResult.map { it.toItemJson() }
+      val result = if (queryResult.size() == 0) listOf() else queryResult.map(Row::toItemJson)
 
       ctx.response()
         .putHeader(CONTENT_TYPE, APPLICATION_JSON)

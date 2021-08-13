@@ -1082,24 +1082,50 @@ class TestPublicApiVerticle {
 
   @Test
   @Order(26)
-  @DisplayName("Errors are handled in updateHandler")
-  fun errorIsHandledUpdateRequest(testContext: VertxTestContext) {
+  @DisplayName("Error 404 is handled in updateHandler")
+  fun errorNotFoundIsHandledUpdateRequest(testContext: VertxTestContext) {
+    val updateJson = jsonObjectOf(
+      "beacon" to "ad:ab:ab:ab:ab:ab",
+      "category" to "Lit",
+      "service" to "Bloc 42",
+      "itemID" to "sdsddsd",
+      "brand" to "maserati",
+      "model" to "wdwd",
+      "supplier" to "supplier",
+      "purchaseDate" to LocalDate.of(2020, 11, 8).toString(),
+      "purchasePrice" to 1000.3,
+      "originLocation" to "center6",
+      "currentLocation" to "center10",
+      "room" to "2",
+      "contact" to "Monsieur Poire",
+      "currentOwner" to "Monsieur Dupe",
+      "previousOwner" to "Monsieur Pistache",
+      "orderNumber" to "asasas",
+      "color" to "blue",
+      "serialNumber" to "aasasasa",
+      "maintenanceDate" to LocalDate.of(2022, 12, 25).toString(),
+      "status" to "Disponible",
+      "comments" to "A comment",
+      "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+      "lastModifiedBy" to "Monsieur Duport"
+    )
+
     val response = Given {
       spec(requestSpecification)
       contentType(ContentType.JSON)
       accept(ContentType.JSON)
       header("Authorization", "Bearer $token")
-      body("A body")
+      body(updateJson.encode())
     } When {
       put("/api/items/100")
     } Then {
-      statusCode(502)
+      statusCode(404)
     } Extract {
       asString()
     }
 
     testContext.verify {
-      expectThat(response).isEqualTo("Bad Gateway")
+      expectThat(response).isEmpty()
       testContext.completeNow()
     }
   }
@@ -1497,7 +1523,6 @@ class TestPublicApiVerticle {
   @Order(40)
   @DisplayName("Updating an item fails with insufficient ac string and does not modify the item")
   fun updateItemFailsWithWrongACString(testContext: VertxTestContext) {
-
     val expected = Buffer.buffer(
       Given {
         spec(requestSpecification)
@@ -1548,7 +1573,7 @@ class TestPublicApiVerticle {
     } When {
       put("/api/items/$itemID")
     } Then {
-      statusCode(502)
+      statusCode(403)
     } Extract {
       asString()
     }
@@ -1615,7 +1640,6 @@ class TestPublicApiVerticle {
   @Order(41)
   @DisplayName("Deleting an item fails with insufficient ac string (it completes but does not delete the item)")
   fun deleteItemFailsWithWrongACString(testContext: VertxTestContext) {
-
     val expected = Buffer.buffer(
       Given {
         spec(requestSpecification)

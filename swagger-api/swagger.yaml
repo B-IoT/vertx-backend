@@ -2,9 +2,9 @@ openapi: 3.0.0
 info:
   title: Vert.x API
   description: BIoT Vert.x API
-  version: 2.3.2
+  version: 2.3.3
 servers:
-- url: https://virtserver.swaggerhub.com/b-iot/Vert.x/2.3.1
+- url: https://virtserver.swaggerhub.com/b-iot/Vert.x/2.3.3
   description: SwaggerHub API Auto Mocking
 paths:
   /relays:
@@ -285,11 +285,7 @@ paths:
           type: string
       responses:
         "200":
-<<<<<<< HEAD
-          description: all the items
-=======
-          description: All the items accessible with the given accessControlString
->>>>>>> main
+          description: all the items accessible with the given accessControlString
           content:
             application/json:
               schema:
@@ -563,6 +559,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Item'
+        "404":
+          description: item not found
     delete:
       tags:
       - Item
