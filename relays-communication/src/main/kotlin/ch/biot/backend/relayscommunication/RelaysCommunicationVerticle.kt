@@ -70,6 +70,8 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     // It is a field because otherwise, it cannot be used in the lambda of the Handler itself
     private lateinit var periodicUpdateConfig: Handler<Long>
 
+    private val macAddressRegex = "^([a-f0-9]{2}:){5}[a-f0-9]{2}$".toRegex()
+
     @JvmStatic
     fun main(args: Array<String>) {
       val ipv4 = InetAddress.getLocalHost().hostAddress
@@ -399,7 +401,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
         LOGGER.info { "WhiteList changed: sending last configuration to relay ${relayClient.clientIdentifier()}" }
         sendLastConfiguration(relayClient, collection, company)
       } else {
-        LOGGER.info { "Skipping sending configuration for the relay ${relayClient.clientIdentifier()}" }
+        LOGGER.debug { "Skipping sending configuration for the relay ${relayClient.clientIdentifier()}" }
       }
 
     }
@@ -420,8 +422,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
       val result = if (queryResult.size() == 0) listOf() else queryResult.map { it.getString("beacon") }
 
       // Filter result to remove invalid mac addresses
-      result.filter { s -> s.matches("^([a-f0-9]{2}:){5}[a-f0-9]{2}$".toRegex()) }.distinct().joinToString(";")
-
+      result.filter { s -> s.matches(macAddressRegex) }.distinct().joinToString(";")
     } catch (e: Exception) {
       LOGGER.warn { "Could not get beacons' whitelist" }
       ""
