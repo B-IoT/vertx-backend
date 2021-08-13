@@ -67,6 +67,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
 
     private lateinit var pgClient: SqlClient
 
+    // It is a field because otherwise, it cannot be used in the lambda of the Handler itself
     private lateinit var periodicUpdateConfig: Handler<Long>
 
     @JvmStatic
