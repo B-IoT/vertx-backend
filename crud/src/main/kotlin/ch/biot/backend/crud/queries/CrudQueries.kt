@@ -37,15 +37,17 @@ fun getCategories(itemsTable: String, accessControlString: String) =
   "SELECT DISTINCT I.category FROM $itemsTable I WHERE (accessControlString LIKE '$accessControlString:%' OR accessControlString LIKE '$accessControlString')"
 
 fun createSnapshot(itemsTable: String) =
-  "INSERT INTO ${itemsTable}_snapshots (snapshotdate) VALUES (NOW()) RETURNING id"
+  "INSERT INTO ${itemsTable}_snapshots (snapshotdate, accesscontrolstring) VALUES (NOW(), $1) RETURNING id"
 
-fun getSnapshots(itemsTable: String) = "SELECT * FROM ${itemsTable}_snapshots"
+fun getSnapshots(itemsTable: String, accessControlString: String) =
+  "SELECT * FROM ${itemsTable}_snapshots WHERE (accessControlString LIKE '$accessControlString:%' OR accessControlString LIKE '$accessControlString')"
 
 fun getSnapshot(itemsTable: String, snapshotId: Int) = "SELECT * FROM ${itemsTable}_snapshot_$snapshotId"
 
 fun dropSnapshotTable(itemsTable: String, snapshotId: Int) = "DROP TABLE ${itemsTable}_snapshot_$snapshotId"
 
-fun deleteSnapshot(itemsTable: String) = "DELETE from ${itemsTable}_snapshots WHERE id=$1"
+fun deleteSnapshot(itemsTable: String, accessControlString: String) =
+  "DELETE from ${itemsTable}_snapshots WHERE id=$1 AND (accessControlString LIKE '$accessControlString:%' OR accessControlString LIKE '$accessControlString')"
 
 fun leftOuterJoinFromSnapshots(itemsTable: String, firstSnapshotId: Int, secondSnapshotId: Int) =
   "SELECT F.* FROM ${itemsTable}_snapshot_$firstSnapshotId F LEFT JOIN ${itemsTable}_snapshot_$secondSnapshotId S ON F.id = S.id WHERE S.id is NULL"

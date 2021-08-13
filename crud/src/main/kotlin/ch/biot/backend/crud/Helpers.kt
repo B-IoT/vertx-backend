@@ -5,9 +5,11 @@
 package ch.biot.backend.crud
 
 import ch.biot.backend.crud.CRUDVerticle.Companion.BAD_REQUEST_CODE
+import ch.biot.backend.crud.CRUDVerticle.Companion.FORBIDDEN_CODE
 import ch.biot.backend.crud.CRUDVerticle.Companion.INTERNAL_SERVER_ERROR_CODE
-import ch.biot.backend.crud.queries.searchForTable
 import ch.biot.backend.crud.CRUDVerticle.Companion.MAX_ACCESS_CONTROL_STRING_LENGTH
+import ch.biot.backend.crud.queries.getSnapshots
+import ch.biot.backend.crud.queries.searchForTable
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.auth.mongo.MongoAuthentication
 import io.vertx.ext.web.RoutingContext
@@ -15,6 +17,7 @@ import io.vertx.kotlin.core.json.get
 import io.vertx.kotlin.core.json.jsonObjectOf
 import io.vertx.kotlin.coroutines.await
 import io.vertx.sqlclient.Row
+import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 import java.security.SecureRandom
@@ -117,6 +120,14 @@ fun String.saltAndHash(mongoAuth: MongoAuthentication): String {
   val salt = ByteArray(16)
   SecureRandom().nextBytes(salt)
   return mongoAuth.hash("pbkdf2", String(Base64.getEncoder().encode(salt)), this)
+}
+
+fun RowSet<Row>.toSnapshotsList(): List<JsonObject> = if (this.size() == 0) listOf() else this.map { row ->
+  jsonObjectOf(
+    "id" to row.getInteger("id"),
+    "date" to row.getLocalDate("snapshotdate")?.toString(),
+    "accessControlString" to row.getString("accesscontrolstring")
+  )
 }
 
 /**
@@ -271,6 +282,44 @@ internal fun extractItemInformation(json: JsonObject, keepNulls: Boolean = true)
 internal fun RoutingContext.getCollection(baseCollectionName: String): String {
   val company = this.queryParams()["company"]
   return if (company != null && company != "biot") "${baseCollectionName}_$company" else baseCollectionName
+}
+
+/**
+ * Gets the access control string from the query parameters, using the company as default value if not present.
+ */
+internal fun RoutingContext.getAccessControlString(): String {
+  val params = queryParams()
+  val company = params["company"]
+  return if (params.contains("accessControlString")) params["accessControlString"] else company
+}
+
+/**
+ * Fails the request if the user has not the access to the given snapshots.
+ *
+ * @param client the sql client needed to query the database
+ * @param tableName the table to be queried
+ * @param accessControlString the user's access control string
+ * @param snapshotIds the ids of the snapshots to access
+ * @param operationName the name of the operation executing for logging it in case of error
+ * @return true if the context fails, false otherwise
+ */
+internal suspend fun RoutingContext.failIfUnauthorized(
+  client: SqlClient,
+  tableName: String,
+  accessControlString: String,
+  snapshotIds: List<Int>,
+  operationName: String
+): Boolean {
+  val accessibleSnapshotsIds = client.preparedQuery(getSnapshots(tableName, accessControlString)).execute().await()
+    .toSnapshotsList()
+    .map { it.getInteger("id") }
+  if (!accessibleSnapshotsIds.containsAll(snapshotIds)) {
+    // Access refused
+    LOGGER.error { "ACCESS FORBIDDEN $operationName" }
+    this.fail(FORBIDDEN_CODE)
+    return true
+  }
+  return false
 }
 
 /**

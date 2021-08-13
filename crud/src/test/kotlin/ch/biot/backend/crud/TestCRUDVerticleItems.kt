@@ -672,10 +672,12 @@ class TestCRUDVerticleItems {
   @Test
   @DisplayName("createSnapshot correctly creates a snapshot")
   fun createSnapshotIsCorrect(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
+    val acString = "biot:grp1"
     val snapshotID = Given {
       spec(requestSpecification)
     } When {
       queryParam("company", "biot")
+      queryParam("accessControlString", acString)
       post("/items/snapshots")
     } Then {
       statusCode(200)
@@ -697,12 +699,18 @@ class TestCRUDVerticleItems {
     }
 
     try {
-      val snapshots = pgClient.query(getSnapshots("items")).execute().await().iterator()
+      val snapshots = pgClient.query(getSnapshots("items", acString)).execute().await().iterator()
       testContext.verify {
         expectThat(snapshots.hasNext()).isTrue()
 
-        val id = snapshots.next().getInteger("id")
+        val snapshot = snapshots.next()
+        val id = snapshot.getInteger("id")
+        val date = snapshot.getLocalDate("snapshotdate")
+        val accessControlString = snapshot.getString("accesscontrolstring")
+
         expectThat(id).isEqualTo(snapshotID.toInt())
+        expectThat(date).isEqualTo(LocalDate.now())
+        expectThat(accessControlString).isEqualTo(acString)
         testContext.completeNow()
       }
     } catch (error: Throwable) {
@@ -714,8 +722,10 @@ class TestCRUDVerticleItems {
   @DisplayName("getSnapshots correctly retrieves the list of snapshots")
   fun getSnapshotsIsCorrect(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
     try {
-      val id1 = pgClient.query(createSnapshot("items")).execute().await().iterator().next().getInteger("id")
-      val id2 = pgClient.query(createSnapshot("items")).execute().await().iterator().next().getInteger("id")
+      val id1 = pgClient.preparedQuery(createSnapshot("items")).execute(Tuple.of("biot")).await().iterator().next()
+        .getInteger("id")
+      val id2 = pgClient.preparedQuery(createSnapshot("items")).execute(Tuple.of("biot")).await().iterator().next()
+        .getInteger("id")
 
       val snapshots = Buffer.buffer(
         Given {
@@ -751,10 +761,89 @@ class TestCRUDVerticleItems {
   }
 
   @Test
+  @DisplayName("getSnapshots correctly retrieves the list of snapshots accessible given an access control string")
+  fun getSnapshotsIsCorrectWithSufficientACString(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      try {
+        val acString = "biot:grp1"
+        pgClient.preparedQuery(createSnapshot("items")).execute(Tuple.of("biot")).await().iterator().next()
+          .getInteger("id")
+        val id2 = pgClient.preparedQuery(createSnapshot("items")).execute(Tuple.of(acString)).await().iterator().next()
+          .getInteger("id")
+
+        val snapshots = Buffer.buffer(
+          Given {
+            spec(requestSpecification)
+            accept(ContentType.JSON)
+          } When {
+            queryParam("company", "biot")
+            queryParam("accessControlString", acString)
+            get("/items/snapshots")
+          } Then {
+            statusCode(200)
+          } Extract {
+            asString()
+          }
+        ).toJsonArray()
+
+        testContext.verify {
+          expectThat(snapshots.size()).isEqualTo(1)
+
+          val snapshot = snapshots.getJsonObject(0)
+
+          expectThat(snapshot.getInteger("id")).isEqualTo(id2)
+
+          expectThat(snapshot.getString("date")).isEqualTo(LocalDate.now().toString())
+
+          testContext.completeNow()
+        }
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+
+  @Test
+  @DisplayName("getSnapshots correctly retrieves no snapshots given an insufficient access control string")
+  fun getSnapshotsIsCorrectWithInsufficientACString(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      try {
+        val acString = "biot:grp1"
+        pgClient.preparedQuery(createSnapshot("items")).execute(Tuple.of("biot")).await().iterator().next()
+          .getInteger("id")
+        pgClient.preparedQuery(createSnapshot("items")).execute(Tuple.of("biot")).await().iterator().next()
+          .getInteger("id")
+
+        val snapshots = Buffer.buffer(
+          Given {
+            spec(requestSpecification)
+            accept(ContentType.JSON)
+          } When {
+            queryParam("company", "biot")
+            queryParam("accessControlString", acString)
+            get("/items/snapshots")
+          } Then {
+            statusCode(200)
+          } Extract {
+            asString()
+          }
+        ).toJsonArray()
+
+        testContext.verify {
+          expectThat(snapshots.isEmpty).isTrue()
+          testContext.completeNow()
+        }
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+
+  @Test
   @DisplayName("getSnapshot correctly retrieves the list of items contained in a snapshot")
   fun getSnapshotIsCorrect(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
     try {
-      val snapshotID = pgClient.query(createSnapshot("items")).execute().await().iterator().next().getInteger("id")
+      val snapshotID =
+        pgClient.preparedQuery(createSnapshot("items")).execute(Tuple.of("biot")).await().iterator().next()
+          .getInteger("id")
       pgClient.query(snapshotTable("items", snapshotID)).execute().await()
 
       val items = Buffer.buffer(
@@ -783,6 +872,38 @@ class TestCRUDVerticleItems {
       testContext.failNow(error)
     }
   }
+
+  @Test
+  @DisplayName("getSnapshot fails with error 403 if the access control string is insufficient")
+  fun getSnapshotFailsIfInsufficientACString(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      try {
+        val snapshotID =
+          pgClient.preparedQuery(createSnapshot("items")).execute(Tuple.of("biot")).await().iterator().next()
+            .getInteger("id")
+        pgClient.query(snapshotTable("items", snapshotID)).execute().await()
+
+        val response = Given {
+          spec(requestSpecification)
+          accept(ContentType.JSON)
+        } When {
+          queryParam("company", "biot")
+          queryParam("accessControlString", "biot:grp1:grp2")
+          get("/items/snapshots/$snapshotID")
+        } Then {
+          statusCode(403)
+        } Extract {
+          asString()
+        }
+
+        testContext.verify {
+          expectThat(response).isEqualTo("Forbidden")
+          testContext.completeNow()
+        }
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
 
   @Test
   @DisplayName("getSnapshot fails with error 404 if the snapshot does not exist")
@@ -816,7 +937,9 @@ class TestCRUDVerticleItems {
   @DisplayName("deleteSnapshot correctly deletes the snapshot")
   fun deleteSnapshotIsCorrect(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
     try {
-      val snapshotID = pgClient.query(createSnapshot("items")).execute().await().iterator().next().getInteger("id")
+      val snapshotID =
+        pgClient.preparedQuery(createSnapshot("items")).execute(Tuple.of("biot")).await().iterator().next()
+          .getInteger("id")
       pgClient.query(snapshotTable("items", snapshotID)).execute().await()
 
       val response = Given {
@@ -849,6 +972,37 @@ class TestCRUDVerticleItems {
   }
 
   @Test
+  @DisplayName("deleteSnapshot fails with error 403 if the access control string is insufficient")
+  fun deleteSnapshotFailsIfInsufficientACString(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      try {
+        val snapshotID =
+          pgClient.preparedQuery(createSnapshot("items")).execute(Tuple.of("biot")).await().iterator().next()
+            .getInteger("id")
+        pgClient.query(snapshotTable("items", snapshotID)).execute().await()
+
+        val response = Given {
+          spec(requestSpecification)
+        } When {
+          queryParam("company", "biot")
+          queryParam("accessControlString", "biot:grp1:grp2")
+          delete("/items/snapshots/$snapshotID")
+        } Then {
+          statusCode(403)
+        } Extract {
+          asString()
+        }
+
+        testContext.verify {
+          expectThat(response).isEqualTo("Forbidden")
+          testContext.completeNow()
+        }
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+
+  @Test
   @DisplayName("deleteSnapshot fails with error 404 if the snapshot does not exist")
   fun deleteSnapshotFailsIfTheSnapshotDoesNotExist(vertx: Vertx, testContext: VertxTestContext): Unit =
     runBlocking(vertx.dispatcher()) {
@@ -868,6 +1022,42 @@ class TestCRUDVerticleItems {
 
         testContext.verify {
           expectThat(response).isEmpty()
+          testContext.completeNow()
+        }
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+
+  @Test
+  @DisplayName("compareSnapshots fails with error 403 if insufficient access control string")
+  fun compareSnapshotsFailsIfInsufficientACString(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      try {
+        val firstSnapshotId = pgClient.preparedQuery(createSnapshot("items")).execute(Tuple.of("biot")).await()
+          .iterator().next().getInteger("id")
+        pgClient.query(snapshotTable("items", firstSnapshotId)).execute().await()
+
+        val secondSnapshotId = pgClient.preparedQuery(createSnapshot("items")).execute(Tuple.of("biot:grp1")).await()
+          .iterator().next().getInteger("id")
+        pgClient.query(snapshotTable("items", secondSnapshotId)).execute().await()
+
+        val response = Given {
+          spec(requestSpecification)
+        } When {
+          queryParam("company", "biot")
+          queryParam("firstSnapshotId", firstSnapshotId)
+          queryParam("secondSnapshotId", secondSnapshotId)
+          queryParam("accessControlString", "biot:grp1:grp2")
+          get("/items/snapshots/compare")
+        } Then {
+          statusCode(403)
+        } Extract {
+          asString()
+        }
+
+        testContext.verify {
+          expectThat(response).isEqualTo("Forbidden")
           testContext.completeNow()
         }
       } catch (error: Throwable) {
@@ -912,8 +1102,8 @@ class TestCRUDVerticleItems {
       try {
         val secondSnapshotId = 2
 
-        val firstSnapshotId =
-          pgClient.query(createSnapshot("items")).execute().await().iterator().next().getInteger("id")
+        val firstSnapshotId = pgClient.preparedQuery(createSnapshot("items")).execute(Tuple.of("biot")).await()
+          .iterator().next().getInteger("id")
         pgClient.query(snapshotTable("items", firstSnapshotId)).execute().await()
 
         val response = Given {
@@ -943,8 +1133,8 @@ class TestCRUDVerticleItems {
   fun compareSnapshotsIsCorrect(vertx: Vertx, testContext: VertxTestContext): Unit =
     runBlocking(vertx.dispatcher()) {
       try {
-        val firstSnapshotId =
-          pgClient.query(createSnapshot("items")).execute().await().iterator().next().getInteger("id")
+        val firstSnapshotId = pgClient.preparedQuery(createSnapshot("items")).execute(Tuple.of("biot")).await()
+          .iterator().next().getInteger("id")
         pgClient.query(snapshotTable("items", firstSnapshotId)).execute().await()
 
         // Add new items
@@ -976,8 +1166,8 @@ class TestCRUDVerticleItems {
           statusCode(200)
         }
 
-        val secondSnapshotId =
-          pgClient.query(createSnapshot("items")).execute().await().iterator().next().getInteger("id")
+        val secondSnapshotId = pgClient.preparedQuery(createSnapshot("items")).execute(Tuple.of("biot")).await()
+          .iterator().next().getInteger("id")
         pgClient.query(snapshotTable("items", secondSnapshotId)).execute().await()
 
         val comparison = Buffer.buffer(Given {
@@ -2016,6 +2206,34 @@ class TestCRUDVerticleItems {
         testContext.completeNow()
       } catch (error: Throwable) {
         testContext.failNow(error)
+      }
+    }
+
+  @Test
+  @DisplayName("updateItem fails with error 404 if the item does not exist")
+  fun updateItemFailsIfItemDoesNotExist(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      val nonExistingItemID = 9999
+      val updateJson = jsonObjectOf(
+        "service" to "A new service"
+      )
+      val response = Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        accept(ContentType.JSON)
+        body(updateJson.encode())
+      } When {
+        queryParam("company", "biot")
+        put("/items/$nonExistingItemID")
+      } Then {
+        statusCode(404)
+      } Extract {
+        asString()
+      }
+
+      testContext.verify {
+        expectThat(response).isEmpty()
+        testContext.completeNow()
       }
     }
 
@@ -3537,7 +3755,6 @@ class TestCRUDVerticleItems {
       }
     }
   }
-
 
   @Test
   @DisplayName("updateItem correctly updates the desired item if the accessControlString authorizes the access 2")
