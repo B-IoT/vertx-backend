@@ -396,7 +396,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
 
       if(!whiteListHashes.containsKey(company) || currentWhiteList.hashCode() != whiteListHashes[company]){
         // The whiteList changed since the last time it was sent to the relays, so we send it again
-        LOGGER.info { "WhiteList changed: sending last configuration to the relay with id:${relayClient.clientIdentifier()}" }
+        LOGGER.info { "WhiteList changed: sending last configuration to relay ${relayClient.clientIdentifier()}" }
         sendLastConfiguration(relayClient, collection, company)
       } else {
         LOGGER.info { "Skipping sending configuration for the relay ${relayClient.clientIdentifier()}" }
