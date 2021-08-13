@@ -52,6 +52,9 @@ import java.io.File
 import java.security.SecureRandom
 import java.time.LocalDate
 import java.util.*
+import java.util.concurrent.TimeUnit
+
+internal val LOGGER = KotlinLogging.logger {}
 
 @ExtendWith(VertxExtension::class)
 @Testcontainers
@@ -67,6 +70,8 @@ class TestRelaysCommunicationVerticle {
   private lateinit var mqttClient: MqttClient
 
   private lateinit var pgClient: SqlClient
+
+  private var msgCounter = 0
 
   private val mqttPassword = "password"
   private val configuration = jsonObjectOf(
@@ -98,6 +103,7 @@ class TestRelaysCommunicationVerticle {
   private val anotherCompanyName = "anotherCompany"
   private val anotherCompanyCollection = RELAYS_COLLECTION + "_$anotherCompanyName"
 
+  private var itemBiot1Id: Int = -1
   private val itemBiot1 = jsonObjectOf(
     "beacon" to "e0:51:30:48:16:e5",
     "category" to "ECG",
@@ -403,8 +409,8 @@ class TestRelaysCommunicationVerticle {
     insertItems()
   }
 
-  private suspend fun insertItems(): Unit {
-    pgClient.preparedQuery(insertItem("items"))
+  private suspend fun insertItems() {
+    val result = pgClient.preparedQuery(insertItem("items"))
       .execute(
         Tuple.of(
           itemBiot1["beacon"],
@@ -433,6 +439,8 @@ class TestRelaysCommunicationVerticle {
           itemBiot1["lastModifiedBy"]
         )
       ).await()
+
+    itemBiot1Id = result.iterator().next().getInteger("id")
 
     pgClient.preparedQuery(insertItem("items"))
       .execute(
@@ -622,10 +630,14 @@ class TestRelaysCommunicationVerticle {
   }
 
   // TimescaleDB PostgreSQL queries for items
-  fun insertItem(itemsTable: String, customId: Boolean = false) =
+  private fun insertItem(itemsTable: String, customId: Boolean = false) =
     if (customId) "INSERT INTO $itemsTable (id, beacon, category, service, itemid, accessControlString, brand, model, supplier, purchasedate, purchaseprice, originlocation, currentlocation, room, contact, currentowner, previousowner, ordernumber, color, serialnumber, maintenancedate, status, comments, lastmodifieddate, lastmodifiedby) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25) RETURNING id"
     else "INSERT INTO $itemsTable (beacon, category, service, itemid, accessControlString, brand, model, supplier, purchasedate, purchaseprice, originlocation, currentlocation, room, contact, currentowner, previousowner, ordernumber, color, serialnumber, maintenancedate, status, comments, lastmodifieddate, lastmodifiedby) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24) RETURNING id"
 
+  private fun updateItem(itemsTable: String, updatedColumns: List<String>, accessControlString: String): String {
+    val columnsWithValues = updatedColumns.mapIndexed { index, colName -> "$colName = \$${index + 2}" }.joinToString()
+    return "UPDATE $itemsTable SET $columnsWithValues WHERE id = $1 AND (accessControlString LIKE '$accessControlString:%' OR accessControlString LIKE '$accessControlString')"
+  }
 
   @AfterEach
     fun cleanup(vertx: Vertx, testContext: VertxTestContext) = runBlocking(vertx.dispatcher()) {
@@ -1129,6 +1141,90 @@ class TestRelaysCommunicationVerticle {
         testContext.failNow(error)
       }
     }
+
+  @Test
+  @DisplayName("A MQTT client receives the config after 5 seconds if one item's beacon changed")
+  fun clientSubscribesAndReceivesLastConfigAfter5SecWhenModified(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      try {
+        mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+        mqttClient.publishHandler { msg ->
+          if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
+            when (msgCounter) {
+                0 -> {
+                  // First msg at subscription
+                  testContext.verify {
+                        val expected = configuration.copy().apply {
+                          remove("mqttID")
+                          remove("mqttUsername")
+                          remove("ledStatus")
+                          put("whiteList", "e051304816e5f015b5dd2438f5a8ef56d7c0") //itemBiot1, itemBiot2, itemBiot4 mac addresses without :
+                        }
+                        expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
+                  }
+                  msgCounter += 1
+                  pgClient.preparedQuery(updateItem("items", listOf("beacon"), "biot")).execute(Tuple.tuple(listOf(itemBiot1Id, "aa:bb:cc:dd:ee:ff")))
+
+                }
+                1 -> {
+                  testContext.verify {
+                        val expected = configuration.copy().apply {
+                          remove("mqttID")
+                          remove("mqttUsername")
+                          remove("ledStatus")
+                          put("whiteList", "aabbccddeefff015b5dd2438f5a8ef56d7c0") //itemBiot1, itemBiot2, itemBiot4 mac addresses without :
+                        }
+                        expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
+                        testContext.completeNow()
+                  }
+                }
+                else -> {
+                  testContext.failNow("received more than 2 msgs")
+                }
+            }
+          }
+        }.subscribe(UPDATE_PARAMETERS_TOPIC, MqttQoS.AT_LEAST_ONCE.value()).await()
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+
+  @Test
+  @DisplayName("A MQTT client does NOT receive the config after 5 seconds if no item's beacon changed")
+  fun clientSubscribesAndDoesNotReceiveLastConfigAfter15SecWhenUnmodified(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      try {
+        mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+        mqttClient.publishHandler { msg ->
+          if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
+            when (msgCounter) {
+              0 -> {
+                // First msg at subscription
+                testContext.verify {
+                  val expected = configuration.copy().apply {
+                    remove("mqttID")
+                    remove("mqttUsername")
+                    remove("ledStatus")
+                    put("whiteList", "e051304816e5f015b5dd2438f5a8ef56d7c0") //itemBiot1, itemBiot2, itemBiot4 mac addresses without :
+                  }
+                  expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
+                }
+                msgCounter += 1
+              }
+              else -> {
+                testContext.failNow("received more than 1 msgs")
+              }
+            }
+          }
+        }.subscribe(UPDATE_PARAMETERS_TOPIC, MqttQoS.AT_LEAST_ONCE.value()).await()
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+      vertx.setTimer(15_000){
+        testContext.completeNow()
+      }
+    }
+
 
   companion object {
 
