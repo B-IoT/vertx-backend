@@ -653,7 +653,7 @@ class TestRelaysCommunicationVerticle {
                   remove("mqttID")
                   remove("mqttUsername")
                   remove("ledStatus")
-                  put("whiteList", "${itemBiot1.getString("beacon")};${itemBiot2.getString("beacon")};${itemBiot4.getString("beacon")}")
+                  put("whiteList", "e051304816e5f015b5dd2438f5a8ef56d7c0") //itemBiot1, itemBiot2, itemBiot4 mac addresses without :
                 }
                 expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
                 testContext.completeNow()
@@ -1118,7 +1118,7 @@ class TestRelaysCommunicationVerticle {
                 remove("mqttID")
                 remove("mqttUsername")
                 remove("ledStatus")
-                put("whiteList", "${itemAnother1.getString("beacon")};${itemAnother2.getString("beacon")}")
+                put("whiteList", "122334aeb5d201a2d4fe5621") // itemAnother1 and itemAnother2 mac addresses without :
               }
               expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
               testContext.completeNow()

@@ -422,7 +422,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
       val result = if (queryResult.size() == 0) listOf() else queryResult.map { it.getString("beacon") }
 
       // Filter result to remove invalid mac addresses
-      result.filter { s -> s.matches(macAddressRegex) }.distinct().joinToString(";")
+      result.filter { s -> s.matches(macAddressRegex) }.map { s -> s.replace(":", "") }.distinct().joinToString("")
     } catch (e: Exception) {
       LOGGER.warn { "Could not get beacons' whitelist" }
       ""
