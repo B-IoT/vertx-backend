@@ -423,9 +423,15 @@ class PublicApiVerticle : CoroutineVerticle() {
   private suspend fun compareSnapshotsHandler(ctx: RoutingContext) {
     LOGGER.info { "New compareSnapshots request" }
 
+    val acString = ctx.get<String>("accessControlString")
+    if (acString == null) {
+      sendBadGateway(ctx, Error(NO_AC_IN_CTX_ERROR_MSG))
+    }
+
     webClient
       .get(CRUD_PORT, CRUD_HOST, "/$ITEMS_ENDPOINT/snapshots/compare/?${ctx.request().query()}")
       .addQueryParam("company", ctx.user().principal()["company"])
+      .addQueryParam("accessControlString", acString)
       .timeout(TIMEOUT)
       .coroutineSend()
       .bimap(
@@ -450,9 +456,15 @@ class PublicApiVerticle : CoroutineVerticle() {
   private suspend fun getSnapshotHandler(ctx: RoutingContext) {
     LOGGER.info { "New getSnapshot request" }
 
+    val acString = ctx.get<String>("accessControlString")
+    if (acString == null) {
+      sendBadGateway(ctx, Error(NO_AC_IN_CTX_ERROR_MSG))
+    }
+
     webClient
       .get(CRUD_PORT, CRUD_HOST, "/$ITEMS_ENDPOINT/snapshots/${ctx.pathParam("id")}")
       .addQueryParam("company", ctx.user().principal()["company"])
+      .addQueryParam("accessControlString", acString)
       .timeout(TIMEOUT)
       .coroutineSend()
       .bimap(
@@ -477,9 +489,15 @@ class PublicApiVerticle : CoroutineVerticle() {
   private suspend fun createSnapshotHandler(ctx: RoutingContext) {
     LOGGER.info { "New createSnapshot request" }
 
+    val acString = ctx.get<String>("accessControlString")
+    if (acString == null) {
+      sendBadGateway(ctx, Error(NO_AC_IN_CTX_ERROR_MSG))
+    }
+
     webClient
       .post(CRUD_PORT, CRUD_HOST, "/$ITEMS_ENDPOINT/snapshots")
       .addQueryParam("company", ctx.user().principal()["company"])
+      .addQueryParam("accessControlString", acString)
       .timeout(TIMEOUT)
       .expect(ResponsePredicate.SC_OK)
       .coroutineSend()
