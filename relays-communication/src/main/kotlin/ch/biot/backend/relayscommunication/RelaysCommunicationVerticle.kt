@@ -424,7 +424,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
       // Filter result to remove invalid mac addresses
       result.filter { s -> s.matches(macAddressRegex) }.map { s -> s.replace(":", "") }.distinct().joinToString("")
     } catch (e: Exception) {
-      LOGGER.warn { "Could not get beacons' whitelist" }
+      LOGGER.warn { "Could not get beacons' whitelist: exception: $e" }
       ""
     }
   }

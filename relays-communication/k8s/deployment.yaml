@@ -53,6 +53,16 @@ spec:
                 configMapKeyRef:
                   name: relays-communication-config
                   key: kafka_port
+            - name: TIMESCALE_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: crud-config
+                  key: timescale_port
+            - name: TIMESCALE_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: crud-config
+                  key: timescale_hostname
           livenessProbe:
             tcpSocket:
               port: 1884
