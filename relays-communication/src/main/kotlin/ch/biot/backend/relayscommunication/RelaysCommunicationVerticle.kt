@@ -409,7 +409,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
    * Gets the MAC addresses of beacons associated to items in the DB for the given company and returns them as
    * a semi-colon separated string.
    * The MAC addresses are filtered to have only "valid" MAC addresses.
-   * If it cannot get MAC Addresses from the DB, it returns an empty string and log a message.
+   * If it cannot get MAC Addresses from the DB, it returns an empty string and logs a message.
    */
   private suspend fun getItemsMacAddressesString(company: String): String {
     val accessControlString = company
