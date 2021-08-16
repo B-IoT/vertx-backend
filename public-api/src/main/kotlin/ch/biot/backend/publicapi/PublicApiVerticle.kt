@@ -45,7 +45,7 @@ import java.net.InetAddress
 
 internal val LOGGER = KotlinLogging.logger {}
 
-class PublicApiVerticle : CoroutineVerticle() {
+class PublicApiVerticle(private val webClient: WebClient) : CoroutineVerticle() {
 
   companion object {
     const val TIMEOUT: Long = 5000
@@ -86,14 +86,14 @@ class PublicApiVerticle : CoroutineVerticle() {
       )
 
       Vertx.clusteredVertx(options).onSuccess {
-        it.deployVerticle(PublicApiVerticle())
+        val webClient = WebClient.create(it, webClientOptionsOf(tryUseCompression = true))
+        it.deployVerticle(PublicApiVerticle(webClient))
       }.onFailure { error ->
         LOGGER.error(error) { "Could not start" }
       }
     }
   }
 
-  private lateinit var webClient: WebClient
   private lateinit var jwtAuth: JWTAuth
 
   override suspend fun start() {
@@ -223,8 +223,6 @@ class PublicApiVerticle : CoroutineVerticle() {
     )
     router.route("/eventbus/*").coroutineHandler(::eventBusAuthHandler)
     router.mountSubRouter("/eventbus", sockJSHandler.bridge(sockJSBridgeOptions))
-
-    webClient = WebClient.create(vertx, webClientOptionsOf(tryUseCompression = true))
 
     try {
       vertx.createHttpServer(
@@ -375,9 +373,9 @@ class PublicApiVerticle : CoroutineVerticle() {
   private suspend fun getItemsHandler(ctx: RoutingContext) = getManyHandler(ctx, ITEMS_ENDPOINT)
   private suspend fun getClosestItemsHandler(ctx: RoutingContext) {
     LOGGER.info { "New getClosestItems request" }
+
     val acString = ctx.get<String>("accessControlString")
     if (acString == null) {
-
       sendBadGateway(ctx, Error(NO_AC_IN_CTX_ERROR_MSG))
     }
 

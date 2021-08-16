@@ -6,6 +6,12 @@ package ch.biot.backend.publicapi
 
 import ch.biot.backend.crud.CRUDVerticle
 import ch.biot.backend.crud.CRUDVerticle.Companion.INITIAL_USER
+import ch.biot.backend.publicapi.PublicApiVerticle.Companion.CRUD_HOST
+import ch.biot.backend.publicapi.PublicApiVerticle.Companion.CRUD_PORT
+import io.mockk.clearAllMocks
+import io.mockk.every
+import io.mockk.spyk
+import io.mockk.verify
 import io.restassured.builder.RequestSpecBuilder
 import io.restassured.filter.log.RequestLoggingFilter
 import io.restassured.filter.log.ResponseLoggingFilter
@@ -20,6 +26,7 @@ import io.vertx.core.buffer.Buffer
 import io.vertx.core.json.JsonArray
 import io.vertx.eventbusclient.EventBusClient
 import io.vertx.eventbusclient.EventBusClientOptions
+import io.vertx.ext.web.client.WebClient
 import io.vertx.junit5.VertxExtension
 import io.vertx.junit5.VertxTestContext
 import io.vertx.kotlin.core.json.get
@@ -27,6 +34,7 @@ import io.vertx.kotlin.core.json.jsonArrayOf
 import io.vertx.kotlin.core.json.jsonObjectOf
 import io.vertx.kotlin.coroutines.await
 import io.vertx.kotlin.coroutines.dispatcher
+import io.vertx.kotlin.ext.web.client.webClientOptionsOf
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.*
 import org.junit.jupiter.api.extension.ExtendWith
@@ -43,7 +51,7 @@ import java.time.LocalDate
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @Testcontainers
 /**
- * Integration tests; the order matters.
+ * Integration tests; the order matters (should not be the case, to fix).
  */
 class TestPublicApiVerticle {
 
@@ -165,15 +173,23 @@ class TestPublicApiVerticle {
   private lateinit var token: String
   private lateinit var tokenGrp1: String
 
+  private lateinit var webClient: WebClient
+
   @BeforeEach
   fun setup(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
     try {
-      vertx.deployVerticle(PublicApiVerticle()).await()
+      webClient = spyk(WebClient.create(vertx, webClientOptionsOf(tryUseCompression = true)))
+      vertx.deployVerticle(PublicApiVerticle(webClient)).await()
       vertx.deployVerticle(CRUDVerticle()).await()
       testContext.completeNow()
     } catch (error: Throwable) {
       testContext.failNow(error)
     }
+  }
+
+  @AfterEach
+  fun tearDown() {
+    clearAllMocks()
   }
 
   @Test
@@ -235,6 +251,9 @@ class TestPublicApiVerticle {
   @Order(3)
   @DisplayName("Registering a user succeeds")
   fun registerUserSucceeds(testContext: VertxTestContext) {
+    val requestSpy = spyk(webClient.post(CRUD_PORT, CRUD_HOST, "/users"))
+    every { webClient.post(any(), any(), "/users") } returns requestSpy
+
     val response = Given {
       spec(requestSpecification)
       header("Authorization", "Bearer $token")
@@ -250,6 +269,8 @@ class TestPublicApiVerticle {
 
     testContext.verify {
       expectThat(response).isEmpty()
+      verify { requestSpy.addQueryParam("company", ofType(String::class)) }
+      verify { requestSpy.addQueryParam("accessControlString", ofType(String::class)) }
       testContext.completeNow()
     }
   }
@@ -260,6 +281,9 @@ class TestPublicApiVerticle {
   fun getUsersSucceeds(testContext: VertxTestContext) {
     val expected =
       jsonArrayOf(INITIAL_USER.copy().apply { remove("password") }, user.copy().apply { remove("password") })
+
+    val requestSpy = spyk(webClient.get(CRUD_PORT, CRUD_HOST, "/users"))
+    every { webClient.get(any(), any(), "/users") } returns requestSpy
 
     val response = Buffer.buffer(
       Given {
@@ -285,6 +309,10 @@ class TestPublicApiVerticle {
 
       expectThat(password1).isNotNull()
       expectThat(password2).isNotNull()
+
+      verify { requestSpy.addQueryParam("company", ofType(String::class)) }
+      verify { requestSpy.addQueryParam("accessControlString", ofType(String::class)) }
+
       testContext.completeNow()
     }
   }
@@ -293,7 +321,11 @@ class TestPublicApiVerticle {
   @Order(5)
   @DisplayName("Getting a user succeeds")
   fun getUserSucceeds(testContext: VertxTestContext) {
+    val userID = user.getString("userID")
     val expected = user.copy().apply { remove("password") }
+
+    val requestSpy = spyk(webClient.get(CRUD_PORT, CRUD_HOST, "/users/$userID"))
+    every { webClient.get(any(), any(), "/users/$userID") } returns requestSpy
 
     val response = Buffer.buffer(
       Given {
@@ -301,7 +333,7 @@ class TestPublicApiVerticle {
         accept(ContentType.JSON)
         header("Authorization", "Bearer $token")
       } When {
-        get("/api/users/${user.getString("userID")}")
+        get("/api/users/$userID")
       } Then {
         statusCode(200)
       } Extract {
@@ -314,6 +346,8 @@ class TestPublicApiVerticle {
       val password = response.remove("password")
       expectThat(response).isEqualTo(expected)
       expectThat(password).isNotNull()
+      verify { requestSpy.addQueryParam("company", ofType(String::class)) }
+      verify { requestSpy.addQueryParam("accessControlString", ofType(String::class)) }
       testContext.completeNow()
     }
   }
@@ -322,9 +356,13 @@ class TestPublicApiVerticle {
   @Order(6)
   @DisplayName("Updating a user succeeds")
   fun updateUserSucceeds(testContext: VertxTestContext) {
+    val userID = user.getString("userID")
     val updateJson = jsonObjectOf(
       "password" to "newPassword"
     )
+
+    val requestSpy = spyk(webClient.put(CRUD_PORT, CRUD_HOST, "/users/$userID"))
+    every { webClient.put(any(), any(), "/users/$userID") } returns requestSpy
 
     val response = Given {
       spec(requestSpecification)
@@ -333,7 +371,7 @@ class TestPublicApiVerticle {
       header("Authorization", "Bearer $token")
       body(updateJson.encode())
     } When {
-      put("/api/users/${user.getString("userID")}")
+      put("/api/users/$userID")
     } Then {
       statusCode(200)
     } Extract {
@@ -342,6 +380,8 @@ class TestPublicApiVerticle {
 
     testContext.verify {
       expectThat(response).isEmpty()
+      verify { requestSpy.addQueryParam("company", ofType(String::class)) }
+      verify { requestSpy.addQueryParam("accessControlString", ofType(String::class)) }
       testContext.completeNow()
     }
   }
@@ -350,8 +390,9 @@ class TestPublicApiVerticle {
   @Order(7)
   @DisplayName("Deleting a user succeeds")
   fun deleteUserSucceeds(testContext: VertxTestContext) {
+    val userID = "test42"
     val userToRemove = jsonObjectOf(
-      "userID" to "test42",
+      "userID" to userID,
       "username" to "test42",
       "password" to "test42",
       "company" to "biot",
@@ -372,12 +413,15 @@ class TestPublicApiVerticle {
       asString()
     }
 
+    val requestSpy = spyk(webClient.delete(CRUD_PORT, CRUD_HOST, "/users/$userID"))
+    every { webClient.delete(any(), any(), "/users/$userID") } returns requestSpy
+
     // Delete the user
     val response = Given {
       spec(requestSpecification)
       header("Authorization", "Bearer $token")
     } When {
-      delete("/api/users/${userToRemove.getString("userID")}")
+      delete("/api/users/$userID")
     } Then {
       statusCode(200)
     } Extract {
@@ -386,6 +430,8 @@ class TestPublicApiVerticle {
 
     testContext.verify {
       expectThat(response).isEmpty()
+      verify { requestSpy.addQueryParam("company", ofType(String::class)) }
+      verify { requestSpy.addQueryParam("accessControlString", ofType(String::class)) }
       testContext.completeNow()
     }
   }
@@ -394,6 +440,9 @@ class TestPublicApiVerticle {
   @Order(8)
   @DisplayName("Registering a relay succeeds")
   fun registerRelaySucceeds(testContext: VertxTestContext) {
+    val requestSpy = spyk(webClient.post(CRUD_PORT, CRUD_HOST, "/relays"))
+    every { webClient.post(any(), any(), "/relays") } returns requestSpy
+
     val response = Given {
       spec(requestSpecification)
       contentType(ContentType.JSON)
@@ -409,6 +458,7 @@ class TestPublicApiVerticle {
 
     testContext.verify {
       expectThat(response).isEmpty()
+      verify { requestSpy.addQueryParam("company", ofType(String::class)) }
       testContext.completeNow()
     }
   }
@@ -418,6 +468,9 @@ class TestPublicApiVerticle {
   @DisplayName("Getting the relays succeeds")
   fun getRelaysSucceeds(testContext: VertxTestContext) {
     val expected = jsonArrayOf(relay.copy().apply { remove("mqttPassword") })
+
+    val requestSpy = spyk(webClient.get(CRUD_PORT, CRUD_HOST, "/relays"))
+    every { webClient.get(any(), any(), "/relays") } returns requestSpy
 
     val response = Buffer.buffer(
       Given {
@@ -440,6 +493,9 @@ class TestPublicApiVerticle {
       val password = response.getJsonObject(0).remove("mqttPassword")
       expectThat(response).isEqualTo(expected)
       expectThat(password).isNotNull()
+
+      verify { requestSpy.addQueryParam("company", ofType(String::class)) }
+
       testContext.completeNow()
     }
   }
@@ -448,7 +504,11 @@ class TestPublicApiVerticle {
   @Order(10)
   @DisplayName("Getting a relay succeeds")
   fun getRelaySucceeds(testContext: VertxTestContext) {
+    val relayID = relay.getString("relayID")
     val expected = relay.copy().apply { remove("mqttPassword") }
+
+    val requestSpy = spyk(webClient.get(CRUD_PORT, CRUD_HOST, "/relays/$relayID"))
+    every { webClient.get(any(), any(), "/relays/$relayID") } returns requestSpy
 
     val response = Buffer.buffer(
       Given {
@@ -456,7 +516,7 @@ class TestPublicApiVerticle {
         accept(ContentType.JSON)
         header("Authorization", "Bearer $token")
       } When {
-        get("/api/relays/${relay.getString("relayID")}")
+        get("/api/relays/$relayID")
       } Then {
         statusCode(200)
       } Extract {
@@ -469,6 +529,7 @@ class TestPublicApiVerticle {
       val password = response.remove("mqttPassword")
       expectThat(response).isEqualTo(expected)
       expectThat(password).isNotNull()
+      verify { requestSpy.addQueryParam("company", ofType(String::class)) }
       testContext.completeNow()
     }
   }
@@ -477,6 +538,7 @@ class TestPublicApiVerticle {
   @Order(11)
   @DisplayName("Updating a relay succeeds")
   fun updateRelaySucceeds(testContext: VertxTestContext) {
+    val relayID = relay.getString("relayID")
     val updateJson = jsonObjectOf(
       "ledStatus" to true,
       "latitude" to 1.0,
@@ -492,6 +554,9 @@ class TestPublicApiVerticle {
       )
     )
 
+    val requestSpy = spyk(webClient.put(CRUD_PORT, CRUD_HOST, "/relays/$relayID"))
+    every { webClient.put(any(), any(), "/relays/$relayID") } returns requestSpy
+
     val response = Given {
       spec(requestSpecification)
       contentType(ContentType.JSON)
@@ -499,7 +564,7 @@ class TestPublicApiVerticle {
       header("Authorization", "Bearer $token")
       body(updateJson.encode())
     } When {
-      put("/api/relays/${relay.getString("relayID")}")
+      put("/api/relays/$relayID")
     } Then {
       statusCode(200)
     } Extract {
@@ -508,6 +573,7 @@ class TestPublicApiVerticle {
 
     testContext.verify {
       expectThat(response).isEmpty()
+      verify { requestSpy.addQueryParam("company", ofType(String::class)) }
       testContext.completeNow()
     }
   }
@@ -516,10 +582,12 @@ class TestPublicApiVerticle {
   @Order(12)
   @DisplayName("Deleting a relay succeeds")
   fun deleteRelaySucceeds(testContext: VertxTestContext) {
+    val relayID = "testRelay42"
+
     val relayToRemove = jsonObjectOf(
       "mqttID" to "testRelay42",
       "mqttUsername" to "testRelay42",
-      "relayID" to "testRelay42",
+      "relayID" to relayID,
       "mqttPassword" to "password",
       "ledStatus" to false,
       "latitude" to 0.1,
@@ -544,12 +612,15 @@ class TestPublicApiVerticle {
       statusCode(200)
     }
 
+    val requestSpy = spyk(webClient.delete(CRUD_PORT, CRUD_HOST, "/relays/$relayID"))
+    every { webClient.delete(any(), any(), "/relays/$relayID") } returns requestSpy
+
     // Delete the relay
     val response = Given {
       spec(requestSpecification)
       header("Authorization", "Bearer $token")
     } When {
-      delete("/api/relays/${relayToRemove.getString("relayID")}")
+      delete("/api/relays/$relayID")
     } Then {
       statusCode(200)
     } Extract {
@@ -558,6 +629,7 @@ class TestPublicApiVerticle {
 
     testContext.verify {
       expectThat(response).isEmpty()
+      verify { requestSpy.addQueryParam("company", ofType(String::class)) }
       testContext.completeNow()
     }
   }
@@ -566,6 +638,9 @@ class TestPublicApiVerticle {
   @Order(13)
   @DisplayName("Registering an item succeeds")
   fun registerItemSucceeds(testContext: VertxTestContext) {
+    val requestSpy = spyk(webClient.post(CRUD_PORT, CRUD_HOST, "/items"))
+    every { webClient.post(any(), any(), "/items") } returns requestSpy
+
     val response = Given {
       spec(requestSpecification)
       contentType(ContentType.JSON)
@@ -582,6 +657,8 @@ class TestPublicApiVerticle {
     testContext.verify {
       expectThat(response).isNotEmpty() // it returns the id of the registered item
       itemID = response.toInt()
+      verify { requestSpy.addQueryParam("company", ofType(String::class)) }
+      verify { requestSpy.addQueryParam("accessControlString", ofType(String::class)) }
       testContext.completeNow()
     }
   }
@@ -591,6 +668,9 @@ class TestPublicApiVerticle {
   @DisplayName("Getting the items succeeds")
   fun getItemsSucceeds(testContext: VertxTestContext) {
     val expected = item1.copy()
+
+    val requestSpy = spyk(webClient.get(CRUD_PORT, CRUD_HOST, "/items"))
+    every { webClient.get(any(), any(), "/items") } returns requestSpy
 
     val response = Buffer.buffer(
       Given {
@@ -646,6 +726,9 @@ class TestPublicApiVerticle {
         that(obj.containsKey("floor")).isTrue()
       }
 
+      verify { requestSpy.addQueryParam("company", ofType(String::class)) }
+      verify { requestSpy.addQueryParam("accessControlString", ofType(String::class)) }
+
       testContext.completeNow()
     }
   }
@@ -654,13 +737,17 @@ class TestPublicApiVerticle {
   @Order(15)
   @DisplayName("Getting the items (with query parameters) succeeds")
   fun getItemsWithQueryParametersSucceeds(testContext: VertxTestContext) {
+    val category = item1.getString("category")
+    val requestSpy = spyk(webClient.get(CRUD_PORT, CRUD_HOST, "/items/?category=$category"))
+    every { webClient.get(any(), any(), "/items/?category=$category") } returns requestSpy
+
     val response = Buffer.buffer(
       Given {
         spec(requestSpecification)
         accept(ContentType.JSON)
         header("Authorization", "Bearer $token")
       } When {
-        queryParam("category", item1.getString("category"))
+        queryParam("category", category)
         get("/api/items")
       } Then {
         statusCode(200)
@@ -709,6 +796,9 @@ class TestPublicApiVerticle {
         that(obj.containsKey("floor")).isTrue()
       }
 
+      verify { requestSpy.addQueryParam("company", ofType(String::class)) }
+      verify { requestSpy.addQueryParam("accessControlString", ofType(String::class)) }
+
       testContext.completeNow()
     }
   }
@@ -717,14 +807,20 @@ class TestPublicApiVerticle {
   @Order(16)
   @DisplayName("Getting the closest items succeeds")
   fun getClosestItemsSucceeds(testContext: VertxTestContext) {
+    val latitude = 42
+    val longitude = -8
+    val requestSpy =
+      spyk(webClient.get(CRUD_PORT, CRUD_HOST, "/items/closest/?latitude=$latitude&longitude=$longitude"))
+    every { webClient.get(any(), any(), "/items/closest/?latitude=$latitude&longitude=$longitude") } returns requestSpy
+
     val response = Buffer.buffer(
       Given {
         spec(requestSpecification)
         accept(ContentType.JSON)
         header("Authorization", "Bearer $token")
       } When {
-        queryParam("latitude", 42)
-        queryParam("longitude", -8)
+        queryParam("latitude", latitude)
+        queryParam("longitude", longitude)
         get("/api/items/closest")
       } Then {
         statusCode(200)
@@ -735,6 +831,8 @@ class TestPublicApiVerticle {
 
     testContext.verify {
       expectThat(response.isEmpty).isFalse()
+      verify { requestSpy.addQueryParam("company", ofType(String::class)) }
+      verify { requestSpy.addQueryParam("accessControlString", ofType(String::class)) }
       testContext.completeNow()
     }
   }
@@ -744,6 +842,9 @@ class TestPublicApiVerticle {
   @DisplayName("Getting an item succeeds")
   fun getItemSucceeds(testContext: VertxTestContext) {
     val expected = item1.copy()
+
+    val requestSpy = spyk(webClient.get(CRUD_PORT, CRUD_HOST, "/items/$itemID"))
+    every { webClient.get(any(), any(), "/items/$itemID") } returns requestSpy
 
     val response = Buffer.buffer(
       Given {
@@ -795,6 +896,10 @@ class TestPublicApiVerticle {
         that(response.containsKey("longitude")).isTrue()
         that(response.containsKey("floor")).isTrue()
       }
+
+      verify { requestSpy.addQueryParam("company", ofType(String::class)) }
+      verify { requestSpy.addQueryParam("accessControlString", ofType(String::class)) }
+
       testContext.completeNow()
     }
   }
@@ -804,6 +909,9 @@ class TestPublicApiVerticle {
   @DisplayName("Getting the categories succeeds")
   fun getCategoriesSucceeds(testContext: VertxTestContext) {
     val expected = JsonArray(listOf(item1.getString("category")))
+
+    val requestSpy = spyk(webClient.get(CRUD_PORT, CRUD_HOST, "/items/categories"))
+    every { webClient.get(any(), any(), "/items/categories") } returns requestSpy
 
     val response = Buffer.buffer(
       Given {
@@ -821,6 +929,8 @@ class TestPublicApiVerticle {
 
     testContext.verify {
       expectThat(response).isEqualTo(expected)
+      verify { requestSpy.addQueryParam("company", ofType(String::class)) }
+      verify { requestSpy.addQueryParam("accessControlString", ofType(String::class)) }
       testContext.completeNow()
     }
   }
@@ -855,6 +965,9 @@ class TestPublicApiVerticle {
       "lastModifiedBy" to "Monsieur Duport"
     )
 
+    val requestSpy = spyk(webClient.put(CRUD_PORT, CRUD_HOST, "/items/$itemID"))
+    every { webClient.put(any(), any(), "/items/$itemID") } returns requestSpy
+
     val response = Given {
       spec(requestSpecification)
       contentType(ContentType.JSON)
@@ -871,6 +984,8 @@ class TestPublicApiVerticle {
 
     testContext.verify {
       expectThat(response).isEmpty()
+      verify { requestSpy.addQueryParam("company", ofType(String::class)) }
+      verify { requestSpy.addQueryParam("accessControlString", ofType(String::class)) }
       testContext.completeNow()
     }
   }
@@ -905,6 +1020,10 @@ class TestPublicApiVerticle {
       "lastModifiedBy" to "Monsieur Duport"
     )
 
+    val scan = true
+    val requestSpy = spyk(webClient.put(CRUD_PORT, CRUD_HOST, "/items/$itemID?scan=$scan"))
+    every { webClient.put(any(), any(), "/items/$itemID?scan=$scan") } returns requestSpy
+
     val response = Given {
       spec(requestSpecification)
       contentType(ContentType.JSON)
@@ -912,7 +1031,7 @@ class TestPublicApiVerticle {
       header("Authorization", "Bearer $token")
       body(updateJson.encode())
     } When {
-      queryParam("scan", true)
+      queryParam("scan", scan)
       put("/api/items/$itemID")
     } Then {
       statusCode(200)
@@ -922,6 +1041,8 @@ class TestPublicApiVerticle {
 
     testContext.verify {
       expectThat(response).isEmpty()
+      verify { requestSpy.addQueryParam("company", ofType(String::class)) }
+      verify { requestSpy.addQueryParam("accessControlString", ofType(String::class)) }
       testContext.completeNow()
     }
   }
@@ -970,6 +1091,9 @@ class TestPublicApiVerticle {
       asString()
     }
 
+    val requestSpy = spyk(webClient.delete(CRUD_PORT, CRUD_HOST, "/items/$id"))
+    every { webClient.delete(any(), any(), "/items/$id") } returns requestSpy
+
     // Delete the item
     val response = Given {
       spec(requestSpecification)
@@ -984,6 +1108,8 @@ class TestPublicApiVerticle {
 
     testContext.verify {
       expectThat(response).isEmpty()
+      verify { requestSpy.addQueryParam("company", ofType(String::class)) }
+      verify { requestSpy.addQueryParam("accessControlString", ofType(String::class)) }
       testContext.completeNow()
     }
   }
@@ -1040,6 +1166,9 @@ class TestPublicApiVerticle {
   @Order(24)
   @DisplayName("Getting the item's status succeeds (analytics)")
   fun getStatusSucceeds(testContext: VertxTestContext) {
+    val requestSpy = spyk(webClient.get(CRUD_PORT, CRUD_HOST, "/analytics/status"))
+    every { webClient.get(any(), any(), "/analytics/status") } returns requestSpy
+
     val response = Buffer.buffer(
       Given {
         spec(requestSpecification)
@@ -1055,6 +1184,7 @@ class TestPublicApiVerticle {
 
     testContext.verify {
       expectThat(response.isEmpty).isFalse()
+      verify { requestSpy.addQueryParam("company", ofType(String::class)) }
       testContext.completeNow()
     }
   }
@@ -1202,6 +1332,9 @@ class TestPublicApiVerticle {
   @Order(30)
   @DisplayName("Creating a snapshot succeeds")
   fun createSnapshotSucceeds(testContext: VertxTestContext) {
+    val requestSpy = spyk(webClient.post(CRUD_PORT, CRUD_HOST, "/items/snapshots"))
+    every { webClient.post(any(), any(), any()) } returns requestSpy
+
     val response = Given {
       spec(requestSpecification)
       header("Authorization", "Bearer $token")
@@ -1216,6 +1349,8 @@ class TestPublicApiVerticle {
 
     testContext.verify {
       expectThat(response).isNotEmpty()
+      verify { requestSpy.addQueryParam("company", ofType(String::class)) }
+      verify { requestSpy.addQueryParam("accessControlString", ofType(String::class)) }
       testContext.completeNow()
     }
   }
@@ -1224,6 +1359,9 @@ class TestPublicApiVerticle {
   @Order(31)
   @DisplayName("Getting the list of snapshots succeeds")
   fun getSnapshotsSucceeds(testContext: VertxTestContext) {
+    val requestSpy = spyk(webClient.get(CRUD_PORT, CRUD_HOST, "/items/snapshots"))
+    every { webClient.get(any(), any(), "/items/snapshots") } returns requestSpy
+
     val snapshots = Buffer.buffer(Given {
       spec(requestSpecification)
       header("Authorization", "Bearer $token")
@@ -1238,6 +1376,8 @@ class TestPublicApiVerticle {
 
     testContext.verify {
       expectThat(snapshots.size()).isGreaterThan(0)
+      verify { requestSpy.addQueryParam("company", ofType(String::class)) }
+      verify { requestSpy.addQueryParam("accessControlString", ofType(String::class)) }
       testContext.completeNow()
     }
   }
@@ -1258,6 +1398,9 @@ class TestPublicApiVerticle {
       asString()
     }
 
+    val requestSpy = spyk(webClient.get(CRUD_PORT, CRUD_HOST, "/items/snapshots/$snapshotID"))
+    every { webClient.get(any(), any(), "/items/snapshots/$snapshotID") } returns requestSpy
+
     val items = Buffer.buffer(Given {
       spec(requestSpecification)
       header("Authorization", "Bearer $token")
@@ -1272,6 +1415,8 @@ class TestPublicApiVerticle {
 
     testContext.verify {
       expectThat(items.size()).isGreaterThan(0)
+      verify { requestSpy.addQueryParam("company", ofType(String::class)) }
+      verify { requestSpy.addQueryParam("accessControlString", ofType(String::class)) }
       testContext.completeNow()
     }
   }
@@ -1292,6 +1437,9 @@ class TestPublicApiVerticle {
       asString()
     }
 
+    val requestSpy = spyk(webClient.delete(CRUD_PORT, CRUD_HOST, "/items/snapshots/$snapshotID"))
+    every { webClient.delete(any(), any(), "/items/snapshots/$snapshotID") } returns requestSpy
+
     val response = Given {
       spec(requestSpecification)
       header("Authorization", "Bearer $token")
@@ -1306,6 +1454,8 @@ class TestPublicApiVerticle {
 
     testContext.verify {
       expectThat(response).isEmpty()
+      verify { requestSpy.addQueryParam("company", ofType(String::class)) }
+      verify { requestSpy.addQueryParam("accessControlString", ofType(String::class)) }
       testContext.completeNow()
     }
   }
@@ -1338,6 +1488,21 @@ class TestPublicApiVerticle {
       asString()
     }
 
+    val requestSpy = spyk(
+      webClient.get(
+        CRUD_PORT,
+        CRUD_HOST,
+        "/items/snapshots/compare/?firstSnapshotId=$firstSnapshotId&secondSnapshotId=$secondSnapshotId"
+      )
+    )
+    every {
+      webClient.get(
+        any(),
+        any(),
+        "/items/snapshots/compare/?firstSnapshotId=$firstSnapshotId&secondSnapshotId=$secondSnapshotId"
+      )
+    } returns requestSpy
+
     val comparisonObject = Buffer.buffer(Given {
       spec(requestSpecification)
       header("Authorization", "Bearer $token")
@@ -1354,6 +1519,8 @@ class TestPublicApiVerticle {
 
     testContext.verify {
       expectThat(comparisonObject.isEmpty).isFalse()
+      verify { requestSpy.addQueryParam("company", ofType(String::class)) }
+      verify { requestSpy.addQueryParam("accessControlString", ofType(String::class)) }
       testContext.completeNow()
     }
   }

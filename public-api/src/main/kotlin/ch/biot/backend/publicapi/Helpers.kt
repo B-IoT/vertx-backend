@@ -79,7 +79,7 @@ internal suspend fun <T> HttpRequest<T>.coroutineSend(): Either<InternalErrorExc
     val result = send().await()
     Either.Right(result)
   } catch (error: Throwable) {
-    Either.Left(InternalErrorException("Internal server error:\n${error.message}", error.cause))
+    Either.Left(InternalErrorException("Internal server error:\n${error.stackTraceToString()}", error.cause))
   }
 
 /**
@@ -90,7 +90,7 @@ internal suspend fun <T> HttpRequest<T>.coroutineSendBuffer(buffer: Buffer): Eit
     val result = sendBuffer(buffer).await()
     Either.Right(result)
   } catch (error: Throwable) {
-    Either.Left(InternalErrorException("Internal server error:\n${error.message}", error.cause))
+    Either.Left(InternalErrorException("Internal server error:\n${error.stackTraceToString()}", error.cause))
   }
 
 /**
@@ -101,5 +101,5 @@ internal suspend fun <T> HttpRequest<T>.coroutineSendJsonObject(json: JsonObject
     val result = sendJsonObject(json).await()
     Either.Right(result)
   } catch (error: Throwable) {
-    Either.Left(InternalErrorException("Internal server error:\n${error.message}", error.cause))
+    Either.Left(InternalErrorException("Internal server error:\n${error.stackTraceToString()}", error.cause))
   }
