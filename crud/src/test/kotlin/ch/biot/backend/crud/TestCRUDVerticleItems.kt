@@ -2360,10 +2360,13 @@ class TestCRUDVerticleItems {
     vertx.eventBus().consumer<JsonObject>(ITEMS_UPDATES_ADDRESS) { msg ->
       val body = msg.body()
       testContext.verify {
-        expectThat(body.getString("type")).isEqualTo(expectedType)
-        expectThat(body.getInteger("id")).isEqualTo(itemId)
-        expectThat(body.getJsonObject("content").getString("category")).isEqualTo(updateItem.getString("category"))
-        testContext.completeNow()
+        val type = body.getString("type")
+        if (type != UpdateType.POST.toString()) {
+          expectThat(body.getString("type")).isEqualTo(expectedType)
+          expectThat(body.getInteger("id")).isEqualTo(itemId)
+          expectThat(body.getJsonObject("content").getString("category")).isEqualTo(updateItem.getString("category"))
+          testContext.completeNow()
+        }
       }
     }
 
@@ -2403,9 +2406,12 @@ class TestCRUDVerticleItems {
     vertx.eventBus().consumer<JsonObject>(ITEMS_UPDATES_ADDRESS) { msg ->
       val body = msg.body()
       testContext.verify {
-        expectThat(body.getString("type")).isEqualTo(expectedType)
-        expectThat(body.getInteger("id")).isEqualTo(itemId)
-        testContext.completeNow()
+        val type = body.getString("type")
+        if (type != UpdateType.POST.toString()) {
+          expectThat(type).isEqualTo(expectedType)
+          expectThat(body.getInteger("id")).isEqualTo(itemId)
+          testContext.completeNow()
+        }
       }
     }
 
