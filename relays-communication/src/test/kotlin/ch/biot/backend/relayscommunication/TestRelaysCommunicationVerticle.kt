@@ -47,11 +47,13 @@ import org.testcontainers.junit.jupiter.Testcontainers
 import strikt.api.expect
 import strikt.api.expectThat
 import strikt.assertions.isEqualTo
+import strikt.assertions.isLessThanOrEqualTo
 import strikt.assertions.isNotNull
 import java.io.File
 import java.security.SecureRandom
 import java.time.LocalDate
 import java.util.*
+import java.util.concurrent.TimeUnit
 
 @ExtendWith(VertxExtension::class)
 @Testcontainers
@@ -68,7 +70,6 @@ class TestRelaysCommunicationVerticle {
 
   private lateinit var pgClient: SqlClient
 
-  private var msgCounter = 0
 
   private val mqttPassword = "password"
   private val configuration = jsonObjectOf(
@@ -284,7 +285,8 @@ class TestRelaysCommunicationVerticle {
         password = mqttPassword,
         willFlag = true,
         willMessage = jsonObjectOf("company" to "biot").encode(),
-        ssl = true
+        ssl = true,
+        maxMessageSize = 100_000
       )
     )
 
@@ -594,6 +596,60 @@ class TestRelaysCommunicationVerticle {
 
   }
 
+  /**
+   * Generates a list of 1026 mac addresses as string with the following format "aabbccddeeff"
+   */
+  private fun gen1026UniqueMacs(): List<String> {
+    val possibleChar = "0123456789abcdef"
+    val res = arrayListOf<String>()
+    for (i in 1..1026) {
+      var newMac = ""
+      do {
+        for (j in 0..12) {
+          newMac += possibleChar[possibleChar.indices.random()]
+        }
+      } while (res.contains(newMac))
+      res.add(newMac)
+    }
+    assert(res.size == 1026)
+    return res
+  }
+
+  private suspend fun add1026Items() {
+    val macs1026 = gen1026UniqueMacs()
+    for (i in 0 until 1026) {
+      pgClient.preparedQuery(insertItem("items"))
+        .execute(
+          Tuple.of(
+            macs1026[i],
+            itemBiot1["category"],
+            itemBiot1["service"],
+            "${itemBiot1.getString("itemID")}_$i",
+            itemBiot1["accessControlString"],
+            itemBiot1["brand"],
+            itemBiot1["model"],
+            itemBiot1["supplier"],
+            LocalDate.parse(itemBiot1["purchaseDate"]),
+            itemBiot1["purchasePrice"],
+            itemBiot1["originLocation"],
+            itemBiot1["currentLocation"],
+            itemBiot1["room"],
+            itemBiot1["contact"],
+            itemBiot1["currentOwner"],
+            itemBiot1["previousOwner"],
+            itemBiot1["orderNumber"],
+            itemBiot1["color"],
+            itemBiot1["serialNumber"],
+            LocalDate.parse(itemBiot1["maintenanceDate"]),
+            itemBiot1["status"],
+            itemBiot1["comments"],
+            LocalDate.parse(itemBiot1["lastModifiedDate"]),
+            itemBiot1["lastModifiedBy"]
+          )
+        ).await()
+    }
+  }
+
   private fun dropAllItems(): CompositeFuture {
     return CompositeFuture.all(
       pgClient.query("DELETE FROM items").execute(),
@@ -658,7 +714,7 @@ class TestRelaysCommunicationVerticle {
   fun clientSubscribesAndReceivesLastConfig(vertx: Vertx, testContext: VertxTestContext): Unit =
     runBlocking(vertx.dispatcher()) {
       try {
-        mqttClient.connect(MQTT_PORT, "localhost").await()
+        mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, MQTT_HOST).await()
         mqttClient.publishHandler { msg ->
           if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
             testContext.verify {
@@ -1194,9 +1250,11 @@ class TestRelaysCommunicationVerticle {
     }
 
   @Test
-  @DisplayName("A MQTT client receives the config after 5 seconds if one item's beacon changed")
-  fun clientSubscribesAndReceivesLastConfigAfter5SecWhenModified(vertx: Vertx, testContext: VertxTestContext): Unit =
+  @Timeout(value = 120, unit = TimeUnit.SECONDS)
+  @DisplayName("A MQTT client receives the config after 20 seconds if one item's beacon changed")
+  fun clientSubscribesAndReceivesLastConfigAfter20SecWhenModified(vertx: Vertx, testContext: VertxTestContext): Unit =
     runBlocking(vertx.dispatcher()) {
+      var msgCounter = 0
       try {
         mqttClient.connect(MQTT_PORT, MQTT_HOST).await()
         mqttClient.publishHandler { msg ->
@@ -1245,18 +1303,20 @@ class TestRelaysCommunicationVerticle {
         testContext.failNow(error)
       }
 
-      vertx.setTimer(15_000) {
+      vertx.setTimer(25_000) {
         testContext.completeNow()
       }
     }
 
   @Test
-  @DisplayName("A MQTT client does NOT receive the config after 5 seconds if no item's beacon changed")
-  fun clientSubscribesAndDoesNotReceiveLastConfigAfter15SecWhenUnmodified(
+  @Timeout(value = 120, unit = TimeUnit.SECONDS)
+  @DisplayName("A MQTT client does NOT receive the config after 25 seconds if no item's beacon changed")
+  fun clientSubscribesAndDoesNotReceiveLastConfigAfter25SecWhenUnmodified(
     vertx: Vertx,
     testContext: VertxTestContext
   ): Unit =
     runBlocking(vertx.dispatcher()) {
+      var msgCounter = 0
       try {
         mqttClient.connect(MQTT_PORT, MQTT_HOST).await()
         mqttClient.publishHandler { msg ->
@@ -1287,8 +1347,34 @@ class TestRelaysCommunicationVerticle {
       } catch (error: Throwable) {
         testContext.failNow(error)
       }
-      vertx.setTimer(15_000) {
+      vertx.setTimer(25_000) {
         testContext.completeNow()
+      }
+    }
+
+  @Test
+  @Timeout(value = 120, unit = TimeUnit.SECONDS)
+  @DisplayName("A MQTT client never receives more than 1024 mac addresses in the whitelist")
+  fun clientSubscribesAndNeverReceivesMoreThan1024Macs(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      var msgCounter = 0
+      add1026Items()
+      try {
+        mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+        mqttClient.publishHandler { msg ->
+          if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
+            // First msg at subscription
+            testContext.verify {
+              expectThat(
+                msg.payload().toJsonObject().getString("whiteList").length
+              ).isLessThanOrEqualTo(1024 * 6 * 2)
+              testContext.completeNow()
+            }
+            msgCounter += 1
+          }
+        }.subscribe(UPDATE_PARAMETERS_TOPIC, MqttQoS.AT_LEAST_ONCE.value()).await()
+      } catch (error: Throwable) {
+        testContext.failNow(error)
       }
     }
 
