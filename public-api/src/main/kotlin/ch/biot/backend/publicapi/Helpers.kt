@@ -79,7 +79,7 @@ internal suspend fun <T> HttpRequest<T>.coroutineSend(): Either<InternalErrorExc
     Either.Right(result)
   } catch (error: Throwable) {
 
-    Either.Left(InternalErrorException("Internal server error", error.cause))
+    Either.Left(InternalErrorException("Internal server error:\n${error.stackTraceToString()}", error.cause))
   }
 
 /**

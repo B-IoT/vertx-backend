@@ -257,9 +257,7 @@ class PublicApiVerticle : CoroutineVerticle() {
       .`as`(BodyCodec.jsonObject())
       .coroutineSend()
       .bimap(
-        { error ->
-          sendBadGateway(ctx, error)
-        },
+        { error -> sendBadGateway(ctx, error) },
         { resp ->
           forwardJsonObjectOrStatusCode(ctx, resp)
         }
@@ -374,9 +372,7 @@ class PublicApiVerticle : CoroutineVerticle() {
       .`as`(BodyCodec.jsonObject())
       .coroutineSend()
       .bimap(
-        { error ->
-          sendBadGateway(ctx, error)
-        },
+        { error -> sendBadGateway(ctx, error) },
         { resp ->
           forwardJsonObjectOrStatusCode(ctx, resp)
         }
@@ -435,9 +431,7 @@ class PublicApiVerticle : CoroutineVerticle() {
         expect(ResponsePredicate.SC_OK)
         coroutineSendJsonObject(json)
           .bimap(
-            { error ->
-              sendBadGateway(ctx, error)
-            },
+            { error -> sendBadGateway(ctx, error) },
             { response ->
               if (forwardResponse) ctx.end(response.body())
               else sendStatusCode(ctx, response.statusCode())
@@ -467,13 +461,10 @@ class PublicApiVerticle : CoroutineVerticle() {
       .addQueryParam("accessControlString", acString) // Used only by the ITEMS_ENDPOINT for now
       .timeout(TIMEOUT)
       .putHeader(CONTENT_TYPE, APPLICATION_JSON)
-      .expect(ResponsePredicate.SC_OK)
       .coroutineSendBuffer(ctx.body)
       .bimap(
-        { error ->
-          sendBadGateway(ctx, error)
-        },
-        { ctx.end() }
+        { error -> sendBadGateway(ctx, error) },
+        { resp -> if (resp.statusCode() != 200) sendStatusCode(ctx, resp.statusCode()) else ctx.end() }
       )
 
   }
@@ -499,9 +490,7 @@ class PublicApiVerticle : CoroutineVerticle() {
       .`as`(BodyCodec.jsonArray())
       .coroutineSend()
       .bimap(
-        { error ->
-          sendBadGateway(ctx, error)
-        },
+        { error -> sendBadGateway(ctx, error) },
         { resp ->
           forwardJsonArrayOrStatusCode(ctx, resp)
         }
@@ -527,14 +516,17 @@ class PublicApiVerticle : CoroutineVerticle() {
       .addQueryParam("company", ctx.user().principal()["company"])
       .addQueryParam("accessControlString", acString) // Used only by the ITEMS_ENDPOINT for now
       .timeout(TIMEOUT)
-      .`as`(BodyCodec.jsonObject())
       .coroutineSend()
       .bimap(
-        { error ->
-          sendBadGateway(ctx, error)
-        },
+        { error -> sendBadGateway(ctx, error) },
         { resp ->
-          forwardJsonObjectOrStatusCode(ctx, resp)
+          if (resp.statusCode() != 200) {
+            sendStatusCode(ctx, resp.statusCode())
+          } else {
+            ctx.response()
+              .putHeader(CONTENT_TYPE, APPLICATION_JSON)
+              .end(resp.bodyAsJsonObject().encode())
+          }
         }
       )
   }
@@ -559,13 +551,10 @@ class PublicApiVerticle : CoroutineVerticle() {
       .addQueryParam("company", ctx.user().principal()["company"])
       .addQueryParam("accessControlString", acString) // Used only by the ITEMS_ENDPOINT for now
       .timeout(TIMEOUT)
-      .expect(ResponsePredicate.SC_OK)
       .coroutineSend()
       .bimap(
-        { error ->
-          sendBadGateway(ctx, error)
-        },
-        { ctx.end() }
+        { error -> sendBadGateway(ctx, error) },
+        { resp -> if (resp.statusCode() != 200) sendStatusCode(ctx, resp.statusCode()) else ctx.end() }
       )
 
   }
@@ -580,9 +569,7 @@ class PublicApiVerticle : CoroutineVerticle() {
       .`as`(BodyCodec.jsonObject())
       .coroutineSend()
       .bimap(
-        { error ->
-          sendBadGateway(ctx, error)
-        },
+        { error -> sendBadGateway(ctx, error) },
         { resp ->
           val acString: String
           try {

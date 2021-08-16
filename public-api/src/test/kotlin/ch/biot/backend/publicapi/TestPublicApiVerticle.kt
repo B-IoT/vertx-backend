@@ -181,8 +181,8 @@ class TestPublicApiVerticle {
   @DisplayName("Getting the token for the initial user succeeds")
   fun getTokenSucceeds(testContext: VertxTestContext) {
     val loginInfo = jsonObjectOf(
-      "username" to CRUDVerticle.INITIAL_USER["username"],
-      "password" to CRUDVerticle.INITIAL_USER["password"]
+      "username" to INITIAL_USER["username"],
+      "password" to INITIAL_USER["password"]
     )
 
     val response = Given {
@@ -1061,8 +1061,8 @@ class TestPublicApiVerticle {
 
   @Test
   @Order(25)
-  @DisplayName("Errors are handled in getOneHandler")
-  fun errorIsHandledGetOneRequest(testContext: VertxTestContext) {
+  @DisplayName("Error 404 is handled in getOneHandler")
+  fun errorNotFoundIsHandledGetOneRequest(testContext: VertxTestContext) {
     val response = Given {
       spec(requestSpecification)
       header("Authorization", "Bearer $token")
@@ -1082,30 +1082,56 @@ class TestPublicApiVerticle {
 
   @Test
   @Order(26)
-  @DisplayName("Errors are handled in updateHandler")
-  fun errorIsHandledUpdateRequest(testContext: VertxTestContext) {
+  @DisplayName("Error 404 is handled in deleteHandler")
+  fun errorNotFoundIsHandledDeleteRequest(testContext: VertxTestContext) {
     val response = Given {
       spec(requestSpecification)
-      contentType(ContentType.JSON)
       accept(ContentType.JSON)
       header("Authorization", "Bearer $token")
-      body("A body")
     } When {
-      put("/api/items/100")
+      delete("/api/users/notExists")
     } Then {
-      statusCode(502)
+      statusCode(404)
     } Extract {
       asString()
     }
 
     testContext.verify {
-      expectThat(response).isEqualTo("Bad Gateway")
+      expectThat(response).isEmpty()
       testContext.completeNow()
     }
   }
 
   @Test
   @Order(27)
+  @DisplayName("Error 404 is handled in updateHandler")
+  fun errorNotFoundIsHandledUpdateRequest(testContext: VertxTestContext) {
+    val updateJson = jsonObjectOf(
+      "password" to "newPassword"
+    )
+
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      header("Authorization", "Bearer $token")
+      body(updateJson.encode())
+    } When {
+      put("/api/users/notExists")
+    } Then {
+      statusCode(404)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEmpty()
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @Order(28)
   @DisplayName("Errors are handled in registerHandler")
   fun errorIsHandledRegisterRequest(testContext: VertxTestContext) {
     val response = Given {
@@ -1129,7 +1155,7 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(28)
+  @Order(29)
   @DisplayName("Getting the user information succeeds")
   fun getUserInfoIsCorrect(testContext: VertxTestContext) {
     val expected = jsonObjectOf(
@@ -1156,7 +1182,7 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(29)
+  @Order(30)
   @DisplayName("The event bus bridge endpoint is available")
   fun eventBusBridgeIsAvailable(vertx: Vertx, testContext: VertxTestContext) {
     val options = EventBusClientOptions()
@@ -1173,7 +1199,7 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(30)
+  @Order(31)
   @DisplayName("Registering a new user succeeds (used later)")
   fun registerUserSucceeds2(testContext: VertxTestContext) {
     val response = Given {
@@ -1196,7 +1222,7 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(31)
+  @Order(32)
   @DisplayName("Getting the token for the newly added user succeeds 2")
   fun getTokenSucceeds2(testContext: VertxTestContext) {
     val loginInfo = jsonObjectOf(
@@ -1227,7 +1253,7 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(32)
+  @Order(33)
   @DisplayName("Registering a second item succeeds with a user with ac string = biot:grp1")
   fun registerItemSucceeds2(testContext: VertxTestContext) {
     val response = Given {
@@ -1251,7 +1277,7 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(33)
+  @Order(34)
   @DisplayName("Getting an item succeeds with the right ac string")
   fun getItemSucceedsWithACString(testContext: VertxTestContext) {
     val expected = item2Grp1.copy()
@@ -1311,7 +1337,7 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(34)
+  @Order(35)
   @DisplayName("Getting an item fails (404 as if the item does not exist) with an insufficient ac string")
   fun getItemFailsWithWrongACString(testContext: VertxTestContext) {
     val response =
@@ -1334,10 +1360,9 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(35)
+  @Order(36)
   @DisplayName("Updating an item fails with insufficient ac string and does not modify the item")
   fun updateItemFailsWithWrongACString(testContext: VertxTestContext) {
-
     val expected = Buffer.buffer(
       Given {
         spec(requestSpecification)
@@ -1389,7 +1414,7 @@ class TestPublicApiVerticle {
     } When {
       put("/api/items/$itemID")
     } Then {
-      statusCode(502)
+      statusCode(403)
     } Extract {
       asString()
     }
@@ -1453,7 +1478,7 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(36)
+  @Order(37)
   @DisplayName("Deleting an item fails with insufficient ac string (it completes but does not delete the item)")
   fun deleteItemFailsWithWrongACString(testContext: VertxTestContext) {
 
@@ -1543,7 +1568,7 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(37)
+  @Order(38)
   @DisplayName("Getting the closest items succeeds with AC")
   fun getClosestItemsSucceedsWithAC(testContext: VertxTestContext) {
     val response1 = Buffer.buffer(
@@ -1585,7 +1610,7 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(38)
+  @Order(39)
   @DisplayName("Registering an item succeeds with a user with ac string = biot:grp1 without specifying it in the json creates the item correctly with the AC string of the user")
   fun registerItemSucceeds3(testContext: VertxTestContext) {
     val insertJson = item3.copy().apply { remove("accessControlString") }
@@ -1683,7 +1708,7 @@ class TestPublicApiVerticle {
 
 
   @Test
-  @Order(39)
+  @Order(40)
   @DisplayName("Registering an item succeeds with a user with ac string = biot:grp1 specifying it in the json creates the item correctly with the AC string specified in the JSON")
   fun registerItemSucceeds4(testContext: VertxTestContext) {
     val insertJson = item3.copy()
@@ -1777,7 +1802,6 @@ class TestPublicApiVerticle {
       testContext.completeNow()
     }
   }
-
 
   companion object {
 
