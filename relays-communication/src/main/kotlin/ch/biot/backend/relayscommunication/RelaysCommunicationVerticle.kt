@@ -71,8 +71,8 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     private lateinit var periodicUpdateConfig: Handler<Long>
 
     private val macAddressRegex = "^([a-f0-9]{2}:){5}[a-f0-9]{2}$".toRegex()
-    private const val MAX_NUMBER_MAC_MQTT = 1024
-    private const val N_CHAR_IN_MAC = 6 * 2
+    private const val MAX_NUMBER_MAC_MQTT = 1024 // Maximum number of mac addresses in the whitelist in a MQTT message
+    private const val CHAR_NUMBER_IN_MAC_ADDRESS = 6 * 2
 
     @JvmStatic
     fun main(args: Array<String>) {
@@ -426,8 +426,8 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
       // Filter result to remove invalid mac addresses
       val res =
         result.filter { s -> s.matches(macAddressRegex) }.map { s -> s.replace(":", "") }.distinct().joinToString("")
-      if (res.length > MAX_NUMBER_MAC_MQTT * N_CHAR_IN_MAC) {
-        res.substring(0 until (MAX_NUMBER_MAC_MQTT * N_CHAR_IN_MAC))
+      if (res.length > MAX_NUMBER_MAC_MQTT * CHAR_NUMBER_IN_MAC_ADDRESS) {
+        res.substring(0 until (MAX_NUMBER_MAC_MQTT * CHAR_NUMBER_IN_MAC_ADDRESS))
       } else {
         res
       }
