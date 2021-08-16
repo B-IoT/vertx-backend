@@ -75,7 +75,6 @@ class TestRelaysCommunicationVerticle {
 
   private lateinit var pgClient: SqlClient
 
-  private var msgCounter = 0
 
   private val mqttPassword = "password"
   private val configuration = jsonObjectOf(
@@ -606,7 +605,7 @@ class TestRelaysCommunicationVerticle {
    */
   private fun gen1026UniqueMacs(): List<String> {
     val possibleChar = "0123456789abcdef"
-    val res = ArrayList<String>()
+    val res = arrayListOf<String>()
     for(i in 1..1026) {
       var newMac = ""
       do {
@@ -1211,6 +1210,7 @@ class TestRelaysCommunicationVerticle {
   @DisplayName("A MQTT client receives the config after 20 seconds if one item's beacon changed")
   fun clientSubscribesAndReceivesLastConfigAfter20SecWhenModified(vertx: Vertx, testContext: VertxTestContext): Unit =
     runBlocking(vertx.dispatcher()) {
+      var msgCounter = 0
       try {
         mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
         mqttClient.publishHandler { msg ->
@@ -1272,6 +1272,7 @@ class TestRelaysCommunicationVerticle {
     testContext: VertxTestContext
   ): Unit =
     runBlocking(vertx.dispatcher()) {
+      var msgCounter = 0
       try {
         mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
         mqttClient.publishHandler { msg ->
@@ -1312,6 +1313,7 @@ class TestRelaysCommunicationVerticle {
   @DisplayName("A MQTT client never receives more than 1024 mac addresses in the whitelist")
   fun clientSubscribesAndNeverReceivesMoreThan1024Macs(vertx: Vertx, testContext: VertxTestContext): Unit =
     runBlocking(vertx.dispatcher()) {
+      var msgCounter = 0
       add1026Items()
       try {
         mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
