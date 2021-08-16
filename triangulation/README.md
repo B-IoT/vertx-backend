@@ -8,8 +8,12 @@ To run the tests, first execute in your terminal:
 pip install -r requirements_dev.txt
 ```
 
-Then, run:
+Then, modify in `tests/docker-compose.yml` the path to the `init` folder in the `vertx-backend` project so that it is correct. The path should not be absolute, but instead should start from `~/`. You should keep `init/timescale:/docker-entrypoint-initdb.d/` and just modify the path above that.
+
+Finally, make sure that Docker is running, then run:
 
 ```shell
 pytest
 ```
+
+The minimum Python version required is 3.8.
