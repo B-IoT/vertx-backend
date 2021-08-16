@@ -1,3 +1,5 @@
+import org.gradle.api.tasks.testing.logging.TestExceptionFormat.*
+
 /*
  * Copyright (c) 2021 BioT. All rights reserved.
  */
@@ -92,6 +94,9 @@ tasks.register<JacocoReport>("jacocoRootReport") {
 
 tasks.test {
     finalizedBy(tasks.jacocoTestReport) // report is always generated after tests run
+    testLogging {
+        exceptionFormat = FULL
+    }
 }
 tasks.jacocoTestReport {
     dependsOn(tasks.test) // tests are required to run before generating the report

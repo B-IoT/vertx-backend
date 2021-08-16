@@ -6,10 +6,7 @@ package ch.biot.backend.relayscommunication
 
 import io.netty.handler.codec.mqtt.MqttConnectReturnCode
 import io.netty.handler.codec.mqtt.MqttQoS
-import io.vertx.core.CompositeFuture
-import io.vertx.core.Future
-import io.vertx.core.Promise
-import io.vertx.core.Vertx
+import io.vertx.core.*
 import io.vertx.core.json.DecodeException
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.auth.mongo.MongoAuthentication
@@ -24,14 +21,20 @@ import io.vertx.kotlin.coroutines.CoroutineVerticle
 import io.vertx.kotlin.coroutines.await
 import io.vertx.kotlin.coroutines.dispatcher
 import io.vertx.kotlin.ext.auth.mongo.mongoAuthenticationOptionsOf
+import io.vertx.kotlin.pgclient.pgConnectOptionsOf
+import io.vertx.kotlin.sqlclient.poolOptionsOf
 import io.vertx.mqtt.MqttEndpoint
 import io.vertx.mqtt.MqttServer
 import io.vertx.mqtt.messages.MqttPublishMessage
+import io.vertx.pgclient.PgPool
+import io.vertx.pgclient.SslMode
 import io.vertx.spi.cluster.hazelcast.HazelcastClusterManager
+import io.vertx.sqlclient.SqlClient
 import kotlinx.coroutines.launch
 import mu.KotlinLogging
 import java.net.InetAddress
 import java.time.Instant
+import java.util.concurrent.TimeUnit
 
 private val LOGGER = KotlinLogging.logger {}
 
@@ -52,8 +55,22 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     private val KAFKA_HOST: String = environment.getOrDefault("KAFKA_HOST", "localhost")
     internal val KAFKA_PORT = environment.getOrDefault("KAFKA_PORT", "9092").toInt()
 
+    val TIMESCALE_PORT = environment.getOrDefault("TIMESCALE_PORT", "5432").toInt()
+    val TIMESCALE_HOST: String = environment.getOrDefault("TIMESCALE_HOST", "localhost")
+
+    private const val ITEMS_TABLE = "items"
+
     private const val LIVENESS_PORT = 1884
     private const val READINESS_PORT = 1885
+
+    private const val UPDATE_CONFIG_INTERVAL_SECONDS: Long = 5
+
+    private lateinit var pgClient: SqlClient
+
+    // It is a field because otherwise, it cannot be used in the lambda of the Handler itself
+    private lateinit var periodicUpdateConfig: Handler<Long>
+
+    private val macAddressRegex = "^([a-f0-9]{2}:){5}[a-f0-9]{2}$".toRegex()
 
     @JvmStatic
     fun main(args: Array<String>) {
@@ -69,9 +86,15 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
         LOGGER.error(error) { "Could not start" }
       }
     }
+
+
   }
 
   private val clients = mutableMapOf<String, MqttEndpoint>() // map of subscribed clientIdentifier to client
+
+  private val whiteListHashes = mutableMapOf<String, Int>() // map of company to the hash of the whiteListString
+                                                            // We use this to check whether the whiteList changed or not since
+                                                            // last sent, so that we do not overwhelm the relays
 
   // Map from collection name to MongoAuthentication
   // It is used since there is a collection per company
@@ -118,6 +141,20 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
       clients[mqttID]?.let { client -> launch(vertx.dispatcher()) { sendMessageTo(client, cleanJson) } }
     }
 
+    // Initialize TimescaleDB
+    val pgConnectOptions =
+      pgConnectOptionsOf(
+        port = TIMESCALE_PORT,
+        host = TIMESCALE_HOST,
+        database = "biot",
+        user = "biot",
+        password = "biot",
+        sslMode = if (TIMESCALE_HOST != "localhost") SslMode.REQUIRE else null, // SSL is disabled when testing
+        trustAll = true,
+        cachePreparedStatements = true
+      )
+    pgClient = PgPool.client(vertx, pgConnectOptions, poolOptionsOf())
+
 //    // Certificate for TLS
 //    val pemKeyCertOptions = pemKeyCertOptionsOf(certPath = "certificate.pem", keyPath = "certificate_key.pem")
 //    val netServerOptions = netServerOptionsOf(ssl = true, pemKeyCertOptions = pemKeyCertOptions)
@@ -135,6 +172,15 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     } catch (error: Throwable) {
       LOGGER.error(error) { "An error occurred while creating the server" }
     }
+
+    // Periodically send all the config to all relays to keep whiteList consistent with the DB
+    // We use Timer to not have any stacking of operation
+    periodicUpdateConfig = Handler {
+      launch(vertx.dispatcher()) { sendConfigToAllRelays() }
+      vertx.setTimer(TimeUnit.SECONDS.toMillis(UPDATE_CONFIG_INTERVAL_SECONDS), periodicUpdateConfig)
+    }
+    // Schedule the first execution
+    vertx.setTimer(TimeUnit.SECONDS.toMillis(UPDATE_CONFIG_INTERVAL_SECONDS), periodicUpdateConfig)
   }
 
   private suspend fun handleClient(client: MqttEndpoint) {
@@ -199,7 +245,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
           clients[clientIdentifier] = client
 
           // Send last configuration to client
-          launch(vertx.dispatcher()) { sendLastConfiguration(client, collection) }
+          launch(vertx.dispatcher()) { sendLastConfiguration(client, collection, company) }
         }.unsubscribeHandler { unsubscribe ->
           unsubscribe.topics().forEach { topic ->
             LOGGER.info { "Unsubscription for $topic by client $clientIdentifier" }
@@ -310,16 +356,19 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
   /**
    * Sends the last relay configuration to the given client.
    */
-  private suspend fun sendLastConfiguration(client: MqttEndpoint, relaysCollection: String) {
+  private suspend fun sendLastConfiguration(client: MqttEndpoint, relaysCollection: String, company: String) {
     val query = jsonObjectOf("mqttID" to client.clientIdentifier())
     try {
+      // Get items mac addresses
       // Find the last configuration in MongoDB
-
       val config = mongoClient.findOne(relaysCollection, query, jsonObjectOf()).await()
       if (config != null && !config.isEmpty) {
         // The configuration exists
         // Remove useless fields and clean lastModified, then send
         val cleanConfig = config.clean()
+        val whiteListString = getItemsMacAddressesString(company)
+        whiteListHashes[company] = whiteListString.hashCode()
+        cleanConfig.put("whiteList", whiteListString)
         sendMessageTo(client, cleanConfig)
       }
     } catch (error: Throwable) {
@@ -338,6 +387,45 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
       LOGGER.info { "Published message $message with id $messageId to client ${client.clientIdentifier()} on topic $UPDATE_PARAMETERS_TOPIC" }
     } catch (error: Throwable) {
       LOGGER.error(error) { "Could not send message $message on topic $UPDATE_PARAMETERS_TOPIC" }
+    }
+  }
+
+  private suspend fun sendConfigToAllRelays(){
+    clients.forEach { (_, relayClient) ->
+      val company = relayClient.will().willMessage.toJsonObject().getString("company")
+      val collection = if (company != "biot") "${RELAYS_COLLECTION}_$company" else RELAYS_COLLECTION
+      val currentWhiteList = getItemsMacAddressesString(company)
+
+      if(!whiteListHashes.containsKey(company) || currentWhiteList.hashCode() != whiteListHashes[company]){
+        // The whiteList changed since the last time it was sent to the relays, so we send it again
+        LOGGER.info { "WhiteList changed: sending last configuration to relay ${relayClient.clientIdentifier()}" }
+        sendLastConfiguration(relayClient, collection, company)
+      } else {
+        LOGGER.debug { "Skipping sending configuration for the relay ${relayClient.clientIdentifier()}" }
+      }
+
+    }
+  }
+
+  /**
+   * Gets the MAC addresses of beacons associated to items in the DB for the given company and returns them as
+   * a semi-colon separated string.
+   * The MAC addresses are filtered to have only "valid" MAC addresses.
+   * If it cannot get MAC Addresses from the DB, it returns an empty string and logs a message.
+   */
+  private suspend fun getItemsMacAddressesString(company: String): String {
+    val accessControlString = company
+    val itemsTable = if (company != "biot") "${ITEMS_TABLE}_$company" else ITEMS_TABLE
+    val executedQuery = pgClient.preparedQuery(getItemsMacs(itemsTable, accessControlString)).execute()
+    return try {
+      val queryResult = executedQuery.await()
+      val result = if (queryResult.size() == 0) listOf() else queryResult.map { it.getString("beacon") }
+
+      // Filter result to remove invalid mac addresses
+      result.filter { s -> s.matches(macAddressRegex) }.map { s -> s.replace(":", "") }.distinct().joinToString("")
+    } catch (e: Exception) {
+      LOGGER.warn { "Could not get beacons' whitelist: exception: $e" }
+      ""
     }
   }
 }

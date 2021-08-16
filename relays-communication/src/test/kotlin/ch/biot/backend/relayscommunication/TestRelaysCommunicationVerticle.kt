@@ -11,6 +11,7 @@ import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.RELAYS_UPDATE_ADDRESS
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.UPDATE_PARAMETERS_TOPIC
 import io.netty.handler.codec.mqtt.MqttQoS
+import io.vertx.core.CompositeFuture
 import io.vertx.core.Vertx
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.auth.mongo.MongoAuthentication
@@ -29,9 +30,16 @@ import io.vertx.kotlin.ext.auth.mongo.mongoAuthenticationOptionsOf
 import io.vertx.kotlin.ext.auth.mongo.mongoAuthorizationOptionsOf
 import io.vertx.kotlin.ext.mongo.indexOptionsOf
 import io.vertx.kotlin.mqtt.mqttClientOptionsOf
+import io.vertx.kotlin.pgclient.pgConnectOptionsOf
+import io.vertx.kotlin.sqlclient.poolOptionsOf
 import io.vertx.mqtt.MqttClient
+import io.vertx.pgclient.PgPool
+import io.vertx.pgclient.SslMode
+import io.vertx.sqlclient.SqlClient
+import io.vertx.sqlclient.Tuple
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
+import mu.KotlinLogging
 import org.junit.jupiter.api.*
 import org.junit.jupiter.api.extension.ExtendWith
 import org.testcontainers.containers.DockerComposeContainer
@@ -42,7 +50,11 @@ import strikt.assertions.isEqualTo
 import strikt.assertions.isNotNull
 import java.io.File
 import java.security.SecureRandom
+import java.time.LocalDate
 import java.util.*
+import java.util.concurrent.TimeUnit
+
+internal val LOGGER = KotlinLogging.logger {}
 
 @ExtendWith(VertxExtension::class)
 @Testcontainers
@@ -56,6 +68,10 @@ class TestRelaysCommunicationVerticle {
   private lateinit var mongoAuth: MongoAuthentication
   private lateinit var mongoAuthAnotherCompany: MongoAuthentication
   private lateinit var mqttClient: MqttClient
+
+  private lateinit var pgClient: SqlClient
+
+  private var msgCounter = 0
 
   private val mqttPassword = "password"
   private val configuration = jsonObjectOf(
@@ -86,6 +102,168 @@ class TestRelaysCommunicationVerticle {
 
   private val anotherCompanyName = "anotherCompany"
   private val anotherCompanyCollection = RELAYS_COLLECTION + "_$anotherCompanyName"
+
+  private var itemBiot1Id: Int = -1
+  private val itemBiot1 = jsonObjectOf(
+    "beacon" to "e0:51:30:48:16:e5",
+    "category" to "ECG",
+    "service" to "Bloc 1",
+    "itemID" to "abc",
+    "accessControlString" to "biot",
+    "brand" to "ferrari",
+    "model" to "GT",
+    "supplier" to "sup",
+    "purchaseDate" to LocalDate.of(2021, 7, 8).toString(),
+    "purchasePrice" to 42.3,
+    "originLocation" to "center1",
+    "currentLocation" to "center2",
+    "room" to "616",
+    "contact" to "Monsieur Poirot",
+    "currentOwner" to "Monsieur Dupont",
+    "previousOwner" to "Monsieur Dupond",
+    "orderNumber" to "abcdf",
+    "color" to "red",
+    "serialNumber" to "abcdf",
+    "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
+    "status" to "In maintenance",
+    "comments" to "A comment",
+    "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+    "lastModifiedBy" to "Monsieur Duport"
+  )
+
+  private val itemBiot2 = jsonObjectOf(
+    "beacon" to "f0:15:b5:dd:24:38",
+    "category" to "ECG",
+    "service" to "Bloc 2",
+    "itemID" to "abc",
+    "accessControlString" to "biot",
+    "brand" to "ferrari",
+    "model" to "GT",
+    "supplier" to "sup",
+    "purchaseDate" to LocalDate.of(2021, 7, 8).toString(),
+    "purchasePrice" to 42.3,
+    "originLocation" to "center1",
+    "currentLocation" to "center2",
+    "room" to "616",
+    "contact" to "Monsieur Poirot",
+    "currentOwner" to "Monsieur Dupont",
+    "previousOwner" to "Monsieur Dupond",
+    "orderNumber" to "abcdf",
+    "color" to "red",
+    "serialNumber" to "abcdf",
+    "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
+    "status" to "In maintenance",
+    "comments" to "A comment",
+    "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+    "lastModifiedBy" to "Monsieur Duport"
+  )
+
+  private val itemBiotInvalidMac = jsonObjectOf(
+    "beacon" to "invalidMac",
+    "category" to "ECG",
+    "service" to "Bloc 2",
+    "itemID" to "abc",
+    "accessControlString" to "biot",
+    "brand" to "ferrari",
+    "model" to "GT",
+    "supplier" to "sup",
+    "purchaseDate" to LocalDate.of(2021, 7, 8).toString(),
+    "purchasePrice" to 42.3,
+    "originLocation" to "center1",
+    "currentLocation" to "center2",
+    "room" to "616",
+    "contact" to "Monsieur Poirot",
+    "currentOwner" to "Monsieur Dupont",
+    "previousOwner" to "Monsieur Dupond",
+    "orderNumber" to "abcdf",
+    "color" to "red",
+    "serialNumber" to "abcdf",
+    "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
+    "status" to "In maintenance",
+    "comments" to "A comment",
+    "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+    "lastModifiedBy" to "Monsieur Duport"
+  )
+
+  private val itemBiot4 = jsonObjectOf(
+    "beacon" to "f5:a8:ef:56:d7:c0",
+    "category" to "ECG",
+    "service" to "Bloc 2",
+    "itemID" to "abc",
+    "accessControlString" to "biot",
+    "brand" to "ferrari",
+    "model" to "GT",
+    "supplier" to "sup",
+    "purchaseDate" to LocalDate.of(2021, 7, 8).toString(),
+    "purchasePrice" to 42.3,
+    "originLocation" to "center1",
+    "currentLocation" to "center2",
+    "room" to "616",
+    "contact" to "Monsieur Poirot",
+    "currentOwner" to "Monsieur Dupont",
+    "previousOwner" to "Monsieur Dupond",
+    "orderNumber" to "abcdf",
+    "color" to "red",
+    "serialNumber" to "abcdf",
+    "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
+    "status" to "In maintenance",
+    "comments" to "A comment",
+    "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+    "lastModifiedBy" to "Monsieur Duport"
+  )
+
+  private val itemAnother1 = jsonObjectOf(
+    "beacon" to "12:23:34:ae:b5:d2",
+    "category" to "ECG",
+    "service" to "Bloc 2",
+    "itemID" to "abc",
+    "accessControlString" to anotherCompanyName,
+    "brand" to "ferrari",
+    "model" to "GT",
+    "supplier" to "sup",
+    "purchaseDate" to LocalDate.of(2021, 7, 8).toString(),
+    "purchasePrice" to 42.3,
+    "originLocation" to "center1",
+    "currentLocation" to "center2",
+    "room" to "616",
+    "contact" to "Monsieur Poirot",
+    "currentOwner" to "Monsieur Dupont",
+    "previousOwner" to "Monsieur Dupond",
+    "orderNumber" to "abcdf",
+    "color" to "red",
+    "serialNumber" to "abcdf",
+    "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
+    "status" to "In maintenance",
+    "comments" to "A comment",
+    "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+    "lastModifiedBy" to "Monsieur Duport"
+  )
+  private val itemAnother2 = jsonObjectOf(
+    "beacon" to "01:a2:d4:fe:56:21",
+    "category" to "ECG",
+    "service" to "Bloc 2",
+    "itemID" to "abc",
+    "accessControlString" to anotherCompanyName,
+    "brand" to "ferrari",
+    "model" to "GT",
+    "supplier" to "sup",
+    "purchaseDate" to LocalDate.of(2021, 7, 8).toString(),
+    "purchasePrice" to 42.3,
+    "originLocation" to "center1",
+    "currentLocation" to "center2",
+    "room" to "616",
+    "contact" to "Monsieur Poirot",
+    "currentOwner" to "Monsieur Dupont",
+    "previousOwner" to "Monsieur Dupond",
+    "orderNumber" to "abcdf",
+    "color" to "red",
+    "serialNumber" to "abcdf",
+    "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
+    "status" to "In maintenance",
+    "comments" to "A comment",
+    "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+    "lastModifiedBy" to "Monsieur Duport"
+  )
 
 
   @BeforeEach
@@ -182,6 +360,245 @@ class TestRelaysCommunicationVerticle {
     } catch (error: Throwable) {
       testContext.failNow(error)
     }
+
+    // Initialize TimescaleDB
+    val pgConnectOptions =
+      pgConnectOptionsOf(
+        port = RelaysCommunicationVerticle.TIMESCALE_PORT,
+        host = RelaysCommunicationVerticle.TIMESCALE_HOST,
+        database = "biot",
+        user = "biot",
+        password = "biot",
+        sslMode = if (RelaysCommunicationVerticle.TIMESCALE_HOST != "localhost") SslMode.REQUIRE else null, // SSL is disabled when testing
+        trustAll = true,
+        cachePreparedStatements = true
+      )
+    pgClient = PgPool.client(vertx, pgConnectOptions, poolOptionsOf())
+
+    pgClient.query("""
+      CREATE TABLE IF NOT EXISTS items_$anotherCompanyName
+      (
+          id SERIAL PRIMARY KEY,
+          beacon VARCHAR(17) UNIQUE,
+          category VARCHAR(100),
+          service VARCHAR(100),
+          itemID VARCHAR(50),
+          accessControlString VARCHAR(2048),
+          brand VARCHAR(100),
+          model VARCHAR(100),
+          supplier VARCHAR(100),
+          purchaseDate DATE,
+          purchasePrice DECIMAL(15, 6),
+          originLocation VARCHAR(100),
+          currentLocation VARCHAR(100),
+          room VARCHAR(100),
+          contact VARCHAR(100),
+          currentOwner VARCHAR(100),
+          previousOwner VARCHAR(100),
+          orderNumber VARCHAR(100),
+          color VARCHAR(100),
+          serialNumber VARCHAR(100),
+          maintenanceDate DATE,
+          status VARCHAR(100),
+          comments VARCHAR(200),
+          lastModifiedDate DATE,
+          lastModifiedBy VARCHAR(100)
+      );
+    """.trimIndent()).execute().await()
+
+    insertItems()
+  }
+
+  private suspend fun insertItems() {
+    val result = pgClient.preparedQuery(insertItem("items"))
+      .execute(
+        Tuple.of(
+          itemBiot1["beacon"],
+          itemBiot1["category"],
+          itemBiot1["service"],
+          itemBiot1["itemID"],
+          itemBiot1["accessControlString"],
+          itemBiot1["brand"],
+          itemBiot1["model"],
+          itemBiot1["supplier"],
+          LocalDate.parse(itemBiot1["purchaseDate"]),
+          itemBiot1["purchasePrice"],
+          itemBiot1["originLocation"],
+          itemBiot1["currentLocation"],
+          itemBiot1["room"],
+          itemBiot1["contact"],
+          itemBiot1["currentOwner"],
+          itemBiot1["previousOwner"],
+          itemBiot1["orderNumber"],
+          itemBiot1["color"],
+          itemBiot1["serialNumber"],
+          LocalDate.parse(itemBiot1["maintenanceDate"]),
+          itemBiot1["status"],
+          itemBiot1["comments"],
+          LocalDate.parse(itemBiot1["lastModifiedDate"]),
+          itemBiot1["lastModifiedBy"]
+        )
+      ).await()
+
+    itemBiot1Id = result.iterator().next().getInteger("id")
+
+    pgClient.preparedQuery(insertItem("items"))
+      .execute(
+        Tuple.of(
+          itemBiot2["beacon"],
+          itemBiot2["category"],
+          itemBiot2["service"],
+          itemBiot2["itemID"],
+          itemBiot2["accessControlString"],
+          itemBiot2["brand"],
+          itemBiot2["model"],
+          itemBiot2["supplier"],
+          LocalDate.parse(itemBiot2["purchaseDate"]),
+          itemBiot2["purchasePrice"],
+          itemBiot2["originLocation"],
+          itemBiot2["currentLocation"],
+          itemBiot2["room"],
+          itemBiot2["contact"],
+          itemBiot2["currentOwner"],
+          itemBiot2["previousOwner"],
+          itemBiot2["orderNumber"],
+          itemBiot2["color"],
+          itemBiot2["serialNumber"],
+          LocalDate.parse(itemBiot2["maintenanceDate"]),
+          itemBiot2["status"],
+          itemBiot2["comments"],
+          LocalDate.parse(itemBiot2["lastModifiedDate"]),
+          itemBiot2["lastModifiedBy"]
+          )
+        ).await()
+
+          pgClient.preparedQuery(insertItem("items"))
+          .execute(
+            Tuple.of(
+              itemBiotInvalidMac["beacon"],
+              itemBiotInvalidMac["category"],
+              itemBiotInvalidMac["service"],
+              itemBiotInvalidMac["itemID"],
+              itemBiotInvalidMac["accessControlString"],
+              itemBiotInvalidMac["brand"],
+              itemBiotInvalidMac["model"],
+              itemBiotInvalidMac["supplier"],
+              LocalDate.parse(itemBiotInvalidMac["purchaseDate"]),
+              itemBiotInvalidMac["purchasePrice"],
+              itemBiotInvalidMac["originLocation"],
+              itemBiotInvalidMac["currentLocation"],
+              itemBiotInvalidMac["room"],
+              itemBiotInvalidMac["contact"],
+              itemBiotInvalidMac["currentOwner"],
+              itemBiotInvalidMac["previousOwner"],
+              itemBiotInvalidMac["orderNumber"],
+              itemBiotInvalidMac["color"],
+              itemBiotInvalidMac["serialNumber"],
+              LocalDate.parse(itemBiotInvalidMac["maintenanceDate"]),
+              itemBiotInvalidMac["status"],
+              itemBiotInvalidMac["comments"],
+              LocalDate.parse(itemBiotInvalidMac["lastModifiedDate"]),
+              itemBiotInvalidMac["lastModifiedBy"]
+            )
+          ).await()
+
+          pgClient.preparedQuery(insertItem("items"))
+          .execute(
+            Tuple.of(
+              itemBiot4["beacon"],
+              itemBiot4["category"],
+              itemBiot4["service"],
+              itemBiot4["itemID"],
+              itemBiot4["accessControlString"],
+              itemBiot4["brand"],
+              itemBiot4["model"],
+              itemBiot4["supplier"],
+              LocalDate.parse(itemBiot4["purchaseDate"]),
+              itemBiot4["purchasePrice"],
+              itemBiot4["originLocation"],
+              itemBiot4["currentLocation"],
+              itemBiot4["room"],
+              itemBiot4["contact"],
+              itemBiot4["currentOwner"],
+              itemBiot4["previousOwner"],
+              itemBiot4["orderNumber"],
+              itemBiot4["color"],
+              itemBiot4["serialNumber"],
+              LocalDate.parse(itemBiot4["maintenanceDate"]),
+              itemBiot4["status"],
+              itemBiot4["comments"],
+              LocalDate.parse(itemBiot4["lastModifiedDate"]),
+              itemBiot4["lastModifiedBy"]
+            )
+          ).await()
+
+          pgClient.preparedQuery(insertItem("items_$anotherCompanyName"))
+          .execute(
+            Tuple.of(
+              itemAnother1["beacon"],
+              itemAnother1["category"],
+              itemAnother1["service"],
+              itemAnother1["itemID"],
+              itemAnother1["accessControlString"],
+              itemAnother1["brand"],
+              itemAnother1["model"],
+              itemAnother1["supplier"],
+              LocalDate.parse(itemAnother1["purchaseDate"]),
+              itemAnother1["purchasePrice"],
+              itemAnother1["originLocation"],
+              itemAnother1["currentLocation"],
+              itemAnother1["room"],
+              itemAnother1["contact"],
+              itemAnother1["currentOwner"],
+              itemAnother1["previousOwner"],
+              itemAnother1["orderNumber"],
+              itemAnother1["color"],
+              itemAnother1["serialNumber"],
+              LocalDate.parse(itemAnother1["maintenanceDate"]),
+              itemAnother1["status"],
+              itemAnother1["comments"],
+              LocalDate.parse(itemAnother1["lastModifiedDate"]),
+              itemAnother1["lastModifiedBy"]
+            )
+          ).await()
+
+          pgClient.preparedQuery(insertItem("items_$anotherCompanyName"))
+          .execute(
+            Tuple.of(
+              itemAnother2["beacon"],
+              itemAnother2["category"],
+              itemAnother2["service"],
+              itemAnother2["itemID"],
+              itemAnother2["accessControlString"],
+              itemAnother2["brand"],
+              itemAnother2["model"],
+              itemAnother2["supplier"],
+              LocalDate.parse(itemAnother2["purchaseDate"]),
+              itemAnother2["purchasePrice"],
+              itemAnother2["originLocation"],
+              itemAnother2["currentLocation"],
+              itemAnother2["room"],
+              itemAnother2["contact"],
+              itemAnother2["currentOwner"],
+              itemAnother2["previousOwner"],
+              itemAnother2["orderNumber"],
+              itemAnother2["color"],
+              itemAnother2["serialNumber"],
+              LocalDate.parse(itemAnother2["maintenanceDate"]),
+              itemAnother2["status"],
+              itemAnother2["comments"],
+              LocalDate.parse(itemAnother2["lastModifiedDate"]),
+              itemAnother2["lastModifiedBy"]
+            )
+          ).await()
+
+  }
+
+  private fun dropAllItems(): CompositeFuture {
+    return CompositeFuture.all(
+      pgClient.query("DELETE FROM items").execute(),
+      pgClient.query("DELETE FROM items_$anotherCompanyName").execute()
+    )
   }
 
   private suspend fun dropAllRelays() {
@@ -210,43 +627,55 @@ class TestRelaysCommunicationVerticle {
       "\$set" to configurationAnotherCompany
     )
     return mongoClient.findOneAndUpdate(anotherCompanyCollection, query2, extraInfo2).await()
+  }
 
+  // TimescaleDB PostgreSQL queries for items
+  private fun insertItem(itemsTable: String, customId: Boolean = false) =
+    if (customId) "INSERT INTO $itemsTable (id, beacon, category, service, itemid, accessControlString, brand, model, supplier, purchasedate, purchaseprice, originlocation, currentlocation, room, contact, currentowner, previousowner, ordernumber, color, serialnumber, maintenancedate, status, comments, lastmodifieddate, lastmodifiedby) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25) RETURNING id"
+    else "INSERT INTO $itemsTable (beacon, category, service, itemid, accessControlString, brand, model, supplier, purchasedate, purchaseprice, originlocation, currentlocation, room, contact, currentowner, previousowner, ordernumber, color, serialnumber, maintenancedate, status, comments, lastmodifieddate, lastmodifiedby) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24) RETURNING id"
+
+  private fun updateItem(itemsTable: String, updatedColumns: List<String>, accessControlString: String): String {
+    val columnsWithValues = updatedColumns.mapIndexed { index, colName -> "$colName = \$${index + 2}" }.joinToString()
+    return "UPDATE $itemsTable SET $columnsWithValues WHERE id = $1 AND (accessControlString LIKE '$accessControlString:%' OR accessControlString LIKE '$accessControlString')"
   }
 
   @AfterEach
-  fun cleanup(vertx: Vertx, testContext: VertxTestContext) = runBlocking(vertx.dispatcher()) {
-    try {
-      dropAllRelays()
-      mongoClient.close().await()
-      testContext.completeNow()
-    } catch (error: Throwable) {
-      testContext.failNow(error)
-    }
-  }
-
-  @Test
-  @DisplayName("A MQTT client upon subscription receives the last configuration")
-  fun clientSubscribesAndReceivesLastConfig(vertx: Vertx, testContext: VertxTestContext): Unit =
-    runBlocking(vertx.dispatcher()) {
+    fun cleanup(vertx: Vertx, testContext: VertxTestContext) = runBlocking(vertx.dispatcher()) {
       try {
-        mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
-        mqttClient.publishHandler { msg ->
-          if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
-            testContext.verify {
-              val expected = configuration.copy().apply {
-                remove("mqttID")
-                remove("mqttUsername")
-                remove("ledStatus")
-              }
-              expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
-              testContext.completeNow()
-            }
-          }
-        }.subscribe(UPDATE_PARAMETERS_TOPIC, MqttQoS.AT_LEAST_ONCE.value()).await()
+        dropAllRelays()
+        dropAllItems()
+        mongoClient.close().await()
+        pgClient.close().await()
+        testContext.completeNow()
       } catch (error: Throwable) {
         testContext.failNow(error)
       }
     }
+
+    @Test
+    @DisplayName("A MQTT client upon subscription receives the last configuration")
+    fun clientSubscribesAndReceivesLastConfig(vertx: Vertx, testContext: VertxTestContext): Unit =
+      runBlocking(vertx.dispatcher()) {
+        try {
+          mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+          mqttClient.publishHandler { msg ->
+            if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
+              testContext.verify {
+                val expected = configuration.copy().apply {
+                  remove("mqttID")
+                  remove("mqttUsername")
+                  remove("ledStatus")
+                  put("whiteList", "e051304816e5f015b5dd2438f5a8ef56d7c0") //itemBiot1, itemBiot2, itemBiot4 mac addresses without :
+                }
+                expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
+                testContext.completeNow()
+              }
+            }
+          }.subscribe(UPDATE_PARAMETERS_TOPIC, MqttQoS.AT_LEAST_ONCE.value()).await()
+        } catch (error: Throwable) {
+          testContext.failNow(error)
+        }
+      }
 
   @Test
   @DisplayName("A MQTT client without authentication is refused connection")
@@ -701,6 +1130,7 @@ class TestRelaysCommunicationVerticle {
                 remove("mqttID")
                 remove("mqttUsername")
                 remove("ledStatus")
+                put("whiteList", "122334aeb5d201a2d4fe5621") // itemAnother1 and itemAnother2 mac addresses without :
               }
               expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
               testContext.completeNow()
@@ -711,6 +1141,93 @@ class TestRelaysCommunicationVerticle {
         testContext.failNow(error)
       }
     }
+
+  @Test
+  @DisplayName("A MQTT client receives the config after 5 seconds if one item's beacon changed")
+  fun clientSubscribesAndReceivesLastConfigAfter5SecWhenModified(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      try {
+        mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+        mqttClient.publishHandler { msg ->
+          if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
+            when (msgCounter) {
+                0 -> {
+                  // First msg at subscription
+                  testContext.verify {
+                        val expected = configuration.copy().apply {
+                          remove("mqttID")
+                          remove("mqttUsername")
+                          remove("ledStatus")
+                          put("whiteList", "e051304816e5f015b5dd2438f5a8ef56d7c0") //itemBiot1, itemBiot2, itemBiot4 mac addresses without :
+                        }
+                        expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
+                  }
+                  msgCounter += 1
+                  pgClient.preparedQuery(updateItem("items", listOf("beacon"), "biot")).execute(Tuple.tuple(listOf(itemBiot1Id, "aa:bb:cc:dd:ee:ff")))
+
+                }
+                1 -> {
+                  testContext.verify {
+                        val expected = configuration.copy().apply {
+                          remove("mqttID")
+                          remove("mqttUsername")
+                          remove("ledStatus")
+                          put("whiteList", "aabbccddeefff015b5dd2438f5a8ef56d7c0") //itemBiot1, itemBiot2, itemBiot4 mac addresses without :
+                        }
+                        expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
+                  }
+                }
+                else -> {
+                  testContext.failNow("received more than 2 msgs")
+                }
+            }
+          }
+        }.subscribe(UPDATE_PARAMETERS_TOPIC, MqttQoS.AT_LEAST_ONCE.value()).await()
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+
+      vertx.setTimer(15_000){
+        testContext.completeNow()
+      }
+    }
+
+  @Test
+  @DisplayName("A MQTT client does NOT receive the config after 5 seconds if no item's beacon changed")
+  fun clientSubscribesAndDoesNotReceiveLastConfigAfter15SecWhenUnmodified(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      try {
+        mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+        mqttClient.publishHandler { msg ->
+          if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
+            when (msgCounter) {
+              0 -> {
+                // First msg at subscription
+                testContext.verify {
+                  val expected = configuration.copy().apply {
+                    remove("mqttID")
+                    remove("mqttUsername")
+                    remove("ledStatus")
+                    put("whiteList", "e051304816e5f015b5dd2438f5a8ef56d7c0") //itemBiot1, itemBiot2, itemBiot4 mac addresses without :
+                  }
+                  expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
+                }
+                msgCounter += 1
+              }
+              else -> {
+                testContext.failNow("received more than 1 msgs")
+              }
+            }
+          }
+        }.subscribe(UPDATE_PARAMETERS_TOPIC, MqttQoS.AT_LEAST_ONCE.value()).await()
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+      vertx.setTimer(15_000){
+        testContext.completeNow()
+      }
+    }
+
 
   companion object {
 
