@@ -63,7 +63,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     private const val LIVENESS_PORT = 1884
     private const val READINESS_PORT = 1885
 
-    private const val UPDATE_CONFIG_INTERVAL_SECONDS: Long = 5
+    private const val UPDATE_CONFIG_INTERVAL_SECONDS: Long = 20
 
     private lateinit var pgClient: SqlClient
 
@@ -71,6 +71,8 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     private lateinit var periodicUpdateConfig: Handler<Long>
 
     private val macAddressRegex = "^([a-f0-9]{2}:){5}[a-f0-9]{2}$".toRegex()
+    private const val MAX_NUMBER_MAC_MQTT = 1024
+    private const val N_CHAR_IN_MAC = 6*2
 
     @JvmStatic
     fun main(args: Array<String>) {
@@ -422,7 +424,12 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
       val result = if (queryResult.size() == 0) listOf() else queryResult.map { it.getString("beacon") }
 
       // Filter result to remove invalid mac addresses
-      result.filter { s -> s.matches(macAddressRegex) }.map { s -> s.replace(":", "") }.distinct().joinToString("")
+      val res = result.filter { s -> s.matches(macAddressRegex) }.map { s -> s.replace(":", "") }.distinct().joinToString("")
+      if(res.length > MAX_NUMBER_MAC_MQTT * N_CHAR_IN_MAC){
+        res.substring(0 until (MAX_NUMBER_MAC_MQTT * N_CHAR_IN_MAC))
+      } else {
+        res
+      }
     } catch (e: Exception) {
       LOGGER.warn { "Could not get beacons' whitelist: exception: $e" }
       ""
