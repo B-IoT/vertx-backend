@@ -72,7 +72,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
 
     private val macAddressRegex = "^([a-f0-9]{2}:){5}[a-f0-9]{2}$".toRegex()
     private const val MAX_NUMBER_MAC_MQTT = 1024
-    private const val N_CHAR_IN_MAC = 6*2
+    private const val N_CHAR_IN_MAC = 6 * 2
 
     @JvmStatic
     fun main(args: Array<String>) {
@@ -95,8 +95,8 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
   private val clients = mutableMapOf<String, MqttEndpoint>() // map of subscribed clientIdentifier to client
 
   private val whiteListHashes = mutableMapOf<String, Int>() // map of company to the hash of the whiteListString
-                                                            // We use this to check whether the whiteList changed or not since
-                                                            // last sent, so that we do not overwhelm the relays
+  // We use this to check whether the whiteList changed or not since
+  // last sent, so that we do not overwhelm the relays
 
   // Map from collection name to MongoAuthentication
   // It is used since there is a collection per company
@@ -392,13 +392,13 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     }
   }
 
-  private suspend fun sendConfigToAllRelays(){
+  private suspend fun sendConfigToAllRelays() {
     clients.forEach { (_, relayClient) ->
       val company = relayClient.will().willMessage.toJsonObject().getString("company")
       val collection = if (company != "biot") "${RELAYS_COLLECTION}_$company" else RELAYS_COLLECTION
       val currentWhiteList = getItemsMacAddressesString(company)
 
-      if(!whiteListHashes.containsKey(company) || currentWhiteList.hashCode() != whiteListHashes[company]){
+      if (!whiteListHashes.containsKey(company) || currentWhiteList.hashCode() != whiteListHashes[company]) {
         // The whiteList changed since the last time it was sent to the relays, so we send it again
         LOGGER.info { "WhiteList changed: sending last configuration to relay ${relayClient.clientIdentifier()}" }
         sendLastConfiguration(relayClient, collection, company)
@@ -424,8 +424,9 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
       val result = if (queryResult.size() == 0) listOf() else queryResult.map { it.getString("beacon") }
 
       // Filter result to remove invalid mac addresses
-      val res = result.filter { s -> s.matches(macAddressRegex) }.map { s -> s.replace(":", "") }.distinct().joinToString("")
-      if(res.length > MAX_NUMBER_MAC_MQTT * N_CHAR_IN_MAC){
+      val res =
+        result.filter { s -> s.matches(macAddressRegex) }.map { s -> s.replace(":", "") }.distinct().joinToString("")
+      if (res.length > MAX_NUMBER_MAC_MQTT * N_CHAR_IN_MAC) {
         res.substring(0 until (MAX_NUMBER_MAC_MQTT * N_CHAR_IN_MAC))
       } else {
         res
