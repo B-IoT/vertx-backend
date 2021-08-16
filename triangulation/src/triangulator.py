@@ -153,7 +153,7 @@ class Triangulator:
         Data must be an array of tuples of the following form: ("aa:aa:aa:aa:aa:aa", 10, "available", 2.3, 3.2, 1, 25).
         """
         async with self.db_pool.acquire() as conn:
-            table_name = self.get_table_name(company)
+            table_name = self._get_table_name(company)
             stmt = await conn.prepare(self.INSERT_QUERY(table_name))
             await stmt.executemany(data)
             logger.info("New beacons' data inserted in DB '{}': {}", table_name, data)
@@ -163,7 +163,7 @@ class Triangulator:
         Updates the status of the given beacon.
         """
         async with self.db_pool.acquire() as conn:
-            table_name = self.get_table_name(company)
+            table_name = self._get_table_name(company)
 
             fetch_stmt = await conn.prepare(self.FETCH_BEACON_QUERY(table_name))
             beacon = await fetch_stmt.fetchrow(mac)
@@ -262,7 +262,7 @@ class Triangulator:
             if temp.shape[0] > 1 and not np.isnan(self.initial_value_guess[index]): # Checking we have more than 1 value
                 temp,_ = kf.smooth(temp)
             
-            temp = self.feature_augmentation(temp[-1]) # Taking the latest RSSI and augmenting it
+            temp = self._feature_augmentation(temp[-1]) # Taking the latest RSSI and augmenting it
             temp = self.scaler.transform(np.array(temp).reshape(1, -1)) # Normalizing
             temp = np.concatenate(([1], temp.flatten()))
 
@@ -342,7 +342,7 @@ class Triangulator:
                         vect_long = self.relay_matrix[relay_2_index, 1] - self.relay_matrix[relay_1_index, 1]
                         
                         # Calculating the distance between the 2 gateways in meters
-                        dist = self.lat_to_meters(
+                        dist = self._lat_to_meters(
                             self.relay_matrix[relay_1_index, 0],
                             self.relay_matrix[relay_1_index, 1],
                             self.relay_matrix[relay_2_index, 0],
@@ -507,9 +507,9 @@ class Triangulator:
 
                 logger.info("Relay_matrix_name before preprocessing: {}", self.relay_matrix_name)
                 # Starting the filtering job
-                self.preprocessing(beacon_indexes, relay_index, self.max_history)
+                self._preprocessing(beacon_indexes, relay_index, self.max_history)
             
-                coordinates = await self.triangulation_engine(beacon_indexes, beacons, company)
+                coordinates = await self._triangulation_engine(beacon_indexes, beacons, company)
                 self.temp_raw[:] = np.nan
                 
             self.temp_raw[beacon_number_temp, relay_index] = rssis[i]
@@ -523,4 +523,4 @@ class Triangulator:
                     "Coordinates {}",
                     coordinates
                 )
-            await self.store_beacons_data(company, coordinates)          
+            await self._store_beacons_data(company, coordinates)          
