@@ -23,7 +23,7 @@ spec:
           name: relays-communication
           ports:
             - name: mqtt
-              containerPort: 443
+              containerPort: 1883
             - name: liveness
               containerPort: 1884
             - name: readiness

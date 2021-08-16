@@ -51,7 +51,8 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     internal const val RELAYS_UPDATE_ADDRESS = "relays.update"
 
     private val environment = System.getenv()
-    internal val MQTT_PORT = environment.getOrDefault("MQTT_PORT", "443").toInt()
+    internal val MQTT_PORT =
+      environment.getOrDefault("MQTT_PORT", "1883").toInt() // Externally (outside the cluster) the port is 443
 
     private val MONGO_HOST: String = environment.getOrDefault("MONGO_HOST", "localhost")
     internal val MONGO_PORT = environment.getOrDefault("MONGO_PORT", "27017").toInt()

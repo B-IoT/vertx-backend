@@ -86,7 +86,7 @@ jib {
   container {
     mainClass = mainVerticleName
     jvmFlags = listOf("-noverify", "-Djava.security.egd=file:/dev/./urandom")
-    ports = listOf("443", "1884", "1885", "5701")
+    ports = listOf("1883", "1884", "1885", "5701")
     user = "nobody:nobody"
   }
 }

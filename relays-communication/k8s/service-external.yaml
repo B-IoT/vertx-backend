@@ -12,3 +12,4 @@ spec:
   ports:
     - name: mqtt
       port: 443
+      targetPort: 1883
