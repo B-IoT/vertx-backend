@@ -7,6 +7,7 @@ package ch.biot.backend.relayscommunication
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.INGESTION_TOPIC
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.KAFKA_PORT
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.MONGO_PORT
+import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.MQTT_PORT
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.RELAYS_COLLECTION
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.RELAYS_UPDATE_ADDRESS
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.UPDATE_PARAMETERS_TOPIC
@@ -25,7 +26,7 @@ import io.vertx.kotlin.core.json.jsonArrayOf
 import io.vertx.kotlin.core.json.jsonObjectOf
 import io.vertx.kotlin.coroutines.await
 import io.vertx.kotlin.coroutines.dispatcher
-import io.vertx.kotlin.coroutines.toChannel
+import io.vertx.kotlin.coroutines.toReceiveChannel
 import io.vertx.kotlin.ext.auth.mongo.mongoAuthenticationOptionsOf
 import io.vertx.kotlin.ext.auth.mongo.mongoAuthorizationOptionsOf
 import io.vertx.kotlin.ext.mongo.indexOptionsOf
@@ -39,7 +40,6 @@ import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
-import mu.KotlinLogging
 import org.junit.jupiter.api.*
 import org.junit.jupiter.api.extension.ExtendWith
 import org.testcontainers.containers.DockerComposeContainer
@@ -52,9 +52,6 @@ import java.io.File
 import java.security.SecureRandom
 import java.time.LocalDate
 import java.util.*
-import java.util.concurrent.TimeUnit
-
-internal val LOGGER = KotlinLogging.logger {}
 
 @ExtendWith(VertxExtension::class)
 @Testcontainers
@@ -286,7 +283,8 @@ class TestRelaysCommunicationVerticle {
         username = configuration["mqttUsername"],
         password = mqttPassword,
         willFlag = true,
-        willMessage = jsonObjectOf("company" to "biot").encode()
+        willMessage = jsonObjectOf("company" to "biot").encode(),
+        ssl = true
       )
     )
 
@@ -375,7 +373,8 @@ class TestRelaysCommunicationVerticle {
       )
     pgClient = PgPool.client(vertx, pgConnectOptions, poolOptionsOf())
 
-    pgClient.query("""
+    pgClient.query(
+      """
       CREATE TABLE IF NOT EXISTS items_$anotherCompanyName
       (
           id SERIAL PRIMARY KEY,
@@ -404,7 +403,8 @@ class TestRelaysCommunicationVerticle {
           lastModifiedDate DATE,
           lastModifiedBy VARCHAR(100)
       );
-    """.trimIndent()).execute().await()
+    """.trimIndent()
+    ).execute().await()
 
     insertItems()
   }
@@ -469,135 +469,136 @@ class TestRelaysCommunicationVerticle {
           itemBiot2["comments"],
           LocalDate.parse(itemBiot2["lastModifiedDate"]),
           itemBiot2["lastModifiedBy"]
-          )
-        ).await()
+        )
+      ).await()
 
-          pgClient.preparedQuery(insertItem("items"))
-          .execute(
-            Tuple.of(
-              itemBiotInvalidMac["beacon"],
-              itemBiotInvalidMac["category"],
-              itemBiotInvalidMac["service"],
-              itemBiotInvalidMac["itemID"],
-              itemBiotInvalidMac["accessControlString"],
-              itemBiotInvalidMac["brand"],
-              itemBiotInvalidMac["model"],
-              itemBiotInvalidMac["supplier"],
-              LocalDate.parse(itemBiotInvalidMac["purchaseDate"]),
-              itemBiotInvalidMac["purchasePrice"],
-              itemBiotInvalidMac["originLocation"],
-              itemBiotInvalidMac["currentLocation"],
-              itemBiotInvalidMac["room"],
-              itemBiotInvalidMac["contact"],
-              itemBiotInvalidMac["currentOwner"],
-              itemBiotInvalidMac["previousOwner"],
-              itemBiotInvalidMac["orderNumber"],
-              itemBiotInvalidMac["color"],
-              itemBiotInvalidMac["serialNumber"],
-              LocalDate.parse(itemBiotInvalidMac["maintenanceDate"]),
-              itemBiotInvalidMac["status"],
-              itemBiotInvalidMac["comments"],
-              LocalDate.parse(itemBiotInvalidMac["lastModifiedDate"]),
-              itemBiotInvalidMac["lastModifiedBy"]
-            )
-          ).await()
+    pgClient.preparedQuery(insertItem("items"))
+      .execute(
+        Tuple.of(
+          itemBiotInvalidMac["beacon"],
+          itemBiotInvalidMac["category"],
+          itemBiotInvalidMac["service"],
+          itemBiotInvalidMac["itemID"],
+          itemBiotInvalidMac["accessControlString"],
+          itemBiotInvalidMac["brand"],
+          itemBiotInvalidMac["model"],
+          itemBiotInvalidMac["supplier"],
+          LocalDate.parse(itemBiotInvalidMac["purchaseDate"]),
+          itemBiotInvalidMac["purchasePrice"],
+          itemBiotInvalidMac["originLocation"],
+          itemBiotInvalidMac["currentLocation"],
+          itemBiotInvalidMac["room"],
+          itemBiotInvalidMac["contact"],
+          itemBiotInvalidMac["currentOwner"],
+          itemBiotInvalidMac["previousOwner"],
+          itemBiotInvalidMac["orderNumber"],
+          itemBiotInvalidMac["color"],
+          itemBiotInvalidMac["serialNumber"],
+          LocalDate.parse(itemBiotInvalidMac["maintenanceDate"]),
+          itemBiotInvalidMac["status"],
+          itemBiotInvalidMac["comments"],
+          LocalDate.parse(itemBiotInvalidMac["lastModifiedDate"]),
+          itemBiotInvalidMac["lastModifiedBy"]
+        )
+      ).await()
 
-          pgClient.preparedQuery(insertItem("items"))
-          .execute(
-            Tuple.of(
-              itemBiot4["beacon"],
-              itemBiot4["category"],
-              itemBiot4["service"],
-              itemBiot4["itemID"],
-              itemBiot4["accessControlString"],
-              itemBiot4["brand"],
-              itemBiot4["model"],
-              itemBiot4["supplier"],
-              LocalDate.parse(itemBiot4["purchaseDate"]),
-              itemBiot4["purchasePrice"],
-              itemBiot4["originLocation"],
-              itemBiot4["currentLocation"],
-              itemBiot4["room"],
-              itemBiot4["contact"],
-              itemBiot4["currentOwner"],
-              itemBiot4["previousOwner"],
-              itemBiot4["orderNumber"],
-              itemBiot4["color"],
-              itemBiot4["serialNumber"],
-              LocalDate.parse(itemBiot4["maintenanceDate"]),
-              itemBiot4["status"],
-              itemBiot4["comments"],
-              LocalDate.parse(itemBiot4["lastModifiedDate"]),
-              itemBiot4["lastModifiedBy"]
-            )
-          ).await()
+    pgClient.preparedQuery(insertItem("items"))
+      .execute(
+        Tuple.of(
+          itemBiot4["beacon"],
+          itemBiot4["category"],
+          itemBiot4["service"],
+          itemBiot4["itemID"],
+          itemBiot4["accessControlString"],
+          itemBiot4["brand"],
+          itemBiot4["model"],
+          itemBiot4["supplier"],
+          LocalDate.parse(itemBiot4["purchaseDate"]),
+          itemBiot4["purchasePrice"],
+          itemBiot4["originLocation"],
+          itemBiot4["currentLocation"],
+          itemBiot4["room"],
+          itemBiot4["contact"],
+          itemBiot4["currentOwner"],
+          itemBiot4["previousOwner"],
+          itemBiot4["orderNumber"],
+          itemBiot4["color"],
+          itemBiot4["serialNumber"],
+          LocalDate.parse(itemBiot4["maintenanceDate"]),
+          itemBiot4["status"],
+          itemBiot4["comments"],
+          LocalDate.parse(itemBiot4["lastModifiedDate"]),
+          itemBiot4["lastModifiedBy"]
+        )
+      ).await()
 
-          pgClient.preparedQuery(insertItem("items_$anotherCompanyName"))
-          .execute(
-            Tuple.of(
-              itemAnother1["beacon"],
-              itemAnother1["category"],
-              itemAnother1["service"],
-              itemAnother1["itemID"],
-              itemAnother1["accessControlString"],
-              itemAnother1["brand"],
-              itemAnother1["model"],
-              itemAnother1["supplier"],
-              LocalDate.parse(itemAnother1["purchaseDate"]),
-              itemAnother1["purchasePrice"],
-              itemAnother1["originLocation"],
-              itemAnother1["currentLocation"],
-              itemAnother1["room"],
-              itemAnother1["contact"],
-              itemAnother1["currentOwner"],
-              itemAnother1["previousOwner"],
-              itemAnother1["orderNumber"],
-              itemAnother1["color"],
-              itemAnother1["serialNumber"],
-              LocalDate.parse(itemAnother1["maintenanceDate"]),
-              itemAnother1["status"],
-              itemAnother1["comments"],
-              LocalDate.parse(itemAnother1["lastModifiedDate"]),
-              itemAnother1["lastModifiedBy"]
-            )
-          ).await()
+    pgClient.preparedQuery(insertItem("items_$anotherCompanyName"))
+      .execute(
+        Tuple.of(
+          itemAnother1["beacon"],
+          itemAnother1["category"],
+          itemAnother1["service"],
+          itemAnother1["itemID"],
+          itemAnother1["accessControlString"],
+          itemAnother1["brand"],
+          itemAnother1["model"],
+          itemAnother1["supplier"],
+          LocalDate.parse(itemAnother1["purchaseDate"]),
+          itemAnother1["purchasePrice"],
+          itemAnother1["originLocation"],
+          itemAnother1["currentLocation"],
+          itemAnother1["room"],
+          itemAnother1["contact"],
+          itemAnother1["currentOwner"],
+          itemAnother1["previousOwner"],
+          itemAnother1["orderNumber"],
+          itemAnother1["color"],
+          itemAnother1["serialNumber"],
+          LocalDate.parse(itemAnother1["maintenanceDate"]),
+          itemAnother1["status"],
+          itemAnother1["comments"],
+          LocalDate.parse(itemAnother1["lastModifiedDate"]),
+          itemAnother1["lastModifiedBy"]
+        )
+      ).await()
 
-          pgClient.preparedQuery(insertItem("items_$anotherCompanyName"))
-          .execute(
-            Tuple.of(
-              itemAnother2["beacon"],
-              itemAnother2["category"],
-              itemAnother2["service"],
-              itemAnother2["itemID"],
-              itemAnother2["accessControlString"],
-              itemAnother2["brand"],
-              itemAnother2["model"],
-              itemAnother2["supplier"],
-              LocalDate.parse(itemAnother2["purchaseDate"]),
-              itemAnother2["purchasePrice"],
-              itemAnother2["originLocation"],
-              itemAnother2["currentLocation"],
-              itemAnother2["room"],
-              itemAnother2["contact"],
-              itemAnother2["currentOwner"],
-              itemAnother2["previousOwner"],
-              itemAnother2["orderNumber"],
-              itemAnother2["color"],
-              itemAnother2["serialNumber"],
-              LocalDate.parse(itemAnother2["maintenanceDate"]),
-              itemAnother2["status"],
-              itemAnother2["comments"],
-              LocalDate.parse(itemAnother2["lastModifiedDate"]),
-              itemAnother2["lastModifiedBy"]
-            )
-          ).await()
+    pgClient.preparedQuery(insertItem("items_$anotherCompanyName"))
+      .execute(
+        Tuple.of(
+          itemAnother2["beacon"],
+          itemAnother2["category"],
+          itemAnother2["service"],
+          itemAnother2["itemID"],
+          itemAnother2["accessControlString"],
+          itemAnother2["brand"],
+          itemAnother2["model"],
+          itemAnother2["supplier"],
+          LocalDate.parse(itemAnother2["purchaseDate"]),
+          itemAnother2["purchasePrice"],
+          itemAnother2["originLocation"],
+          itemAnother2["currentLocation"],
+          itemAnother2["room"],
+          itemAnother2["contact"],
+          itemAnother2["currentOwner"],
+          itemAnother2["previousOwner"],
+          itemAnother2["orderNumber"],
+          itemAnother2["color"],
+          itemAnother2["serialNumber"],
+          LocalDate.parse(itemAnother2["maintenanceDate"]),
+          itemAnother2["status"],
+          itemAnother2["comments"],
+          LocalDate.parse(itemAnother2["lastModifiedDate"]),
+          itemAnother2["lastModifiedBy"]
+        )
+      ).await()
 
   }
 
   private fun dropAllItems(): CompositeFuture {
     return CompositeFuture.all(
       pgClient.query("DELETE FROM items").execute(),
-      pgClient.query("DELETE FROM items_$anotherCompanyName").execute()
+      pgClient.query("DELETE FROM items_$anotherCompanyName").execute(),
+      pgClient.query("DROP TABLE items_$anotherCompanyName").execute()
     )
   }
 
@@ -640,51 +641,54 @@ class TestRelaysCommunicationVerticle {
   }
 
   @AfterEach
-    fun cleanup(vertx: Vertx, testContext: VertxTestContext) = runBlocking(vertx.dispatcher()) {
+  fun cleanup(vertx: Vertx, testContext: VertxTestContext) = runBlocking(vertx.dispatcher()) {
+    try {
+      dropAllRelays()
+      dropAllItems()
+      mongoClient.close().await()
+      pgClient.close().await()
+      testContext.completeNow()
+    } catch (error: Throwable) {
+      testContext.failNow(error)
+    }
+  }
+
+  @Test
+  @DisplayName("A MQTT client upon subscription receives the last configuration")
+  fun clientSubscribesAndReceivesLastConfig(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
       try {
-        dropAllRelays()
-        dropAllItems()
-        mongoClient.close().await()
-        pgClient.close().await()
-        testContext.completeNow()
+        mqttClient.connect(MQTT_PORT, "localhost").await()
+        mqttClient.publishHandler { msg ->
+          if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
+            testContext.verify {
+              val expected = configuration.copy().apply {
+                remove("mqttID")
+                remove("mqttUsername")
+                remove("ledStatus")
+                put(
+                  "whiteList",
+                  "e051304816e5f015b5dd2438f5a8ef56d7c0"
+                ) //itemBiot1, itemBiot2, itemBiot4 mac addresses without :
+              }
+              expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
+              testContext.completeNow()
+            }
+          }
+        }.subscribe(UPDATE_PARAMETERS_TOPIC, MqttQoS.AT_LEAST_ONCE.value()).await()
       } catch (error: Throwable) {
         testContext.failNow(error)
       }
     }
 
-    @Test
-    @DisplayName("A MQTT client upon subscription receives the last configuration")
-    fun clientSubscribesAndReceivesLastConfig(vertx: Vertx, testContext: VertxTestContext): Unit =
-      runBlocking(vertx.dispatcher()) {
-        try {
-          mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
-          mqttClient.publishHandler { msg ->
-            if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
-              testContext.verify {
-                val expected = configuration.copy().apply {
-                  remove("mqttID")
-                  remove("mqttUsername")
-                  remove("ledStatus")
-                  put("whiteList", "e051304816e5f015b5dd2438f5a8ef56d7c0") //itemBiot1, itemBiot2, itemBiot4 mac addresses without :
-                }
-                expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
-                testContext.completeNow()
-              }
-            }
-          }.subscribe(UPDATE_PARAMETERS_TOPIC, MqttQoS.AT_LEAST_ONCE.value()).await()
-        } catch (error: Throwable) {
-          testContext.failNow(error)
-        }
-      }
-
   @Test
   @DisplayName("A MQTT client without authentication is refused connection")
   fun clientWithoutAuthIsRefusedConnection(vertx: Vertx, testContext: VertxTestContext) =
     runBlocking(vertx.dispatcher()) {
-      val client = MqttClient.create(vertx)
+      val client = MqttClient.create(vertx, mqttClientOptionsOf(ssl = true))
 
       try {
-        client.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+        client.connect(MQTT_PORT, MQTT_HOST).await()
         testContext.failNow("The client was able to connect without authentication")
       } catch (error: Throwable) {
         testContext.completeNow()
@@ -702,13 +706,59 @@ class TestRelaysCommunicationVerticle {
           username = configuration["mqttUsername"],
           password = "wrongPassword",
           willFlag = true,
-          willMessage = jsonObjectOf("company" to "biot").encode()
+          willMessage = jsonObjectOf("company" to "biot").encode(),
+          ssl = true
         )
       )
 
       try {
-        client.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+        client.connect(MQTT_PORT, MQTT_HOST).await()
         testContext.failNow("The client was able to connect with a wrong password")
+      } catch (error: Throwable) {
+        testContext.completeNow()
+      }
+    }
+
+  @Test
+  @DisplayName("A MQTT client without a will is refused connection")
+  fun clientWithNoWillIsRefusedConnection(vertx: Vertx, testContext: VertxTestContext) =
+    runBlocking(vertx.dispatcher()) {
+      val client = MqttClient.create(
+        vertx,
+        mqttClientOptionsOf(
+          clientId = configuration["mqttID"],
+          username = configuration["mqttUsername"],
+          password = "wrongPassword",
+          ssl = true
+        )
+      )
+
+      try {
+        client.connect(MQTT_PORT, MQTT_HOST).await()
+        testContext.failNow("The client was able to connect without a will")
+      } catch (error: Throwable) {
+        testContext.completeNow()
+      }
+    }
+
+  @Test
+  @DisplayName("A MQTT client without a will message is refused connection")
+  fun clientWithNoWillMessageIsRefusedConnection(vertx: Vertx, testContext: VertxTestContext) =
+    runBlocking(vertx.dispatcher()) {
+      val client = MqttClient.create(
+        vertx,
+        mqttClientOptionsOf(
+          clientId = configuration["mqttID"],
+          username = configuration["mqttUsername"],
+          password = "wrongPassword",
+          willFlag = true,
+          ssl = true
+        )
+      )
+
+      try {
+        client.connect(MQTT_PORT, MQTT_HOST).await()
+        testContext.failNow("The client was able to connect without a will message")
       } catch (error: Throwable) {
         testContext.completeNow()
       }
@@ -730,7 +780,7 @@ class TestRelaysCommunicationVerticle {
             }
           }
         }
-      }.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+      }.connect(MQTT_PORT, MQTT_HOST).await()
 
       mqttClient.subscribe(UPDATE_PARAMETERS_TOPIC, MqttQoS.AT_LEAST_ONCE.value()).await()
       vertx.eventBus().send(RELAYS_UPDATE_ADDRESS, message)
@@ -766,10 +816,10 @@ class TestRelaysCommunicationVerticle {
     )
 
     try {
-      mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+      mqttClient.connect(MQTT_PORT, MQTT_HOST).await()
       mqttClient.publish(INGESTION_TOPIC, message.toBuffer(), MqttQoS.AT_LEAST_ONCE, false, false).await()
       kafkaConsumer.subscribe(INGESTION_TOPIC).await()
-      val stream = kafkaConsumer.asStream().toChannel(vertx)
+      val stream = kafkaConsumer.asStream().toReceiveChannel(vertx)
       for (record in stream) {
         testContext.verify {
           val relayID = message.getString("relayID")
@@ -821,10 +871,10 @@ class TestRelaysCommunicationVerticle {
       )
 
       try {
-        mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+        mqttClient.connect(MQTT_PORT, MQTT_HOST).await()
         mqttClient.publish(INGESTION_TOPIC, message.toBuffer(), MqttQoS.AT_LEAST_ONCE, false, false).await()
         kafkaConsumer.subscribe(INGESTION_TOPIC).await()
-        val stream = kafkaConsumer.asStream().toChannel(vertx)
+        val stream = kafkaConsumer.asStream().toReceiveChannel(vertx)
         testContext.verify {
           if (stream.isEmpty) {
             testContext.completeNow()
@@ -864,10 +914,10 @@ class TestRelaysCommunicationVerticle {
       )
 
       try {
-        mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+        mqttClient.connect(MQTT_PORT, MQTT_HOST).await()
         mqttClient.publish(INGESTION_TOPIC, message.toBuffer(), MqttQoS.AT_LEAST_ONCE, false, false).await()
         kafkaConsumer.subscribe(INGESTION_TOPIC).await()
-        val stream = kafkaConsumer.asStream().toChannel(vertx)
+        val stream = kafkaConsumer.asStream().toReceiveChannel(vertx)
         testContext.verify {
           if (stream.isEmpty) {
             testContext.completeNow()
@@ -909,10 +959,10 @@ class TestRelaysCommunicationVerticle {
       )
 
       try {
-        mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+        mqttClient.connect(MQTT_PORT, MQTT_HOST).await()
         mqttClient.publish(INGESTION_TOPIC, message.toBuffer(), MqttQoS.AT_LEAST_ONCE, false, false).await()
         kafkaConsumer.subscribe(INGESTION_TOPIC).await()
-        val stream = kafkaConsumer.asStream().toChannel(vertx)
+        val stream = kafkaConsumer.asStream().toReceiveChannel(vertx)
         testContext.verify {
           if (stream.isEmpty) {
             testContext.completeNow()
@@ -954,10 +1004,10 @@ class TestRelaysCommunicationVerticle {
       )
 
       try {
-        mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+        mqttClient.connect(MQTT_PORT, MQTT_HOST).await()
         mqttClient.publish(INGESTION_TOPIC, message.toBuffer(), MqttQoS.AT_LEAST_ONCE, false, false).await()
         kafkaConsumer.subscribe(INGESTION_TOPIC).await()
-        val stream = kafkaConsumer.asStream().toChannel(vertx)
+        val stream = kafkaConsumer.asStream().toReceiveChannel(vertx)
         testContext.verify {
           if (stream.isEmpty) {
             testContext.completeNow()
@@ -999,10 +1049,10 @@ class TestRelaysCommunicationVerticle {
       )
 
       try {
-        mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+        mqttClient.connect(MQTT_PORT, MQTT_HOST).await()
         mqttClient.publish(INGESTION_TOPIC, message.toBuffer(), MqttQoS.AT_LEAST_ONCE, false, false).await()
         kafkaConsumer.subscribe(INGESTION_TOPIC).await()
-        val stream = kafkaConsumer.asStream().toChannel(vertx)
+        val stream = kafkaConsumer.asStream().toReceiveChannel(vertx)
         testContext.verify {
           if (stream.isEmpty) {
             testContext.completeNow()
@@ -1044,10 +1094,10 @@ class TestRelaysCommunicationVerticle {
       )
 
       try {
-        mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+        mqttClient.connect(MQTT_PORT, MQTT_HOST).await()
         mqttClient.publish(INGESTION_TOPIC, message.toBuffer(), MqttQoS.AT_LEAST_ONCE, false, false).await()
         kafkaConsumer.subscribe(INGESTION_TOPIC).await()
-        val stream = kafkaConsumer.asStream().toChannel(vertx)
+        val stream = kafkaConsumer.asStream().toReceiveChannel(vertx)
         testContext.verify {
           if (stream.isEmpty) {
             testContext.completeNow()
@@ -1089,10 +1139,10 @@ class TestRelaysCommunicationVerticle {
       )
 
       try {
-        mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+        mqttClient.connect(MQTT_PORT, MQTT_HOST).await()
         mqttClient.publish(INGESTION_TOPIC, message.toBuffer(), MqttQoS.AT_LEAST_ONCE, false, false).await()
         kafkaConsumer.subscribe(INGESTION_TOPIC).await()
-        val stream = kafkaConsumer.asStream().toChannel(vertx)
+        val stream = kafkaConsumer.asStream().toReceiveChannel(vertx)
         testContext.verify {
           if (stream.isEmpty) {
             testContext.completeNow()
@@ -1117,12 +1167,13 @@ class TestRelaysCommunicationVerticle {
           username = configurationAnotherCompany["mqttUsername"],
           password = mqttPassword,
           willFlag = true,
-          willMessage = jsonObjectOf("company" to anotherCompanyName).encode()
+          willMessage = jsonObjectOf("company" to anotherCompanyName).encode(),
+          ssl = true,
         )
       )
 
       try {
-        client.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+        client.connect(MQTT_PORT, MQTT_HOST).await()
         client.publishHandler { msg ->
           if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
             testContext.verify {
@@ -1147,57 +1198,7 @@ class TestRelaysCommunicationVerticle {
   fun clientSubscribesAndReceivesLastConfigAfter5SecWhenModified(vertx: Vertx, testContext: VertxTestContext): Unit =
     runBlocking(vertx.dispatcher()) {
       try {
-        mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
-        mqttClient.publishHandler { msg ->
-          if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
-            when (msgCounter) {
-                0 -> {
-                  // First msg at subscription
-                  testContext.verify {
-                        val expected = configuration.copy().apply {
-                          remove("mqttID")
-                          remove("mqttUsername")
-                          remove("ledStatus")
-                          put("whiteList", "e051304816e5f015b5dd2438f5a8ef56d7c0") //itemBiot1, itemBiot2, itemBiot4 mac addresses without :
-                        }
-                        expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
-                  }
-                  msgCounter += 1
-                  pgClient.preparedQuery(updateItem("items", listOf("beacon"), "biot")).execute(Tuple.tuple(listOf(itemBiot1Id, "aa:bb:cc:dd:ee:ff")))
-
-                }
-                1 -> {
-                  testContext.verify {
-                        val expected = configuration.copy().apply {
-                          remove("mqttID")
-                          remove("mqttUsername")
-                          remove("ledStatus")
-                          put("whiteList", "aabbccddeefff015b5dd2438f5a8ef56d7c0") //itemBiot1, itemBiot2, itemBiot4 mac addresses without :
-                        }
-                        expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
-                  }
-                }
-                else -> {
-                  testContext.failNow("received more than 2 msgs")
-                }
-            }
-          }
-        }.subscribe(UPDATE_PARAMETERS_TOPIC, MqttQoS.AT_LEAST_ONCE.value()).await()
-      } catch (error: Throwable) {
-        testContext.failNow(error)
-      }
-
-      vertx.setTimer(15_000){
-        testContext.completeNow()
-      }
-    }
-
-  @Test
-  @DisplayName("A MQTT client does NOT receive the config after 5 seconds if no item's beacon changed")
-  fun clientSubscribesAndDoesNotReceiveLastConfigAfter15SecWhenUnmodified(vertx: Vertx, testContext: VertxTestContext): Unit =
-    runBlocking(vertx.dispatcher()) {
-      try {
-        mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+        mqttClient.connect(MQTT_PORT, MQTT_HOST).await()
         mqttClient.publishHandler { msg ->
           if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
             when (msgCounter) {
@@ -1208,7 +1209,70 @@ class TestRelaysCommunicationVerticle {
                     remove("mqttID")
                     remove("mqttUsername")
                     remove("ledStatus")
-                    put("whiteList", "e051304816e5f015b5dd2438f5a8ef56d7c0") //itemBiot1, itemBiot2, itemBiot4 mac addresses without :
+                    put(
+                      "whiteList",
+                      "e051304816e5f015b5dd2438f5a8ef56d7c0"
+                    ) //itemBiot1, itemBiot2, itemBiot4 mac addresses without :
+                  }
+                  expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
+                }
+                msgCounter += 1
+                pgClient.preparedQuery(updateItem("items", listOf("beacon"), "biot"))
+                  .execute(Tuple.tuple(listOf(itemBiot1Id, "aa:bb:cc:dd:ee:ff")))
+
+              }
+              1 -> {
+                testContext.verify {
+                  val expected = configuration.copy().apply {
+                    remove("mqttID")
+                    remove("mqttUsername")
+                    remove("ledStatus")
+                    put(
+                      "whiteList",
+                      "aabbccddeefff015b5dd2438f5a8ef56d7c0"
+                    ) //itemBiot1, itemBiot2, itemBiot4 mac addresses without :
+                  }
+                  expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
+                }
+              }
+              else -> {
+                testContext.failNow("received more than 2 msgs")
+              }
+            }
+          }
+        }.subscribe(UPDATE_PARAMETERS_TOPIC, MqttQoS.AT_LEAST_ONCE.value()).await()
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+
+      vertx.setTimer(15_000) {
+        testContext.completeNow()
+      }
+    }
+
+  @Test
+  @DisplayName("A MQTT client does NOT receive the config after 5 seconds if no item's beacon changed")
+  fun clientSubscribesAndDoesNotReceiveLastConfigAfter15SecWhenUnmodified(
+    vertx: Vertx,
+    testContext: VertxTestContext
+  ): Unit =
+    runBlocking(vertx.dispatcher()) {
+      try {
+        mqttClient.connect(MQTT_PORT, MQTT_HOST).await()
+        mqttClient.publishHandler { msg ->
+          if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
+            when (msgCounter) {
+              0 -> {
+                // First msg at subscription
+                testContext.verify {
+                  val expected = configuration.copy().apply {
+                    remove("mqttID")
+                    remove("mqttUsername")
+                    remove("ledStatus")
+                    put(
+                      "whiteList",
+                      "e051304816e5f015b5dd2438f5a8ef56d7c0"
+                    ) //itemBiot1, itemBiot2, itemBiot4 mac addresses without :
                   }
                   expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
                 }
@@ -1223,13 +1287,15 @@ class TestRelaysCommunicationVerticle {
       } catch (error: Throwable) {
         testContext.failNow(error)
       }
-      vertx.setTimer(15_000){
+      vertx.setTimer(15_000) {
         testContext.completeNow()
       }
     }
 
 
   companion object {
+
+    private const val MQTT_HOST = "localhost"
 
     private val instance: KDockerComposeContainer by lazy { defineDockerCompose() }
 
