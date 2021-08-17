@@ -74,6 +74,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Relay'
+        "404":
+          description: relay not found
     put:
       tags:
       - Relay
@@ -99,6 +101,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Relay'
+        "404":
+          description: relay not found
     delete:
       tags:
       - Relay
@@ -115,6 +119,8 @@ paths:
       responses:
         "200":
           description: successfully deleted relay
+        "404":
+          description: relay not found
   /users:
     get:
       tags:
@@ -201,6 +207,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/User'
+        "404":
+          description: user not found
     put:
       tags:
       - User
@@ -226,6 +234,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/User'
+        "404":
+          description: user not found
     delete:
       tags:
       - User
@@ -242,6 +252,8 @@ paths:
       responses:
         "200":
           description: successfully deleted user
+        "404":
+          description: user not found
   /items:
     get:
       tags:
@@ -412,7 +424,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Item'
         "404":
-          description: Item not found or inaccessible
+          description: item not found
     put:
       tags:
       - Item
@@ -454,6 +466,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Item'
+        "404":
+          description: item not found
     delete:
       tags:
       - Item
@@ -479,6 +493,8 @@ paths:
       responses:
         "200":
           description: successfully deleted item
+        "404":
+          description: item not found
   /analytics/status:
     get:
       tags:
