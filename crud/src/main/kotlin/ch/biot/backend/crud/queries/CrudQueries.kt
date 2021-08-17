@@ -47,7 +47,7 @@ fun getSnapshot(itemsTable: String, snapshotId: Int) = "SELECT * FROM ${itemsTab
 fun dropSnapshotTable(itemsTable: String, snapshotId: Int) = "DROP TABLE ${itemsTable}_snapshot_$snapshotId"
 
 fun deleteSnapshot(itemsTable: String, accessControlString: String) =
-  "DELETE from ${itemsTable}_snapshots WHERE id=$1 AND (accessControlString LIKE '$accessControlString:%' OR accessControlString LIKE '$accessControlString')"
+  "DELETE FROM ${itemsTable}_snapshots WHERE id=$1 AND (accessControlString LIKE '$accessControlString:%' OR accessControlString LIKE '$accessControlString')"
 
 fun leftOuterJoinFromSnapshots(itemsTable: String, firstSnapshotId: Int, secondSnapshotId: Int) =
   "SELECT F.* FROM ${itemsTable}_snapshot_$firstSnapshotId F LEFT JOIN ${itemsTable}_snapshot_$secondSnapshotId S ON F.id = S.id WHERE S.id is NULL"

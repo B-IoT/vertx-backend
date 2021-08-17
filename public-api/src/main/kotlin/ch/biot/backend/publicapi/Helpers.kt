@@ -15,6 +15,8 @@ import io.vertx.ext.web.client.HttpRequest
 import io.vertx.ext.web.client.HttpResponse
 import io.vertx.kotlin.coroutines.await
 
+internal const val NO_AC_IN_CTX_ERROR_MSG = "Cannot get the accessControlString from the context."
+
 /**
  * Sends the given status code through the given routing context.
  *
@@ -64,6 +66,21 @@ internal fun forwardJsonArrayOrStatusCode(ctx: RoutingContext, resp: HttpRespons
 internal fun sendBadGateway(ctx: RoutingContext, error: Throwable) {
   LOGGER.error(error) { "Oops... an error occurred!" }
   ctx.fail(502, error)
+}
+
+/**
+ * Gets the access control string from the context or fails by sending a 502 Bad Gateway.
+ *
+ * @return the access control string if any, otherwise null
+ */
+internal fun RoutingContext.getAccessControlStringOrFail(): String? {
+  val acString = this.get<String>("accessControlString")
+  if (acString == null) {
+    sendBadGateway(this, Error(NO_AC_IN_CTX_ERROR_MSG))
+    return null
+  }
+
+  return acString
 }
 
 /**

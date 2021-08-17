@@ -162,6 +162,26 @@ class TestCRUDVerticleRelays {
   }
 
   @Test
+  @DisplayName("registerRelay fails without a company")
+  fun registerRelayFailsWithoutCompany(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      post("/relays")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
   @DisplayName("getRelays correctly retrieves all relays")
   fun getRelaysIsCorrect(testContext: VertxTestContext) {
     val expected = jsonArrayOf(existingRelay.copy().apply { remove("mqttPassword") })
@@ -184,6 +204,26 @@ class TestCRUDVerticleRelays {
       val password = response.getJsonObject(0).remove("mqttPassword")
       expectThat(response).isEqualTo(expected)
       expectThat(password).isNotNull()
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("getRelays fails without a company")
+  fun getRelaysFailsWithoutCompany(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      get("/relays")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
       testContext.completeNow()
     }
   }
@@ -239,8 +279,28 @@ class TestCRUDVerticleRelays {
   }
 
   @Test
+  @DisplayName("getRelay fails without a company")
+  fun getRelayFailsWithoutCompany(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      get("/relays/test")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
   @DisplayName("updateRelay correctly updates the desired relay")
-  fun updateRelayIsCorrect(vertx: Vertx, testContext: VertxTestContext) = runBlocking(vertx.dispatcher()) {
+  fun updateRelayIsCorrect(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
     val updateJson = jsonObjectOf(
       "ledStatus" to true,
       "latitude" to 1.0,
@@ -315,6 +375,26 @@ class TestCRUDVerticleRelays {
   }
 
   @Test
+  @DisplayName("updateRelay fails without a company")
+  fun updateRelayFailsWithoutCompany(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      put("/relays/test")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
   @DisplayName("deleteRelay correctly deletes a relay")
   fun deleteIsCorrect(testContext: VertxTestContext) {
     val relayToRemove = jsonObjectOf(
@@ -359,6 +439,26 @@ class TestCRUDVerticleRelays {
 
     testContext.verify {
       expectThat(response).isEmpty()
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("deleteRelay fails without a company")
+  fun deleteRelayFailsWithoutCompany(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      delete("/relays/test")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
       testContext.completeNow()
     }
   }

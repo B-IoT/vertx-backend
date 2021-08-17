@@ -38,6 +38,7 @@ import org.testcontainers.containers.DockerComposeContainer
 import org.testcontainers.junit.jupiter.Testcontainers
 import strikt.api.expect
 import strikt.api.expectThat
+import strikt.assertions.isEmpty
 import strikt.assertions.isEqualTo
 import strikt.assertions.isTrue
 import java.io.File
@@ -334,6 +335,7 @@ class TestCRUDVerticleAnalytics {
         contentType(ContentType.JSON)
       } When {
         queryParam("company", "biot")
+        queryParam("accessControlString", "biot")
         get("/analytics/status")
       } Then {
         statusCode(200)
@@ -361,6 +363,48 @@ class TestCRUDVerticleAnalytics {
         that(secondService.getInteger("toRepair")).isEqualTo(1)
       }
 
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("getStatus fails without an access control string")
+  fun getStatusFailsWithoutACString(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("company", "biot")
+      get("/analytics/status")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("getStatus fails without a company")
+  fun getStatusFailsWithoutCompany(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("accessControlString", "biot")
+      get("/analytics/status")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
       testContext.completeNow()
     }
   }

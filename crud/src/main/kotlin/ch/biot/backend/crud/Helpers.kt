@@ -274,6 +274,15 @@ internal fun extractItemInformation(json: JsonObject, keepNulls: Boolean = true)
 }
 
 /**
+ * Returns the snapshot table name.
+ *
+ * @param itemsTable the name of the items table corresponding to the snapshot
+ * @param snapshotID the id of the snapshot
+ * @return the snapshot table name
+ */
+internal fun getSnapshotTableName(itemsTable: String, snapshotID: Int) = "${itemsTable}_snapshot_$snapshotID"
+
+/**
  * Returns the right collection (or table) to use based on the user's company and baseCollectionName provided.
  *
  * @param baseCollectionName the name of the base collection, such as "relays" or "items"
@@ -303,7 +312,7 @@ internal fun RoutingContext.getAccessControlString(): String {
  * @param operationName the name of the operation executing for logging it in case of error
  * @return true if the context fails, false otherwise
  */
-internal suspend fun RoutingContext.failIfUnauthorized(
+internal suspend fun RoutingContext.failIfNoRightsToSnapshots(
   client: SqlClient,
   tableName: String,
   accessControlString: String,

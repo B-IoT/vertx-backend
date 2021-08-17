@@ -53,8 +53,6 @@ class PublicApiVerticle(private val webClient: WebClient) : CoroutineVerticle() 
     private const val APPLICATION_JSON = "application/json"
     private const val CONTENT_TYPE = "Content-Type"
 
-    private const val NO_AC_IN_CTX_ERROR_MSG = "Cannot get the accessControlString from the context."
-
     const val USERS_ENDPOINT = "users"
     private const val RELAYS_ENDPOINT = "relays"
     private const val ITEMS_ENDPOINT = "items"
@@ -263,8 +261,11 @@ class PublicApiVerticle(private val webClient: WebClient) : CoroutineVerticle() 
   private suspend fun analyticsGetStatusHandler(ctx: RoutingContext) {
     LOGGER.info { "New getStatus request on $ANALYTICS_ENDPOINT endpoint" }
 
+    val acString = ctx.getAccessControlStringOrFail() ?: return
+
     webClient.get(CRUD_PORT, CRUD_HOST, "/$ANALYTICS_ENDPOINT/status")
       .addQueryParam("company", ctx.user().principal()["company"])
+      .addQueryParam("accessControlString", acString)
       .timeout(TIMEOUT)
       .`as`(BodyCodec.jsonObject())
       .coroutineSend()
@@ -374,10 +375,7 @@ class PublicApiVerticle(private val webClient: WebClient) : CoroutineVerticle() 
   private suspend fun getClosestItemsHandler(ctx: RoutingContext) {
     LOGGER.info { "New getClosestItems request" }
 
-    val acString = ctx.get<String>("accessControlString")
-    if (acString == null) {
-      sendBadGateway(ctx, Error(NO_AC_IN_CTX_ERROR_MSG))
-    }
+    val acString = ctx.getAccessControlStringOrFail() ?: return
 
     webClient.get(CRUD_PORT, CRUD_HOST, "/$ITEMS_ENDPOINT/closest/?${ctx.request().query()}")
       .addQueryParam("company", ctx.user().principal()["company"])
@@ -421,10 +419,7 @@ class PublicApiVerticle(private val webClient: WebClient) : CoroutineVerticle() 
   private suspend fun compareSnapshotsHandler(ctx: RoutingContext) {
     LOGGER.info { "New compareSnapshots request" }
 
-    val acString = ctx.get<String>("accessControlString")
-    if (acString == null) {
-      sendBadGateway(ctx, Error(NO_AC_IN_CTX_ERROR_MSG))
-    }
+    val acString = ctx.getAccessControlStringOrFail() ?: return
 
     webClient
       .get(CRUD_PORT, CRUD_HOST, "/$ITEMS_ENDPOINT/snapshots/compare/?${ctx.request().query()}")
@@ -454,10 +449,7 @@ class PublicApiVerticle(private val webClient: WebClient) : CoroutineVerticle() 
   private suspend fun getSnapshotHandler(ctx: RoutingContext) {
     LOGGER.info { "New getSnapshot request" }
 
-    val acString = ctx.get<String>("accessControlString")
-    if (acString == null) {
-      sendBadGateway(ctx, Error(NO_AC_IN_CTX_ERROR_MSG))
-    }
+    val acString = ctx.getAccessControlStringOrFail() ?: return
 
     webClient
       .get(CRUD_PORT, CRUD_HOST, "/$ITEMS_ENDPOINT/snapshots/${ctx.pathParam("id")}")
@@ -487,10 +479,7 @@ class PublicApiVerticle(private val webClient: WebClient) : CoroutineVerticle() 
   private suspend fun createSnapshotHandler(ctx: RoutingContext) {
     LOGGER.info { "New createSnapshot request" }
 
-    val acString = ctx.get<String>("accessControlString")
-    if (acString == null) {
-      sendBadGateway(ctx, Error(NO_AC_IN_CTX_ERROR_MSG))
-    }
+    val acString = ctx.getAccessControlStringOrFail() ?: return
 
     webClient
       .post(CRUD_PORT, CRUD_HOST, "/$ITEMS_ENDPOINT/snapshots")
@@ -522,10 +511,7 @@ class PublicApiVerticle(private val webClient: WebClient) : CoroutineVerticle() 
   private suspend fun registerHandler(ctx: RoutingContext, endpoint: String, forwardResponse: Boolean = false) {
     LOGGER.info { "New register request on /$endpoint endpoint" }
 
-    val acString = ctx.get<String>("accessControlString")
-    if (acString == null) {
-      sendBadGateway(ctx, Error(NO_AC_IN_CTX_ERROR_MSG))
-    }
+    val acString = ctx.getAccessControlStringOrFail() ?: return
 
     val json: JsonObject
     try {
@@ -564,10 +550,9 @@ class PublicApiVerticle(private val webClient: WebClient) : CoroutineVerticle() 
    */
   private suspend fun updateHandler(ctx: RoutingContext, endpoint: String) {
     LOGGER.info { "New update request on /$endpoint endpoint" }
-    val acString = ctx.get<String>("accessControlString")
-    if (acString == null) {
-      sendBadGateway(ctx, Error(NO_AC_IN_CTX_ERROR_MSG))
-    }
+
+    val acString = ctx.getAccessControlStringOrFail() ?: return
+
     val query = ctx.request().query()
     val requestURI =
       if (query != null && query.isNotEmpty()) "/$endpoint/${ctx.pathParam("id")}?$query"
@@ -595,10 +580,8 @@ class PublicApiVerticle(private val webClient: WebClient) : CoroutineVerticle() 
   private suspend fun getManyHandler(ctx: RoutingContext, endpoint: String) {
     LOGGER.info { "New getMany request on /$endpoint endpoint" }
 
-    val acString = ctx.get<String>("accessControlString")
-    if (acString == null) {
-      sendBadGateway(ctx, Error(NO_AC_IN_CTX_ERROR_MSG))
-    }
+    val acString = ctx.getAccessControlStringOrFail() ?: return
+
     val query = ctx.request().query()
     val requestURI = if (query != null && query.isNotEmpty()) "/$endpoint/?$query" else "/$endpoint"
 
@@ -689,17 +672,18 @@ class PublicApiVerticle(private val webClient: WebClient) : CoroutineVerticle() 
 
   private suspend fun getACStringHandler(ctx: RoutingContext) {
     val userPrincipal = ctx.user().principal()
-    val userID: String = userPrincipal.getString("userID")
+    val userID = userPrincipal.getString("userID")
+    val company = userPrincipal.getString("company")
+
     webClient
       .get(CRUD_PORT, CRUD_HOST, "/$USERS_ENDPOINT/${userID}")
-      .addQueryParam("company", userPrincipal.getString("company"))
+      .addQueryParam("company", company)
+      .addQueryParam("accessControlString", company)
       .timeout(TIMEOUT)
       .`as`(BodyCodec.jsonObject())
       .coroutineSend()
       .bimap(
-        { error ->
-          sendBadGateway(ctx, error)
-        },
+        { error -> sendBadGateway(ctx, error) },
         { resp ->
           val acString: String
           try {
@@ -709,8 +693,7 @@ class PublicApiVerticle(private val webClient: WebClient) : CoroutineVerticle() 
             sendBadGateway(ctx, e)
             return
           }
-          ctx.put("accessControlString", acString)
-          ctx.next()
+          ctx.put("accessControlString", acString).next()
         }
       )
   }

@@ -32,6 +32,14 @@ paths:
         schema:
           type: integer
           format: int32
+      - name: company
+        in: query
+        description: the company of the user executing the request
+        required: true
+        style: form
+        explode: true
+        schema:
+          type: string
       responses:
         "200":
           description: All the relays
@@ -45,6 +53,15 @@ paths:
       tags:
       - Relay
       operationId: registerRelay
+      parameters:
+        - name: company
+          in: query
+          description: the company of the user executing the request
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: string
       requestBody:
         content:
           application/json:
@@ -67,6 +84,14 @@ paths:
         explode: false
         schema:
           type: string
+      - name: company
+        in: query
+        description: the company of the user executing the request
+        required: true
+        style: form
+        explode: true
+        schema:
+          type: string
       responses:
         "200":
           description: a relay
@@ -85,6 +110,14 @@ paths:
         required: true
         style: simple
         explode: false
+        schema:
+          type: string
+      - name: company
+        in: query
+        description: the company of the user executing the request
+        required: true
+        style: form
+        explode: true
         schema:
           type: string
       requestBody:
@@ -110,6 +143,14 @@ paths:
         required: true
         style: simple
         explode: false
+        schema:
+          type: string
+      - name: company
+        in: query
+        description: the company of the user executing the request
+        required: true
+        style: form
+        explode: true
         schema:
           type: string
       responses:
@@ -140,6 +181,22 @@ paths:
         schema:
           type: integer
           format: int32
+      - name: company
+        in: query
+        description: the company of the user executing the request
+        required: true
+        style: form
+        explode: true
+        schema:
+          type: string
+      - name: accessControlString
+        in: query
+        description: the access control string of the user executing the request
+        required: true
+        style: form
+        explode: true
+        schema:
+          type: string
       responses:
         "200":
           description: all the users
@@ -153,6 +210,23 @@ paths:
       tags:
       - User
       operationId: registerUser
+      parameters:
+        - name: company
+          in: query
+          description: the company of the user executing the request
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: string
+        - name: accessControlString
+          in: query
+          description: the access control string of the user executing the request
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: string
       requestBody:
         content:
           application/json:
@@ -194,6 +268,22 @@ paths:
         explode: false
         schema:
           type: string
+      - name: company
+        in: query
+        description: the company of the user executing the request
+        required: true
+        style: form
+        explode: true
+        schema:
+          type: string
+      - name: accessControlString
+        in: query
+        description: the access control string of the user executing the request
+        required: true
+        style: form
+        explode: true
+        schema:
+          type: string
       responses:
         "200":
           description: a user
@@ -212,6 +302,22 @@ paths:
         required: true
         style: simple
         explode: false
+        schema:
+          type: string
+      - name: company
+        in: query
+        description: the company of the user executing the request
+        required: true
+        style: form
+        explode: true
+        schema:
+          type: string
+      - name: accessControlString
+        in: query
+        description: the access control string of the user executing the request
+        required: true
+        style: form
+        explode: true
         schema:
           type: string
       requestBody:
@@ -237,6 +343,22 @@ paths:
         required: true
         style: simple
         explode: false
+        schema:
+          type: string
+      - name: company
+        in: query
+        description: the company of the user executing the request
+        required: true
+        style: form
+        explode: true
+        schema:
+          type: string
+      - name: accessControlString
+        in: query
+        description: the access control string of the user executing the request
+        required: true
+        style: form
+        explode: true
         schema:
           type: string
       responses:
@@ -275,10 +397,18 @@ paths:
         explode: true
         schema:
           type: string
+      - name: company
+        in: query
+        description: the company of the user executing the request
+        required: true
+        style: form
+        explode: true
+        schema:
+          type: string
       - name: accessControlString
         in: query
-        description: accessControlString to access data
-        required: false
+        description: the access control string of the user executing the request
+        required: true
         style: form
         explode: true
         schema:
@@ -292,10 +422,29 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Item'
+        "403":
+          description: forbidden access
     post:
       tags:
       - Item
       operationId: registerItem
+      parameters:
+        - name: company
+          in: query
+          description: the company of the user executing the request
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: string
+        - name: accessControlString
+          in: query
+          description: the access control string of the user executing the request
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: string
       requestBody:
         content:
           application/json:
@@ -310,6 +459,8 @@ paths:
                 type: integer
                 format: int32
                 example: 1
+        "403":
+          description: forbidden access
   /items/categories:
     get:
       tags:
@@ -317,14 +468,22 @@ paths:
       description: returns all items's categories
       operationId: getCategories
       parameters:
-      - name: accessControlString
-        in: query
-        description: accessControlString to access data
-        required: false
-        style: form
-        explode: true
-        schema:
-          type: string
+        - name: company
+          in: query
+          description: the company of the user executing the request
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: string
+        - name: accessControlString
+          in: query
+          description: the access control string of the user executing the request
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: string
       responses:
         "200":
           description: all the categories
@@ -334,12 +493,31 @@ paths:
                 type: array
                 items:
                   type: string
+        "403":
+          description: forbidden access
   /items/snapshots:
     get:
       tags:
         - Item
       description: returns all snapshots
       operationId: getSnapshots
+      parameters:
+        - name: company
+          in: query
+          description: the company of the user executing the request
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: string
+        - name: accessControlString
+          in: query
+          description: the access control string of the user executing the request
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: string
       responses:
         "200":
           description: all the snapshots
@@ -349,10 +527,29 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Snapshot'
+        "403":
+          description: forbidden access
     post:
       tags:
         - Item
       operationId: createSnapshot
+      parameters:
+        - name: company
+          in: query
+          description: the company of the user executing the request
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: string
+        - name: accessControlString
+          in: query
+          description: the access control string of the user executing the request
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: string
       responses:
         "200":
           description: the created snapshot id
@@ -362,6 +559,8 @@ paths:
                 type: integer
                 format: int32
                 example: 1
+        "403":
+          description: forbidden access
   /items/snapshots/compare:
     get:
       tags:
@@ -387,6 +586,22 @@ paths:
           schema:
             type: integer
             format: int32
+        - name: company
+          in: query
+          description: the company of the user executing the request
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: string
+        - name: accessControlString
+          in: query
+          description: the access control string of the user executing the request
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: string
       responses:
         "200":
           description: the comparison object
@@ -396,6 +611,8 @@ paths:
                 $ref: '#/components/schemas/SnapshotsComparison'
         "404":
           description: one of the two snapshots not found
+        "403":
+          description: forbidden access
   /items/snapshots/{id}:
     get:
       tags:
@@ -410,6 +627,22 @@ paths:
           explode: false
           schema:
             type: string
+        - name: company
+          in: query
+          description: the company of the user executing the request
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: string
+        - name: accessControlString
+          in: query
+          description: the access control string of the user executing the request
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: string
       responses:
         "200":
           description: a snapshot
@@ -421,6 +654,8 @@ paths:
                   $ref: '#/components/schemas/ItemNoBeaconData'
         "404":
           description: snapshot not found
+        "403":
+          description: forbidden access
     delete:
       tags:
         - Item
@@ -434,11 +669,29 @@ paths:
           explode: false
           schema:
             type: string
+        - name: company
+          in: query
+          description: the company of the user executing the request
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: string
+        - name: accessControlString
+          in: query
+          description: the access control string of the user executing the request
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: string
       responses:
         "200":
           description: successfully deleted snapshot
         "404":
           description: snapshot not found
+        "403":
+          description: forbidden access
   /items/closest:
     get:
       tags:
@@ -472,10 +725,18 @@ paths:
         explode: true
         schema:
           type: string
+      - name: company
+        in: query
+        description: the company of the user executing the request
+        required: true
+        style: form
+        explode: true
+        schema:
+          type: string
       - name: accessControlString
         in: query
-        description: accessControlString to access data
-        required: false
+        description: the access control string of the user executing the request
+        required: true
         style: form
         explode: true
         schema:
@@ -491,7 +752,7 @@ paths:
     get:
       tags:
       - Item
-      description: returns a specific item if accessible with this accessControlString
+      description: returns a specific item
       operationId: getItem
       parameters:
       - name: id
@@ -501,10 +762,18 @@ paths:
         explode: false
         schema:
           type: string
+      - name: company
+        in: query
+        description: the company of the user executing the request
+        required: true
+        style: form
+        explode: true
+        schema:
+          type: string
       - name: accessControlString
         in: query
-        description: accessControlString to access data
-        required: false
+        description: the access control string of the user executing the request
+        required: true
         style: form
         explode: true
         schema:
@@ -517,12 +786,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/Item'
         "404":
-          description: Item not found or inaccessible
+          description: item not found
+        "403":
+          description: forbidden access
     put:
       tags:
       - Item
-      description: updates a specific item if the accessControlString has access to
-        the item
+      description: updates a specific item
       operationId: updateItem
       parameters:
       - name: id
@@ -534,15 +804,24 @@ paths:
           type: string
       - name: scan
         in: query
+        description: whether the update is done after scanning a QR code
         required: false
         style: form
         explode: true
         schema:
           type: boolean
+      - name: company
+        in: query
+        description: the company of the user executing the request
+        required: true
+        style: form
+        explode: true
+        schema:
+          type: string
       - name: accessControlString
         in: query
-        description: accessControlString to access data
-        required: false
+        description: the access control string of the user executing the request
+        required: true
         style: form
         explode: true
         schema:
@@ -561,11 +840,12 @@ paths:
                 $ref: '#/components/schemas/Item'
         "404":
           description: item not found
+        "403":
+          description: forbidden access
     delete:
       tags:
       - Item
-      description: deletes a specific item if the accessControlString has access to
-        the item
+      description: deletes a specific item
       operationId: deleteItem
       parameters:
       - name: id
@@ -575,10 +855,18 @@ paths:
         explode: false
         schema:
           type: string
+      - name: company
+        in: query
+        description: the company of the user executing the request
+        required: true
+        style: form
+        explode: true
+        schema:
+          type: string
       - name: accessControlString
         in: query
-        description: accessControlString to access data
-        required: false
+        description: the access control string of the user executing the request
+        required: true
         style: form
         explode: true
         schema:
@@ -586,12 +874,33 @@ paths:
       responses:
         "200":
           description: successfully deleted item
+        "404":
+          description: item not found
+        "403":
+          description: forbidden access
   /analytics/status:
     get:
       tags:
       - Analytics
       description: returns the items' status
       operationId: analyticsGetStatus
+      parameters:
+        - name: company
+          in: query
+          description: the company of the user executing the request
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: string
+        - name: accessControlString
+          in: query
+          description: the access control string of the user executing the request
+          required: true
+          style: form
+          explode: true
+          schema:
+              type: string
       responses:
         "200":
           description: the status

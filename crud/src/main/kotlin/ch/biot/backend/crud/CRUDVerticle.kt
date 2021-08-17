@@ -924,7 +924,7 @@ class CRUDVerticle : CoroutineVerticle() {
     val accessControlString: String = ctx.getAccessControlString()
 
     executeWithErrorHandling("Could not get snapshot", ctx) {
-      if (!pgClient.tableExists("${table}_snapshot_$snapshotID")) {
+      if (!pgClient.tableExists(getSnapshotTableName(table, snapshotID))) {
         // Snapshot not found
         LOGGER.warn { "Snapshot $snapshotID not found" }
         ctx.response().statusCode = NOT_FOUND_CODE
@@ -932,7 +932,7 @@ class CRUDVerticle : CoroutineVerticle() {
         return@executeWithErrorHandling
       }
 
-      if (ctx.failIfUnauthorized(pgClient, table, accessControlString, listOf(snapshotID), "getSnapshot")) {
+      if (ctx.failIfNoRightsToSnapshots(pgClient, table, accessControlString, listOf(snapshotID), "getSnapshot")) {
         return@executeWithErrorHandling
       }
 
@@ -957,7 +957,7 @@ class CRUDVerticle : CoroutineVerticle() {
     val accessControlString: String = ctx.getAccessControlString()
 
     executeWithErrorHandling("Could not delete snapshot", ctx) {
-      if (!pgClient.tableExists("${table}_snapshot_$snapshotID")) {
+      if (!pgClient.tableExists(getSnapshotTableName(table, snapshotID))) {
         // Snapshot not found
         LOGGER.warn { "Snapshot $snapshotID not found" }
         ctx.response().statusCode = NOT_FOUND_CODE
@@ -965,7 +965,7 @@ class CRUDVerticle : CoroutineVerticle() {
         return@executeWithErrorHandling
       }
 
-      if (ctx.failIfUnauthorized(pgClient, table, accessControlString, listOf(snapshotID), "deleteSnapshot")) {
+      if (ctx.failIfNoRightsToSnapshots(pgClient, table, accessControlString, listOf(snapshotID), "deleteSnapshot")) {
         return@executeWithErrorHandling
       }
 
@@ -999,8 +999,8 @@ class CRUDVerticle : CoroutineVerticle() {
 
     executeWithErrorHandling("Could not compare snapshots", ctx) {
       val (firstSnapshotNotFound, secondSnapshotNotFound) = parZip(
-        { !pgClient.tableExists("${table}_snapshot_$firstSnapshotID") },
-        { !pgClient.tableExists("${table}_snapshot_$secondSnapshotID") }
+        { !pgClient.tableExists(getSnapshotTableName(table, firstSnapshotID)) },
+        { !pgClient.tableExists(getSnapshotTableName(table, secondSnapshotID)) }
       ) { firstSnapshotNotFound, secondSnapshotNotFound -> firstSnapshotNotFound to secondSnapshotNotFound }
 
       if (firstSnapshotNotFound) {
@@ -1019,7 +1019,7 @@ class CRUDVerticle : CoroutineVerticle() {
         return@executeWithErrorHandling
       }
 
-      if (ctx.failIfUnauthorized(
+      if (ctx.failIfNoRightsToSnapshots(
           pgClient,
           table,
           accessControlString,
