@@ -65,8 +65,8 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
 
     private const val ITEMS_TABLE = "items"
 
-    private const val LIVENESS_PORT = 1884
-    private const val READINESS_PORT = 1885
+    internal const val LIVENESS_PORT = 1884
+    internal const val READINESS_PORT = 1885
 
     private const val UPDATE_CONFIG_INTERVAL_SECONDS: Long = 20
 
@@ -93,8 +93,6 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
         LOGGER.error(error) { "Could not start" }
       }
     }
-
-
   }
 
   /**

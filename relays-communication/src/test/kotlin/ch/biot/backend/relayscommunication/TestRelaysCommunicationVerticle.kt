@@ -6,8 +6,10 @@ package ch.biot.backend.relayscommunication
 
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.INGESTION_TOPIC
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.KAFKA_PORT
+import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.LIVENESS_PORT
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.MONGO_PORT
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.MQTT_PORT
+import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.READINESS_PORT
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.RELAYS_COLLECTION
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.RELAYS_UPDATE_ADDRESS
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.UPDATE_PARAMETERS_TOPIC
@@ -24,6 +26,7 @@ import io.vertx.kafka.client.consumer.KafkaConsumer
 import io.vertx.kotlin.core.json.get
 import io.vertx.kotlin.core.json.jsonArrayOf
 import io.vertx.kotlin.core.json.jsonObjectOf
+import io.vertx.kotlin.core.net.netClientOptionsOf
 import io.vertx.kotlin.coroutines.await
 import io.vertx.kotlin.coroutines.dispatcher
 import io.vertx.kotlin.coroutines.toReceiveChannel
@@ -1378,6 +1381,31 @@ class TestRelaysCommunicationVerticle {
       }
     }
 
+  @Test
+  @DisplayName("Liveness check works")
+  fun livenessCheckWorks(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      try {
+        val client = vertx.createNetClient(netClientOptionsOf())
+        client.connect(LIVENESS_PORT, MQTT_HOST).await()
+        testContext.completeNow()
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+
+  @Test
+  @DisplayName("Readiness check works")
+  fun readinessCheckWorks(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      try {
+        val client = vertx.createNetClient(netClientOptionsOf())
+        client.connect(READINESS_PORT, MQTT_HOST).await()
+        testContext.completeNow()
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
 
   companion object {
 
