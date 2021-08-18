@@ -4,10 +4,12 @@
 
 package ch.biot.backend.crud
 
+import arrow.fx.coroutines.parZip
 import ch.biot.backend.crud.queries.*
 import ch.biot.backend.crud.updates.PublishMessageException
 import ch.biot.backend.crud.updates.UpdateType
 import ch.biot.backend.crud.updates.UpdatesManager
+import io.vertx.core.Future
 import io.vertx.core.Vertx
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
@@ -41,6 +43,8 @@ import io.vertx.pgclient.PgPool
 import io.vertx.pgclient.SslMode
 import io.vertx.pgclient.pubsub.PgSubscriber
 import io.vertx.spi.cluster.hazelcast.HazelcastClusterManager
+import io.vertx.sqlclient.Row
+import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 import kotlinx.coroutines.launch
@@ -70,8 +74,9 @@ class CRUDVerticle : CoroutineVerticle() {
 
     const val INTERNAL_SERVER_ERROR_CODE = 500
     private const val UNAUTHORIZED_CODE = 401
-    private const val FORBIDEN_CODE = 403
+    internal const val FORBIDDEN_CODE = 403
     const val BAD_REQUEST_CODE = 400
+    private const val NOT_FOUND_CODE = 404
 
     private const val SERVER_COMPRESSION_LEVEL = 4
 
@@ -118,6 +123,7 @@ class CRUDVerticle : CoroutineVerticle() {
   private val mongoAuthRelaysCache: MutableMap<String, Pair<MongoUserUtil, MongoAuthentication>> = mutableMapOf()
 
   private lateinit var pgClient: SqlClient
+  private lateinit var pgPool: PgPool // used for transactions only
 
   override suspend fun start() {
     // Initialize MongoDB
@@ -148,7 +154,6 @@ class CRUDVerticle : CoroutineVerticle() {
     )
     mongoAuthUsers = MongoAuthentication.create(mongoClient, mongoAuthUsersOptions)
 
-
     checkInitialUserAndAdd()
 
     // Initialize TimescaleDB
@@ -164,6 +169,7 @@ class CRUDVerticle : CoroutineVerticle() {
         cachePreparedStatements = true
       )
     pgClient = PgPool.client(vertx, pgConnectOptions, poolOptionsOf())
+    pgPool = PgPool.pool(vertx, pgConnectOptions, poolOptionsOf())
     val pgSubscriber = PgSubscriber.subscriber(vertx, pgConnectOptions).apply {
       reconnectPolicy { retries ->
         // Reconnect at most 10 times after 1000 ms each
@@ -205,6 +211,11 @@ class CRUDVerticle : CoroutineVerticle() {
       routerBuilder.operation("deleteItem").coroutineHandler(::deleteItemHandler)
       routerBuilder.operation("updateItem").coroutineHandler(::updateItemHandler)
       routerBuilder.operation("getCategories").coroutineHandler(::getCategoriesHandler)
+      routerBuilder.operation("getSnapshots").coroutineHandler(::getSnapshotsHandler)
+      routerBuilder.operation("getSnapshot").coroutineHandler(::getSnapshotHandler)
+      routerBuilder.operation("deleteSnapshot").coroutineHandler(::deleteSnapshotHandler)
+      routerBuilder.operation("compareSnapshots").coroutineHandler(::compareSnapshotsHandler)
+      routerBuilder.operation("createSnapshot").coroutineHandler(::createSnapshotHandler)
 
       // Analytics
       routerBuilder.operation("analyticsGetStatus").coroutineHandler(::analyticsGetStatusHandler)
@@ -413,7 +424,7 @@ class CRUDVerticle : CoroutineVerticle() {
       val relays = mongoClient.find(collection, jsonObjectOf()).await()
       ctx.response()
         .putHeader(CONTENT_TYPE, APPLICATION_JSON)
-        .end(JsonArray(relays.map { it.clean() }).encode())
+        .end(JsonArray(relays.map(JsonObject::clean)).encode())
     }
   }
 
@@ -560,7 +571,7 @@ class CRUDVerticle : CoroutineVerticle() {
       val users = mongoClient.find(USERS_COLLECTION, jsonObjectOf()).await()
       ctx.response()
         .putHeader(CONTENT_TYPE, APPLICATION_JSON)
-        .end(JsonArray(users.map { it.clean() }).encode())
+        .end(JsonArray(users.map(JsonObject::clean)).encode())
     }
   }
 
@@ -724,14 +735,11 @@ class CRUDVerticle : CoroutineVerticle() {
    */
   private suspend fun getItemsHandler(ctx: RoutingContext) {
     LOGGER.info { "New getItems request" }
+
     val params = ctx.queryParams()
     val itemsTable = ctx.getCollection(ITEMS_TABLE)
     val beaconDataTable = ctx.getCollection(BEACON_DATA_TABLE)
-
-    val company = params["company"]
-    val accessControlString: String =
-      if (params.contains("accessControlString")) params["accessControlString"] else company
-
+    val accessControlString: String = ctx.getAccessControlString()
 
     val executedQuery = if (params.contains("category")) {
       pgClient.preparedQuery(getItemsWithCategory(itemsTable, beaconDataTable, accessControlString))
@@ -742,7 +750,7 @@ class CRUDVerticle : CoroutineVerticle() {
 
     executeWithErrorHandling("Could not get items", ctx) {
       val queryResult = executedQuery.await()
-      val result = if (queryResult.size() == 0) listOf() else queryResult.map { it.toItemJson() }
+      val result = if (queryResult.size() == 0) listOf() else queryResult.map(Row::toItemJson)
 
       ctx.response()
         .putHeader(CONTENT_TYPE, APPLICATION_JSON)
@@ -756,13 +764,10 @@ class CRUDVerticle : CoroutineVerticle() {
     val params = ctx.queryParams()
     val latitude = params["latitude"].toDouble()
     val longitude = params["longitude"].toDouble()
+    val accessControlString: String = ctx.getAccessControlString()
 
     val itemsTable = ctx.getCollection(ITEMS_TABLE)
     val beaconDataTable = ctx.getCollection(BEACON_DATA_TABLE)
-
-    val company = params["company"]
-    val accessControlString: String =
-      if (params.contains("accessControlString")) params["accessControlString"] else company
 
     val executedQuery = if (params.contains("category")) {
       pgClient.preparedQuery(
@@ -809,25 +814,21 @@ class CRUDVerticle : CoroutineVerticle() {
     val itemID = ctx.pathParam("id").toInt() // the id needs to be converted to Int, as the DB stores it as an integer
     LOGGER.info { "New getItem request for item $itemID" }
 
-    val params = ctx.queryParams()
-
     val itemsTable = ctx.getCollection(ITEMS_TABLE)
     val beaconDataTable = ctx.getCollection(BEACON_DATA_TABLE)
 
-    val company = params["company"]
-    val accessControlString: String =
-      if (params.contains("accessControlString")) params["accessControlString"] else company
+    val accessControlString: String = ctx.getAccessControlString()
 
     val executedQuery =
-      pgClient.preparedQuery(getItem(itemsTable, beaconDataTable, accessControlString))
-        .execute(Tuple.of(itemID))
+      pgClient.preparedQuery(getItem(itemsTable, beaconDataTable, accessControlString)).execute(Tuple.of(itemID))
 
     executeWithErrorHandling("Could not get item", ctx) {
 
       val queryResult = executedQuery.await()
       if (queryResult.size() == 0) {
-        // No item found, answer with 404
-        ctx.response().statusCode = 404
+        // No item found
+        LOGGER.warn { "Item $itemID not found" }
+        ctx.response().statusCode = NOT_FOUND_CODE
         ctx.end()
         return@executeWithErrorHandling
       }
@@ -870,35 +871,32 @@ class CRUDVerticle : CoroutineVerticle() {
         ctx.fail(BAD_REQUEST_CODE)
         return@validateAndThen
       }
-      val keys = info.map { it.first }
-      val accessControlString: String =
-        if (params.contains("accessControlString")) params["accessControlString"] else company
 
-      val getItemExecutedQuery =
-        pgClient.preparedQuery(getItem(itemsTable, beaconDataTable, company)).execute(Tuple.of(id.toInt()))
-      val updateExecutedQuery = pgClient.preparedQuery(updateItem(itemsTable, keys, accessControlString))
-        .execute(Tuple.tuple(data))
+      val keys = info.map { it.first }
+      val accessControlString = ctx.getAccessControlString()
 
       executeWithErrorHandling("Could not update item $id", ctx) {
-        val getQueryResult = getItemExecutedQuery.await()
-        val iterator = getQueryResult.iterator()
-        if (!iterator.hasNext()) {
-          LOGGER.error { "updateItem request for item with id $id: item does not exist in the DB" }
+        val getQueryResultIterator =
+          pgClient.preparedQuery(getItem(itemsTable, beaconDataTable, company)).execute(Tuple.of(id.toInt())).await()
+            .iterator()
+        if (!getQueryResultIterator.hasNext()) {
+          LOGGER.warn { "Item $id not found" }
+          ctx.response().statusCode = NOT_FOUND_CODE
           ctx.end()
           return@executeWithErrorHandling
         }
-        val item = iterator.next().toItemJson()
+        val item = getQueryResultIterator.next().toItemJson()
         val itemAcString = item.getString("accessControlString")
 
         // Check that the given accessControlString gives access to the resource
         if (!hasAcStringAccess(accessControlString, itemAcString)) {
           // Access refused
-          LOGGER.error { "ACCESS FORBIDDEN updateItem" }
-          ctx.fail(FORBIDEN_CODE)
+          LOGGER.error { "ACCESS FORBIDDEN updateItem for itemAcString $itemAcString and acString $accessControlString" }
+          ctx.fail(FORBIDDEN_CODE)
           return@executeWithErrorHandling
         }
 
-        updateExecutedQuery.await()
+        pgClient.preparedQuery(updateItem(itemsTable, keys, accessControlString)).execute(Tuple.tuple(data)).await()
         LOGGER.info { "Successfully updated item $id" }
         ctx.end()
       }
@@ -912,13 +910,8 @@ class CRUDVerticle : CoroutineVerticle() {
     val itemID = ctx.pathParam("id").toInt() // the id needs to be converted to Int, as the DB stores it as an integer
     LOGGER.info { "New deleteItem request for item $itemID" }
 
-    val params = ctx.queryParams()
-    val company = params["company"]
-
     val table = ctx.getCollection(ITEMS_TABLE)
-
-    val accessControlString: String =
-      if (params.contains("accessControlString")) params["accessControlString"] else company
+    val accessControlString: String = ctx.getAccessControlString()
 
     val executedQuery = pgClient.preparedQuery(deleteItem(table, accessControlString)).execute(Tuple.of(itemID))
 
@@ -936,12 +929,7 @@ class CRUDVerticle : CoroutineVerticle() {
     LOGGER.info { "New getCategories request" }
 
     val table = ctx.getCollection(ITEMS_TABLE)
-
-    val params = ctx.queryParams()
-
-    val company = params["company"]
-    val accessControlString: String =
-      if (params.contains("accessControlString")) params["accessControlString"] else company
+    val accessControlString: String = ctx.getAccessControlString()
 
     val executedQuery = pgClient.preparedQuery(getCategories(table, accessControlString)).execute()
 
@@ -952,6 +940,192 @@ class CRUDVerticle : CoroutineVerticle() {
       ctx.response()
         .putHeader(CONTENT_TYPE, APPLICATION_JSON)
         .end(JsonArray(result).encode())
+    }
+  }
+
+  /**
+   * Handles a getSnapshots request.
+   */
+  private suspend fun getSnapshotsHandler(ctx: RoutingContext) {
+    LOGGER.info { "New getSnapshots request" }
+
+    val table = ctx.getCollection(ITEMS_TABLE)
+    val accessControlString: String = ctx.getAccessControlString()
+
+    executeWithErrorHandling("Could not get snapshots", ctx) {
+      val snapshots =
+        pgClient.preparedQuery(getSnapshots(table, accessControlString)).execute().await().toSnapshotsList()
+
+      ctx.response()
+        .putHeader(CONTENT_TYPE, APPLICATION_JSON)
+        .end(JsonArray(snapshots).encode())
+    }
+  }
+
+  /**
+   * Handles a getSnapshot request.
+   */
+  private suspend fun getSnapshotHandler(ctx: RoutingContext) {
+    val snapshotID = ctx.pathParam("id").toInt()
+    LOGGER.info { "New getSnapshot request for snapshot $snapshotID" }
+
+    val table = ctx.getCollection(ITEMS_TABLE)
+    val accessControlString: String = ctx.getAccessControlString()
+
+    executeWithErrorHandling("Could not get snapshot", ctx) {
+      if (!pgClient.tableExists(getSnapshotTableName(table, snapshotID))) {
+        // Snapshot not found
+        LOGGER.warn { "Snapshot $snapshotID not found" }
+        ctx.response().statusCode = NOT_FOUND_CODE
+        ctx.end()
+        return@executeWithErrorHandling
+      }
+
+      if (ctx.failIfNoRightsToSnapshots(pgClient, table, accessControlString, listOf(snapshotID), "getSnapshot")) {
+        return@executeWithErrorHandling
+      }
+
+      val queryResult = pgClient.preparedQuery(getSnapshot(table, snapshotID)).execute().await()
+      val result =
+        if (queryResult.size() == 0) listOf() else queryResult.map { it.toItemJson(includeBeaconData = false) }
+
+      ctx.response()
+        .putHeader(CONTENT_TYPE, APPLICATION_JSON)
+        .end(JsonArray(result).encode())
+    }
+  }
+
+  /**
+   * Handles a deleteSnapshot request.
+   */
+  private suspend fun deleteSnapshotHandler(ctx: RoutingContext) {
+    val snapshotID = ctx.pathParam("id").toInt()
+    LOGGER.info { "New deleteSnapshot request for snapshot $snapshotID" }
+
+    val table = ctx.getCollection(ITEMS_TABLE)
+    val accessControlString: String = ctx.getAccessControlString()
+
+    executeWithErrorHandling("Could not delete snapshot", ctx) {
+      if (!pgClient.tableExists(getSnapshotTableName(table, snapshotID))) {
+        // Snapshot not found
+        LOGGER.warn { "Snapshot $snapshotID not found" }
+        ctx.response().statusCode = NOT_FOUND_CODE
+        ctx.end()
+        return@executeWithErrorHandling
+      }
+
+      if (ctx.failIfNoRightsToSnapshots(pgClient, table, accessControlString, listOf(snapshotID), "deleteSnapshot")) {
+        return@executeWithErrorHandling
+      }
+
+      // In a transaction, drop the snapshot table and remove the entry from the snapshots table
+      pgPool.withTransaction { conn ->
+        conn.preparedQuery(dropSnapshotTable(table, snapshotID)).execute().compose {
+          conn.preparedQuery(deleteSnapshot(table, accessControlString)).execute(Tuple.of(snapshotID))
+        }
+      }.await()
+
+      ctx.end()
+    }
+  }
+
+  /**
+   * Handles a compareSnapshots request.
+   */
+  private suspend fun compareSnapshotsHandler(ctx: RoutingContext) {
+    fun RowSet<Row>.toJsonArray() = JsonArray(if (this.size() == 0) listOf() else this.map {
+      it.toItemJson(includeBeaconData = false)
+    })
+
+    val queryParams = ctx.queryParams()
+    val firstSnapshotID = queryParams["firstSnapshotId"].toInt()
+    val secondSnapshotID = queryParams["secondSnapshotId"].toInt()
+
+    LOGGER.info { "New compareSnapshots request between snapshots $firstSnapshotID and $secondSnapshotID" }
+
+    val table = ctx.getCollection(ITEMS_TABLE)
+    val accessControlString: String = ctx.getAccessControlString()
+
+    executeWithErrorHandling("Could not compare snapshots", ctx) {
+      val (firstSnapshotNotFound, secondSnapshotNotFound) = parZip(
+        { !pgClient.tableExists(getSnapshotTableName(table, firstSnapshotID)) },
+        { !pgClient.tableExists(getSnapshotTableName(table, secondSnapshotID)) }
+      ) { firstSnapshotNotFound, secondSnapshotNotFound -> firstSnapshotNotFound to secondSnapshotNotFound }
+
+      if (firstSnapshotNotFound) {
+        // First snapshot not found
+        LOGGER.warn { "First snapshot $firstSnapshotID not found" }
+        ctx.response().statusCode = NOT_FOUND_CODE
+        ctx.end()
+        return@executeWithErrorHandling
+      }
+
+      if (secondSnapshotNotFound) {
+        // Second snapshot not found
+        LOGGER.warn { "Second snapshot $secondSnapshotID not found" }
+        ctx.response().statusCode = NOT_FOUND_CODE
+        ctx.end()
+        return@executeWithErrorHandling
+      }
+
+      if (ctx.failIfNoRightsToSnapshots(
+          pgClient,
+          table,
+          accessControlString,
+          listOf(firstSnapshotID, secondSnapshotID),
+          "compareSnapshots"
+        )
+      ) {
+        return@executeWithErrorHandling
+      }
+
+      // Compute all the joins in parallel
+      parZip(
+        vertx.dispatcher(),
+        {
+          pgClient.preparedQuery(leftOuterJoinFromSnapshots(table, firstSnapshotID, secondSnapshotID)).execute().await()
+        },
+        {
+          pgClient.preparedQuery(rightOuterJoinFromSnapshots(table, firstSnapshotID, secondSnapshotID)).execute()
+            .await()
+        },
+        {
+          pgClient.preparedQuery(innerJoinFromSnapshots(table, firstSnapshotID, secondSnapshotID)).execute().await()
+        }) { onlyFirstResult, onlySecondResult, inCommonResult ->
+        val json = jsonObjectOf(
+          "onlyFirst" to onlyFirstResult.toJsonArray(),
+          "onlySecond" to onlySecondResult.toJsonArray(),
+          "inCommon" to inCommonResult.toJsonArray()
+        )
+
+        ctx.end(json.encode())
+      }
+    }
+  }
+
+  /**
+   * Handles a createSnapshot request.
+   */
+  private suspend fun createSnapshotHandler(ctx: RoutingContext) {
+    LOGGER.info { "New createSnapshot request" }
+
+    val table = ctx.getCollection(ITEMS_TABLE)
+    val accessControlString: String = ctx.getAccessControlString()
+
+    executeWithErrorHandling("Could not create snapshot", ctx) {
+      val snapshotID = pgPool.withTransaction { conn ->
+        // Insert a new snapshot in the snapshots table
+        conn.preparedQuery(createSnapshot(table)).execute(Tuple.of(accessControlString)).compose { res ->
+          val snapshotID = res.iterator().next().getInteger("id")
+          // Copy the table, creating a new one representing the snapshot
+          pgClient.preparedQuery(snapshotTable(table, snapshotID)).execute().compose {
+            Future.succeededFuture(snapshotID)
+          }
+        }
+      }.await()
+
+      LOGGER.info { "New snapshot $snapshotID created" }
+      ctx.end(snapshotID.toString())
     }
   }
 

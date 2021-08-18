@@ -334,6 +334,7 @@ class TestCRUDVerticleAnalytics {
         contentType(ContentType.JSON)
       } When {
         queryParam("company", "biot")
+        queryParam("accessControlString", "biot")
         get("/analytics/status")
       } Then {
         statusCode(200)
@@ -361,6 +362,48 @@ class TestCRUDVerticleAnalytics {
         that(secondService.getInteger("toRepair")).isEqualTo(1)
       }
 
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("getStatus fails without an access control string")
+  fun getStatusFailsWithoutACString(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("company", "biot")
+      get("/analytics/status")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("getStatus fails without a company")
+  fun getStatusFailsWithoutCompany(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("accessControlString", "biot")
+      get("/analytics/status")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
       testContext.completeNow()
     }
   }

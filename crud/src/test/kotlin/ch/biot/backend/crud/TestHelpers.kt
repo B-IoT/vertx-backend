@@ -124,8 +124,6 @@ class TestHelpers {
 
   @Test
   fun hasAcStringAccessAuthorizesCorrectStrings(vertx: Vertx): Unit = runBlocking(vertx.dispatcher()) {
-    val company = "biot"
-
     val itemAcString = "biot:grp1:grp2:grp3"
 
     expectThat(hasAcStringAccess("biot", itemAcString)).isTrue()
@@ -136,8 +134,6 @@ class TestHelpers {
 
   @Test
   fun hasAcStringAccessRefusesIncorrectStrings(vertx: Vertx): Unit = runBlocking(vertx.dispatcher()) {
-    val company = "biot"
-
     val itemAcString = "biot:grp1:grp2:grp3"
 
     expectThat(hasAcStringAccess("bio", itemAcString)).isFalse()

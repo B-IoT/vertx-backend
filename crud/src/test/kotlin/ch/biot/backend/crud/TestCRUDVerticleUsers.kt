@@ -132,6 +132,8 @@ class TestCRUDVerticleUsers {
       accept(ContentType.JSON)
       body(newUser.encode())
     } When {
+      queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
       post("/users")
     } Then {
       statusCode(200)
@@ -141,6 +143,48 @@ class TestCRUDVerticleUsers {
 
     testContext.verify {
       expectThat(response).isEmpty()
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("registerUser fails without an access control string")
+  fun registerUserFailsWithoutACString(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("company", "biot")
+      post("/users")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("registerUser fails without a company")
+  fun registerUserFailsWithoutCompany(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("accessControlString", "biot")
+      post("/users")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
       testContext.completeNow()
     }
   }
@@ -162,6 +206,8 @@ class TestCRUDVerticleUsers {
       accept(ContentType.JSON)
       body(wrongUser.encode())
     } When {
+      queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
       post("/users")
     } Then {
       statusCode(400)
@@ -192,6 +238,8 @@ class TestCRUDVerticleUsers {
       accept(ContentType.JSON)
       body(wrongUser.encode())
     } When {
+      queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
       post("/users")
     } Then {
       statusCode(400)
@@ -215,13 +263,14 @@ class TestCRUDVerticleUsers {
       "accessControlString" to "biot:grp1"
     )
 
-
     val response = Given {
       spec(requestSpecification)
       contentType(ContentType.JSON)
       accept(ContentType.JSON)
       body(wrongUser.encode())
     } When {
+      queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
       post("/users")
     } Then {
       statusCode(400)
@@ -252,6 +301,8 @@ class TestCRUDVerticleUsers {
       accept(ContentType.JSON)
       body(wrongUser.encode())
     } When {
+      queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
       post("/users")
     } Then {
       statusCode(400)
@@ -275,13 +326,14 @@ class TestCRUDVerticleUsers {
       "company" to "biot"
     )
 
-
     val response = Given {
       spec(requestSpecification)
       contentType(ContentType.JSON)
       accept(ContentType.JSON)
       body(wrongUser.encode())
     } When {
+      queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
       post("/users")
     } Then {
       statusCode(400)
@@ -312,6 +364,8 @@ class TestCRUDVerticleUsers {
       accept(ContentType.JSON)
       body(wrongUser.encode())
     } When {
+      queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
       post("/users")
     } Then {
       statusCode(400)
@@ -342,6 +396,8 @@ class TestCRUDVerticleUsers {
       accept(ContentType.JSON)
       body(wrongUser.encode())
     } When {
+      queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
       post("/users")
     } Then {
       statusCode(400)
@@ -372,6 +428,8 @@ class TestCRUDVerticleUsers {
       accept(ContentType.JSON)
       body(wrongUser.encode())
     } When {
+      queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
       post("/users")
     } Then {
       statusCode(400)
@@ -402,6 +460,8 @@ class TestCRUDVerticleUsers {
       accept(ContentType.JSON)
       body(wrongUser.encode())
     } When {
+      queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
       post("/users")
     } Then {
       statusCode(400)
@@ -432,6 +492,8 @@ class TestCRUDVerticleUsers {
       accept(ContentType.JSON)
       body(wrongUser.encode())
     } When {
+      queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
       post("/users")
     } Then {
       statusCode(400)
@@ -462,6 +524,8 @@ class TestCRUDVerticleUsers {
       accept(ContentType.JSON)
       body(wrongUser.encode())
     } When {
+      queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
       post("/users")
     } Then {
       statusCode(400)
@@ -493,6 +557,8 @@ class TestCRUDVerticleUsers {
       accept(ContentType.JSON)
       body(wrongUser.encode())
     } When {
+      queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
       post("/users")
     } Then {
       statusCode(400)
@@ -517,6 +583,8 @@ class TestCRUDVerticleUsers {
         spec(requestSpecification)
         accept(ContentType.JSON)
       } When {
+        queryParam("company", "biot")
+        queryParam("accessControlString", "biot")
         get("/users")
       } Then {
         statusCode(200)
@@ -539,6 +607,48 @@ class TestCRUDVerticleUsers {
   }
 
   @Test
+  @DisplayName("getUsers fails without an access control string")
+  fun getUsersFailsWithoutACString(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("company", "biot")
+      get("/users")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("getUsers fails without a company")
+  fun getUsersFailsWithoutCompany(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("accessControlString", "biot")
+      get("/users")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
   @DisplayName("getUser correctly retrieves the desired user")
   fun getUserIsCorrect(testContext: VertxTestContext) {
     val expected = existingUser.copy().apply { remove("password") }
@@ -548,6 +658,8 @@ class TestCRUDVerticleUsers {
         spec(requestSpecification)
         accept(ContentType.JSON)
       } When {
+        queryParam("company", "biot")
+        queryParam("accessControlString", "biot")
         get("/users/test")
       } Then {
         statusCode(200)
@@ -565,12 +677,56 @@ class TestCRUDVerticleUsers {
   }
 
   @Test
+  @DisplayName("getUser fails without an access control string")
+  fun getUserFailsWithoutACString(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("company", "biot")
+      get("/users/test")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("getUser fails without a company")
+  fun getUserFailsWithoutCompany(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("accessControlString", "biot")
+      get("/users/test")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
   @DisplayName("getUser fails with error 404 when the user does not exist")
   fun getUserFailsWhenUserDoesNotExist(testContext: VertxTestContext) {
     val response = Given {
       spec(requestSpecification)
       accept(ContentType.JSON)
     } When {
+      queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
       get("/users/doesNotExist")
     } Then {
       statusCode(404)
@@ -598,6 +754,8 @@ class TestCRUDVerticleUsers {
       accept(ContentType.JSON)
       body(updateJson.encode())
     } When {
+      queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
       put("/users/test")
     } Then {
       statusCode(200)
@@ -650,6 +808,8 @@ class TestCRUDVerticleUsers {
       accept(ContentType.JSON)
       body(updateJson.encode())
     } When {
+      queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
       put("/users/doesNotExist")
     } Then {
       statusCode(404)
@@ -659,6 +819,48 @@ class TestCRUDVerticleUsers {
 
     testContext.verify {
       expectThat(response).isEmpty()
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("updateUser fails without an access control string")
+  fun updateUserFailsWithoutACString(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("company", "biot")
+      put("/users/test")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("updateUser fails without a company")
+  fun updateUserFailsWithoutCompany(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("accessControlString", "biot")
+      put("/users/test")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
       testContext.completeNow()
     }
   }
@@ -680,6 +882,8 @@ class TestCRUDVerticleUsers {
       accept(ContentType.JSON)
       body(userJson.encode())
     } When {
+      queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
       post("/users")
     }
 
@@ -688,6 +892,8 @@ class TestCRUDVerticleUsers {
       contentType(ContentType.JSON)
       body(userJson.encode())
     } When {
+      queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
       post("/users/authenticate")
     } Then {
       statusCode(200)
@@ -723,6 +929,8 @@ class TestCRUDVerticleUsers {
       accept(ContentType.JSON)
       body(userToRemove.encode())
     } When {
+      queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
       post("/users")
     } Then {
       statusCode(200)
@@ -732,6 +940,8 @@ class TestCRUDVerticleUsers {
     val response = Given {
       spec(requestSpecification)
     } When {
+      queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
       delete("/users/${userToRemove.getString("userID")}")
     } Then {
       statusCode(200)
@@ -752,6 +962,8 @@ class TestCRUDVerticleUsers {
       spec(requestSpecification)
       accept(ContentType.JSON)
     } When {
+      queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
       delete("/users/doesNotExist")
     } Then {
       statusCode(404)
@@ -761,6 +973,48 @@ class TestCRUDVerticleUsers {
 
     testContext.verify {
       expectThat(response).isEmpty()
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("deleteUser fails without an access control string")
+  fun deleteUserFailsWithoutACString(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("company", "biot")
+      delete("/users/test")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("deleteUser fails without a company")
+  fun deleteUserFailsWithoutCompany(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("accessControlString", "biot")
+      delete("/users/test")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
       testContext.completeNow()
     }
   }

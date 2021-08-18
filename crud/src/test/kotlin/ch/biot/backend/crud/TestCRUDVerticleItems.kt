@@ -8,8 +8,7 @@ import ch.biot.backend.crud.CRUDVerticle.Companion.BAD_REQUEST_CODE
 import ch.biot.backend.crud.CRUDVerticle.Companion.HTTP_PORT
 import ch.biot.backend.crud.CRUDVerticle.Companion.MONGO_PORT
 import ch.biot.backend.crud.CRUDVerticle.Companion.TIMESCALE_PORT
-import ch.biot.backend.crud.queries.getItem
-import ch.biot.backend.crud.queries.insertItem
+import ch.biot.backend.crud.queries.*
 import ch.biot.backend.crud.updates.UpdateType
 import io.restassured.builder.RequestSpecBuilder
 import io.restassured.filter.log.RequestLoggingFilter
@@ -299,6 +298,7 @@ class TestCRUDVerticleItems {
     pgClient = PgPool.client(vertx, pgConnectOptions, poolOptionsOf())
 
     try {
+      dropAllSnapshots().await()
       dropAllItems().await()
       insertItems().await()
       vertx.deployVerticle(CRUDVerticle(), testContext.succeedingThenComplete())
@@ -311,6 +311,17 @@ class TestCRUDVerticleItems {
     return CompositeFuture.all(
       pgClient.query("DELETE FROM items").execute(),
       pgClient.query("DELETE FROM beacon_data").execute()
+    )
+  }
+
+  private suspend fun dropAllSnapshots(): CompositeFuture {
+    val firstTableExists = pgClient.tableExists("items_snapshot_1")
+    val secondTableExists = pgClient.tableExists("items_snapshot_2")
+
+    return CompositeFuture.all(
+      pgClient.query("DELETE FROM items_snapshots").execute(),
+      if (firstTableExists) pgClient.query("DROP TABLE items_snapshot_1").execute() else Future.succeededFuture(),
+      if (secondTableExists) pgClient.query("DROP TABLE items_snapshot_2").execute() else Future.succeededFuture()
     )
   }
 
@@ -636,7 +647,7 @@ class TestCRUDVerticleItems {
         Tuple.of(
           "fake5",
           existingBeaconData.getInteger("battery"),
-          existingBeaconData.getString("beaconStatus"),
+          existingBeaconData.getString("status"),
           47,
           -8,
           2,
@@ -644,6 +655,960 @@ class TestCRUDVerticleItems {
         )
       )
   }
+
+  @AfterEach
+  fun cleanup(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
+    existingItemGrp1Grp3Id = -1
+    try {
+      dropAllSnapshots().await()
+      dropAllItems().await()
+      pgClient.close()
+      testContext.completeNow()
+    } catch (error: Throwable) {
+      testContext.failNow(error)
+    }
+  }
+
+  @Test
+  @DisplayName("createSnapshot correctly creates a snapshot")
+  fun createSnapshotIsCorrect(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
+    val acString = "biot:grp1"
+    val snapshotID = Given {
+      spec(requestSpecification)
+    } When {
+      queryParam("company", "biot")
+      queryParam("accessControlString", acString)
+      post("/items/snapshots")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(snapshotID).isNotEmpty() // it returns the id of the created snapshot
+    }
+
+    try {
+      val snapshotTableExists = pgClient.tableExists("items_snapshot_$snapshotID")
+      testContext.verify {
+        expectThat(snapshotTableExists).isTrue()
+      }
+    } catch (error: Throwable) {
+      testContext.failNow(error)
+    }
+
+    try {
+      val snapshots = pgClient.query(getSnapshots("items", acString)).execute().await().iterator()
+      testContext.verify {
+        expectThat(snapshots.hasNext()).isTrue()
+
+        val snapshot = snapshots.next()
+        val id = snapshot.getInteger("id")
+        val date = snapshot.getLocalDate("snapshotdate")
+        val accessControlString = snapshot.getString("accesscontrolstring")
+
+        expectThat(id).isEqualTo(snapshotID.toInt())
+        expectThat(date).isEqualTo(LocalDate.now())
+        expectThat(accessControlString).isEqualTo(acString)
+        testContext.completeNow()
+      }
+    } catch (error: Throwable) {
+      testContext.failNow(error)
+    }
+  }
+
+  @Test
+  @DisplayName("createSnapshot fails without an access control string")
+  fun createSnapshotFailsWithoutACString(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("company", "biot")
+      post("/items/snapshots")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("createSnapshot fails without a company")
+  fun createSnapshotFailsWithoutCompany(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("accessControlString", "biot")
+      post("/items/snapshots")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("getSnapshots correctly retrieves the list of snapshots")
+  fun getSnapshotsIsCorrect(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
+    try {
+      val id1 = pgClient.preparedQuery(createSnapshot("items")).execute(Tuple.of("biot")).await().iterator().next()
+        .getInteger("id")
+      val id2 = pgClient.preparedQuery(createSnapshot("items")).execute(Tuple.of("biot")).await().iterator().next()
+        .getInteger("id")
+
+      val snapshots = Buffer.buffer(
+        Given {
+          spec(requestSpecification)
+          accept(ContentType.JSON)
+        } When {
+          queryParam("company", "biot")
+          queryParam("accessControlString", "biot")
+          get("/items/snapshots")
+        } Then {
+          statusCode(200)
+        } Extract {
+          asString()
+        }
+      ).toJsonArray()
+
+      testContext.verify {
+        expectThat(snapshots.size()).isEqualTo(2)
+
+        val firstSnapshot = snapshots.getJsonObject(0)
+        val secondSnapshot = snapshots.getJsonObject(1)
+
+        expectThat(firstSnapshot.getInteger("id")).isEqualTo(id1)
+        expectThat(secondSnapshot.getInteger("id")).isEqualTo(id2)
+
+        expectThat(firstSnapshot.getString("date")).isEqualTo(LocalDate.now().toString())
+        expectThat(secondSnapshot.getString("date")).isEqualTo(LocalDate.now().toString())
+
+        testContext.completeNow()
+      }
+    } catch (error: Throwable) {
+      testContext.failNow(error)
+    }
+  }
+
+  @Test
+  @DisplayName("getSnapshots fails without an access control string")
+  fun getSnapshotsFailsWithoutACString(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("company", "biot")
+      get("/items/snapshots")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("getSnapshots fails without a company")
+  fun getSnapshotsFailsWithoutCompany(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("accessControlString", "biot")
+      get("/items/snapshots")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("getSnapshots correctly retrieves the list of snapshots accessible given an access control string")
+  fun getSnapshotsIsCorrectWithSufficientACString(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      try {
+        val acString = "biot:grp1"
+        pgClient.preparedQuery(createSnapshot("items")).execute(Tuple.of("biot")).await().iterator().next()
+          .getInteger("id")
+        val id2 = pgClient.preparedQuery(createSnapshot("items")).execute(Tuple.of(acString)).await().iterator().next()
+          .getInteger("id")
+
+        val snapshots = Buffer.buffer(
+          Given {
+            spec(requestSpecification)
+            accept(ContentType.JSON)
+          } When {
+            queryParam("company", "biot")
+            queryParam("accessControlString", acString)
+            get("/items/snapshots")
+          } Then {
+            statusCode(200)
+          } Extract {
+            asString()
+          }
+        ).toJsonArray()
+
+        testContext.verify {
+          expectThat(snapshots.size()).isEqualTo(1)
+
+          val snapshot = snapshots.getJsonObject(0)
+
+          expectThat(snapshot.getInteger("id")).isEqualTo(id2)
+
+          expectThat(snapshot.getString("date")).isEqualTo(LocalDate.now().toString())
+
+          testContext.completeNow()
+        }
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+
+  @Test
+  @DisplayName("getSnapshots correctly retrieves no snapshots given an insufficient access control string")
+  fun getSnapshotsIsCorrectWithInsufficientACString(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      try {
+        val acString = "biot:grp1"
+        pgClient.preparedQuery(createSnapshot("items")).execute(Tuple.of("biot")).await().iterator().next()
+          .getInteger("id")
+        pgClient.preparedQuery(createSnapshot("items")).execute(Tuple.of("biot")).await().iterator().next()
+          .getInteger("id")
+
+        val snapshots = Buffer.buffer(
+          Given {
+            spec(requestSpecification)
+            accept(ContentType.JSON)
+          } When {
+            queryParam("company", "biot")
+            queryParam("accessControlString", acString)
+            get("/items/snapshots")
+          } Then {
+            statusCode(200)
+          } Extract {
+            asString()
+          }
+        ).toJsonArray()
+
+        testContext.verify {
+          expectThat(snapshots.isEmpty).isTrue()
+          testContext.completeNow()
+        }
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+
+  @Test
+  @DisplayName("getSnapshot correctly retrieves the list of items contained in a snapshot")
+  fun getSnapshotIsCorrect(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
+    try {
+      val snapshotID =
+        pgClient.preparedQuery(createSnapshot("items")).execute(Tuple.of("biot")).await().iterator().next()
+          .getInteger("id")
+      pgClient.query(snapshotTable("items", snapshotID)).execute().await()
+
+      val items = Buffer.buffer(
+        Given {
+          spec(requestSpecification)
+          accept(ContentType.JSON)
+        } When {
+          queryParam("company", "biot")
+          queryParam("accessControlString", "biot")
+          get("/items/snapshots/$snapshotID")
+        } Then {
+          statusCode(200)
+        } Extract {
+          asString()
+        }
+      ).toJsonArray()
+
+      testContext.verify {
+        expectThat(items.size()).isGreaterThan(0)
+
+        val firstItem = items.getJsonObject(0).apply { remove("id") }
+        expectThat(firstItem).isEqualTo(existingItem)
+
+        testContext.completeNow()
+      }
+    } catch (error: Throwable) {
+      testContext.failNow(error)
+    }
+  }
+
+  @Test
+  @DisplayName("getSnapshot fails without an access control string")
+  fun getSnapshotFailsWithoutACString(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("company", "biot")
+      get("/items/snapshots/1")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("getSnapshot fails without a company")
+  fun getSnapshotFailsWithoutCompany(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("accessControlString", "biot")
+      get("/items/snapshots/1")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("getSnapshot fails with error 403 if the access control string is insufficient")
+  fun getSnapshotFailsIfInsufficientACString(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      try {
+        val snapshotID =
+          pgClient.preparedQuery(createSnapshot("items")).execute(Tuple.of("biot")).await().iterator().next()
+            .getInteger("id")
+        pgClient.query(snapshotTable("items", snapshotID)).execute().await()
+
+        val response = Given {
+          spec(requestSpecification)
+          accept(ContentType.JSON)
+        } When {
+          queryParam("company", "biot")
+          queryParam("accessControlString", "biot:grp1:grp2")
+          get("/items/snapshots/$snapshotID")
+        } Then {
+          statusCode(403)
+        } Extract {
+          asString()
+        }
+
+        testContext.verify {
+          expectThat(response).isEqualTo("Forbidden")
+          testContext.completeNow()
+        }
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+
+  @Test
+  @DisplayName("getSnapshot fails with error 404 if the snapshot does not exist")
+  fun getSnapshotFailsIfTheSnapshotDoesNotExist(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      try {
+        val snapshotID = 1
+
+        val response = Given {
+          spec(requestSpecification)
+          accept(ContentType.JSON)
+        } When {
+          queryParam("company", "biot")
+          queryParam("accessControlString", "biot")
+          get("/items/snapshots/$snapshotID")
+        } Then {
+          statusCode(404)
+        } Extract {
+          asString()
+        }
+
+        testContext.verify {
+          expectThat(response).isEmpty()
+          testContext.completeNow()
+        }
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+
+  @Test
+  @DisplayName("deleteSnapshot correctly deletes the snapshot")
+  fun deleteSnapshotIsCorrect(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
+    try {
+      val snapshotID =
+        pgClient.preparedQuery(createSnapshot("items")).execute(Tuple.of("biot")).await().iterator().next()
+          .getInteger("id")
+      pgClient.query(snapshotTable("items", snapshotID)).execute().await()
+
+      val response = Given {
+        spec(requestSpecification)
+      } When {
+        queryParam("company", "biot")
+        queryParam("accessControlString", "biot")
+        delete("/items/snapshots/$snapshotID")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+
+      testContext.verify {
+        expectThat(response).isEmpty()
+      }
+
+      val snapshotTableExists = pgClient.tableExists("items_snapshot_$snapshotID")
+      val snapshotEntryExists =
+        pgClient.query("SELECT * FROM items_snapshots WHERE id = $snapshotID").execute().await().iterator().hasNext()
+
+      testContext.verify {
+        expectThat(snapshotTableExists).isFalse()
+        expectThat(snapshotEntryExists).isFalse()
+        testContext.completeNow()
+      }
+    } catch (error: Throwable) {
+      testContext.failNow(error)
+    }
+  }
+
+  @Test
+  @DisplayName("deleteSnapshot fails without an access control string")
+  fun deleteSnapshotFailsWithoutACString(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("company", "biot")
+      delete("/items/snapshots/1")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("deleteSnapshot fails without a company")
+  fun deleteSnapshotFailsWithoutCompany(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("accessControlString", "biot")
+      delete("/items/snapshots/1")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("deleteSnapshot fails with error 403 if the access control string is insufficient")
+  fun deleteSnapshotFailsIfInsufficientACString(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      try {
+        val snapshotID =
+          pgClient.preparedQuery(createSnapshot("items")).execute(Tuple.of("biot")).await().iterator().next()
+            .getInteger("id")
+        pgClient.query(snapshotTable("items", snapshotID)).execute().await()
+
+        val response = Given {
+          spec(requestSpecification)
+        } When {
+          queryParam("company", "biot")
+          queryParam("accessControlString", "biot:grp1:grp2")
+          delete("/items/snapshots/$snapshotID")
+        } Then {
+          statusCode(403)
+        } Extract {
+          asString()
+        }
+
+        testContext.verify {
+          expectThat(response).isEqualTo("Forbidden")
+          testContext.completeNow()
+        }
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+
+  @Test
+  @DisplayName("deleteSnapshot fails with error 404 if the snapshot does not exist")
+  fun deleteSnapshotFailsIfTheSnapshotDoesNotExist(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      try {
+        val snapshotID = 1
+
+        val response = Given {
+          spec(requestSpecification)
+        } When {
+          queryParam("company", "biot")
+          queryParam("accessControlString", "biot")
+          delete("/items/snapshots/$snapshotID")
+        } Then {
+          statusCode(404)
+        } Extract {
+          asString()
+        }
+
+        testContext.verify {
+          expectThat(response).isEmpty()
+          testContext.completeNow()
+        }
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+
+  @Test
+  @DisplayName("compareSnapshots fails with error 403 if insufficient access control string")
+  fun compareSnapshotsFailsIfInsufficientACString(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      try {
+        val firstSnapshotId = pgClient.preparedQuery(createSnapshot("items")).execute(Tuple.of("biot")).await()
+          .iterator().next().getInteger("id")
+        pgClient.query(snapshotTable("items", firstSnapshotId)).execute().await()
+
+        val secondSnapshotId = pgClient.preparedQuery(createSnapshot("items")).execute(Tuple.of("biot:grp1")).await()
+          .iterator().next().getInteger("id")
+        pgClient.query(snapshotTable("items", secondSnapshotId)).execute().await()
+
+        val response = Given {
+          spec(requestSpecification)
+        } When {
+          queryParam("company", "biot")
+          queryParam("firstSnapshotId", firstSnapshotId)
+          queryParam("secondSnapshotId", secondSnapshotId)
+          queryParam("accessControlString", "biot:grp1:grp2")
+          get("/items/snapshots/compare")
+        } Then {
+          statusCode(403)
+        } Extract {
+          asString()
+        }
+
+        testContext.verify {
+          expectThat(response).isEqualTo("Forbidden")
+          testContext.completeNow()
+        }
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+
+  @Test
+  @DisplayName("compareSnapshots fails without an access control string")
+  fun compareSnapshotsFailsWithoutACString(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("company", "biot")
+      queryParam("firstSnapshotId", 1)
+      queryParam("secondSnapshotId", 2)
+      get("/items/snapshots/compare")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("compareSnapshots fails without a company")
+  fun compareSnapshotsFailsWithoutCompany(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("accessControlString", "biot")
+      queryParam("firstSnapshotId", 1)
+      queryParam("secondSnapshotId", 2)
+      get("/items/snapshots/compare")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("compareSnapshots fails with error 404 if the first snapshot does not exist")
+  fun compareSnapshotsFailsIfTheFirstSnapshotDoesNotExist(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      try {
+        val firstSnapshotId = 1
+        val secondSnapshotId = 2
+
+        val response = Given {
+          spec(requestSpecification)
+        } When {
+          queryParam("company", "biot")
+          queryParam("firstSnapshotId", firstSnapshotId)
+          queryParam("secondSnapshotId", secondSnapshotId)
+          queryParam("accessControlString", "biot")
+          get("/items/snapshots/compare")
+        } Then {
+          statusCode(404)
+        } Extract {
+          asString()
+        }
+
+        testContext.verify {
+          expectThat(response).isEmpty()
+          testContext.completeNow()
+        }
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+
+  @Test
+  @DisplayName("compareSnapshots fails with error 404 if the second snapshot does not exist")
+  fun compareSnapshotsFailsIfTheSecondSnapshotDoesNotExist(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      try {
+        val secondSnapshotId = 2
+
+        val firstSnapshotId = pgClient.preparedQuery(createSnapshot("items")).execute(Tuple.of("biot")).await()
+          .iterator().next().getInteger("id")
+        pgClient.query(snapshotTable("items", firstSnapshotId)).execute().await()
+
+        val response = Given {
+          spec(requestSpecification)
+        } When {
+          queryParam("company", "biot")
+          queryParam("firstSnapshotId", firstSnapshotId)
+          queryParam("secondSnapshotId", secondSnapshotId)
+          queryParam("accessControlString", "biot")
+          get("/items/snapshots/compare")
+        } Then {
+          statusCode(404)
+        } Extract {
+          asString()
+        }
+
+        testContext.verify {
+          expectThat(response).isEmpty()
+          testContext.completeNow()
+        }
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+
+  @Test
+  @DisplayName("compareSnapshots correctly returns the comparison object")
+  fun compareSnapshotsIsCorrect(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      try {
+        val firstSnapshotId = pgClient.preparedQuery(createSnapshot("items")).execute(Tuple.of("biot")).await()
+          .iterator().next().getInteger("id")
+        pgClient.query(snapshotTable("items", firstSnapshotId)).execute().await()
+
+        // Add new items
+        val newItem1 = jsonObjectOf(
+          "beacon" to "ab:cd:ab:cd:ab:cd"
+        )
+        Given {
+          spec(requestSpecification)
+          contentType(ContentType.JSON)
+          body(newItem1.encode())
+        } When {
+          queryParam("company", "biot")
+          queryParam("accessControlString", "biot")
+          post("/items")
+        } Then {
+          statusCode(200)
+        }
+
+        val newItem2 = jsonObjectOf(
+          "beacon" to "cd:ab:cd:ab:cd:ab"
+        )
+        Given {
+          spec(requestSpecification)
+          contentType(ContentType.JSON)
+          body(newItem2.encode())
+        } When {
+          queryParam("company", "biot")
+          queryParam("accessControlString", "biot")
+          post("/items")
+        } Then {
+          statusCode(200)
+        }
+
+        val secondSnapshotId = pgClient.preparedQuery(createSnapshot("items")).execute(Tuple.of("biot")).await()
+          .iterator().next().getInteger("id")
+        pgClient.query(snapshotTable("items", secondSnapshotId)).execute().await()
+
+        val comparison = Buffer.buffer(Given {
+          spec(requestSpecification)
+        } When {
+          queryParam("company", "biot")
+          queryParam("firstSnapshotId", firstSnapshotId)
+          queryParam("secondSnapshotId", secondSnapshotId)
+          queryParam("accessControlString", "biot")
+          get("/items/snapshots/compare")
+        } Then {
+          statusCode(200)
+        } Extract {
+          asString()
+        }).toJsonObject()
+
+        testContext.verify {
+          val onlyFirst = comparison.getJsonArray("onlyFirst")
+          val onlySecond = comparison.getJsonArray("onlySecond")
+          val inCommon = comparison.getJsonArray("inCommon")
+
+          expectThat(onlyFirst.size()).isEqualTo(0)
+          expectThat(onlySecond.size()).isEqualTo(2)
+          expectThat(inCommon.size()).isEqualTo(7)
+
+          expectThat(onlySecond.getJsonObject(0).apply { remove("id") }
+            .getString("beacon")).isEqualTo(newItem1.getString("beacon"))
+          expectThat(onlySecond.getJsonObject(1).apply { remove("id") }
+            .getString("beacon")).isEqualTo(newItem2.getString("beacon"))
+
+          expectThat(inCommon.getJsonObject(0).apply { remove("id") }).isEqualTo(existingItem)
+
+          testContext.completeNow()
+        }
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+
+  @Test
+  @DisplayName("registerItem correctly registers a new item")
+  fun registerItemIsCorrect(testContext: VertxTestContext) {
+    val newItem = jsonObjectOf(
+      "beacon" to "aa:aa:aa:aa:aa:aa",
+      "category" to "Lit",
+      "service" to "Bloc 1",
+      "itemID" to "ee",
+      "brand" to "oo",
+      "model" to "aa",
+      "supplier" to "uu",
+      "purchaseDate" to LocalDate.of(2019, 3, 19).toString(),
+      "purchasePrice" to 102.12,
+      "originLocation" to "or",
+      "currentLocation" to "cur",
+      "room" to "616",
+      "contact" to "Monsieur Poirot",
+      "currentOwner" to "Monsieur Dupont",
+      "previousOwner" to "Monsieur Dupond",
+      "orderNumber" to "abcdf",
+      "color" to "red",
+      "serialNumber" to "abcdf",
+      "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
+      "status" to "In maintenance",
+      "comments" to "A comment",
+      "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+      "lastModifiedBy" to "Monsieur Duport"
+    )
+
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      body(newItem.encode())
+    } When {
+      queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
+      post("/items")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isNotEmpty() // it returns the id of the registered item
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("registerItem fails without an access control string")
+  fun registerItemFailsWithoutACString(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("company", "biot")
+      post("/items")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("registerItem fails without a company")
+  fun registerItemFailsWithoutCompany(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("accessControlString", "biot")
+      post("/items")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("registerItem without specifying the status correctly registers a new item with the status set to 'Under creation'")
+  fun registerItemWithoutSpecifyingStatusIsCorrect(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      val newItem = jsonObjectOf(
+        "beacon" to "aa:aa:aa:aa:aa:aa",
+        "category" to "Lit",
+        "service" to "Bloc 1",
+        "itemID" to "ee",
+        "brand" to "oo",
+        "model" to "aa",
+        "supplier" to "uu",
+        "purchaseDate" to LocalDate.of(2019, 3, 19).toString(),
+        "purchasePrice" to 102.12,
+        "originLocation" to "or",
+        "currentLocation" to "cur",
+        "room" to "616",
+        "contact" to "Monsieur Poirot",
+        "currentOwner" to "Monsieur Dupont",
+        "previousOwner" to "Monsieur Dupond",
+        "orderNumber" to "abcdf",
+        "color" to "red",
+        "serialNumber" to "abcdf",
+        "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
+        "comments" to "A comment",
+        "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
+        "lastModifiedBy" to "Monsieur Duport"
+      )
+
+      val response = Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        body(newItem.encode())
+      } When {
+        queryParam("company", "biot")
+        queryParam("accessControlString", "biot")
+        post("/items")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+
+      testContext.verify {
+        expectThat(response).isNotEmpty() // it returns the id of the registered item
+      }
+
+      val id = response.toInt()
+
+      try {
+        val res = pgClient.preparedQuery(getItem("items", "beacon_data", "biot")).execute(Tuple.of(id)).await()
+        val json = res.iterator().next().toItemJson()
+        expect {
+          that(json.getString("beacon")).isEqualTo(newItem.getString("beacon"))
+          that(json.getString("category")).isEqualTo(newItem.getString("category"))
+          that(json.getString("service")).isEqualTo(newItem.getString("service"))
+          that(json.getString("itemID")).isEqualTo(newItem.getString("itemID"))
+          that(json.getString("brand")).isEqualTo(newItem.getString("brand"))
+          that(json.getString("model")).isEqualTo(newItem.getString("model"))
+          that(json.getString("supplier")).isEqualTo(newItem.getString("supplier"))
+          that(json.getString("purchaseDate")).isEqualTo(newItem.getString("purchaseDate"))
+          that(json.getDouble("purchasePrice")).isEqualTo(newItem.getDouble("purchasePrice"))
+          that(json.getString("originLocation")).isEqualTo(newItem.getString("originLocation"))
+          that(json.getString("currentLocation")).isEqualTo(newItem.getString("currentLocation"))
+          that(json.getString("room")).isEqualTo(newItem.getString("room"))
+          that(json.getString("contact")).isEqualTo(newItem.getString("contact"))
+          that(json.getString("currentOwner")).isEqualTo(newItem.getString("currentOwner"))
+          that(json.getString("previousOwner")).isEqualTo(newItem.getString("previousOwner"))
+          that(json.getString("orderNumber")).isEqualTo(newItem.getString("orderNumber"))
+          that(json.getString("color")).isEqualTo(newItem.getString("color"))
+          that(json.getString("serialNumber")).isEqualTo(newItem.getString("serialNumber"))
+          that(json.getString("maintenanceDate")).isEqualTo(newItem.getString("maintenanceDate"))
+          that(json.getString("status")).isEqualTo("Under creation")
+          that(json.getString("comments")).isEqualTo(newItem.getString("comments"))
+          that(json.getString("lastModifiedDate")).isEqualTo(newItem.getString("lastModifiedDate"))
+          that(json.getString("lastModifiedBy")).isEqualTo(newItem.getString("lastModifiedBy"))
+          that(json.getInteger("battery")).isNull()
+          that(json.getString("beaconStatus")).isNull()
+          that(json.getDouble("latitude")).isNull()
+          that(json.getDouble("longitude")).isNull()
+          that(json.getInteger("floor")).isNull()
+          that(json.getDouble("temperature")).isNull()
+        }
+        testContext.completeNow()
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
 
   private suspend fun insertItemsAccessControl(): Future<RowSet<Row>> {
     pgClient.preparedQuery(insertItem("items"))
@@ -751,8 +1716,6 @@ class TestCRUDVerticleItems {
         )
       ).await()
 
-    LOGGER.info { "insertACItems beaconStatus = ${existingBeaconData.getString("beaconStatus")}" }
-
     pgClient.preparedQuery(INSERT_BEACON_DATA)
       .execute(
         Tuple.of(
@@ -840,157 +1803,9 @@ class TestCRUDVerticleItems {
       )
   }
 
-  @AfterEach
-  fun cleanup(vertx: Vertx, testContext: VertxTestContext) = runBlocking(vertx.dispatcher()) {
-    existingItemGrp1Grp3Id = -1
-    try {
-      dropAllItems().await()
-      pgClient.close()
-      testContext.completeNow()
-    } catch (error: Throwable) {
-      testContext.failNow(error)
-    }
-  }
-
-  @Test
-  @DisplayName("registerItem correctly registers a new item")
-  fun registerIsCorrect(testContext: VertxTestContext) {
-    val newItem = jsonObjectOf(
-      "beacon" to "aa:aa:aa:aa:aa:aa",
-      "category" to "Lit",
-      "service" to "Bloc 1",
-      "itemID" to "ee",
-      "brand" to "oo",
-      "model" to "aa",
-      "supplier" to "uu",
-      "purchaseDate" to LocalDate.of(2019, 3, 19).toString(),
-      "purchasePrice" to 102.12,
-      "originLocation" to "or",
-      "currentLocation" to "cur",
-      "room" to "616",
-      "contact" to "Monsieur Poirot",
-      "currentOwner" to "Monsieur Dupont",
-      "previousOwner" to "Monsieur Dupond",
-      "orderNumber" to "abcdf",
-      "color" to "red",
-      "serialNumber" to "abcdf",
-      "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
-      "status" to "In maintenance",
-      "comments" to "A comment",
-      "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
-      "lastModifiedBy" to "Monsieur Duport"
-    )
-
-    val response = Given {
-      spec(requestSpecification)
-      contentType(ContentType.JSON)
-      body(newItem.encode())
-    } When {
-      queryParam("company", "biot")
-      post("/items")
-    } Then {
-      statusCode(200)
-    } Extract {
-      asString()
-    }
-
-    testContext.verify {
-      expectThat(response).isNotEmpty() // it returns the id of the registered item
-      testContext.completeNow()
-    }
-  }
-
-  @Test
-  @DisplayName("registerItem without specifying the status correctly registers a new item with the status set to 'Under creation'")
-  fun registerWithoutSpecifyingStatusIsCorrect(vertx: Vertx, testContext: VertxTestContext): Unit =
-    runBlocking(vertx.dispatcher()) {
-      val newItem = jsonObjectOf(
-        "beacon" to "aa:aa:aa:aa:aa:aa",
-        "category" to "Lit",
-        "service" to "Bloc 1",
-        "itemID" to "ee",
-        "brand" to "oo",
-        "model" to "aa",
-        "supplier" to "uu",
-        "purchaseDate" to LocalDate.of(2019, 3, 19).toString(),
-        "purchasePrice" to 102.12,
-        "originLocation" to "or",
-        "currentLocation" to "cur",
-        "room" to "616",
-        "contact" to "Monsieur Poirot",
-        "currentOwner" to "Monsieur Dupont",
-        "previousOwner" to "Monsieur Dupond",
-        "orderNumber" to "abcdf",
-        "color" to "red",
-        "serialNumber" to "abcdf",
-        "maintenanceDate" to LocalDate.of(2021, 8, 8).toString(),
-        "comments" to "A comment",
-        "lastModifiedDate" to LocalDate.of(2021, 12, 25).toString(),
-        "lastModifiedBy" to "Monsieur Duport"
-      )
-
-      val response = Given {
-        spec(requestSpecification)
-        contentType(ContentType.JSON)
-        body(newItem.encode())
-      } When {
-        queryParam("company", "biot")
-        post("/items")
-      } Then {
-        statusCode(200)
-      } Extract {
-        asString()
-      }
-
-      testContext.verify {
-        expectThat(response).isNotEmpty() // it returns the id of the registered item
-      }
-
-      val id = response.toInt()
-
-      try {
-        val res = pgClient.preparedQuery(getItem("items", "beacon_data", "biot")).execute(Tuple.of(id)).await()
-        val json = res.iterator().next().toItemJson()
-        expect {
-          that(json.getString("beacon")).isEqualTo(newItem.getString("beacon"))
-          that(json.getString("category")).isEqualTo(newItem.getString("category"))
-          that(json.getString("service")).isEqualTo(newItem.getString("service"))
-          that(json.getString("itemID")).isEqualTo(newItem.getString("itemID"))
-          that(json.getString("brand")).isEqualTo(newItem.getString("brand"))
-          that(json.getString("model")).isEqualTo(newItem.getString("model"))
-          that(json.getString("supplier")).isEqualTo(newItem.getString("supplier"))
-          that(json.getString("purchaseDate")).isEqualTo(newItem.getString("purchaseDate"))
-          that(json.getDouble("purchasePrice")).isEqualTo(newItem.getDouble("purchasePrice"))
-          that(json.getString("originLocation")).isEqualTo(newItem.getString("originLocation"))
-          that(json.getString("currentLocation")).isEqualTo(newItem.getString("currentLocation"))
-          that(json.getString("room")).isEqualTo(newItem.getString("room"))
-          that(json.getString("contact")).isEqualTo(newItem.getString("contact"))
-          that(json.getString("currentOwner")).isEqualTo(newItem.getString("currentOwner"))
-          that(json.getString("previousOwner")).isEqualTo(newItem.getString("previousOwner"))
-          that(json.getString("orderNumber")).isEqualTo(newItem.getString("orderNumber"))
-          that(json.getString("color")).isEqualTo(newItem.getString("color"))
-          that(json.getString("serialNumber")).isEqualTo(newItem.getString("serialNumber"))
-          that(json.getString("maintenanceDate")).isEqualTo(newItem.getString("maintenanceDate"))
-          that(json.getString("status")).isEqualTo("Under creation")
-          that(json.getString("comments")).isEqualTo(newItem.getString("comments"))
-          that(json.getString("lastModifiedDate")).isEqualTo(newItem.getString("lastModifiedDate"))
-          that(json.getString("lastModifiedBy")).isEqualTo(newItem.getString("lastModifiedBy"))
-          that(json.getInteger("battery")).isNull()
-          that(json.getString("beaconStatus")).isNull()
-          that(json.getDouble("latitude")).isNull()
-          that(json.getDouble("longitude")).isNull()
-          that(json.getInteger("floor")).isNull()
-          that(json.getDouble("temperature")).isNull()
-        }
-        testContext.completeNow()
-      } catch (error: Throwable) {
-        testContext.failNow(error)
-      }
-    }
-
   @Test
   @DisplayName("registerItem correctly registers a new item with a custom id")
-  fun registerWithIdIsCorrect(testContext: VertxTestContext) {
+  fun registerItemWithIdIsCorrect(testContext: VertxTestContext) {
     val newItem = jsonObjectOf(
       "id" to 120,
       "beacon" to "aa:aa:aa:aa:aa:aa",
@@ -1024,6 +1839,7 @@ class TestCRUDVerticleItems {
       body(newItem.encode())
     } When {
       queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
       post("/items")
     } Then {
       statusCode(200)
@@ -1046,6 +1862,7 @@ class TestCRUDVerticleItems {
         accept(ContentType.JSON)
       } When {
         queryParam("company", "biot")
+        queryParam("accessControlString", "biot")
         get("/items")
       } Then {
         statusCode(200)
@@ -1057,6 +1874,48 @@ class TestCRUDVerticleItems {
     testContext.verify {
       expectThat(response.isEmpty).isFalse()
       expectThat(response.size()).isEqualTo(7)
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("getItems fails without an access control string")
+  fun getItemsFailsWithoutACString(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("company", "biot")
+      get("/items")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("getItems fails without a company")
+  fun getItemsFailsWithoutCompany(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("accessControlString", "biot")
+      get("/items")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
       testContext.completeNow()
     }
   }
@@ -1113,6 +1972,7 @@ class TestCRUDVerticleItems {
           accept(ContentType.JSON)
         } When {
           queryParam("company", "another")
+          queryParam("accessControlString", "another")
           get("/items")
         } Then {
           statusCode(200)
@@ -1136,6 +1996,7 @@ class TestCRUDVerticleItems {
       accept(ContentType.JSON)
     } When {
       queryParam("company", "anotherCompany")
+      queryParam("accessControlString", "anotherCompany")
       get("/items")
     } Then {
       statusCode(500)
@@ -1159,6 +2020,7 @@ class TestCRUDVerticleItems {
       } When {
         queryParam("category", existingItem.getString("category"))
         queryParam("company", "biot")
+        queryParam("accessControlString", "biot")
         get("/items")
       } Then {
         statusCode(200)
@@ -1188,6 +2050,7 @@ class TestCRUDVerticleItems {
         queryParam("latitude", 42)
         queryParam("longitude", -8)
         queryParam("company", "biot")
+        queryParam("accessControlString", "biot")
         get("/items/closest")
       } Then {
         statusCode(200)
@@ -1212,6 +2075,48 @@ class TestCRUDVerticleItems {
   }
 
   @Test
+  @DisplayName("getClosestItems fails without an access control string")
+  fun getClosestItemsFailsWithoutACString(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("company", "biot")
+      get("/items/closest")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("getClosestItems fails without a company")
+  fun getClosestItemsFailsWithoutCompany(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("accessControlString", "biot")
+      get("/items/closeset")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
   @DisplayName("getClosestItems correctly retrieves the 5 closest items of the given category per floor")
   fun getClosestItemsWithCategoryIsCorrect(testContext: VertxTestContext) {
     val response = Buffer.buffer(
@@ -1222,6 +2127,7 @@ class TestCRUDVerticleItems {
         queryParam("latitude", 42)
         queryParam("longitude", -8)
         queryParam("company", "biot")
+        queryParam("accessControlString", "biot")
         queryParam("category", closestItem.getString("category"))
         get("/items/closest")
       } Then {
@@ -1259,6 +2165,7 @@ class TestCRUDVerticleItems {
         accept(ContentType.JSON)
       } When {
         queryParam("company", "biot")
+        queryParam("accessControlString", "biot")
         get("/items/categories")
       } Then {
         statusCode(200)
@@ -1269,6 +2176,48 @@ class TestCRUDVerticleItems {
 
     testContext.verify {
       expectThat(response.toHashSet()).isEqualTo(expected.toHashSet())
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("getCategories fails without an access control string")
+  fun getCategoriesFailsWithoutACString(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("company", "biot")
+      get("/items/categories")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("getCategories fails without a company")
+  fun getCategoriesFailsWithoutCompany(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("accessControlString", "biot")
+      get("/items/categories")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
       testContext.completeNow()
     }
   }
@@ -1291,6 +2240,7 @@ class TestCRUDVerticleItems {
         accept(ContentType.JSON)
       } When {
         queryParam("company", "biot")
+        queryParam("accessControlString", "biot")
         get("/items/$existingItemID")
       } Then {
         statusCode(200)
@@ -1310,6 +2260,48 @@ class TestCRUDVerticleItems {
   }
 
   @Test
+  @DisplayName("getItem fails without an access control string")
+  fun getItemFailsWithoutACString(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("company", "biot")
+      get("/items/1")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("getItem fails without a company")
+  fun getItemFailsWithoutCompany(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("accessControlString", "biot")
+      get("/items/1")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
   @DisplayName("getItem returns not found on non existing item")
   fun getItemReturnsNotFoundOnNonExistingItem(testContext: VertxTestContext) {
     val response = Given {
@@ -1317,7 +2309,8 @@ class TestCRUDVerticleItems {
       accept(ContentType.JSON)
     } When {
       queryParam("company", "biot")
-      get("/items/100")
+      queryParam("accessControlString", "biot")
+      get("/items/1000")
     } Then {
       statusCode(404)
     } Extract {
@@ -1340,6 +2333,7 @@ class TestCRUDVerticleItems {
       body(updateItemJson.encode())
     } When {
       queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
       put("/items/$existingItemID")
     } Then {
       statusCode(200)
@@ -1393,6 +2387,48 @@ class TestCRUDVerticleItems {
   }
 
   @Test
+  @DisplayName("updateItem fails without an access control string")
+  fun updateItemFailsWithoutACString(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("company", "biot")
+      put("/items/1")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("updateItem fails without a company")
+  fun updateItemFailsWithoutCompany(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("accessControlString", "biot")
+      put("/items/1")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
   @DisplayName("updateItem only updates the specified fields")
   fun updateItemOnlyUpdatesSpecifiedFields(vertx: Vertx, testContext: VertxTestContext): Unit =
     runBlocking(vertx.dispatcher()) {
@@ -1406,6 +2442,7 @@ class TestCRUDVerticleItems {
         body(updateJson.encode())
       } When {
         queryParam("company", "biot")
+        queryParam("accessControlString", "biot")
         put("/items/$existingItemID")
       } Then {
         statusCode(200)
@@ -1471,6 +2508,7 @@ class TestCRUDVerticleItems {
         body(updateJson.encode())
       } When {
         queryParam("company", "biot")
+        queryParam("accessControlString", "biot")
         queryParam("scan", true)
         put("/items/$existingItemID")
       } Then {
@@ -1525,6 +2563,35 @@ class TestCRUDVerticleItems {
     }
 
   @Test
+  @DisplayName("updateItem fails with error 404 if the item does not exist")
+  fun updateItemFailsIfItemDoesNotExist(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      val nonExistingItemID = 9999
+      val updateJson = jsonObjectOf(
+        "service" to "A new service"
+      )
+      val response = Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        accept(ContentType.JSON)
+        body(updateJson.encode())
+      } When {
+        queryParam("company", "biot")
+        queryParam("accessControlString", "biot")
+        put("/items/$nonExistingItemID")
+      } Then {
+        statusCode(404)
+      } Extract {
+        asString()
+      }
+
+      testContext.verify {
+        expectThat(response).isEmpty()
+        testContext.completeNow()
+      }
+    }
+
+  @Test
   @DisplayName("The bad request error handler works on wrong body received")
   fun badRequestErrorHandlerWorksOnWrongBodyReceived(testContext: VertxTestContext) {
     val response = Given {
@@ -1534,6 +2601,7 @@ class TestCRUDVerticleItems {
       body(jsonObjectOf("category" to 12).encode())
     } When {
       queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
       put("/items/$existingItemID")
     } Then {
       statusCode(BAD_REQUEST_CODE)
@@ -1563,6 +2631,7 @@ class TestCRUDVerticleItems {
       body(newItem.encode())
     } When {
       queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
       post("/items")
     } Then {
       statusCode(200)
@@ -1575,6 +2644,7 @@ class TestCRUDVerticleItems {
       spec(requestSpecification)
     } When {
       queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
       delete("/items/$id")
     } Then {
       statusCode(200)
@@ -1584,6 +2654,48 @@ class TestCRUDVerticleItems {
 
     testContext.verify {
       expectThat(response).isEmpty()
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("deleteItem fails without an access control string")
+  fun deleteItemFailsWithoutACString(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("company", "biot")
+      delete("/items/1")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("deleteItem fails without a company")
+  fun deleteItemFailsWithoutCompany(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("accessControlString", "biot")
+      delete("/items/1")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
       testContext.completeNow()
     }
   }
@@ -1614,6 +2726,7 @@ class TestCRUDVerticleItems {
       body(newItem.encode())
     } When {
       queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
       post("/items")
     } Then {
       statusCode(200)
@@ -1639,6 +2752,7 @@ class TestCRUDVerticleItems {
       body(newItem.encode())
     } When {
       queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
       post("/items")
     } Then {
       statusCode(200)
@@ -1647,10 +2761,13 @@ class TestCRUDVerticleItems {
     vertx.eventBus().consumer<JsonObject>(ITEMS_UPDATES_ADDRESS) { msg ->
       val body = msg.body()
       testContext.verify {
-        expectThat(body.getString("type")).isEqualTo(expectedType)
-        expectThat(body.getInteger("id")).isEqualTo(itemId)
-        expectThat(body.getJsonObject("content").getString("category")).isEqualTo(updateItem.getString("category"))
-        testContext.completeNow()
+        val type = body.getString("type")
+        if (type != UpdateType.POST.toString()) {
+          expectThat(body.getString("type")).isEqualTo(expectedType)
+          expectThat(body.getInteger("id")).isEqualTo(itemId)
+          expectThat(body.getJsonObject("content").getString("category")).isEqualTo(updateItem.getString("category"))
+          testContext.completeNow()
+        }
       }
     }
 
@@ -1660,6 +2777,7 @@ class TestCRUDVerticleItems {
       body(updateItem.encode())
     } When {
       queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
       put("/items/$itemId")
     } Then {
       statusCode(200)
@@ -1682,6 +2800,7 @@ class TestCRUDVerticleItems {
       body(newItem.encode())
     } When {
       queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
       post("/items")
     } Then {
       statusCode(200)
@@ -1690,9 +2809,12 @@ class TestCRUDVerticleItems {
     vertx.eventBus().consumer<JsonObject>(ITEMS_UPDATES_ADDRESS) { msg ->
       val body = msg.body()
       testContext.verify {
-        expectThat(body.getString("type")).isEqualTo(expectedType)
-        expectThat(body.getInteger("id")).isEqualTo(itemId)
-        testContext.completeNow()
+        val type = body.getString("type")
+        if (type != UpdateType.POST.toString()) {
+          expectThat(type).isEqualTo(expectedType)
+          expectThat(body.getInteger("id")).isEqualTo(itemId)
+          testContext.completeNow()
+        }
       }
     }
 
@@ -1701,6 +2823,7 @@ class TestCRUDVerticleItems {
       contentType(ContentType.JSON)
     } When {
       queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
       delete("/items/$itemId")
     } Then {
       statusCode(200)
@@ -1746,6 +2869,7 @@ class TestCRUDVerticleItems {
         body(newItem.encode())
       } When {
         queryParam("company", "biot")
+        queryParam("accessControlString", "biot")
         post("/items")
       } Then {
         statusCode(200)
@@ -1839,6 +2963,7 @@ class TestCRUDVerticleItems {
         body(newItem.encode())
       } When {
         queryParam("company", "biot")
+        queryParam("accessControlString", "biot")
         post("/items")
       } Then {
         statusCode(400)
@@ -1889,6 +3014,7 @@ class TestCRUDVerticleItems {
         body(newItem.encode())
       } When {
         queryParam("company", "biot")
+        queryParam("accessControlString", "biot")
         post("/items")
       } Then {
         statusCode(400)
@@ -1939,6 +3065,7 @@ class TestCRUDVerticleItems {
         body(newItem.encode())
       } When {
         queryParam("company", "biot")
+        queryParam("accessControlString", "biot")
         post("/items")
       } Then {
         statusCode(400)
@@ -1992,6 +3119,7 @@ class TestCRUDVerticleItems {
         body(newItem.encode())
       } When {
         queryParam("company", "biot")
+        queryParam("accessControlString", "biot")
         post("/items")
       } Then {
         statusCode(200)
@@ -2085,6 +3213,7 @@ class TestCRUDVerticleItems {
         body(newItem.encode())
       } When {
         queryParam("company", "biot")
+        queryParam("accessControlString", "biot")
         post("/items")
       } Then {
         statusCode(200)
@@ -2140,42 +3269,12 @@ class TestCRUDVerticleItems {
     }
 
   @Test
-  @DisplayName("getItems correctly retrieves all items when no accessControlString is passed")
-  fun getItemsIsCorrectWithoutACString(vertx: Vertx, testContext: VertxTestContext) {
-    runBlocking(vertx.dispatcher()) {
-      insertItemsAccessControl().onFailure {
-        testContext.failNow("Cannot insert objects prior to the test")
-      }.onSuccess {
-        val response = Buffer.buffer(
-          Given {
-            spec(requestSpecification)
-            accept(ContentType.JSON)
-          } When {
-            queryParam("company", "biot")
-            get("/items")
-          } Then {
-            statusCode(200)
-          } Extract {
-            asString()
-          }
-        ).toJsonArray()
-
-        testContext.verify {
-          expectThat(response.isEmpty).isFalse()
-          expectThat(response.size()).isEqualTo(12)
-          testContext.completeNow()
-        }
-      }
-    }
-  }
-
-  @Test
   @DisplayName("getItems correctly retrieves accessible items when an accessControlString is passed 1")
   fun getItemsIsCorrectWithACString1(vertx: Vertx, testContext: VertxTestContext) {
     runBlocking(vertx.dispatcher()) {
-      insertItemsAccessControl().onFailure {
-        testContext.failNow("Cannot insert objects prior to the test")
-      }.onSuccess {
+      try {
+        insertItemsAccessControl().await()
+
         val accessControlString = "biot:grp1"
         val response = Buffer.buffer(
           Given {
@@ -2206,6 +3305,8 @@ class TestCRUDVerticleItems {
           expectThat(accessString4).startsWith(accessControlString)
           testContext.completeNow()
         }
+      } catch (error: Throwable) {
+        testContext.failNow("Cannot insert objects prior to the test")
       }
     }
   }
@@ -2214,9 +3315,9 @@ class TestCRUDVerticleItems {
   @DisplayName("getItems correctly retrieves accessible items when an accessControlString is passed 2")
   fun getItemsIsCorrectWithACString2(vertx: Vertx, testContext: VertxTestContext) {
     runBlocking(vertx.dispatcher()) {
-      insertItemsAccessControl().onFailure {
-        testContext.failNow("Cannot insert objects prior to the test")
-      }.onSuccess {
+      try {
+        insertItemsAccessControl().await()
+
         val accessControlString = "biot:grp2"
         val response = Buffer.buffer(
           Given {
@@ -2241,6 +3342,8 @@ class TestCRUDVerticleItems {
           expectThat(accessString1).startsWith(accessControlString)
           testContext.completeNow()
         }
+      } catch (error: Throwable) {
+        testContext.failNow("Cannot insert objects prior to the test")
       }
     }
   }
@@ -2249,9 +3352,9 @@ class TestCRUDVerticleItems {
   @DisplayName("getItems correctly retrieves accessible items when an accessControlString is passed 3")
   fun getItemsIsCorrectWithACString3(vertx: Vertx, testContext: VertxTestContext) {
     runBlocking(vertx.dispatcher()) {
-      insertItemsAccessControl().onFailure {
-        testContext.failNow("Cannot insert objects prior to the test")
-      }.onSuccess {
+      try {
+        insertItemsAccessControl().await()
+
         val accessControlString = "biot:grp1:grp3"
         val response = Buffer.buffer(
           Given {
@@ -2276,6 +3379,8 @@ class TestCRUDVerticleItems {
           expectThat(accessString1).startsWith(accessControlString)
           testContext.completeNow()
         }
+      } catch (error: Throwable) {
+        testContext.failNow("Cannot insert objects prior to the test")
       }
     }
   }
@@ -2284,9 +3389,9 @@ class TestCRUDVerticleItems {
   @DisplayName("getItems only retrieves accessible items when the accessControlString is prefix and groups are complete")
   fun getItemsIsCorrectWithACStringNoGroupPrefix(vertx: Vertx, testContext: VertxTestContext) {
     runBlocking(vertx.dispatcher()) {
-      insertItemsAccessControl().onFailure {
-        testContext.failNow("Cannot insert objects prior to the test")
-      }.onSuccess {
+      try {
+        insertItemsAccessControl().await()
+
         val accessControlString = "biot:gr"
         val response = Buffer.buffer(
           Given {
@@ -2307,6 +3412,8 @@ class TestCRUDVerticleItems {
           expectThat(response.isEmpty).isTrue()
           testContext.completeNow()
         }
+      } catch (error: Throwable) {
+        testContext.failNow("Cannot insert objects prior to the test")
       }
     }
   }
@@ -2347,6 +3454,7 @@ class TestCRUDVerticleItems {
         body(newItem.encode())
       } When {
         queryParam("company", "biot")
+        queryParam("accessControlString", "biot")
         post("/items")
       } Then {
         statusCode(200)
@@ -2403,8 +3511,8 @@ class TestCRUDVerticleItems {
   }
 
   @Test
-  @DisplayName("registerItem correctly inserts well formed item without an accessControlString and put company")
-  fun registerItemIsCorrectWithNoACString(vertx: Vertx, testContext: VertxTestContext) {
+  @DisplayName("registerItem fails when no AC string is passed")
+  fun registerItemFailsWithNoACString(vertx: Vertx, testContext: VertxTestContext) {
     runBlocking(vertx.dispatcher()) {
       val newItem = jsonObjectOf(
         "beacon" to "ae:ac:ab:aa:aa:ff",
@@ -2439,55 +3547,14 @@ class TestCRUDVerticleItems {
         queryParam("company", "biot")
         post("/items")
       } Then {
-        statusCode(200)
+        statusCode(400)
       } Extract {
         asString()
       }
 
       testContext.verify {
-        expectThat(response).isNotEmpty() // it returns the id of the registered item
-      }
-
-      val id = response.toInt()
-
-      try {
-        val res = pgClient.preparedQuery(getItem("items", "beacon_data", "biot")).execute(Tuple.of(id)).await()
-        val json = res.iterator().next().toItemJson()
-        expect {
-          that(json.getString("beacon")).isEqualTo(newItem.getString("beacon"))
-          that(json.getString("category")).isEqualTo(newItem.getString("category"))
-          that(json.getString("service")).isEqualTo(newItem.getString("service"))
-          that(json.getString("itemID")).isEqualTo(newItem.getString("itemID"))
-          that(json.getString("brand")).isEqualTo(newItem.getString("brand"))
-          that(json.getString("accessControlString")).isEqualTo("biot")
-          that(json.getString("model")).isEqualTo(newItem.getString("model"))
-          that(json.getString("supplier")).isEqualTo(newItem.getString("supplier"))
-          that(json.getString("purchaseDate")).isEqualTo(newItem.getString("purchaseDate"))
-          that(json.getDouble("purchasePrice")).isEqualTo(newItem.getDouble("purchasePrice"))
-          that(json.getString("originLocation")).isEqualTo(newItem.getString("originLocation"))
-          that(json.getString("currentLocation")).isEqualTo(newItem.getString("currentLocation"))
-          that(json.getString("room")).isEqualTo(newItem.getString("room"))
-          that(json.getString("contact")).isEqualTo(newItem.getString("contact"))
-          that(json.getString("currentOwner")).isEqualTo(newItem.getString("currentOwner"))
-          that(json.getString("previousOwner")).isEqualTo(newItem.getString("previousOwner"))
-          that(json.getString("orderNumber")).isEqualTo(newItem.getString("orderNumber"))
-          that(json.getString("color")).isEqualTo(newItem.getString("color"))
-          that(json.getString("serialNumber")).isEqualTo(newItem.getString("serialNumber"))
-          that(json.getString("maintenanceDate")).isEqualTo(newItem.getString("maintenanceDate"))
-          that(json.getString("status")).isEqualTo("Under creation")
-          that(json.getString("comments")).isEqualTo(newItem.getString("comments"))
-          that(json.getString("lastModifiedDate")).isEqualTo(newItem.getString("lastModifiedDate"))
-          that(json.getString("lastModifiedBy")).isEqualTo(newItem.getString("lastModifiedBy"))
-          that(json.getInteger("battery")).isNull()
-          that(json.getString("beaconStatus")).isNull()
-          that(json.getDouble("latitude")).isNull()
-          that(json.getDouble("longitude")).isNull()
-          that(json.getInteger("floor")).isNull()
-          that(json.getDouble("temperature")).isNull()
-        }
+        expectThat(response).isNotEmpty()
         testContext.completeNow()
-      } catch (error: Throwable) {
-        testContext.failNow(error)
       }
     }
   }
@@ -2496,9 +3563,9 @@ class TestCRUDVerticleItems {
   @DisplayName("getClosestItems correctly retrieves the closest items per floor with correct AC")
   fun getClosestItemsIsCorrectWithAC(vertx: Vertx, testContext: VertxTestContext) {
     runBlocking(vertx.dispatcher()) {
-      insertItemsAccessControl().onFailure {
-        testContext.failNow("Cannot insert objects prior to the test")
-      }.onSuccess {
+      try {
+        insertItemsAccessControl().await()
+
         val response = Buffer.buffer(
           Given {
             spec(requestSpecification)
@@ -2506,6 +3573,7 @@ class TestCRUDVerticleItems {
           } When {
             queryParam("latitude", 42)
             queryParam("longitude", -8)
+            queryParam("company", "biot")
             queryParam("accessControlString", closestItemGrp1.getString("accessControlString"))
             get("/items/closest")
           } Then {
@@ -2528,6 +3596,8 @@ class TestCRUDVerticleItems {
 
           testContext.completeNow()
         }
+      } catch (error: Throwable) {
+        testContext.failNow("Cannot insert objects prior to the test")
       }
     }
   }
@@ -2536,9 +3606,9 @@ class TestCRUDVerticleItems {
   @DisplayName("getClosestItems correctly retrieves nothing per floor with partially prefix AC")
   fun getClosestItemsIsCorrectWithIncorrectAC(vertx: Vertx, testContext: VertxTestContext) {
     runBlocking(vertx.dispatcher()) {
-      insertItemsAccessControl().onFailure {
-        testContext.failNow("Cannot insert objects prior to the test")
-      }.onSuccess {
+      try {
+        insertItemsAccessControl().await()
+
         val response = Buffer.buffer(
           Given {
             spec(requestSpecification)
@@ -2546,6 +3616,7 @@ class TestCRUDVerticleItems {
           } When {
             queryParam("latitude", 42)
             queryParam("longitude", -8)
+            queryParam("company", "biot")
             queryParam(
               "accessControlString",
               closestItemGrp1.getString("accessControlString")
@@ -2564,6 +3635,8 @@ class TestCRUDVerticleItems {
 
           testContext.completeNow()
         }
+      } catch (error: Throwable) {
+        testContext.failNow("Cannot insert objects prior to the test")
       }
     }
   }
@@ -2572,9 +3645,9 @@ class TestCRUDVerticleItems {
   @DisplayName("getClosestItems correctly retrieves nothing with a category per floor with AC")
   fun getClosestItemsWithCategoryIsCorrectWithAC(vertx: Vertx, testContext: VertxTestContext) {
     runBlocking(vertx.dispatcher()) {
-      insertItemsAccessControl().onFailure {
-        testContext.failNow("Cannot insert objects prior to the test")
-      }.onSuccess {
+      try {
+        insertItemsAccessControl().await()
+
         val response = Buffer.buffer(
           Given {
             spec(requestSpecification)
@@ -2582,6 +3655,7 @@ class TestCRUDVerticleItems {
           } When {
             queryParam("latitude", 42)
             queryParam("longitude", -8)
+            queryParam("company", "biot")
             queryParam("category", closestItemGrp1Cat2.getString("category"))
             queryParam("accessControlString", closestItemGrp1Cat2.getString("accessControlString"))
             get("/items/closest")
@@ -2602,18 +3676,19 @@ class TestCRUDVerticleItems {
 
           testContext.completeNow()
         }
+      } catch (error: Throwable) {
+        testContext.failNow("Cannot insert objects prior to the test")
       }
     }
   }
-
 
   @Test
   @DisplayName("getClosestItems correctly retrieves the 1 closest items of the given category per floor with partially prefix AC")
   fun getClosestItemsWithCategoryIsCorrectWithIncorrectAC(vertx: Vertx, testContext: VertxTestContext) {
     runBlocking(vertx.dispatcher()) {
-      insertItemsAccessControl().onFailure {
-        testContext.failNow("Cannot insert objects prior to the test")
-      }.onSuccess {
+      try {
+        insertItemsAccessControl().await()
+
         val response = Buffer.buffer(
           Given {
             spec(requestSpecification)
@@ -2622,6 +3697,7 @@ class TestCRUDVerticleItems {
             queryParam("latitude", 42)
             queryParam("longitude", -8)
             queryParam("category", closestItemGrp1Cat2.getString("category"))
+            queryParam("company", "biot")
             queryParam(
               "accessControlString",
               closestItemGrp1.getString("accessControlString")
@@ -2639,6 +3715,8 @@ class TestCRUDVerticleItems {
           expectThat(response.size()).isEqualTo(0)
           testContext.completeNow()
         }
+      } catch (error: Throwable) {
+        testContext.failNow("Cannot insert objects prior to the test")
       }
     }
   }
@@ -2647,9 +3725,9 @@ class TestCRUDVerticleItems {
   @DisplayName("getItem correctly retrieves the desired item if the accessString has the right to access 1")
   fun getItemIsCorrectWithCorrectAC1(vertx: Vertx, testContext: VertxTestContext) {
     runBlocking(vertx.dispatcher()) {
-      insertItemsAccessControl().onFailure {
-        testContext.failNow("Cannot insert objects prior to the test")
-      }.onSuccess {
+      try {
+        insertItemsAccessControl().await()
+
         val expected = existingItemGrp1Grp3.copy().apply {
           put("battery", existingBeaconData.getInteger("battery"))
           put("beaconStatus", existingBeaconData.getString("beaconStatus"))
@@ -2659,7 +3737,6 @@ class TestCRUDVerticleItems {
           put("temperature", 3.3)
           remove("id")
         }
-
 
         val response = Buffer.buffer(
           Given {
@@ -2684,6 +3761,8 @@ class TestCRUDVerticleItems {
           expectThat(timestamp).isNotEmpty()
           testContext.completeNow()
         }
+      } catch (error: Throwable) {
+        testContext.failNow("Cannot insert objects prior to the test")
       }
     }
   }
@@ -2692,9 +3771,9 @@ class TestCRUDVerticleItems {
   @DisplayName("getItem correctly retrieves the desired item if the accessString has the right to access 2")
   fun getItemIsCorrectWithCorrectAC2(vertx: Vertx, testContext: VertxTestContext) {
     runBlocking(vertx.dispatcher()) {
-      insertItemsAccessControl().onFailure {
-        testContext.failNow("Cannot insert objects prior to the test")
-      }.onSuccess {
+      try {
+        insertItemsAccessControl().await()
+
         val expected = existingItemGrp1Grp3.copy().apply {
           put("battery", existingBeaconData.getInteger("battery"))
           put("beaconStatus", existingBeaconData.getString("beaconStatus"))
@@ -2704,7 +3783,6 @@ class TestCRUDVerticleItems {
           put("temperature", 3.3)
           remove("id")
         }
-
 
         val response = Buffer.buffer(
           Given {
@@ -2729,6 +3807,8 @@ class TestCRUDVerticleItems {
           expectThat(timestamp).isNotEmpty()
           testContext.completeNow()
         }
+      } catch (error: Throwable) {
+        testContext.failNow("Cannot insert objects prior to the test")
       }
     }
   }
@@ -2737,19 +3817,8 @@ class TestCRUDVerticleItems {
   @DisplayName("getItem returns not found if the accessString has not the right to access")
   fun getItemIsCorrectWithInsufficientAC(vertx: Vertx, testContext: VertxTestContext) {
     runBlocking(vertx.dispatcher()) {
-      insertItemsAccessControl().onFailure {
-        testContext.failNow("Cannot insert objects prior to the test")
-      }.onSuccess {
-        val expected = existingItemGrp1Grp3.copy().apply {
-          put("battery", existingBeaconData.getInteger("battery"))
-          put("beaconStatus", existingBeaconData.getString("beaconStatus"))
-          put("latitude", 47)
-          put("longitude", -8)
-          put("floor", 2)
-          put("temperature", 3.3)
-          remove("id")
-        }
-
+      try {
+        insertItemsAccessControl().await()
 
         val response =
           Given {
@@ -2769,6 +3838,8 @@ class TestCRUDVerticleItems {
           expectThat(response).isEmpty()
           testContext.completeNow()
         }
+      } catch (error: Throwable) {
+        testContext.failNow("Cannot insert objects prior to the test")
       }
     }
   }
@@ -2790,6 +3861,7 @@ class TestCRUDVerticleItems {
       body(newItem.encode())
     } When {
       queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
       post("/items")
     } Then {
       statusCode(200)
@@ -2820,6 +3892,7 @@ class TestCRUDVerticleItems {
         accept(ContentType.JSON)
       } When {
         queryParam("company", "biot")
+        queryParam("accessControlString", "biot")
         get("/items/$id")
       } Then {
         statusCode(200)
@@ -2854,6 +3927,7 @@ class TestCRUDVerticleItems {
       body(newItem.encode())
     } When {
       queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
       post("/items")
     } Then {
       statusCode(200)
@@ -2883,13 +3957,13 @@ class TestCRUDVerticleItems {
       accept(ContentType.JSON)
     } When {
       queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
       get("/items/$id")
     } Then {
       statusCode(404)
     } Extract {
       asString()
     }
-
 
     testContext.verify {
       expectThat(response2).isEmpty()
@@ -2913,17 +3987,16 @@ class TestCRUDVerticleItems {
     )
 
     // Register the item
-    val id1 = Given {
+    Given {
       spec(requestSpecification)
       contentType(ContentType.JSON)
       body(newItem1.encode())
     } When {
       queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
       post("/items")
     } Then {
       statusCode(200)
-    } Extract {
-      asString()
     }
 
     val newItem2 = jsonObjectOf(
@@ -2940,6 +4013,7 @@ class TestCRUDVerticleItems {
       body(newItem2.encode())
     } When {
       queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
       post("/items")
     } Then {
       statusCode(200)
@@ -2977,6 +4051,7 @@ class TestCRUDVerticleItems {
   fun updateItemIsCorrectWithSufficientACString1(vertx: Vertx, testContext: VertxTestContext) {
     runBlocking(vertx.dispatcher()) {
       insertItemsAccessControl().await()
+
       if (existingItemGrp1Grp3Id == -1) {
         testContext.failNow("existingItemGrp1Grp3Id == -1")
       }
@@ -3043,7 +4118,6 @@ class TestCRUDVerticleItems {
       }
     }
   }
-
 
   @Test
   @DisplayName("updateItem correctly updates the desired item if the accessControlString authorizes the access 2")
@@ -3255,39 +4329,6 @@ class TestCRUDVerticleItems {
   }
 
   @Test
-  @DisplayName("updateItem does not fail with the desired item does not exist in the DB")
-  fun updateItemDoesNotFailWhenItemDoesNotExist(vertx: Vertx, testContext: VertxTestContext) {
-    var idOfNonExistingItem = 1543
-    for (i in 1..1000) {
-      if (i != existingItemID && i != existingItemGrp1Grp3Id) {
-        idOfNonExistingItem = i
-      }
-    }
-    runBlocking(vertx.dispatcher()) {
-      insertItemsAccessControl().await()
-      val response = Given {
-        spec(requestSpecification)
-        contentType(ContentType.JSON)
-        accept(ContentType.JSON)
-        body(updateItemJson.encode())
-      } When {
-        queryParam("company", "biot")
-        queryParam("accessControlString", "biot:grp2")
-        put("/items/$idOfNonExistingItem")
-      } Then {
-        statusCode(200)
-      } Extract {
-        asString()
-      }
-
-      testContext.verify {
-        expectThat(response).isEmpty()
-        testContext.completeNow()
-      }
-    }
-  }
-
-  @Test
   @DisplayName(
     "updateItem returns bad request error 400 if the passed accessControlString to update is wrongly formatted" +
       "and does not modify the item 1"
@@ -3440,7 +4481,6 @@ class TestCRUDVerticleItems {
       }
     }
   }
-
 
   companion object {
 
