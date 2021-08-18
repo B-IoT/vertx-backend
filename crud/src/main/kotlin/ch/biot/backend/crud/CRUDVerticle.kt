@@ -439,6 +439,14 @@ class CRUDVerticle : CoroutineVerticle() {
     val collection = ctx.getCollection(RELAYS_COLLECTION)
     executeWithErrorHandling("Could not get relay", ctx) {
       val relay = mongoClient.findOne(collection, query, jsonObjectOf()).await()
+
+      if (relay == null) {
+        LOGGER.warn { "Relay $relayID not found" }
+        ctx.response().statusCode = NOT_FOUND_CODE
+        ctx.end()
+        return@executeWithErrorHandling
+      }
+
       ctx.response()
         .putHeader(CONTENT_TYPE, APPLICATION_JSON)
         .end(relay.clean().encode())
@@ -474,6 +482,14 @@ class CRUDVerticle : CoroutineVerticle() {
           findOptionsOf(),
           updateOptionsOf(returningNewDocument = true)
         ).await()
+
+        if (updatedRelay == null) {
+          LOGGER.warn { "Relay $relayID not found" }
+          ctx.response().statusCode = NOT_FOUND_CODE
+          ctx.end()
+          return@executeWithErrorHandling
+        }
+
         LOGGER.info { "Successfully updated collection $collection with update JSON $update" }
         // Put the beacon information in the JSON to send to the relay
         val cleanEntry = updatedRelay.cleanForRelay().apply {
@@ -496,7 +512,15 @@ class CRUDVerticle : CoroutineVerticle() {
     val query = jsonObjectOf("relayID" to relayID)
     val collection = ctx.getCollection(RELAYS_COLLECTION)
     executeWithErrorHandling("Could not delete relay", ctx) {
-      mongoClient.removeDocument(collection, query).await()
+      val result = mongoClient.removeDocument(collection, query).await()
+
+      if (result.removedCount == 0L) {
+        LOGGER.warn { "Relay $relayID not found" }
+        ctx.response().statusCode = NOT_FOUND_CODE
+        ctx.end()
+        return@executeWithErrorHandling
+      }
+
       ctx.end()
     }
   }
@@ -557,9 +581,18 @@ class CRUDVerticle : CoroutineVerticle() {
   private suspend fun getUserHandler(ctx: RoutingContext) {
     val userID = ctx.pathParam("id")
     LOGGER.info { "New getUser request for user $userID" }
+
     val query = jsonObjectOf("userID" to userID)
     executeWithErrorHandling("Could not get user", ctx) {
       val user = mongoClient.findOne(USERS_COLLECTION, query, jsonObjectOf()).await()
+
+      if (user == null) {
+        LOGGER.warn { "User $userID not found" }
+        ctx.response().statusCode = NOT_FOUND_CODE
+        ctx.end()
+        return@executeWithErrorHandling
+      }
+
       ctx.response()
         .putHeader(CONTENT_TYPE, APPLICATION_JSON)
         .end(user.clean().encode())
@@ -588,7 +621,15 @@ class CRUDVerticle : CoroutineVerticle() {
 
       val query = jsonObjectOf("userID" to userID)
       executeWithErrorHandling("Could not update collection $USERS_COLLECTION with update JSON $update", ctx) {
-        mongoClient.findOneAndUpdate(USERS_COLLECTION, query, update).await()
+        val user = mongoClient.findOneAndUpdate(USERS_COLLECTION, query, update).await()
+
+        if (user == null) {
+          LOGGER.warn { "User $userID not found" }
+          ctx.response().statusCode = NOT_FOUND_CODE
+          ctx.end()
+          return@executeWithErrorHandling
+        }
+
         LOGGER.info("Successfully updated collection $USERS_COLLECTION with update JSON $update")
         ctx.end()
       }
@@ -603,7 +644,15 @@ class CRUDVerticle : CoroutineVerticle() {
     LOGGER.info { "New deleteUser request for user $userID" }
     val query = jsonObjectOf("userID" to userID)
     executeWithErrorHandling("Could not delete user", ctx) {
-      mongoClient.removeDocument(USERS_COLLECTION, query).await()
+      val result = mongoClient.removeDocument(USERS_COLLECTION, query).await()
+
+      if (result.removedCount == 0L) {
+        LOGGER.warn { "User $userID not found" }
+        ctx.response().statusCode = NOT_FOUND_CODE
+        ctx.end()
+        return@executeWithErrorHandling
+      }
+
       ctx.end()
     }
   }
@@ -836,6 +885,7 @@ class CRUDVerticle : CoroutineVerticle() {
           ctx.end()
           return@executeWithErrorHandling
         }
+
         val item = getQueryResultIterator.next().toItemJson()
         val itemAcString = item.getString("accessControlString")
 
@@ -864,10 +914,16 @@ class CRUDVerticle : CoroutineVerticle() {
     val table = ctx.getCollection(ITEMS_TABLE)
     val accessControlString: String = ctx.getAccessControlString()
 
-    val executedQuery = pgClient.preparedQuery(deleteItem(table, accessControlString)).execute(Tuple.of(itemID))
-
     executeWithErrorHandling("Could not delete item", ctx) {
-      executedQuery.await()
+      val result = pgClient.preparedQuery(deleteItem(table, accessControlString)).execute(Tuple.of(itemID)).await()
+
+      if (result.rowCount() == 0) {
+        LOGGER.warn { "Item $itemID not found" }
+        ctx.response().statusCode = NOT_FOUND_CODE
+        ctx.end()
+        return@executeWithErrorHandling
+      }
+
       ctx.end()
     }
   }

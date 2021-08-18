@@ -38,7 +38,6 @@ import org.testcontainers.containers.DockerComposeContainer
 import org.testcontainers.junit.jupiter.Testcontainers
 import strikt.api.expect
 import strikt.api.expectThat
-import strikt.assertions.isEmpty
 import strikt.assertions.isEqualTo
 import strikt.assertions.isTrue
 import java.io.File

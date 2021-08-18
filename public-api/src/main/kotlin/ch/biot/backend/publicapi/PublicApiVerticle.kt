@@ -270,9 +270,7 @@ class PublicApiVerticle(private val webClient: WebClient) : CoroutineVerticle() 
       .`as`(BodyCodec.jsonObject())
       .coroutineSend()
       .bimap(
-        { error ->
-          sendBadGateway(ctx, error)
-        },
+        { error -> sendBadGateway(ctx, error) },
         { resp ->
           forwardJsonObjectOrStatusCode(ctx, resp)
         }
@@ -384,9 +382,7 @@ class PublicApiVerticle(private val webClient: WebClient) : CoroutineVerticle() 
       .`as`(BodyCodec.jsonObject())
       .coroutineSend()
       .bimap(
-        { error ->
-          sendBadGateway(ctx, error)
-        },
+        { error -> sendBadGateway(ctx, error) },
         { resp ->
           forwardJsonObjectOrStatusCode(ctx, resp)
         }
@@ -535,9 +531,7 @@ class PublicApiVerticle(private val webClient: WebClient) : CoroutineVerticle() 
       .expect(ResponsePredicate.SC_OK)
       .coroutineSendJsonObject(json)
       .bimap(
-        { error ->
-          sendBadGateway(ctx, error)
-        },
+        { error -> sendBadGateway(ctx, error) },
         { response ->
           if (forwardResponse) ctx.end(response.body())
           else sendStatusCode(ctx, response.statusCode())
@@ -566,9 +560,7 @@ class PublicApiVerticle(private val webClient: WebClient) : CoroutineVerticle() 
       .putHeader(CONTENT_TYPE, APPLICATION_JSON)
       .coroutineSendBuffer(ctx.body)
       .bimap(
-        { error ->
-          sendBadGateway(ctx, error)
-        },
+        { error -> sendBadGateway(ctx, error) },
         { resp -> if (resp.statusCode() != OK_CODE) sendStatusCode(ctx, resp.statusCode()) else ctx.end() }
       )
 
@@ -593,9 +585,7 @@ class PublicApiVerticle(private val webClient: WebClient) : CoroutineVerticle() 
       .`as`(BodyCodec.jsonArray())
       .coroutineSend()
       .bimap(
-        { error ->
-          sendBadGateway(ctx, error)
-        },
+        { error -> sendBadGateway(ctx, error) },
         { resp ->
           forwardJsonArrayOrStatusCode(ctx, resp)
         }
@@ -623,9 +613,7 @@ class PublicApiVerticle(private val webClient: WebClient) : CoroutineVerticle() 
       .timeout(TIMEOUT)
       .coroutineSend()
       .bimap(
-        { error ->
-          sendBadGateway(ctx, error)
-        },
+        { error -> sendBadGateway(ctx, error) },
         { resp ->
           if (resp.statusCode() != OK_CODE) {
             sendStatusCode(ctx, resp.statusCode())
@@ -660,12 +648,8 @@ class PublicApiVerticle(private val webClient: WebClient) : CoroutineVerticle() 
       .timeout(TIMEOUT)
       .coroutineSend()
       .bimap(
-        { error ->
-          sendBadGateway(ctx, error)
-        },
-        { resp ->
-          if (resp.statusCode() != OK_CODE) sendStatusCode(ctx, resp.statusCode()) else ctx.end()
-        }
+        { error -> sendBadGateway(ctx, error) },
+        { resp -> if (resp.statusCode() != OK_CODE) sendStatusCode(ctx, resp.statusCode()) else ctx.end() }
       )
 
   }

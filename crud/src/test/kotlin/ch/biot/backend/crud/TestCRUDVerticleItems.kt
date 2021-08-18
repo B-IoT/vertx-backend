@@ -2701,6 +2701,29 @@ class TestCRUDVerticleItems {
   }
 
   @Test
+  @DisplayName("deleteItem fails with error 404 if the item does not exist")
+  fun deleteItemFailsIfItemDoesNotExist(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      val response = Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+      } When {
+        queryParam("company", "biot")
+        queryParam("accessControlString", "biot")
+        delete("/items/1000")
+      } Then {
+        statusCode(404)
+      } Extract {
+        asString()
+      }
+
+      testContext.verify {
+        expectThat(response).isEmpty()
+        testContext.completeNow()
+      }
+    }
+
+  @Test
   @DisplayName("Item updates on POST operations are correctly received on the event bus")
   fun receivePostUpdatesOnEventBus(vertx: Vertx, testContext: VertxTestContext) {
     val itemId = 100
@@ -3877,7 +3900,7 @@ class TestCRUDVerticleItems {
       queryParam("accessControlString", "biot:grp1:grp2")
       delete("/items/$id")
     } Then {
-      statusCode(200)
+      statusCode(404)
     } Extract {
       asString()
     }

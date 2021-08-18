@@ -1191,8 +1191,8 @@ class TestPublicApiVerticle {
 
   @Test
   @Order(25)
-  @DisplayName("Errors are handled in getOneHandler")
-  fun errorIsHandledGetOneRequest(testContext: VertxTestContext) {
+  @DisplayName("Error 404 is handled in getOneHandler")
+  fun errorNotFoundIsHandledGetOneRequest(testContext: VertxTestContext) {
     val response = Given {
       spec(requestSpecification)
       header("Authorization", "Bearer $token")
@@ -1261,6 +1261,27 @@ class TestPublicApiVerticle {
   }
 
   @Test
+  @DisplayName("Error 404 is handled in deleteHandler")
+  fun errorNotFoundIsHandledDeleteRequest(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      accept(ContentType.JSON)
+      header("Authorization", "Bearer $token")
+    } When {
+      delete("/api/users/notExists")
+    } Then {
+      statusCode(404)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEmpty()
+      testContext.completeNow()
+    }
+  }
+
+  @Test
   @Order(27)
   @DisplayName("Errors are handled in registerHandler")
   fun errorIsHandledRegisterRequest(testContext: VertxTestContext) {
@@ -1314,7 +1335,7 @@ class TestPublicApiVerticle {
   @Test
   @Order(29)
   @DisplayName("The event bus bridge endpoint is available")
-  fun eventBusBridgeIsAvailable(vertx: Vertx, testContext: VertxTestContext) {
+  fun eventBusBridgeIsAvailable(testContext: VertxTestContext) {
     val options = EventBusClientOptions()
       .setHost("localhost").setPort(PublicApiVerticle.PUBLIC_PORT)
       .setWebSocketPath("/eventbus/websocket?token=$token") // websocket needed otherwise the client doesn't work

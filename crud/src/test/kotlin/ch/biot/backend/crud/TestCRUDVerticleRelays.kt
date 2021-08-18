@@ -299,6 +299,27 @@ class TestCRUDVerticleRelays {
   }
 
   @Test
+  @DisplayName("getRelay fails with error 404 when the relay does not exist")
+  fun getRelayFailsWhenRelayDoesNotExist(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      accept(ContentType.JSON)
+    } When {
+      queryParam("company", "biot")
+      get("/relays/doesNotExist")
+    } Then {
+      statusCode(404)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEmpty()
+      testContext.completeNow()
+    }
+  }
+
+  @Test
   @DisplayName("updateRelay correctly updates the desired relay")
   fun updateRelayIsCorrect(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
     val updateJson = jsonObjectOf(
@@ -395,6 +416,44 @@ class TestCRUDVerticleRelays {
   }
 
   @Test
+  @DisplayName("updateRelay fails with error 404 when the relay does not exist")
+  fun updateRelayFailsWhenRelayDoesNotExist(testContext: VertxTestContext) {
+    val updateJson = jsonObjectOf(
+      "ledStatus" to true,
+      "latitude" to 1.0,
+      "longitude" to -32.42332,
+      "floor" to 2,
+      "wifi" to jsonObjectOf(
+        "ssid" to "test",
+        "password" to "test"
+      ),
+      "beacon" to jsonObjectOf(
+        "mac" to "macAddress",
+        "txPower" to 5
+      )
+    )
+
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      body(updateJson.encode())
+    } When {
+      queryParam("company", "biot")
+      put("/relays/doesNotExist")
+    } Then {
+      statusCode(404)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEmpty()
+      testContext.completeNow()
+    }
+  }
+
+  @Test
   @DisplayName("deleteRelay correctly deletes a relay")
   fun deleteIsCorrect(testContext: VertxTestContext) {
     val relayToRemove = jsonObjectOf(
@@ -433,6 +492,27 @@ class TestCRUDVerticleRelays {
       delete("/relays/${relayToRemove.getString("relayID")}")
     } Then {
       statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEmpty()
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("deleteRelay fails with error 404 when the relay does not exist")
+  fun deleteRelayFailsWhenRelayDoesNotExist(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      accept(ContentType.JSON)
+    } When {
+      queryParam("company", "biot")
+      delete("/relays/doesNotExist")
+    } Then {
+      statusCode(404)
     } Extract {
       asString()
     }

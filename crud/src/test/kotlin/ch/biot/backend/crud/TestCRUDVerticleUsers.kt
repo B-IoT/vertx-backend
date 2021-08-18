@@ -719,6 +719,28 @@ class TestCRUDVerticleUsers {
   }
 
   @Test
+  @DisplayName("getUser fails with error 404 when the user does not exist")
+  fun getUserFailsWhenUserDoesNotExist(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      accept(ContentType.JSON)
+    } When {
+      queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
+      get("/users/doesNotExist")
+    } Then {
+      statusCode(404)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEmpty()
+      testContext.completeNow()
+    }
+  }
+
+  @Test
   @DisplayName("updateUser correctly updates the desired user")
   fun updateUserIsCorrect(testContext: VertxTestContext) {
     val newPassword = "newPassword"
@@ -769,6 +791,34 @@ class TestCRUDVerticleUsers {
       val userID = response2.remove("userID")
       expectThat(company).isEqualTo(existingUser["company"])
       expectThat(userID).isEqualTo(existingUser["userID"])
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("updateUser fails with error 404 when the user does not exist")
+  fun updateUserFailsWhenUserDoesNotExist(testContext: VertxTestContext) {
+    val updateJson = jsonObjectOf(
+      "password" to "newPassword"
+    )
+
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      body(updateJson.encode())
+    } When {
+      queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
+      put("/users/doesNotExist")
+    } Then {
+      statusCode(404)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEmpty()
       testContext.completeNow()
     }
   }
@@ -895,6 +945,28 @@ class TestCRUDVerticleUsers {
       delete("/users/${userToRemove.getString("userID")}")
     } Then {
       statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEmpty()
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("deleteUser fails with error 404 when the user does not exist")
+  fun deleteUserFailsWhenUserDoesNotExist(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      accept(ContentType.JSON)
+    } When {
+      queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
+      delete("/users/doesNotExist")
+    } Then {
+      statusCode(404)
     } Extract {
       asString()
     }
