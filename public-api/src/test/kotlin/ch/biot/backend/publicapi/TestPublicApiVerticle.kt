@@ -1850,13 +1850,13 @@ class TestPublicApiVerticle {
     } When {
       delete("/api/items/$itemID")
     } Then {
-      statusCode(200)
+      statusCode(404)
     } Extract {
       asString()
     }
 
     testContext.verify {
-      expectThat(response).isNotNull()
+      expectThat(response).isEmpty()
     }
 
     val response2 = Buffer.buffer(
