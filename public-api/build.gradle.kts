@@ -5,7 +5,7 @@
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import org.gradle.api.tasks.testing.logging.TestLogEvent.*
 
-version = "1.2.0-SNAPSHOT"
+version = "1.3.0-SNAPSHOT"
 
 val mainVerticleName = "ch.biot.backend.publicapi.PublicApiVerticle"
 val watchForChange = "src/**/*"
@@ -27,6 +27,7 @@ dependencies {
   val hazelcastVersion = project.extra["hazelcastVersion"]
   val micrometerPrometheusVersion = project.extra["micrometerPrometheusVersion"]
   val arrowVersion = project.extra["arrowVersion"]
+  val mockkVersion = project.extra["mockkVersion"]
 
   // For this module only, and test-only
   val eventBusBridgeClientVersion = "1.0.1"
@@ -50,6 +51,7 @@ dependencies {
   testImplementation("io.vertx:vertx-junit5:$vertxVersion")
   testImplementation("org.junit.jupiter:junit-jupiter:$junitJupiterVersion")
   testImplementation("io.strikt:strikt-gradle:$striktVersion")
+  testImplementation("io.mockk:mockk:$mockkVersion")
   testImplementation("io.vertx:vertx-eventbus-bridge-client:$eventBusBridgeClientVersion")
   testImplementation("com.google.code.gson:gson:$gsonVersion")
   testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:$junitJupiterVersion")
@@ -89,7 +91,7 @@ jib {
   }
   to {
     image = "vertx-backend/public-api"
-    tags = setOf("v1.2.0", "latest")
+    tags = setOf("v1.3.0", "latest")
   }
   container {
     mainClass = mainVerticleName

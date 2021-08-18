@@ -35,3 +35,33 @@ fun deleteItem(itemsTable: String, accessControlString: String) =
 
 fun getCategories(itemsTable: String, accessControlString: String) =
   "SELECT DISTINCT I.category FROM $itemsTable I WHERE (accessControlString LIKE '$accessControlString:%' OR accessControlString LIKE '$accessControlString')"
+
+fun createSnapshot(itemsTable: String) =
+  "INSERT INTO ${itemsTable}_snapshots (snapshotdate, accesscontrolstring) VALUES (NOW(), $1) RETURNING id"
+
+fun getSnapshots(itemsTable: String, accessControlString: String) =
+  "SELECT * FROM ${itemsTable}_snapshots WHERE (accessControlString LIKE '$accessControlString:%' OR accessControlString LIKE '$accessControlString')"
+
+fun getSnapshot(itemsTable: String, snapshotId: Int) = "SELECT * FROM ${itemsTable}_snapshot_$snapshotId"
+
+fun dropSnapshotTable(itemsTable: String, snapshotId: Int) = "DROP TABLE ${itemsTable}_snapshot_$snapshotId"
+
+fun deleteSnapshot(itemsTable: String, accessControlString: String) =
+  "DELETE FROM ${itemsTable}_snapshots WHERE id=$1 AND (accessControlString LIKE '$accessControlString:%' OR accessControlString LIKE '$accessControlString')"
+
+fun leftOuterJoinFromSnapshots(itemsTable: String, firstSnapshotId: Int, secondSnapshotId: Int) =
+  "SELECT F.* FROM ${itemsTable}_snapshot_$firstSnapshotId F LEFT JOIN ${itemsTable}_snapshot_$secondSnapshotId S ON F.id = S.id WHERE S.id is NULL"
+
+fun rightOuterJoinFromSnapshots(itemsTable: String, firstSnapshotId: Int, secondSnapshotId: Int) =
+  "SELECT S.* FROM ${itemsTable}_snapshot_$firstSnapshotId F RIGHT JOIN ${itemsTable}_snapshot_$secondSnapshotId S ON F.id = S.id WHERE F.id is NULL"
+
+fun innerJoinFromSnapshots(itemsTable: String, firstSnapshotId: Int, secondSnapshotId: Int) =
+  "SELECT S.* FROM ${itemsTable}_snapshot_$firstSnapshotId F INNER JOIN ${itemsTable}_snapshot_$secondSnapshotId S ON F.id = S.id"
+
+/**
+ * Makes a copy of the table.
+ */
+fun snapshotTable(itemsTable: String, snapshotId: Int) =
+  "CREATE TABLE ${itemsTable}_snapshot_$snapshotId AS TABLE $itemsTable"
+
+fun searchForTable() = "SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = $1"
