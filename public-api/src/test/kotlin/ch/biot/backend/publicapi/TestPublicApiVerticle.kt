@@ -23,6 +23,7 @@ import io.restassured.module.kotlin.extensions.When
 import io.restassured.specification.RequestSpecification
 import io.vertx.core.Vertx
 import io.vertx.core.buffer.Buffer
+import io.vertx.core.http.HttpVersion
 import io.vertx.core.json.JsonArray
 import io.vertx.eventbusclient.EventBusClient
 import io.vertx.eventbusclient.EventBusClientOptions
@@ -178,7 +179,12 @@ class TestPublicApiVerticle {
   @BeforeEach
   fun setup(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
     try {
-      webClient = spyk(WebClient.create(vertx, webClientOptionsOf(tryUseCompression = true)))
+      webClient = spyk(
+        WebClient.create(
+          vertx,
+          webClientOptionsOf(tryUseCompression = true, protocolVersion = HttpVersion.HTTP_2, http2ClearTextUpgrade = true)
+        )
+      )
       vertx.deployVerticle(PublicApiVerticle(webClient)).await()
       vertx.deployVerticle(CRUDVerticle()).await()
       testContext.completeNow()

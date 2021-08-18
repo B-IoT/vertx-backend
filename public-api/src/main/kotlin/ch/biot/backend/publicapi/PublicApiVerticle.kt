@@ -7,6 +7,7 @@ package ch.biot.backend.publicapi
 import arrow.fx.coroutines.parZip
 import io.vertx.core.Vertx
 import io.vertx.core.http.HttpMethod
+import io.vertx.core.http.HttpVersion
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.auth.jwt.JWTAuth
 import io.vertx.ext.web.Route
@@ -45,7 +46,13 @@ import java.net.InetAddress
 
 internal val LOGGER = KotlinLogging.logger {}
 
-class PublicApiVerticle(private val webClient: WebClient = WebClient.create(Vertx.vertx(), webClientOptionsOf())) :
+class PublicApiVerticle(
+  // The default value is used only when launching the verticle with Gradle
+  private val webClient: WebClient = WebClient.create(
+    Vertx.vertx(),
+    webClientOptionsOf(tryUseCompression = true, protocolVersion = HttpVersion.HTTP_2, http2ClearTextUpgrade = true)
+  )
+) :
   CoroutineVerticle() {
 
   companion object {
@@ -85,7 +92,15 @@ class PublicApiVerticle(private val webClient: WebClient = WebClient.create(Vert
       )
 
       Vertx.clusteredVertx(options).onSuccess {
-        val webClient = WebClient.create(it, webClientOptionsOf(tryUseCompression = true))
+        val webClient =
+          WebClient.create(
+            it,
+            webClientOptionsOf(
+              tryUseCompression = true,
+              protocolVersion = HttpVersion.HTTP_2,
+              http2ClearTextUpgrade = true
+            )
+          )
         it.deployVerticle(PublicApiVerticle(webClient))
       }.onFailure { error ->
         LOGGER.error(error) { "Could not start" }
@@ -228,6 +243,7 @@ class PublicApiVerticle(private val webClient: WebClient = WebClient.create(Vert
         httpServerOptionsOf(
           ssl = CRUD_HOST != "localhost", // disabled when testing
           pemKeyCertOptions = pemKeyCertOptionsOf(certPath = "certificate.pem", keyPath = "certificate_key.pem"),
+          useAlpn = true,
           compressionSupported = true,
           compressionLevel = SERVER_COMPRESSION_LEVEL,
           decompressionSupported = true
