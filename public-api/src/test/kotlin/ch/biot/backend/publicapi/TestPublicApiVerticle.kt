@@ -1850,7 +1850,7 @@ class TestPublicApiVerticle {
     } When {
       delete("/api/items/$itemID")
     } Then {
-      statusCode(200)
+      statusCode(404)
     } Extract {
       asString()
     }

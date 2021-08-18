@@ -45,7 +45,8 @@ import java.net.InetAddress
 
 internal val LOGGER = KotlinLogging.logger {}
 
-class PublicApiVerticle(private val webClient: WebClient) : CoroutineVerticle() {
+class PublicApiVerticle(private val webClient: WebClient = WebClient.create(Vertx.vertx(), webClientOptionsOf())) :
+  CoroutineVerticle() {
 
   companion object {
     const val TIMEOUT: Long = 5000
@@ -69,7 +70,7 @@ class PublicApiVerticle(private val webClient: WebClient) : CoroutineVerticle() 
     private val environment = System.getenv()
     val CRUD_HOST: String = environment.getOrDefault("CRUD_HOST", "localhost")
     val CRUD_PORT: Int = environment.getOrDefault("CRUD_PORT", "8081").toInt()
-    internal val PUBLIC_PORT = environment.getOrDefault("PUBLIC_PORT", "8080").toInt()
+    internal val PUBLIC_PORT = environment.getOrDefault("PUBLIC_PORT", "8080").toInt() // externally on 8080 and 443
 
     @JvmStatic
     fun main(args: Array<String>) {

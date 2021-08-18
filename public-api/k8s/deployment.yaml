@@ -24,6 +24,8 @@ spec:
           ports:
             - name: http
               containerPort: 8080
+            - name: https
+              containerPort: 8080
             - name: hazelcast
               containerPort: 5701
           env:
