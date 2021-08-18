@@ -442,7 +442,7 @@ class CRUDVerticle : CoroutineVerticle() {
 
       if (relay == null) {
         LOGGER.warn { "Relay $relayID not found" }
-        ctx.response().statusCode = 404
+        ctx.response().statusCode = NOT_FOUND_CODE
         ctx.end()
         return@executeWithErrorHandling
       }
@@ -485,7 +485,7 @@ class CRUDVerticle : CoroutineVerticle() {
 
         if (updatedRelay == null) {
           LOGGER.warn { "Relay $relayID not found" }
-          ctx.response().statusCode = 404
+          ctx.response().statusCode = NOT_FOUND_CODE
           ctx.end()
           return@executeWithErrorHandling
         }
@@ -516,7 +516,7 @@ class CRUDVerticle : CoroutineVerticle() {
 
       if (result.removedCount == 0L) {
         LOGGER.warn { "Relay $relayID not found" }
-        ctx.response().statusCode = 404
+        ctx.response().statusCode = NOT_FOUND_CODE
         ctx.end()
         return@executeWithErrorHandling
       }
@@ -588,7 +588,7 @@ class CRUDVerticle : CoroutineVerticle() {
 
       if (user == null) {
         LOGGER.warn { "User $userID not found" }
-        ctx.response().statusCode = 404
+        ctx.response().statusCode = NOT_FOUND_CODE
         ctx.end()
         return@executeWithErrorHandling
       }
@@ -625,7 +625,7 @@ class CRUDVerticle : CoroutineVerticle() {
 
         if (user == null) {
           LOGGER.warn { "User $userID not found" }
-          ctx.response().statusCode = 404
+          ctx.response().statusCode = NOT_FOUND_CODE
           ctx.end()
           return@executeWithErrorHandling
         }
@@ -648,7 +648,7 @@ class CRUDVerticle : CoroutineVerticle() {
 
       if (result.removedCount == 0L) {
         LOGGER.warn { "User $userID not found" }
-        ctx.response().statusCode = 404
+        ctx.response().statusCode = NOT_FOUND_CODE
         ctx.end()
         return@executeWithErrorHandling
       }
@@ -885,6 +885,7 @@ class CRUDVerticle : CoroutineVerticle() {
           ctx.end()
           return@executeWithErrorHandling
         }
+
         val item = getQueryResultIterator.next().toItemJson()
         val itemAcString = item.getString("accessControlString")
 
@@ -913,10 +914,16 @@ class CRUDVerticle : CoroutineVerticle() {
     val table = ctx.getCollection(ITEMS_TABLE)
     val accessControlString: String = ctx.getAccessControlString()
 
-    val executedQuery = pgClient.preparedQuery(deleteItem(table, accessControlString)).execute(Tuple.of(itemID))
-
     executeWithErrorHandling("Could not delete item", ctx) {
-      executedQuery.await()
+      val result = pgClient.preparedQuery(deleteItem(table, accessControlString)).execute(Tuple.of(itemID)).await()
+
+      if (result.rowCount() == 0) {
+        LOGGER.warn { "Item $itemID not found" }
+        ctx.response().statusCode = NOT_FOUND_CODE
+        ctx.end()
+        return@executeWithErrorHandling
+      }
+
       ctx.end()
     }
   }
