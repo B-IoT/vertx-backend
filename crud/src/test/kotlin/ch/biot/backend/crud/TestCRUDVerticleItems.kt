@@ -3900,7 +3900,7 @@ class TestCRUDVerticleItems {
       queryParam("accessControlString", "biot:grp1:grp2")
       delete("/items/$id")
     } Then {
-      statusCode(200)
+      statusCode(404)
     } Extract {
       asString()
     }
