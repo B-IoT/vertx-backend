@@ -170,7 +170,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     val netServerOptions = netServerOptionsOf(ssl = true, pemKeyCertOptions = pemKeyCertOptions)
     val mqttServerOptions = mqttServerOptionsOf(
       useWebSocket = TIMESCALE_HOST != "localhost", // SSL is disabled when testing
-      ssl = true,
+      ssl = false,
       pemKeyCertOptions = pemKeyCertOptions,
       clientAuth = ClientAuth.REQUEST
     )
