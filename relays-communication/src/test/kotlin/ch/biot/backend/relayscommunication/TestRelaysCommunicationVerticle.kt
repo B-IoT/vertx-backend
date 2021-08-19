@@ -288,7 +288,7 @@ class TestRelaysCommunicationVerticle {
         password = mqttPassword,
         willFlag = true,
         willMessage = jsonObjectOf("company" to "biot").encode(),
-        ssl = true,
+        ssl = false,
         maxMessageSize = 100_000
       )
     )
@@ -744,7 +744,7 @@ class TestRelaysCommunicationVerticle {
   @DisplayName("A MQTT client without authentication is refused connection")
   fun clientWithoutAuthIsRefusedConnection(vertx: Vertx, testContext: VertxTestContext) =
     runBlocking(vertx.dispatcher()) {
-      val client = MqttClient.create(vertx, mqttClientOptionsOf(ssl = true))
+      val client = MqttClient.create(vertx, mqttClientOptionsOf(ssl = false))
 
       try {
         client.connect(MQTT_PORT, MQTT_HOST).await()
@@ -766,7 +766,7 @@ class TestRelaysCommunicationVerticle {
           password = "wrongPassword",
           willFlag = true,
           willMessage = jsonObjectOf("company" to "biot").encode(),
-          ssl = true
+          ssl = false
         )
       )
 
@@ -788,7 +788,7 @@ class TestRelaysCommunicationVerticle {
           clientId = configuration["mqttID"],
           username = configuration["mqttUsername"],
           password = "wrongPassword",
-          ssl = true
+          ssl = false
         )
       )
 
@@ -811,7 +811,7 @@ class TestRelaysCommunicationVerticle {
           username = configuration["mqttUsername"],
           password = "wrongPassword",
           willFlag = true,
-          ssl = true
+          ssl = false
         )
       )
 
@@ -1227,7 +1227,7 @@ class TestRelaysCommunicationVerticle {
           password = mqttPassword,
           willFlag = true,
           willMessage = jsonObjectOf("company" to anotherCompanyName).encode(),
-          ssl = true,
+          ssl = false,
         )
       )
 
