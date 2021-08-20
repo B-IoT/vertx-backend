@@ -1862,7 +1862,7 @@ class TestPublicApiVerticle {
     }
 
     testContext.verify {
-      expectThat(response).isNotNull()
+      expectThat(response).isEmpty()
     }
 
     val response2 = Buffer.buffer(

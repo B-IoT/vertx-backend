@@ -6,7 +6,10 @@ package ch.biot.backend.relayscommunication
 
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.INGESTION_TOPIC
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.KAFKA_PORT
+import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.LIVENESS_PORT
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.MONGO_PORT
+import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.MQTT_PORT
+import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.READINESS_PORT
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.RELAYS_COLLECTION
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.RELAYS_UPDATE_ADDRESS
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.UPDATE_PARAMETERS_TOPIC
@@ -23,9 +26,10 @@ import io.vertx.kafka.client.consumer.KafkaConsumer
 import io.vertx.kotlin.core.json.get
 import io.vertx.kotlin.core.json.jsonArrayOf
 import io.vertx.kotlin.core.json.jsonObjectOf
+import io.vertx.kotlin.core.net.netClientOptionsOf
 import io.vertx.kotlin.coroutines.await
 import io.vertx.kotlin.coroutines.dispatcher
-import io.vertx.kotlin.coroutines.toChannel
+import io.vertx.kotlin.coroutines.toReceiveChannel
 import io.vertx.kotlin.ext.auth.mongo.mongoAuthenticationOptionsOf
 import io.vertx.kotlin.ext.auth.mongo.mongoAuthorizationOptionsOf
 import io.vertx.kotlin.ext.mongo.indexOptionsOf
@@ -39,7 +43,6 @@ import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
-import mu.KotlinLogging
 import org.junit.jupiter.api.*
 import org.junit.jupiter.api.extension.ExtendWith
 import org.testcontainers.containers.DockerComposeContainer
@@ -54,11 +57,6 @@ import java.security.SecureRandom
 import java.time.LocalDate
 import java.util.*
 import java.util.concurrent.TimeUnit
-import kotlin.collections.ArrayList
-import kotlin.random.Random.Default.nextInt
-
-
-internal val LOGGER = KotlinLogging.logger {}
 
 @ExtendWith(VertxExtension::class)
 @Testcontainers
@@ -290,6 +288,7 @@ class TestRelaysCommunicationVerticle {
         password = mqttPassword,
         willFlag = true,
         willMessage = jsonObjectOf("company" to "biot").encode(),
+        ssl = false,
         maxMessageSize = 100_000
       )
     )
@@ -606,12 +605,12 @@ class TestRelaysCommunicationVerticle {
   private fun gen1026UniqueMacs(): List<String> {
     val possibleChar = "0123456789abcdef"
     val res = arrayListOf<String>()
-    for(i in 1..1026) {
+    for (i in 1..1026) {
       var newMac = ""
       do {
-          for(j in 0..12){
-            newMac += possibleChar[possibleChar.indices.random()]
-          }
+        for (j in 0..12) {
+          newMac += possibleChar[possibleChar.indices.random()]
+        }
       } while (res.contains(newMac))
       res.add(newMac)
     }
@@ -657,7 +656,8 @@ class TestRelaysCommunicationVerticle {
   private fun dropAllItems(): CompositeFuture {
     return CompositeFuture.all(
       pgClient.query("DELETE FROM items").execute(),
-      pgClient.query("DELETE FROM items_$anotherCompanyName").execute()
+      pgClient.query("DELETE FROM items_$anotherCompanyName").execute(),
+      pgClient.query("DROP TABLE items_$anotherCompanyName").execute()
     )
   }
 
@@ -717,7 +717,7 @@ class TestRelaysCommunicationVerticle {
   fun clientSubscribesAndReceivesLastConfig(vertx: Vertx, testContext: VertxTestContext): Unit =
     runBlocking(vertx.dispatcher()) {
       try {
-        mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+        mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, MQTT_HOST).await()
         mqttClient.publishHandler { msg ->
           if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
             testContext.verify {
@@ -744,10 +744,10 @@ class TestRelaysCommunicationVerticle {
   @DisplayName("A MQTT client without authentication is refused connection")
   fun clientWithoutAuthIsRefusedConnection(vertx: Vertx, testContext: VertxTestContext) =
     runBlocking(vertx.dispatcher()) {
-      val client = MqttClient.create(vertx)
+      val client = MqttClient.create(vertx, mqttClientOptionsOf(ssl = false))
 
       try {
-        client.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+        client.connect(MQTT_PORT, MQTT_HOST).await()
         testContext.failNow("The client was able to connect without authentication")
       } catch (error: Throwable) {
         testContext.completeNow()
@@ -765,13 +765,59 @@ class TestRelaysCommunicationVerticle {
           username = configuration["mqttUsername"],
           password = "wrongPassword",
           willFlag = true,
-          willMessage = jsonObjectOf("company" to "biot").encode()
+          willMessage = jsonObjectOf("company" to "biot").encode(),
+          ssl = false
         )
       )
 
       try {
-        client.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+        client.connect(MQTT_PORT, MQTT_HOST).await()
         testContext.failNow("The client was able to connect with a wrong password")
+      } catch (error: Throwable) {
+        testContext.completeNow()
+      }
+    }
+
+  @Test
+  @DisplayName("A MQTT client without a will is refused connection")
+  fun clientWithNoWillIsRefusedConnection(vertx: Vertx, testContext: VertxTestContext) =
+    runBlocking(vertx.dispatcher()) {
+      val client = MqttClient.create(
+        vertx,
+        mqttClientOptionsOf(
+          clientId = configuration["mqttID"],
+          username = configuration["mqttUsername"],
+          password = "wrongPassword",
+          ssl = false
+        )
+      )
+
+      try {
+        client.connect(MQTT_PORT, MQTT_HOST).await()
+        testContext.failNow("The client was able to connect without a will")
+      } catch (error: Throwable) {
+        testContext.completeNow()
+      }
+    }
+
+  @Test
+  @DisplayName("A MQTT client without a will message is refused connection")
+  fun clientWithNoWillMessageIsRefusedConnection(vertx: Vertx, testContext: VertxTestContext) =
+    runBlocking(vertx.dispatcher()) {
+      val client = MqttClient.create(
+        vertx,
+        mqttClientOptionsOf(
+          clientId = configuration["mqttID"],
+          username = configuration["mqttUsername"],
+          password = "wrongPassword",
+          willFlag = true,
+          ssl = false
+        )
+      )
+
+      try {
+        client.connect(MQTT_PORT, MQTT_HOST).await()
+        testContext.failNow("The client was able to connect without a will message")
       } catch (error: Throwable) {
         testContext.completeNow()
       }
@@ -793,7 +839,7 @@ class TestRelaysCommunicationVerticle {
             }
           }
         }
-      }.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+      }.connect(MQTT_PORT, MQTT_HOST).await()
 
       mqttClient.subscribe(UPDATE_PARAMETERS_TOPIC, MqttQoS.AT_LEAST_ONCE.value()).await()
       vertx.eventBus().send(RELAYS_UPDATE_ADDRESS, message)
@@ -829,10 +875,10 @@ class TestRelaysCommunicationVerticle {
     )
 
     try {
-      mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+      mqttClient.connect(MQTT_PORT, MQTT_HOST).await()
       mqttClient.publish(INGESTION_TOPIC, message.toBuffer(), MqttQoS.AT_LEAST_ONCE, false, false).await()
       kafkaConsumer.subscribe(INGESTION_TOPIC).await()
-      val stream = kafkaConsumer.asStream().toChannel(vertx)
+      val stream = kafkaConsumer.asStream().toReceiveChannel(vertx)
       for (record in stream) {
         testContext.verify {
           val relayID = message.getString("relayID")
@@ -884,10 +930,10 @@ class TestRelaysCommunicationVerticle {
       )
 
       try {
-        mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+        mqttClient.connect(MQTT_PORT, MQTT_HOST).await()
         mqttClient.publish(INGESTION_TOPIC, message.toBuffer(), MqttQoS.AT_LEAST_ONCE, false, false).await()
         kafkaConsumer.subscribe(INGESTION_TOPIC).await()
-        val stream = kafkaConsumer.asStream().toChannel(vertx)
+        val stream = kafkaConsumer.asStream().toReceiveChannel(vertx)
         testContext.verify {
           if (stream.isEmpty) {
             testContext.completeNow()
@@ -927,10 +973,10 @@ class TestRelaysCommunicationVerticle {
       )
 
       try {
-        mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+        mqttClient.connect(MQTT_PORT, MQTT_HOST).await()
         mqttClient.publish(INGESTION_TOPIC, message.toBuffer(), MqttQoS.AT_LEAST_ONCE, false, false).await()
         kafkaConsumer.subscribe(INGESTION_TOPIC).await()
-        val stream = kafkaConsumer.asStream().toChannel(vertx)
+        val stream = kafkaConsumer.asStream().toReceiveChannel(vertx)
         testContext.verify {
           if (stream.isEmpty) {
             testContext.completeNow()
@@ -972,10 +1018,10 @@ class TestRelaysCommunicationVerticle {
       )
 
       try {
-        mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+        mqttClient.connect(MQTT_PORT, MQTT_HOST).await()
         mqttClient.publish(INGESTION_TOPIC, message.toBuffer(), MqttQoS.AT_LEAST_ONCE, false, false).await()
         kafkaConsumer.subscribe(INGESTION_TOPIC).await()
-        val stream = kafkaConsumer.asStream().toChannel(vertx)
+        val stream = kafkaConsumer.asStream().toReceiveChannel(vertx)
         testContext.verify {
           if (stream.isEmpty) {
             testContext.completeNow()
@@ -1017,10 +1063,10 @@ class TestRelaysCommunicationVerticle {
       )
 
       try {
-        mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+        mqttClient.connect(MQTT_PORT, MQTT_HOST).await()
         mqttClient.publish(INGESTION_TOPIC, message.toBuffer(), MqttQoS.AT_LEAST_ONCE, false, false).await()
         kafkaConsumer.subscribe(INGESTION_TOPIC).await()
-        val stream = kafkaConsumer.asStream().toChannel(vertx)
+        val stream = kafkaConsumer.asStream().toReceiveChannel(vertx)
         testContext.verify {
           if (stream.isEmpty) {
             testContext.completeNow()
@@ -1062,10 +1108,10 @@ class TestRelaysCommunicationVerticle {
       )
 
       try {
-        mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+        mqttClient.connect(MQTT_PORT, MQTT_HOST).await()
         mqttClient.publish(INGESTION_TOPIC, message.toBuffer(), MqttQoS.AT_LEAST_ONCE, false, false).await()
         kafkaConsumer.subscribe(INGESTION_TOPIC).await()
-        val stream = kafkaConsumer.asStream().toChannel(vertx)
+        val stream = kafkaConsumer.asStream().toReceiveChannel(vertx)
         testContext.verify {
           if (stream.isEmpty) {
             testContext.completeNow()
@@ -1107,10 +1153,10 @@ class TestRelaysCommunicationVerticle {
       )
 
       try {
-        mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+        mqttClient.connect(MQTT_PORT, MQTT_HOST).await()
         mqttClient.publish(INGESTION_TOPIC, message.toBuffer(), MqttQoS.AT_LEAST_ONCE, false, false).await()
         kafkaConsumer.subscribe(INGESTION_TOPIC).await()
-        val stream = kafkaConsumer.asStream().toChannel(vertx)
+        val stream = kafkaConsumer.asStream().toReceiveChannel(vertx)
         testContext.verify {
           if (stream.isEmpty) {
             testContext.completeNow()
@@ -1152,10 +1198,10 @@ class TestRelaysCommunicationVerticle {
       )
 
       try {
-        mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+        mqttClient.connect(MQTT_PORT, MQTT_HOST).await()
         mqttClient.publish(INGESTION_TOPIC, message.toBuffer(), MqttQoS.AT_LEAST_ONCE, false, false).await()
         kafkaConsumer.subscribe(INGESTION_TOPIC).await()
-        val stream = kafkaConsumer.asStream().toChannel(vertx)
+        val stream = kafkaConsumer.asStream().toReceiveChannel(vertx)
         testContext.verify {
           if (stream.isEmpty) {
             testContext.completeNow()
@@ -1180,12 +1226,13 @@ class TestRelaysCommunicationVerticle {
           username = configurationAnotherCompany["mqttUsername"],
           password = mqttPassword,
           willFlag = true,
-          willMessage = jsonObjectOf("company" to anotherCompanyName).encode()
+          willMessage = jsonObjectOf("company" to anotherCompanyName).encode(),
+          ssl = false,
         )
       )
 
       try {
-        client.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+        client.connect(MQTT_PORT, MQTT_HOST).await()
         client.publishHandler { msg ->
           if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
             testContext.verify {
@@ -1212,7 +1259,7 @@ class TestRelaysCommunicationVerticle {
     runBlocking(vertx.dispatcher()) {
       var msgCounter = 0
       try {
-        mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+        mqttClient.connect(MQTT_PORT, MQTT_HOST).await()
         mqttClient.publishHandler { msg ->
           if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
             when (msgCounter) {
@@ -1274,7 +1321,7 @@ class TestRelaysCommunicationVerticle {
     runBlocking(vertx.dispatcher()) {
       var msgCounter = 0
       try {
-        mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+        mqttClient.connect(MQTT_PORT, MQTT_HOST).await()
         mqttClient.publishHandler { msg ->
           if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
             when (msgCounter) {
@@ -1334,8 +1381,35 @@ class TestRelaysCommunicationVerticle {
       }
     }
 
+  @Test
+  @DisplayName("Liveness check works")
+  fun livenessCheckWorks(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      try {
+        val client = vertx.createNetClient(netClientOptionsOf())
+        client.connect(LIVENESS_PORT, MQTT_HOST).await()
+        testContext.completeNow()
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+
+  @Test
+  @DisplayName("Readiness check works")
+  fun readinessCheckWorks(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      try {
+        val client = vertx.createNetClient(netClientOptionsOf())
+        client.connect(READINESS_PORT, MQTT_HOST).await()
+        testContext.completeNow()
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
 
   companion object {
+
+    private const val MQTT_HOST = "localhost"
 
     private val instance: KDockerComposeContainer by lazy { defineDockerCompose() }
 

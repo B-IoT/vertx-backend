@@ -5,7 +5,7 @@
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import org.gradle.api.tasks.testing.logging.TestLogEvent.*
 
-version = "1.0.2-SNAPSHOT"
+version = "1.1.0-SNAPSHOT"
 
 val mainVerticleName = "ch.biot.backend.relayscommunication.RelaysCommunicationVerticle"
 val watchForChange = "src/**/*"
@@ -81,7 +81,7 @@ jib {
   }
   to {
     image = "vertx-backend/relays-communication"
-    tags = setOf("v1.0.2", "latest")
+    tags = setOf("v1.1.0", "latest")
   }
   container {
     mainClass = mainVerticleName

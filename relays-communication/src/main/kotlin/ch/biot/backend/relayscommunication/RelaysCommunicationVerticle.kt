@@ -7,6 +7,7 @@ package ch.biot.backend.relayscommunication
 import io.netty.handler.codec.mqtt.MqttConnectReturnCode
 import io.netty.handler.codec.mqtt.MqttQoS
 import io.vertx.core.*
+import io.vertx.core.http.ClientAuth
 import io.vertx.core.json.DecodeException
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.auth.mongo.MongoAuthentication
@@ -16,11 +17,14 @@ import io.vertx.kafka.client.producer.KafkaProducerRecord
 import io.vertx.kotlin.core.eventbus.eventBusOptionsOf
 import io.vertx.kotlin.core.json.get
 import io.vertx.kotlin.core.json.jsonObjectOf
+import io.vertx.kotlin.core.net.netServerOptionsOf
+import io.vertx.kotlin.core.net.pemKeyCertOptionsOf
 import io.vertx.kotlin.core.vertxOptionsOf
 import io.vertx.kotlin.coroutines.CoroutineVerticle
 import io.vertx.kotlin.coroutines.await
 import io.vertx.kotlin.coroutines.dispatcher
 import io.vertx.kotlin.ext.auth.mongo.mongoAuthenticationOptionsOf
+import io.vertx.kotlin.mqtt.mqttServerOptionsOf
 import io.vertx.kotlin.pgclient.pgConnectOptionsOf
 import io.vertx.kotlin.sqlclient.poolOptionsOf
 import io.vertx.mqtt.MqttEndpoint
@@ -47,7 +51,8 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     internal const val RELAYS_UPDATE_ADDRESS = "relays.update"
 
     private val environment = System.getenv()
-    internal val MQTT_PORT = environment.getOrDefault("MQTT_PORT", "1883").toInt()
+    internal val MQTT_PORT =
+      environment.getOrDefault("MQTT_PORT", "1883").toInt() // Externally (outside the cluster) the port is 443
 
     private val MONGO_HOST: String = environment.getOrDefault("MONGO_HOST", "localhost")
     internal val MONGO_PORT = environment.getOrDefault("MONGO_PORT", "27017").toInt()
@@ -60,8 +65,8 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
 
     private const val ITEMS_TABLE = "items"
 
-    private const val LIVENESS_PORT = 1884
-    private const val READINESS_PORT = 1885
+    internal const val LIVENESS_PORT = 1884
+    internal const val READINESS_PORT = 1885
 
     private const val UPDATE_CONFIG_INTERVAL_SECONDS: Long = 20
 
@@ -88,18 +93,21 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
         LOGGER.error(error) { "Could not start" }
       }
     }
-
-
   }
 
-  private val clients = mutableMapOf<String, MqttEndpoint>() // map of subscribed clientIdentifier to client
+  /**
+   * Map of subscribed clientIdentifier to client.
+   */
+  private val clients = mutableMapOf<String, MqttEndpoint>()
 
+  /**
+   * We use this to check whether the whiteList changed or not since last sent, so that we do not overwhelm the relays.
+   */
   private val whiteListHashes = mutableMapOf<String, Int>() // map of company to the hash of the whiteListString
-  // We use this to check whether the whiteList changed or not since
-  // last sent, so that we do not overwhelm the relays
 
-  // Map from collection name to MongoAuthentication
-  // It is used since there is a collection per company
+  /**
+   * Map from collection name to MongoAuthentication. It is used since there is a collection per company.
+   */
   private val mongoAuthRelaysCache: MutableMap<String, MongoAuthentication> = mutableMapOf()
 
   private lateinit var kafkaProducer: KafkaProducer<String, JsonObject>
@@ -157,19 +165,31 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
       )
     pgClient = PgPool.client(vertx, pgConnectOptions, poolOptionsOf())
 
-//    // Certificate for TLS
-//    val pemKeyCertOptions = pemKeyCertOptionsOf(certPath = "certificate.pem", keyPath = "certificate_key.pem")
-//    val netServerOptions = netServerOptionsOf(ssl = true, pemKeyCertOptions = pemKeyCertOptions)
+    // Certificate for TLS
+    val pemKeyCertOptions = pemKeyCertOptionsOf(certPath = "certificate.pem", keyPath = "certificate_key.pem")
+    val netServerOptions = netServerOptionsOf(ssl = true, pemKeyCertOptions = pemKeyCertOptions)
+    val mqttServerOptions = mqttServerOptionsOf(
+      useWebSocket = TIMESCALE_HOST != "localhost", // SSL is disabled when testing
+      ssl = false,
+      pemKeyCertOptions = pemKeyCertOptions,
+      clientAuth = ClientAuth.REQUEST
+    )
 
     try {
       // TCP server for liveness checks
-      vertx.createNetServer().connectHandler { LOGGER.debug { "Liveness check" } }.listen(LIVENESS_PORT).await()
-      MqttServer.create(vertx).endpointHandler { client ->
+      vertx.createNetServer(netServerOptions).connectHandler { LOGGER.debug { "Liveness check" } }.listen(LIVENESS_PORT)
+        .await()
+
+      // MQTT server
+      MqttServer.create(vertx, mqttServerOptions).endpointHandler { client ->
         launch(vertx.dispatcher()) { handleClient(client) }
       }.listen(MQTT_PORT).await()
 
       LOGGER.info { "MQTT server listening on port $MQTT_PORT" }
-      vertx.createNetServer().connectHandler { LOGGER.debug { "Readiness check complete" } }.listen(READINESS_PORT)
+
+      // TCP server for readiness checks
+      vertx.createNetServer(netServerOptions).connectHandler { LOGGER.debug { "Readiness check complete" } }
+        .listen(READINESS_PORT)
         .await()
     } catch (error: Throwable) {
       LOGGER.error(error) { "An error occurred while creating the server" }
@@ -193,7 +213,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     val mqttAuth = client.auth()
     if (mqttAuth == null) {
       // No auth information, reject
-      LOGGER.error { "Client [$clientIdentifier] rejected" }
+      LOGGER.error { "Client [$clientIdentifier] rejected because no auth specified" }
       client.reject(MqttConnectReturnCode.CONNECTION_REFUSED_NOT_AUTHORIZED)
       return
     }
@@ -203,6 +223,15 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
       "username" to mqttAuth.username,
       "password" to mqttAuth.password
     )
+
+    val will = client.will()
+    if (will == null || will.willMessage == null || will.willMessage.length() == 0) {
+      // No will, reject
+      LOGGER.error { "Client $clientIdentifier rejected because no will specified" }
+      client.reject(MqttConnectReturnCode.CONNECTION_REFUSED_UNSPECIFIED_ERROR)
+      return
+    }
+
     val company = client.will().willMessage.toJsonObject().getString("company")
     val collection = if (company != "biot") "${RELAYS_COLLECTION}_$company" else RELAYS_COLLECTION
     val mongoAuthRelays = if (mongoAuthRelaysCache.containsKey(collection)) {
