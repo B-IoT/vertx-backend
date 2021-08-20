@@ -39,6 +39,7 @@ import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 import kotlinx.coroutines.runBlocking
+import mu.KotlinLogging
 import org.junit.jupiter.api.*
 import org.junit.jupiter.api.extension.ExtendWith
 import org.testcontainers.containers.DockerComposeContainer
@@ -55,10 +56,15 @@ class TestCRUDVerticleItems {
 
   private lateinit var pgClient: SqlClient
 
+  // Will be overwritten when creating the actual categories in the DB
+  private var ecgCategory: Pair<Int, String> = 1 to "ECG"
+  private var litCategory: Pair<Int, String> = 2 to "Lit"
+  private var lit2Category: Pair<Int, String> = 3 to "Lit2"
+
   private var existingItemID: Int = 1
   private val existingItem = jsonObjectOf(
     "beacon" to "ab:ab:ab:ab:ab:ab",
-    "category" to "ECG",
+    "categoryID" to ecgCategory.first,
     "service" to "Bloc 2",
     "itemID" to "abc",
     "accessControlString" to "biot",
@@ -85,7 +91,7 @@ class TestCRUDVerticleItems {
 
   private val closestItem = jsonObjectOf(
     "beacon" to "ff:ff:ab:ab:ab:ab",
-    "category" to "Lit",
+    "categoryID" to litCategory.first,
     "service" to "Bloc 1",
     "itemID" to "cde",
     "accessControlString" to "biot",
@@ -122,7 +128,7 @@ class TestCRUDVerticleItems {
 
   private val updateItemJson = jsonObjectOf(
     "beacon" to "ad:ab:ab:ab:ab:ab",
-    "category" to "Lit",
+    "categoryID" to litCategory.first,
     "service" to "Bloc 42",
     "itemID" to "new",
     "accessControlString" to "biot",
@@ -149,7 +155,7 @@ class TestCRUDVerticleItems {
 
   private val existingItemGrp1 = jsonObjectOf(
     "beacon" to "ab:ab:ab:ab:ff:ff",
-    "category" to "ECG",
+    "categoryID" to ecgCategory.first,
     "service" to "Bloc 2",
     "itemID" to "abc",
     "accessControlString" to "biot:grp1",
@@ -176,7 +182,7 @@ class TestCRUDVerticleItems {
 
   private val existingItemGrp2 = jsonObjectOf(
     "beacon" to "ab:ab:ab:af:ff:ff",
-    "category" to "ECG",
+    "categoryID" to ecgCategory.first,
     "service" to "Bloc 2",
     "itemID" to "abc",
     "accessControlString" to "biot:grp2",
@@ -205,7 +211,7 @@ class TestCRUDVerticleItems {
   private val existingItemGrp1Grp3 = jsonObjectOf(
     "id" to 1234,
     "beacon" to "fakegrp1grp3",
-    "category" to "ECG",
+    "categoryID" to ecgCategory.first,
     "service" to "Bloc 2",
     "itemID" to "abc",
     "accessControlString" to "biot:grp1:grp3",
@@ -232,7 +238,7 @@ class TestCRUDVerticleItems {
 
   private val closestItemGrp1 = jsonObjectOf(
     "beacon" to "fakeClosestGrp1",
-    "category" to "Lit",
+    "categoryID" to litCategory.first,
     "service" to "Bloc 1",
     "itemID" to "cde",
     "accessControlString" to "biot:grp1",
@@ -259,7 +265,7 @@ class TestCRUDVerticleItems {
 
   private val closestItemGrp1Cat2 = jsonObjectOf(
     "beacon" to "fakeCloseGrp1Ct2",
-    "category" to "Lit2",
+    "categoryID" to lit2Category.first,
     "service" to "Bloc 1",
     "itemID" to "cde",
     "accessControlString" to "biot:grp1",
@@ -300,6 +306,8 @@ class TestCRUDVerticleItems {
     try {
       dropAllSnapshots().await()
       dropAllItems().await()
+      dropAllCategories().await()
+      insertCategories().await()
       insertItems().await()
       vertx.deployVerticle(CRUDVerticle(), testContext.succeedingThenComplete())
     } catch (error: Throwable) {
@@ -314,6 +322,13 @@ class TestCRUDVerticleItems {
     )
   }
 
+  private fun dropAllCategories(): CompositeFuture {
+    return CompositeFuture.all(
+      pgClient.query("DELETE FROM categories").execute(),
+      pgClient.query("DELETE FROM company_categories").execute()
+    )
+  }
+
   private suspend fun dropAllSnapshots(): CompositeFuture {
     val firstTableExists = pgClient.tableExists("items_snapshot_1")
     val secondTableExists = pgClient.tableExists("items_snapshot_2")
@@ -325,12 +340,37 @@ class TestCRUDVerticleItems {
     )
   }
 
+  private suspend fun insertCategories(): Future<RowSet<Row>> {
+    ecgCategory = pgClient.preparedQuery(insertCategory())
+      .execute(Tuple.of(ecgCategory.second)).await().iterator().next().getInteger("id") to ecgCategory.second
+    existingItem.put("categoryID", ecgCategory.first)
+    existingItemGrp1.put("categoryID", ecgCategory.first)
+    existingItemGrp2.put("categoryID", ecgCategory.first)
+    existingItemGrp1Grp3.put("categoryID", ecgCategory.first)
+    pgClient.preparedQuery(addCategoryToCompany())
+      .execute(Tuple.of(ecgCategory.first, "biot")).await()
+
+    litCategory = pgClient.preparedQuery(insertCategory())
+      .execute(Tuple.of(litCategory.second)).await().iterator().next().getInteger("id") to litCategory.second
+    closestItem.put("categoryID", litCategory.first)
+    updateItemJson.put("categoryID", litCategory.first)
+    closestItemGrp1.put("categoryID", litCategory.first)
+    pgClient.preparedQuery(addCategoryToCompany())
+      .execute(Tuple.of(litCategory.first, "biot")).await()
+
+    lit2Category = pgClient.preparedQuery(insertCategory())
+      .execute(Tuple.of(lit2Category.second)).await().iterator().next().getInteger("id") to lit2Category.second
+    closestItemGrp1Cat2.put("categoryID", lit2Category.first)
+    return pgClient.preparedQuery(addCategoryToCompany())
+      .execute(Tuple.of(lit2Category.first, "biot"))
+  }
+
   private suspend fun insertItems(): Future<RowSet<Row>> {
     val result = pgClient.preparedQuery(insertItem("items"))
       .execute(
         Tuple.of(
           existingItem["beacon"],
-          existingItem["category"],
+          existingItem["categoryID"],
           existingItem["service"],
           existingItem["itemID"],
           existingItem["accessControlString"],
@@ -362,7 +402,7 @@ class TestCRUDVerticleItems {
       .execute(
         Tuple.of(
           closestItem["beacon"],
-          closestItem["category"],
+          closestItem["categoryID"],
           closestItem["service"],
           closestItem["itemID"],
           closestItem["accessControlString"],
@@ -392,7 +432,7 @@ class TestCRUDVerticleItems {
       .execute(
         Tuple.of(
           "fake1",
-          closestItem["category"],
+          closestItem["categoryID"],
           closestItem["service"],
           closestItem["itemID"],
           closestItem["accessControlString"],
@@ -422,7 +462,7 @@ class TestCRUDVerticleItems {
       .execute(
         Tuple.of(
           "fake2",
-          closestItem["category"],
+          closestItem["categoryID"],
           closestItem["service"],
           closestItem["itemID"],
           closestItem["accessControlString"],
@@ -452,7 +492,7 @@ class TestCRUDVerticleItems {
       .execute(
         Tuple.of(
           "fake3",
-          closestItem["category"],
+          closestItem["categoryID"],
           closestItem["service"],
           closestItem["itemID"],
           closestItem["accessControlString"],
@@ -482,7 +522,7 @@ class TestCRUDVerticleItems {
       .execute(
         Tuple.of(
           "fake4",
-          closestItem["category"],
+          closestItem["categoryID"],
           closestItem["service"],
           closestItem["itemID"],
           closestItem["accessControlString"],
@@ -512,7 +552,7 @@ class TestCRUDVerticleItems {
       .execute(
         Tuple.of(
           "fake5",
-          closestItem["category"],
+          closestItem["categoryID"],
           closestItem["service"],
           closestItem["itemID"],
           closestItem["accessControlString"],
@@ -662,6 +702,7 @@ class TestCRUDVerticleItems {
     try {
       dropAllSnapshots().await()
       dropAllItems().await()
+      dropAllCategories().await()
       pgClient.close()
       testContext.completeNow()
     } catch (error: Throwable) {
@@ -950,7 +991,11 @@ class TestCRUDVerticleItems {
         expectThat(items.size()).isGreaterThan(0)
 
         val firstItem = items.getJsonObject(0).apply { remove("id") }
-        expectThat(firstItem).isEqualTo(existingItem)
+        val expected = existingItem.copy().apply {
+          remove("categoryID")
+          put("category", ecgCategory.second)
+        }
+        expectThat(firstItem).isEqualTo(expected)
 
         testContext.completeNow()
       }
@@ -1416,12 +1461,20 @@ class TestCRUDVerticleItems {
           expectThat(onlySecond.size()).isEqualTo(2)
           expectThat(inCommon.size()).isEqualTo(7)
 
-          expectThat(onlySecond.getJsonObject(0).apply { remove("id") }
-            .getString("beacon")).isEqualTo(newItem1.getString("beacon"))
-          expectThat(onlySecond.getJsonObject(1).apply { remove("id") }
-            .getString("beacon")).isEqualTo(newItem2.getString("beacon"))
+          expectThat(onlySecond.any { entry ->
+            val jsonObj = entry as JsonObject
+            jsonObj.apply { remove("id") }.getString("beacon") == newItem1.getString("beacon")
+          }).isTrue()
+          expectThat(onlySecond.any { entry ->
+            val jsonObj = entry as JsonObject
+            jsonObj.apply { remove("id") }.getString("beacon") == newItem2.getString("beacon")
+          }).isTrue()
 
-          expectThat(inCommon.getJsonObject(0).apply { remove("id") }).isEqualTo(existingItem)
+          expectThat(inCommon).contains(existingItem.apply {
+            remove("categoryID")
+            put("category", ecgCategory.second)
+            put("id", existingItemID)
+          })
 
           testContext.completeNow()
         }
@@ -1435,7 +1488,7 @@ class TestCRUDVerticleItems {
   fun registerItemIsCorrect(testContext: VertxTestContext) {
     val newItem = jsonObjectOf(
       "beacon" to "aa:aa:aa:aa:aa:aa",
-      "category" to "Lit",
+      "categoryID" to litCategory.first,
       "service" to "Bloc 1",
       "itemID" to "ee",
       "brand" to "oo",
@@ -1527,7 +1580,7 @@ class TestCRUDVerticleItems {
     runBlocking(vertx.dispatcher()) {
       val newItem = jsonObjectOf(
         "beacon" to "aa:aa:aa:aa:aa:aa",
-        "category" to "Lit",
+        "categoryID" to litCategory.first,
         "service" to "Bloc 1",
         "itemID" to "ee",
         "brand" to "oo",
@@ -1575,7 +1628,8 @@ class TestCRUDVerticleItems {
         val json = res.iterator().next().toItemJson()
         expect {
           that(json.getString("beacon")).isEqualTo(newItem.getString("beacon"))
-          that(json.getString("category")).isEqualTo(newItem.getString("category"))
+          that(newItem.getInteger("categoryID")).isEqualTo(litCategory.first)
+          that(json.getString("category")).isEqualTo(litCategory.second)
           that(json.getString("service")).isEqualTo(newItem.getString("service"))
           that(json.getString("itemID")).isEqualTo(newItem.getString("itemID"))
           that(json.getString("brand")).isEqualTo(newItem.getString("brand"))
@@ -1615,7 +1669,7 @@ class TestCRUDVerticleItems {
       .execute(
         Tuple.of(
           "fake6",
-          existingItemGrp1["category"],
+          existingItemGrp1["categoryID"],
           existingItemGrp1["service"],
           existingItemGrp1["itemID"],
           existingItemGrp1["accessControlString"],
@@ -1645,7 +1699,7 @@ class TestCRUDVerticleItems {
       .execute(
         Tuple.of(
           "fake7",
-          existingItemGrp2["category"],
+          existingItemGrp2["categoryID"],
           existingItemGrp2["service"],
           existingItemGrp2["itemID"],
           existingItemGrp2["accessControlString"],
@@ -1675,7 +1729,7 @@ class TestCRUDVerticleItems {
       .execute(
         Tuple.of(
           existingItemGrp1Grp3["beacon"],
-          existingItemGrp1Grp3["category"],
+          existingItemGrp1Grp3["categoryID"],
           existingItemGrp1Grp3["service"],
           existingItemGrp1Grp3["itemID"],
           existingItemGrp1Grp3["accessControlString"],
@@ -1746,7 +1800,7 @@ class TestCRUDVerticleItems {
       .execute(
         Tuple.of(
           closestItemGrp1Cat2["beacon"],
-          closestItemGrp1Cat2["category"],
+          closestItemGrp1Cat2["categoryID"],
           closestItemGrp1Cat2["service"],
           closestItemGrp1Cat2["itemID"],
           closestItemGrp1Cat2["accessControlString"],
@@ -1776,7 +1830,7 @@ class TestCRUDVerticleItems {
       .execute(
         Tuple.of(
           closestItemGrp1["beacon"],
-          closestItemGrp1["category"],
+          closestItemGrp1["categoryID"],
           closestItemGrp1["service"],
           closestItemGrp1["itemID"],
           closestItemGrp1["accessControlString"],
@@ -1809,7 +1863,7 @@ class TestCRUDVerticleItems {
     val newItem = jsonObjectOf(
       "id" to 120,
       "beacon" to "aa:aa:aa:aa:aa:aa",
-      "category" to "Lit",
+      "categoryID" to litCategory.first,
       "service" to "Bloc 1",
       "itemID" to "ee",
       "brand" to "oo",
@@ -1928,7 +1982,7 @@ class TestCRUDVerticleItems {
 (
     id SERIAL PRIMARY KEY,
     beacon VARCHAR(17) UNIQUE,
-    category VARCHAR(100),
+    categoryID SERIAL REFERENCES categories(id) ON UPDATE CASCADE ON DELETE SET NULL,
     service VARCHAR(100),
     itemID VARCHAR(50),
     accessControlString VARCHAR(2048),
@@ -2018,7 +2072,7 @@ class TestCRUDVerticleItems {
         spec(requestSpecification)
         accept(ContentType.JSON)
       } When {
-        queryParam("category", existingItem.getString("category"))
+        queryParam("category", existingItem.getInteger("categoryID"))
         queryParam("company", "biot")
         queryParam("accessControlString", "biot")
         get("/items")
@@ -2033,7 +2087,8 @@ class TestCRUDVerticleItems {
       expectThat(response.isEmpty).isFalse()
       response.forEach {
         val jsonObj = it as JsonObject
-        expectThat(jsonObj.getString("category")).isEqualTo(existingItem.getString("category"))
+        expectThat(existingItem.getInteger("categoryID")).isEqualTo(ecgCategory.first)
+        expectThat(jsonObj.getString("category")).isEqualTo(ecgCategory.second)
       }
       testContext.completeNow()
     }
@@ -2128,7 +2183,7 @@ class TestCRUDVerticleItems {
         queryParam("longitude", -8)
         queryParam("company", "biot")
         queryParam("accessControlString", "biot")
-        queryParam("category", closestItem.getString("category"))
+        queryParam("category", closestItem.getInteger("categoryID"))
         get("/items/closest")
       } Then {
         statusCode(200)
@@ -2141,13 +2196,15 @@ class TestCRUDVerticleItems {
       val firstFloor: JsonArray = response["1"]
       expectThat(firstFloor.size()).isEqualTo(5)
       val closestFirstFloor = firstFloor.getJsonObject(0)
-      expectThat(closestFirstFloor.getString("category")).isEqualTo(closestItem.getString("category"))
+      expectThat(closestItem.getInteger("categoryID")).isEqualTo(litCategory.first)
+      expectThat(closestFirstFloor.getString("category")).isEqualTo(litCategory.second)
       expectThat(closestFirstFloor.getString("beacon")).isEqualTo(closestItem.getString("beacon"))
 
       val secondFloor: JsonArray = response["2"]
       expectThat(secondFloor.size()).isEqualTo(1)
       val closestSecondFloor = secondFloor.getJsonObject(0)
-      expectThat(closestSecondFloor.getString("category")).isEqualTo(closestItem.getString("category"))
+
+      expectThat(closestSecondFloor.getString("category")).isEqualTo(litCategory.second)
       expectThat(closestSecondFloor.getString("beacon")).isEqualTo("fake5")
 
       testContext.completeNow()
@@ -2157,7 +2214,13 @@ class TestCRUDVerticleItems {
   @Test
   @DisplayName("getCategories correctly retrieves all categories")
   fun getCategoriesIsCorrect(testContext: VertxTestContext) {
-    val expected = JsonArray(listOf(existingItem.getString("category"), closestItem.getString("category")))
+    val expected = JsonArray(
+      listOf(
+        jsonObjectOf("id" to ecgCategory.first, "name" to ecgCategory.second),
+        jsonObjectOf("id" to litCategory.first, "name" to litCategory.second),
+        jsonObjectOf("id" to lit2Category.first, "name" to lit2Category.second)
+      )
+    )
 
     val response = Buffer.buffer(
       Given {
@@ -2226,6 +2289,8 @@ class TestCRUDVerticleItems {
   @DisplayName("getItem correctly retrieves the desired item")
   fun getItemIsCorrect(testContext: VertxTestContext) {
     val expected = existingItem.copy().apply {
+      remove("categoryID")
+      put("category", ecgCategory.second)
       put("battery", existingBeaconData.getInteger("battery"))
       put("beaconStatus", existingBeaconData.getString("beaconStatus"))
       put("latitude", existingBeaconData.getDouble("latitude"))
@@ -2351,7 +2416,8 @@ class TestCRUDVerticleItems {
       val json = res.iterator().next().toItemJson()
       expect {
         that(json.getString("beacon")).isEqualTo(updateItemJson.getString("beacon"))
-        that(json.getString("category")).isEqualTo(updateItemJson.getString("category"))
+        that(updateItemJson.getInteger("categoryID")).isEqualTo(litCategory.first)
+        that(json.getString("category")).isEqualTo(litCategory.second)
         that(json.getString("service")).isEqualTo(updateItemJson.getString("service"))
         that(json.getString("itemID")).isEqualTo(updateItemJson.getString("itemID"))
         that(json.getString("brand")).isEqualTo(updateItemJson.getString("brand"))
@@ -2460,7 +2526,8 @@ class TestCRUDVerticleItems {
         val json = res.iterator().next().toItemJson()
         expect {
           that(json.getString("beacon")).isEqualTo(existingItem.getString("beacon"))
-          that(json.getString("category")).isEqualTo(existingItem.getString("category"))
+          that(existingItem.getInteger("categoryID")).isEqualTo(ecgCategory.first)
+          that(json.getString("category")).isEqualTo(ecgCategory.second)
           that(json.getString("service")).isEqualTo(updateJson.getString("service"))
           that(json.getString("itemID")).isEqualTo(existingItem.getString("itemID"))
           that(json.getString("brand")).isEqualTo(existingItem.getString("brand"))
@@ -2527,7 +2594,8 @@ class TestCRUDVerticleItems {
         val json = res.iterator().next().toItemJson()
         expect {
           that(json.getString("beacon")).isEqualTo(updateJson.getString("beacon"))
-          that(json.getString("category")).isEqualTo(updateJson.getString("category"))
+          that(updateJson.getInteger("categoryID")).isEqualTo(litCategory.first)
+          that(json.getString("category")).isEqualTo(litCategory.second)
           that(json.getString("service")).isEqualTo(updateJson.getString("service"))
           that(json.getString("itemID")).isEqualTo(updateJson.getString("itemID"))
           that(json.getString("brand")).isEqualTo(updateJson.getString("brand"))
@@ -2598,7 +2666,7 @@ class TestCRUDVerticleItems {
       spec(requestSpecification)
       contentType(ContentType.JSON)
       accept(ContentType.JSON)
-      body(jsonObjectOf("category" to 12).encode())
+      body(jsonObjectOf("categoryID" to "abcd").encode())
     } When {
       queryParam("company", "biot")
       queryParam("accessControlString", "biot")
@@ -2620,7 +2688,7 @@ class TestCRUDVerticleItems {
   fun deleteItemIsCorrect(testContext: VertxTestContext) {
     val newItem = jsonObjectOf(
       "beacon" to "ab:cd:ef:aa:aa:aa",
-      "category" to "Lit",
+      "categoryID" to litCategory.first,
       "service" to "Bloc 42"
     )
 
@@ -2729,7 +2797,7 @@ class TestCRUDVerticleItems {
     val itemId = 100
     val newItem = jsonObjectOf(
       "id" to itemId,
-      "category" to "ECG"
+      "categoryID" to ecgCategory.first
     )
     val expectedType = UpdateType.POST.toString()
 
@@ -2738,7 +2806,8 @@ class TestCRUDVerticleItems {
       testContext.verify {
         expectThat(body.getString("type")).isEqualTo(expectedType)
         expectThat(body.getInteger("id")).isEqualTo(itemId)
-        expectThat(body.getJsonObject("content").getString("category")).isEqualTo(newItem.getString("category"))
+        expectThat(newItem.getInteger("categoryID")).isEqualTo(ecgCategory.first)
+        expectThat(body.getJsonObject("content").getString("category")).isEqualTo(ecgCategory.second)
         testContext.completeNow()
       }
     }
@@ -2762,10 +2831,10 @@ class TestCRUDVerticleItems {
     val itemId = 999999
     val newItem = jsonObjectOf(
       "id" to itemId,
-      "category" to "ECG"
+      "categoryID" to ecgCategory.first
     )
     val updateItem = jsonObjectOf(
-      "category" to "Lit"
+      "categoryID" to litCategory.first
     )
     val expectedType = UpdateType.PUT.toString()
 
@@ -2788,7 +2857,8 @@ class TestCRUDVerticleItems {
         if (type != UpdateType.POST.toString()) {
           expectThat(body.getString("type")).isEqualTo(expectedType)
           expectThat(body.getInteger("id")).isEqualTo(itemId)
-          expectThat(body.getJsonObject("content").getString("category")).isEqualTo(updateItem.getString("category"))
+          expectThat(updateItem.getInteger("categoryID")).isEqualTo(litCategory.first)
+          expectThat(body.getJsonObject("content").getString("category")).isEqualTo(litCategory.second)
           testContext.completeNow()
         }
       }
@@ -2813,7 +2883,7 @@ class TestCRUDVerticleItems {
     val itemId = 100
     val newItem = jsonObjectOf(
       "id" to itemId,
-      "category" to "ECG"
+      "categoryID" to ecgCategory.first
     )
     val expectedType = UpdateType.DELETE.toString()
 
@@ -2862,7 +2932,7 @@ class TestCRUDVerticleItems {
     runBlocking(vertx.dispatcher()) {
       val newItem = jsonObjectOf(
         "beacon" to "aa:aa:aa:aa:aa:aa",
-        "category" to "Lit",
+        "categoryID" to litCategory.first,
         "service" to "Bloc 1",
         "itemID" to "ee",
         "brand" to "oo",
@@ -2911,7 +2981,8 @@ class TestCRUDVerticleItems {
         val json = res.iterator().next().toItemJson()
         expect {
           that(json.getString("beacon")).isEqualTo(newItem.getString("beacon"))
-          that(json.getString("category")).isEqualTo(newItem.getString("category"))
+          that(newItem.getInteger("categoryID")).isEqualTo(litCategory.first)
+          that(json.getString("category")).isEqualTo(litCategory.second)
           that(json.getString("service")).isEqualTo(newItem.getString("service"))
           that(json.getString("itemID")).isEqualTo(newItem.getString("itemID"))
           that(json.getString("accessControlString")).isEqualTo("biot")
@@ -2955,7 +3026,7 @@ class TestCRUDVerticleItems {
     runBlocking(vertx.dispatcher()) {
       val newItem = jsonObjectOf(
         "beacon" to "aa:aa:aa:aa:aa:aa",
-        "category" to "Lit",
+        "categoryID" to litCategory.first,
         "service" to "Bloc 1",
         "itemID" to "ee",
         "accessControlString" to "grpajfo",
@@ -3006,7 +3077,7 @@ class TestCRUDVerticleItems {
     runBlocking(vertx.dispatcher()) {
       val newItem = jsonObjectOf(
         "beacon" to "aa:aa:aa:aa:aa:aa",
-        "category" to "Lit",
+        "categoryID" to litCategory.first,
         "service" to "Bloc 1",
         "itemID" to "ee",
         "accessControlString" to "biot21:fdsa",
@@ -3057,7 +3128,7 @@ class TestCRUDVerticleItems {
     runBlocking(vertx.dispatcher()) {
       val newItem = jsonObjectOf(
         "beacon" to "aa:aa:aa:aa:aa:aa",
-        "category" to "Lit",
+        "categoryID" to litCategory.first,
         "service" to "Bloc 1",
         "itemID" to "ee",
         "accessControlString" to "",
@@ -3111,7 +3182,7 @@ class TestCRUDVerticleItems {
     runBlocking(vertx.dispatcher()) {
       val newItem = jsonObjectOf(
         "beacon" to "aa:aa:aa:aa:aa:aa",
-        "category" to "Lit",
+        "categoryID" to litCategory.first,
         "service" to "Bloc 1",
         "itemID" to "ee",
         "accessControlString" to "biot:grp1:grp2",
@@ -3161,7 +3232,8 @@ class TestCRUDVerticleItems {
         val json = res.iterator().next().toItemJson()
         expect {
           that(json.getString("beacon")).isEqualTo(newItem.getString("beacon"))
-          that(json.getString("category")).isEqualTo(newItem.getString("category"))
+          that(newItem.getInteger("categoryID")).isEqualTo(litCategory.first)
+          that(json.getString("category")).isEqualTo(litCategory.second)
           that(json.getString("service")).isEqualTo(newItem.getString("service"))
           that(json.getString("itemID")).isEqualTo(newItem.getString("itemID"))
           that(json.getString("accessControlString")).isEqualTo(newItem.getString("accessControlString"))
@@ -3206,7 +3278,7 @@ class TestCRUDVerticleItems {
     runBlocking(vertx.dispatcher()) {
       val newItem = jsonObjectOf(
         "beacon" to "aa:aa:aa:aa:aa:aa",
-        "category" to "Lit",
+        "categoryID" to litCategory.first,
         "service" to "Bloc 1",
         "itemID" to "ee",
         "brand" to "oo",
@@ -3255,7 +3327,8 @@ class TestCRUDVerticleItems {
         val json = res.iterator().next().toItemJson()
         expect {
           that(json.getString("beacon")).isEqualTo(newItem.getString("beacon"))
-          that(json.getString("category")).isEqualTo(newItem.getString("category"))
+          that(newItem.getInteger("categoryID")).isEqualTo(litCategory.first)
+          that(json.getString("category")).isEqualTo(litCategory.second)
           that(json.getString("service")).isEqualTo(newItem.getString("service"))
           that(json.getString("itemID")).isEqualTo(newItem.getString("itemID"))
           that(json.getString("accessControlString")).isEqualTo("biot")
@@ -3447,7 +3520,7 @@ class TestCRUDVerticleItems {
     runBlocking(vertx.dispatcher()) {
       val newItem = jsonObjectOf(
         "beacon" to "ae:ac:ab:aa:aa:ff",
-        "category" to "ECG",
+        "categoryID" to ecgCategory.first,
         "service" to "Bloc 1",
         "itemID" to "ee",
         "accessControlString" to "biot:grp1:grp2:grp3",
@@ -3496,7 +3569,8 @@ class TestCRUDVerticleItems {
         val json = res.iterator().next().toItemJson()
         expect {
           that(json.getString("beacon")).isEqualTo(newItem.getString("beacon"))
-          that(json.getString("category")).isEqualTo(newItem.getString("category"))
+          that(newItem.getInteger("categoryID")).isEqualTo(ecgCategory.first)
+          that(json.getString("category")).isEqualTo(ecgCategory.second)
           that(json.getString("service")).isEqualTo(newItem.getString("service"))
           that(json.getString("itemID")).isEqualTo(newItem.getString("itemID"))
           that(json.getString("brand")).isEqualTo(newItem.getString("brand"))
@@ -3539,7 +3613,7 @@ class TestCRUDVerticleItems {
     runBlocking(vertx.dispatcher()) {
       val newItem = jsonObjectOf(
         "beacon" to "ae:ac:ab:aa:aa:ff",
-        "category" to "ECG",
+        "categoryID" to ecgCategory.first,
         "service" to "Bloc 1",
         "itemID" to "ee",
         "brand" to "oo",
@@ -3679,7 +3753,7 @@ class TestCRUDVerticleItems {
             queryParam("latitude", 42)
             queryParam("longitude", -8)
             queryParam("company", "biot")
-            queryParam("category", closestItemGrp1Cat2.getString("category"))
+            queryParam("category", closestItemGrp1Cat2.getInteger("categoryID"))
             queryParam("accessControlString", closestItemGrp1Cat2.getString("accessControlString"))
             get("/items/closest")
           } Then {
@@ -3694,7 +3768,8 @@ class TestCRUDVerticleItems {
           val firstFloor: JsonArray = response["1"]
           expectThat(firstFloor.size()).isEqualTo(1)
           val closestFirstFloor = firstFloor.getJsonObject(0)
-          expectThat(closestFirstFloor.getString("category")).isEqualTo(closestItemGrp1Cat2.getString("category"))
+          expectThat(closestItemGrp1Cat2.getInteger("categoryID")).isEqualTo(lit2Category.first)
+          expectThat(closestFirstFloor.getString("category")).isEqualTo(lit2Category.second)
           expectThat(closestFirstFloor.getString("beacon")).isEqualTo(closestItemGrp1Cat2.getString("beacon"))
 
           testContext.completeNow()
@@ -3719,7 +3794,7 @@ class TestCRUDVerticleItems {
           } When {
             queryParam("latitude", 42)
             queryParam("longitude", -8)
-            queryParam("category", closestItemGrp1Cat2.getString("category"))
+            queryParam("category", closestItemGrp1Cat2.getInteger("categoryID"))
             queryParam("company", "biot")
             queryParam(
               "accessControlString",
@@ -3752,6 +3827,8 @@ class TestCRUDVerticleItems {
         insertItemsAccessControl().await()
 
         val expected = existingItemGrp1Grp3.copy().apply {
+          remove("categoryID")
+          put("category", ecgCategory.second)
           put("battery", existingBeaconData.getInteger("battery"))
           put("beaconStatus", existingBeaconData.getString("beaconStatus"))
           put("latitude", 47)
@@ -3798,6 +3875,8 @@ class TestCRUDVerticleItems {
         insertItemsAccessControl().await()
 
         val expected = existingItemGrp1Grp3.copy().apply {
+          remove("categoryID")
+          put("category", ecgCategory.second)
           put("battery", existingBeaconData.getInteger("battery"))
           put("beaconStatus", existingBeaconData.getString("beaconStatus"))
           put("latitude", 47)
@@ -3872,7 +3951,7 @@ class TestCRUDVerticleItems {
   fun deleteItemIsCorrectWithInsufficientAccessString(testContext: VertxTestContext) {
     val newItem = jsonObjectOf(
       "beacon" to "ab:cd:ef:aa:aa:aa",
-      "category" to "Lit",
+      "categoryID" to litCategory.first,
       "accessControlString" to "biot:grp1",
       "service" to "Bloc 42"
     )
@@ -3938,7 +4017,7 @@ class TestCRUDVerticleItems {
   fun deleteItemIsCorrectWithSufficientAccessString(testContext: VertxTestContext) {
     val newItem = jsonObjectOf(
       "beacon" to "ab:cd:ef:aa:aa:aa",
-      "category" to "Lit",
+      "categoryID" to litCategory.first,
       "accessControlString" to "biot:grp1",
       "service" to "Bloc 42"
     )
@@ -3995,81 +4074,6 @@ class TestCRUDVerticleItems {
   }
 
   @Test
-  @DisplayName("getCategories correctly retrieves only categories of accessible items when a accessControlString is passed 1")
-  fun getCategoriesIsCorrectWithAC1(testContext: VertxTestContext) {
-    val categoryTest1 = "Lit-AccessControlTests"
-    val categoryTest2 = "ECG-AccessControlTests"
-    val expected = JsonArray(listOf(categoryTest1, categoryTest2))
-
-    val acString = "biot:grp1:grp2:grpTests"
-    val newItem1 = jsonObjectOf(
-      "beacon" to "ab:cd:ef:aa:aa:aa",
-      "category" to categoryTest1,
-      "accessControlString" to acString,
-      "service" to "Bloc 42"
-    )
-
-    // Register the item
-    Given {
-      spec(requestSpecification)
-      contentType(ContentType.JSON)
-      body(newItem1.encode())
-    } When {
-      queryParam("company", "biot")
-      queryParam("accessControlString", "biot")
-      post("/items")
-    } Then {
-      statusCode(200)
-    }
-
-    val newItem2 = jsonObjectOf(
-      "beacon" to "ab:cd:ef:ag:ff:ff",
-      "category" to categoryTest2,
-      "accessControlString" to acString,
-      "service" to "Bloc 42"
-    )
-
-    // Register the item
-    val id2 = Given {
-      spec(requestSpecification)
-      contentType(ContentType.JSON)
-      body(newItem2.encode())
-    } When {
-      queryParam("company", "biot")
-      queryParam("accessControlString", "biot")
-      post("/items")
-    } Then {
-      statusCode(200)
-    } Extract {
-      asString()
-    }
-
-    testContext.verify {
-      expectThat(id2).isNotEmpty()
-    }
-
-    val response = Buffer.buffer(
-      Given {
-        spec(requestSpecification)
-        accept(ContentType.JSON)
-      } When {
-        queryParam("company", "biot")
-        queryParam("accessControlString", acString)
-        get("/items/categories")
-      } Then {
-        statusCode(200)
-      } Extract {
-        asString()
-      }
-    ).toJsonArray()
-
-    testContext.verify {
-      expectThat(response.toHashSet()).isEqualTo(expected.toHashSet())
-      testContext.completeNow()
-    }
-  }
-
-  @Test
   @DisplayName("updateItem correctly updates the desired item if the accessControlString authorizes the access 1")
   fun updateItemIsCorrectWithSufficientACString1(vertx: Vertx, testContext: VertxTestContext) {
     runBlocking(vertx.dispatcher()) {
@@ -4105,7 +4109,8 @@ class TestCRUDVerticleItems {
         expect {
           that(json.getString("beacon")).isEqualTo(updateItemJson.getString("beacon"))
           that(json.getString("accessControlString")).isEqualTo(updateItemJson.getString("accessControlString"))
-          that(json.getString("category")).isEqualTo(updateItemJson.getString("category"))
+          that(updateItemJson.getInteger("categoryID")).isEqualTo(litCategory.first)
+          that(json.getString("category")).isEqualTo(litCategory.second)
           that(json.getString("service")).isEqualTo(updateItemJson.getString("service"))
           that(json.getString("itemID")).isEqualTo(updateItemJson.getString("itemID"))
           that(json.getString("brand")).isEqualTo(updateItemJson.getString("brand"))
@@ -4174,7 +4179,8 @@ class TestCRUDVerticleItems {
         expect {
           that(json.getString("beacon")).isEqualTo(updateItemJson.getString("beacon"))
           that(json.getString("accessControlString")).isEqualTo(updateItemJson.getString("accessControlString"))
-          that(json.getString("category")).isEqualTo(updateItemJson.getString("category"))
+          that(updateItemJson.getInteger("categoryID")).isEqualTo(litCategory.first)
+          that(json.getString("category")).isEqualTo(litCategory.second)
           that(json.getString("service")).isEqualTo(updateItemJson.getString("service"))
           that(json.getString("itemID")).isEqualTo(updateItemJson.getString("itemID"))
           that(json.getString("brand")).isEqualTo(updateItemJson.getString("brand"))
@@ -4244,7 +4250,8 @@ class TestCRUDVerticleItems {
         expect {
           that(json.getString("beacon")).isEqualTo(existingItemGrp1Grp3.getString("beacon"))
           that(json.getString("accessControlString")).isEqualTo(existingItemGrp1Grp3.getString("accessControlString"))
-          that(json.getString("category")).isEqualTo(existingItemGrp1Grp3.getString("category"))
+          that(existingItemGrp1Grp3.getInteger("categoryID")).isEqualTo(ecgCategory.first)
+          that(json.getString("category")).isEqualTo(ecgCategory.second)
           that(json.getString("service")).isEqualTo(existingItemGrp1Grp3.getString("service"))
           that(json.getString("itemID")).isEqualTo(existingItemGrp1Grp3.getString("itemID"))
           that(json.getString("brand")).isEqualTo(existingItemGrp1Grp3.getString("brand"))
@@ -4314,7 +4321,8 @@ class TestCRUDVerticleItems {
         expect {
           that(json.getString("beacon")).isEqualTo(existingItemGrp1Grp3.getString("beacon"))
           that(json.getString("accessControlString")).isEqualTo(existingItemGrp1Grp3.getString("accessControlString"))
-          that(json.getString("category")).isEqualTo(existingItemGrp1Grp3.getString("category"))
+          that(existingItemGrp1Grp3.getInteger("categoryID")).isEqualTo(ecgCategory.first)
+          that(json.getString("category")).isEqualTo(ecgCategory.second)
           that(json.getString("service")).isEqualTo(existingItemGrp1Grp3.getString("service"))
           that(json.getString("itemID")).isEqualTo(existingItemGrp1Grp3.getString("itemID"))
           that(json.getString("brand")).isEqualTo(existingItemGrp1Grp3.getString("brand"))
@@ -4353,7 +4361,7 @@ class TestCRUDVerticleItems {
 
   @Test
   @DisplayName(
-    "updateItem returns bad request error 400 if the passed accessControlString to update is wrongly formatted" +
+    "updateItem returns bad request error 400 if the passed accessControlString to update is wrongly formatted " +
       "and does not modify the item 1"
   )
   fun updateItemThrowsErrorIfUpdatedACStringIsWrong1(vertx: Vertx, testContext: VertxTestContext) {
@@ -4391,7 +4399,8 @@ class TestCRUDVerticleItems {
         expect {
           that(json.getString("beacon")).isEqualTo(existingItemGrp1Grp3.getString("beacon"))
           that(json.getString("accessControlString")).isEqualTo(existingItemGrp1Grp3.getString("accessControlString"))
-          that(json.getString("category")).isEqualTo(existingItemGrp1Grp3.getString("category"))
+          that(existingItemGrp1Grp3.getInteger("categoryID")).isEqualTo(ecgCategory.first)
+          that(json.getString("category")).isEqualTo(ecgCategory.second)
           that(json.getString("service")).isEqualTo(existingItemGrp1Grp3.getString("service"))
           that(json.getString("itemID")).isEqualTo(existingItemGrp1Grp3.getString("itemID"))
           that(json.getString("brand")).isEqualTo(existingItemGrp1Grp3.getString("brand"))
@@ -4468,7 +4477,8 @@ class TestCRUDVerticleItems {
         expect {
           that(json.getString("beacon")).isEqualTo(existingItemGrp1Grp3.getString("beacon"))
           that(json.getString("accessControlString")).isEqualTo(existingItemGrp1Grp3.getString("accessControlString"))
-          that(json.getString("category")).isEqualTo(existingItemGrp1Grp3.getString("category"))
+          that(existingItemGrp1Grp3.getInteger("categoryID")).isEqualTo(ecgCategory.first)
+          that(json.getString("category")).isEqualTo(ecgCategory.second)
           that(json.getString("service")).isEqualTo(existingItemGrp1Grp3.getString("service"))
           that(json.getString("itemID")).isEqualTo(existingItemGrp1Grp3.getString("itemID"))
           that(json.getString("brand")).isEqualTo(existingItemGrp1Grp3.getString("brand"))

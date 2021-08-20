@@ -215,7 +215,7 @@ fun Row.toItemJson(includeBeaconData: Boolean = true): JsonObject {
  */
 internal fun extractItemInformation(json: JsonObject, keepNulls: Boolean = true): List<Pair<String, Any?>> {
   val beacon: String? = json["beacon"]
-  val category: String? = json["category"]
+  val categoryID: Int? = json.getInteger("categoryID")
   val service: String? = json["service"]
   val itemID: String? = json["itemID"]
   val accessControlString: String? = json["accessControlString"]
@@ -241,10 +241,10 @@ internal fun extractItemInformation(json: JsonObject, keepNulls: Boolean = true)
 
   val infoList = listOf(
     "beacon" to beacon,
-    "category" to category,
+    "categoryid" to categoryID,
     "service" to service,
     "itemid" to itemID,
-    "accessControlString" to accessControlString,
+    "accesscontrolstring" to accessControlString,
     "brand" to brand,
     "model" to model,
     "supplier" to supplier,

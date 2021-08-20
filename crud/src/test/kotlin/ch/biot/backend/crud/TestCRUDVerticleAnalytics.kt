@@ -4,6 +4,8 @@
 
 package ch.biot.backend.crud
 
+import ch.biot.backend.crud.queries.addCategoryToCompany
+import ch.biot.backend.crud.queries.insertCategory
 import ch.biot.backend.crud.queries.insertItem
 import io.restassured.builder.RequestSpecBuilder
 import io.restassured.filter.log.RequestLoggingFilter
@@ -49,9 +51,13 @@ class TestCRUDVerticleAnalytics {
 
   private lateinit var pgClient: SqlClient
 
+  // Will be overwritten when creating the actual categories in the DB
+  private var ecgCategory: Pair<Int, String> = 1 to "ECG"
+  private var litCategory: Pair<Int, String> = 2 to "Lit"
+
   private val existingItemOne = jsonObjectOf(
     "beacon" to "ad:ab:ab:ab:ab:ab",
-    "category" to "Lit",
+    "categoryID" to litCategory.first,
     "service" to "Bloc 42",
     "itemID" to "new",
     "accessControlString" to "biot",
@@ -87,7 +93,7 @@ class TestCRUDVerticleAnalytics {
 
   private val existingItemTwo = jsonObjectOf(
     "beacon" to "bb:ab:ab:ab:ab:ab",
-    "category" to "ECG",
+    "categoryID" to ecgCategory.first,
     "service" to "Bloc 42",
     "itemID" to "abc",
     "accessControlString" to "biot",
@@ -123,7 +129,7 @@ class TestCRUDVerticleAnalytics {
 
   private val existingItemThree = jsonObjectOf(
     "beacon" to "cb:ab:ab:ab:ab:ab",
-    "category" to "ECG",
+    "categoryID" to ecgCategory.first,
     "service" to "Bloc 2",
     "itemID" to "abc",
     "accessControlString" to "biot",
@@ -172,6 +178,8 @@ class TestCRUDVerticleAnalytics {
 
     try {
       dropAllItems().await()
+      dropAllCategories().await()
+      insertCategories().await()
       insertItems().await()
       vertx.deployVerticle(CRUDVerticle(), testContext.succeedingThenComplete())
     } catch (error: Throwable) {
@@ -186,12 +194,32 @@ class TestCRUDVerticleAnalytics {
     )
   }
 
+  private fun dropAllCategories(): CompositeFuture {
+    return CompositeFuture.all(
+      pgClient.query("DELETE FROM categories").execute(),
+      pgClient.query("DELETE FROM company_categories").execute()
+    )
+  }
+
+  private suspend fun insertCategories(): Future<RowSet<Row>> {
+    ecgCategory = pgClient.preparedQuery(insertCategory())
+      .execute(Tuple.of(ecgCategory.second)).await().iterator().next().getInteger("id") to ecgCategory.second
+    existingItemTwo.put("categoryID", ecgCategory.first)
+    existingItemThree.put("categoryID", ecgCategory.first)
+    pgClient.preparedQuery(addCategoryToCompany()).execute(Tuple.of(ecgCategory.first, "biot")).await()
+
+    litCategory = pgClient.preparedQuery(insertCategory())
+      .execute(Tuple.of(litCategory.second)).await().iterator().next().getInteger("id") to litCategory.second
+    existingItemOne.put("categoryID", litCategory.first)
+    return pgClient.preparedQuery(addCategoryToCompany()).execute(Tuple.of(litCategory.first, "biot"))
+  }
+
   private suspend fun insertItems(): Future<RowSet<Row>> {
     pgClient.preparedQuery(insertItem("items"))
       .execute(
         Tuple.of(
           existingItemOne["beacon"],
-          existingItemOne["category"],
+          existingItemOne["categoryID"],
           existingItemOne["service"],
           existingItemOne["itemID"],
           existingItemOne["accessControlString"],
@@ -221,7 +249,7 @@ class TestCRUDVerticleAnalytics {
       .execute(
         Tuple.of(
           existingItemTwo["beacon"],
-          existingItemTwo["category"],
+          existingItemTwo["categoryID"],
           existingItemTwo["service"],
           existingItemTwo["itemID"],
           existingItemTwo["accessControlString"],
@@ -251,7 +279,7 @@ class TestCRUDVerticleAnalytics {
       .execute(
         Tuple.of(
           existingItemThree["beacon"],
-          existingItemThree["category"],
+          existingItemThree["categoryID"],
           existingItemThree["service"],
           existingItemThree["itemID"],
           existingItemThree["accessControlString"],
@@ -318,6 +346,7 @@ class TestCRUDVerticleAnalytics {
   fun cleanup(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
     try {
       dropAllItems().await()
+      dropAllCategories().await()
       pgClient.close().await()
       testContext.completeNow()
     } catch (error: Throwable) {

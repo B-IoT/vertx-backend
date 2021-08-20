@@ -393,14 +393,14 @@ paths:
           schema:
             type: integer
             format: int32
-        - name: category
+        - name: categoryID
           in: query
-          description: item category
+          description: item category id
           required: false
           style: form
           explode: true
           schema:
-            type: string
+            type: integer
         - name: company
           in: query
           description: the company of the user executing the request
@@ -480,14 +480,6 @@ paths:
           explode: true
           schema:
             type: string
-        - name: accessControlString
-          in: query
-          description: the access control string of the user executing the request
-          required: true
-          style: form
-          explode: true
-          schema:
-            type: string
       responses:
         "200":
           description: all the categories
@@ -496,9 +488,69 @@ paths:
               schema:
                 type: array
                 items:
-                  type: string
-        "403":
-          description: forbidden access
+                  $ref: '#/components/schemas/Category'
+  /items/categories/{id}:
+    get:
+      tags:
+        - Item
+      description: returns an item category
+      operationId: getCategory
+      parameters:
+        - name: company
+          in: query
+          description: the company of the user executing the request
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: the category
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        "404":
+          description: category not found
+    put:
+      tags:
+        - Item
+      description: updates an item category
+      operationId: updateCategory
+      parameters:
+        - name: company
+          in: query
+          description: the company of the user executing the request
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+        "404":
+          description: category not found
+    delete:
+      tags:
+        - Item
+      description: deletes an item category
+      operationId: deleteCategory
+      parameters:
+        - name: company
+          in: query
+          description: the company of the user executing the request
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+        "404":
+          description: category not found
   /items/snapshots:
     get:
       tags:
@@ -1180,8 +1232,8 @@ components:
           format: int32
         beacon:
           type: string
-        category:
-          type: string
+        categoryID:
+          type: integer
         service:
           type: string
         itemID:
@@ -1234,8 +1286,8 @@ components:
       properties:
         beacon:
           type: string
-        category:
-          type: string
+        categoryID:
+          type: integer
         service:
           type: string
         itemID:

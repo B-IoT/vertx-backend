@@ -211,6 +211,10 @@ class CRUDVerticle : CoroutineVerticle() {
       routerBuilder.operation("deleteItem").coroutineHandler(::deleteItemHandler)
       routerBuilder.operation("updateItem").coroutineHandler(::updateItemHandler)
       routerBuilder.operation("getCategories").coroutineHandler(::getCategoriesHandler)
+      routerBuilder.operation("getCategory").coroutineHandler(::getCategoryHandler)
+      routerBuilder.operation("createCategory").coroutineHandler(::createCategoryHandler)
+      routerBuilder.operation("deleteCategory").coroutineHandler(::deleteCategoryHandler)
+      routerBuilder.operation("updateCategory").coroutineHandler(::updateCategoryHandler)
       routerBuilder.operation("getSnapshots").coroutineHandler(::getSnapshotsHandler)
       routerBuilder.operation("getSnapshot").coroutineHandler(::getSnapshotHandler)
       routerBuilder.operation("deleteSnapshot").coroutineHandler(::deleteSnapshotHandler)
@@ -741,9 +745,9 @@ class CRUDVerticle : CoroutineVerticle() {
     val beaconDataTable = ctx.getCollection(BEACON_DATA_TABLE)
     val accessControlString: String = ctx.getAccessControlString()
 
-    val executedQuery = if (params.contains("category")) {
+    val executedQuery = if (params.contains("categoryID")) {
       pgClient.preparedQuery(getItemsWithCategory(itemsTable, beaconDataTable, accessControlString))
-        .execute(Tuple.of(params["category"]))
+        .execute(Tuple.of(params["categoryID"].toInt()))
     } else {
       pgClient.preparedQuery(getItems(itemsTable, beaconDataTable, accessControlString)).execute()
     }
@@ -769,7 +773,7 @@ class CRUDVerticle : CoroutineVerticle() {
     val itemsTable = ctx.getCollection(ITEMS_TABLE)
     val beaconDataTable = ctx.getCollection(BEACON_DATA_TABLE)
 
-    val executedQuery = if (params.contains("category")) {
+    val executedQuery = if (params.contains("categoryID")) {
       pgClient.preparedQuery(
         getClosestItemsWithCategory(
           itemsTable,
@@ -777,7 +781,7 @@ class CRUDVerticle : CoroutineVerticle() {
           accessControlString
         )
       )
-        .execute(Tuple.of(params["category"], latitude, longitude))
+        .execute(Tuple.of(params["categoryID"].toInt(), latitude, longitude))
     } else {
       pgClient.preparedQuery(getClosestItems(itemsTable, beaconDataTable, accessControlString))
         .execute(Tuple.of(latitude, longitude))
@@ -865,7 +869,7 @@ class CRUDVerticle : CoroutineVerticle() {
       val company = params["company"]
 
       if (info.any { (key, accessControlString) ->
-          key == "accessControlString" && !validateAccessControlString(accessControlString as String, company)
+          key == "accesscontrolstring" && !validateAccessControlString(accessControlString as String, company)
         }) {
         // The query tries to update the item's accessControlString with an invalid one --> fails
         ctx.fail(BAD_REQUEST_CODE)
@@ -930,24 +934,65 @@ class CRUDVerticle : CoroutineVerticle() {
 
   /**
    * Handles a getCategories request.
-   * Returns only the categories in which at least one item is accessible with the given accessControlString
    */
   private suspend fun getCategoriesHandler(ctx: RoutingContext) {
     LOGGER.info { "New getCategories request" }
 
-    val table = ctx.getCollection(ITEMS_TABLE)
-    val accessControlString: String = ctx.getAccessControlString()
-
-    val executedQuery = pgClient.preparedQuery(getCategories(table, accessControlString)).execute()
+    val company = ctx.queryParams()["company"]
+    val executedQuery = pgClient.preparedQuery(getCategories()).execute(Tuple.of(company))
 
     executeWithErrorHandling("Could not get categories", ctx) {
       val queryResult = executedQuery.await()
-      val result = if (queryResult.size() == 0) listOf() else queryResult.map { it.getString("category") }
+      val result = if (queryResult.size() == 0) listOf() else queryResult.map { row ->
+        jsonObjectOf(
+          "id" to row.getInteger("id"),
+          "name" to row.getString("name")
+        )
+      }
 
       ctx.response()
         .putHeader(CONTENT_TYPE, APPLICATION_JSON)
         .end(JsonArray(result).encode())
     }
+  }
+
+  /**
+   * Handles a getCategory request.
+   */
+  private suspend fun getCategoryHandler(ctx: RoutingContext) {
+    val categoryID = ctx.pathParam("id").toInt()
+    LOGGER.info { "New getCategory request for category $categoryID" }
+
+    // TODO
+  }
+
+  /**
+   * Handles an updateCategory request.
+   */
+  private suspend fun updateCategoryHandler(ctx: RoutingContext) {
+    val categoryID = ctx.pathParam("id").toInt()
+    LOGGER.info { "New updateCategory request for category $categoryID" }
+
+    // TODO
+  }
+
+  /**
+   * Handles a deleteCategory request.
+   */
+  private suspend fun deleteCategoryHandler(ctx: RoutingContext) {
+    val categoryID = ctx.pathParam("id").toInt()
+    LOGGER.info { "New deleteCategory request for category $categoryID" }
+
+    // TODO
+  }
+
+  /**
+   * Handles a createCategory request.
+   */
+  private suspend fun createCategoryHandler(ctx: RoutingContext) {
+    LOGGER.info { "New createCategory request" }
+
+    // TODO
   }
 
   /**

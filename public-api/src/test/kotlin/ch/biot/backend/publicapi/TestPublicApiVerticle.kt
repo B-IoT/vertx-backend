@@ -6,6 +6,10 @@ package ch.biot.backend.publicapi
 
 import ch.biot.backend.crud.CRUDVerticle
 import ch.biot.backend.crud.CRUDVerticle.Companion.INITIAL_USER
+import ch.biot.backend.crud.queries.addCategoryToCompany
+import ch.biot.backend.crud.queries.getItems
+import ch.biot.backend.crud.queries.insertCategory
+import ch.biot.backend.crud.toItemJson
 import ch.biot.backend.publicapi.PublicApiVerticle.Companion.CRUD_HOST
 import ch.biot.backend.publicapi.PublicApiVerticle.Companion.CRUD_PORT
 import io.mockk.clearAllMocks
@@ -21,6 +25,8 @@ import io.restassured.module.kotlin.extensions.Given
 import io.restassured.module.kotlin.extensions.Then
 import io.restassured.module.kotlin.extensions.When
 import io.restassured.specification.RequestSpecification
+import io.vertx.core.CompositeFuture
+import io.vertx.core.Future
 import io.vertx.core.Vertx
 import io.vertx.core.buffer.Buffer
 import io.vertx.core.http.HttpVersion
@@ -36,6 +42,13 @@ import io.vertx.kotlin.core.json.jsonObjectOf
 import io.vertx.kotlin.coroutines.await
 import io.vertx.kotlin.coroutines.dispatcher
 import io.vertx.kotlin.ext.web.client.webClientOptionsOf
+import io.vertx.kotlin.pgclient.pgConnectOptionsOf
+import io.vertx.kotlin.sqlclient.poolOptionsOf
+import io.vertx.pgclient.PgPool
+import io.vertx.sqlclient.Row
+import io.vertx.sqlclient.RowSet
+import io.vertx.sqlclient.SqlClient
+import io.vertx.sqlclient.Tuple
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.*
 import org.junit.jupiter.api.extension.ExtendWith
@@ -87,9 +100,13 @@ class TestPublicApiVerticle {
     )
   )
 
+  // Will be overwritten when creating the actual categories in the DB
+  private var ecgCategory: Pair<Int, String> = 1 to "ECG"
+  private var litCategory: Pair<Int, String> = 2 to "Lit"
+
   private val item1 = jsonObjectOf(
     "beacon" to "ab:ab:ab:ab:ab:ab",
-    "category" to "ECG",
+    "categoryID" to ecgCategory.first,
     "service" to "Bloc 2",
     "itemID" to "abc",
     "accessControlString" to "biot",
@@ -116,7 +133,7 @@ class TestPublicApiVerticle {
 
   private val item2Grp1 = jsonObjectOf(
     "beacon" to "ff:ff:ff:ff:ff:ff",
-    "category" to "Lit",
+    "categoryID" to litCategory.first,
     "service" to "Cardio",
     "itemID" to "cde",
     "accessControlString" to "biot:grp1",
@@ -143,7 +160,7 @@ class TestPublicApiVerticle {
 
   private val item3 = jsonObjectOf(
     "beacon" to "ff:ff:zz:zz:ff:ff",
-    "category" to "EEG",
+    "categoryID" to ecgCategory.first,
     "service" to "Neuro",
     "itemID" to "hgfds",
     "accessControlString" to "biot:grp1:grp3",
@@ -169,22 +186,43 @@ class TestPublicApiVerticle {
   )
 
   private var item2IDGrp1 = -1
-  private var itemID: Int = -1
+  private var itemID = -1
+  private var item1CategoryID = -1
 
   private lateinit var token: String
   private lateinit var tokenGrp1: String
 
   private lateinit var webClient: WebClient
+  private lateinit var pgClient: SqlClient
 
   @BeforeEach
   fun setup(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
     try {
+      val pgConnectOptions =
+        pgConnectOptionsOf(
+          port = CRUDVerticle.TIMESCALE_PORT,
+          host = "localhost",
+          database = "biot",
+          user = "biot",
+          password = "biot",
+          cachePreparedStatements = true
+        )
+      pgClient = PgPool.client(vertx, pgConnectOptions, poolOptionsOf())
+
+      dropAllCategories().await()
+      insertCategories().await()
+
       webClient = spyk(
         WebClient.create(
           vertx,
-          webClientOptionsOf(tryUseCompression = true, protocolVersion = HttpVersion.HTTP_2, http2ClearTextUpgrade = true)
+          webClientOptionsOf(
+            tryUseCompression = true,
+            protocolVersion = HttpVersion.HTTP_2,
+            http2ClearTextUpgrade = true
+          )
         )
       )
+
       vertx.deployVerticle(PublicApiVerticle(webClient)).await()
       vertx.deployVerticle(CRUDVerticle()).await()
       testContext.completeNow()
@@ -194,8 +232,36 @@ class TestPublicApiVerticle {
   }
 
   @AfterEach
-  fun tearDown() {
-    clearAllMocks()
+  fun cleanup(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
+    try {
+      clearAllMocks()
+      dropAllCategories().await()
+      pgClient.close()
+      webClient.close()
+      testContext.completeNow()
+    } catch (error: Throwable) {
+      testContext.failNow(error)
+    }
+  }
+
+  private fun dropAllCategories(): CompositeFuture {
+    return CompositeFuture.all(
+      pgClient.query("DELETE FROM categories").execute(),
+      pgClient.query("DELETE FROM company_categories").execute()
+    )
+  }
+
+  private suspend fun insertCategories(): Future<RowSet<Row>> {
+    ecgCategory = pgClient.preparedQuery(insertCategory())
+      .execute(Tuple.of(ecgCategory.second)).await().iterator().next().getInteger("id") to ecgCategory.second
+    item1.put("categoryID", ecgCategory.first)
+    item3.put("categoryID", ecgCategory.first)
+    pgClient.preparedQuery(addCategoryToCompany()).execute(Tuple.of(ecgCategory.first, "biot")).await()
+
+    litCategory = pgClient.preparedQuery(insertCategory())
+      .execute(Tuple.of(litCategory.second)).await().iterator().next().getInteger("id") to litCategory.second
+    item2Grp1.put("categoryID", litCategory.first)
+    return pgClient.preparedQuery(addCategoryToCompany()).execute(Tuple.of(litCategory.first, "biot"))
   }
 
   @Test
@@ -663,6 +729,7 @@ class TestPublicApiVerticle {
     testContext.verify {
       expectThat(response).isNotEmpty() // it returns the id of the registered item
       itemID = response.toInt()
+      item1CategoryID = item1.getInteger("categoryID")
       verify { requestSpy.addQueryParam("company", ofType(String::class)) }
       verify { requestSpy.addQueryParam("accessControlString", ofType(String::class)) }
       testContext.completeNow()
@@ -743,9 +810,15 @@ class TestPublicApiVerticle {
   @Order(15)
   @DisplayName("Getting the items (with query parameters) succeeds")
   fun getItemsWithQueryParametersSucceeds(testContext: VertxTestContext) {
-    val category = item1.getString("category")
-    val requestSpy = spyk(webClient.get(CRUD_PORT, CRUD_HOST, "/items/?category=$category"))
-    every { webClient.get(any(), any(), "/items/?category=$category") } returns requestSpy
+    val categoryID = item1CategoryID
+    val requestSpy = spyk(webClient.get(CRUD_PORT, CRUD_HOST, "/items/?categoryID=$categoryID"))
+    every { webClient.get(any(), any(), "/items/?categoryID=$categoryID") } returns requestSpy
+
+    pgClient.preparedQuery("SELECT * FROM items").execute().onSuccess {
+      it.forEach{ LOGGER.info { it.toJson() }}
+    }
+
+    LOGGER.info { "Category ID = $categoryID"}
 
     val response = Buffer.buffer(
       Given {
@@ -753,7 +826,7 @@ class TestPublicApiVerticle {
         accept(ContentType.JSON)
         header("Authorization", "Bearer $token")
       } When {
-        queryParam("category", category)
+        queryParam("categoryID", categoryID)
         get("/api/items")
       } Then {
         statusCode(200)
@@ -771,7 +844,7 @@ class TestPublicApiVerticle {
       expectThat(id).isEqualTo(itemID)
       expect {
         that(obj.getString("beacon")).isEqualTo(item1.getString("beacon"))
-        that(obj.getString("category")).isEqualTo(item1.getString("category"))
+        that(obj.getString("category")).isEqualTo(ecgCategory.second)
         that(obj.getString("service")).isEqualTo(item1.getString("service"))
         that(obj.getString("itemID")).isEqualTo(item1.getString("itemID"))
         that(obj.getString("accessControlString")).isEqualTo(item1.getString("accessControlString"))
@@ -914,7 +987,12 @@ class TestPublicApiVerticle {
   @Order(18)
   @DisplayName("Getting the categories succeeds")
   fun getCategoriesSucceeds(testContext: VertxTestContext) {
-    val expected = JsonArray(listOf(item1.getString("category")))
+    val expected = JsonArray(
+      listOf(
+        jsonObjectOf("id" to ecgCategory.first, "name" to ecgCategory.second),
+        jsonObjectOf("id" to litCategory.first, "name" to litCategory.second)
+      )
+    )
 
     val requestSpy = spyk(webClient.get(CRUD_PORT, CRUD_HOST, "/items/categories"))
     every { webClient.get(any(), any(), "/items/categories") } returns requestSpy
@@ -1987,6 +2065,7 @@ class TestPublicApiVerticle {
     }
 
     val expected = insertJson.copy().put("accessControlString", user2.getString("accessControlString"))
+      .put("category", ecgCategory.second)
     val response2 = Buffer.buffer(
       Given {
         spec(requestSpecification)
@@ -2084,7 +2163,7 @@ class TestPublicApiVerticle {
       item3ID = response.toInt()
     }
 
-    val expected = insertJson.copy()
+    val expected = insertJson.copy().put("category", ecgCategory.second)
     val response2 = Buffer.buffer(
       Given {
         spec(requestSpecification)

@@ -13,11 +13,25 @@ CREATE EXTENSION IF NOT EXISTS postgis;
 -- after un underscore (ex: company is arsante, table name is items_arsante)
 -- Do not forget to connect to the biot database first, with \c biot biot or through pgadmin
 
+CREATE TABLE IF NOT EXISTS categories
+(
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(2048)
+);
+
+CREATE TABLE IF NOT EXISTS company_categories
+(
+    id SERIAL PRIMARY KEY,
+    categoryID INTEGER,
+    company VARCHAR(200),
+    FOREIGN KEY(categoryID) REFERENCES categories(id) ON UPDATE CASCADE ON DELETE SET NULL
+);
+
 CREATE TABLE IF NOT EXISTS items
 (
     id SERIAL PRIMARY KEY,
     beacon VARCHAR(17) UNIQUE,
-    category VARCHAR(100),
+    categoryID INTEGER,
     service VARCHAR(100),
     itemID VARCHAR(50),
     accessControlString VARCHAR(2048),
@@ -39,7 +53,8 @@ CREATE TABLE IF NOT EXISTS items
     status VARCHAR(100),
     comments VARCHAR(200),
     lastModifiedDate DATE,
-    lastModifiedBy VARCHAR(100)
+    lastModifiedBy VARCHAR(100),
+    FOREIGN KEY(categoryID) REFERENCES categories(id) ON UPDATE CASCADE ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS items_snapshots
@@ -72,7 +87,14 @@ CREATE OR REPLACE FUNCTION notify_insert_trigger_func()
   RETURNS trigger AS
 $$
 BEGIN
-PERFORM pg_notify('POST', '{"data":' || row_to_json(NEW)::text || ', "table":"' || TG_TABLE_NAME || '"}');
+PERFORM (
+     WITH payload as
+     (
+       SELECT NEW.*, C.name AS category FROM categories C WHERE NEW.categoryid = C.id
+     )
+    SELECT pg_notify('POST', '{"data":' || row_to_json(payload)::text || ', "table":"' || TG_TABLE_NAME || '"}')
+    FROM payload
+  );
 RETURN NEW;
 END;
 $$
@@ -83,7 +105,14 @@ CREATE OR REPLACE FUNCTION notify_update_trigger_func()
   RETURNS trigger AS
 $$
 BEGIN
-PERFORM pg_notify('PUT', '{"data":' || row_to_json(NEW)::text || ', "table":"' || TG_TABLE_NAME || '"}');
+PERFORM (
+     WITH payload as
+     (
+       SELECT NEW.*, C.name AS category FROM categories C WHERE NEW.categoryid = C.id
+     )
+    SELECT pg_notify('PUT', '{"data":' || row_to_json(payload)::text || ', "table":"' || TG_TABLE_NAME || '"}')
+    FROM payload
+  );
 RETURN NEW;
 END;
 $$
