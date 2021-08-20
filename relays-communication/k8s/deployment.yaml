@@ -63,6 +63,11 @@ spec:
                 configMapKeyRef:
                   name: crud-config
                   key: timescale_hostname
+            - name: MQTT_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: relays-communication-config
+                  key: mqtt_port
           livenessProbe:
             tcpSocket:
               port: 1884

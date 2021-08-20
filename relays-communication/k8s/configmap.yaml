@@ -5,3 +5,4 @@ metadata:
 data:
   kafka_hostname: my-cluster-kafka-bootstrap.kafka.svc.cluster.local
   kafka_port: "9092"
+  mqtt_port: "1883"
