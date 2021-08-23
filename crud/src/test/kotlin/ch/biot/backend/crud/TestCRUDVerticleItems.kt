@@ -2157,7 +2157,7 @@ class TestCRUDVerticleItems {
       contentType(ContentType.JSON)
     } When {
       queryParam("accessControlString", "biot")
-      get("/items/closeset")
+      get("/items/closest")
     } Then {
       statusCode(400)
     } Extract {
@@ -2260,6 +2260,304 @@ class TestCRUDVerticleItems {
     testContext.verify {
       expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
       testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("getCategory correctly retrieves the desired category")
+  fun getCategoryIsCorrect(testContext: VertxTestContext) {
+    val expected = jsonObjectOf("id" to litCategory.first, "name" to litCategory.second)
+
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        accept(ContentType.JSON)
+      } When {
+        queryParam("company", "biot")
+        queryParam("accessControlString", "biot")
+        get("/items/categories/${litCategory.first}")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonObject()
+
+    testContext.verify {
+      expectThat(response).isEqualTo(expected)
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("getCategory returns not found on non existing category")
+  fun getCategoryReturnsNotFoundOnNonExistingCategory(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      accept(ContentType.JSON)
+    } When {
+      queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
+      get("/items/categories/1000")
+    } Then {
+      statusCode(404)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEmpty()
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("getCategory fails without a company")
+  fun getCategoryFailsWithoutCompany(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("accessControlString", "biot")
+      get("/items/categories/${litCategory.first}")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("updateCategory correctly updates the category")
+  fun updateCategoryIsCorrect(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
+    val newName = "newName"
+    val updateJson = jsonObjectOf("name" to newName)
+
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      body(updateJson.encode())
+    } When {
+      queryParam("accessControlString", "biot")
+      queryParam("company", "biot")
+      put("/items/categories/${litCategory.first}")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEmpty()
+    }
+
+    try {
+      val category =
+        pgClient.preparedQuery(getCategory()).execute(Tuple.of(litCategory.first)).await().iterator().next()
+      expectThat(category.getInteger("id")).isEqualTo(litCategory.first)
+      expectThat(category.getString("name")).isEqualTo(newName)
+      testContext.completeNow()
+    } catch (error: Throwable) {
+      testContext.failNow(error)
+    }
+  }
+
+  @Test
+  @DisplayName("updateCategory fails without a company")
+  fun updateCategoryFailsWithoutCompany(testContext: VertxTestContext) {
+    val updateJson = jsonObjectOf("name" to "newName")
+
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      body(updateJson.encode())
+    } When {
+      queryParam("accessControlString", "biot")
+      put("/items/categories/${litCategory.first}")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("updateCategory returns not found on non existing category")
+  fun updateCategoryReturnsNotFoundOnNonExistingCategory(testContext: VertxTestContext) {
+    val updateJson = jsonObjectOf("name" to "newName")
+
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      body(updateJson.encode())
+    } When {
+      queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
+      put("/items/categories/1000")
+    } Then {
+      statusCode(404)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEmpty()
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("deleteCategory fails without a company")
+  fun deleteCategoryFailsWithoutCompany(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+    } When {
+      queryParam("accessControlString", "biot")
+      delete("/items/categories/${litCategory.first}")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("deleteCategory returns not found on non existing category")
+  fun deleteCategoryReturnsNotFoundOnNonExistingCategory(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      accept(ContentType.JSON)
+    } When {
+      queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
+      delete("/items/categories/1000")
+    } Then {
+      statusCode(404)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEmpty()
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("deleteCategory correctly deletes the category")
+  fun deleteCategoryIsCorrect(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
+    val response = Given {
+      spec(requestSpecification)
+      accept(ContentType.JSON)
+    } When {
+      queryParam("company", "biot")
+      queryParam("accessControlString", "biot")
+      delete("/items/categories/${ecgCategory.first}")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEmpty()
+    }
+
+    try {
+      val categoryExists =
+        pgClient.preparedQuery(getCategory()).execute(Tuple.of(ecgCategory.first)).await().iterator().hasNext()
+      val existingItemInternal =
+        pgClient.query("SELECT * FROM items WHERE id = $existingItemID").execute().await().iterator().next()
+      val existingItemUpdated =
+        pgClient.preparedQuery(getItem("items", "beacon_data", "biot")).execute(Tuple.of(existingItemID))
+          .await().iterator().next()
+
+      testContext.verify {
+        expectThat(categoryExists).isFalse()
+        // The category entry in the item should be set to null by the ON DELETE SET NULL constraint
+        expectThat(existingItemInternal.getInteger("categoryid")).isNull()
+        expectThat(existingItemUpdated.getString("category")).isNull()
+        testContext.completeNow()
+      }
+    } catch (error: Throwable) {
+      testContext.failNow(error)
+    }
+  }
+
+  @Test
+  @DisplayName("createCategory fails without a company")
+  fun createCategoryFailsWithoutCompany(testContext: VertxTestContext) {
+    val newCategory = jsonObjectOf("name" to "newName")
+
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      body(newCategory.encode())
+    } When {
+      queryParam("accessControlString", "biot")
+      post("/items/categories")
+    } Then {
+      statusCode(400)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("createCategory correctly creates the category")
+  fun createCategoryIsCorrect(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
+    val newName = "newName"
+    val createJson = jsonObjectOf("name" to newName)
+
+    val newCategoryIDString = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      body(createJson.encode())
+    } When {
+      queryParam("accessControlString", "biot")
+      queryParam("company", "biot")
+      post("/items/categories")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(newCategoryIDString).isNotEmpty() // it returns the id
+    }
+
+    try {
+      val newCategoryID = newCategoryIDString.toInt()
+      val category =
+        pgClient.preparedQuery(getCategory()).execute(Tuple.of(newCategoryID)).await().iterator().next()
+      expectThat(category.getInteger("id")).isEqualTo(newCategoryID)
+      expectThat(category.getString("name")).isEqualTo(newName)
+      testContext.completeNow()
+    } catch (error: Throwable) {
+      testContext.failNow(error)
     }
   }
 

@@ -69,7 +69,7 @@ import java.time.LocalDate
 @ExtendWith(VertxExtension::class)
 @Testcontainers
 /**
- * Integration tests; the order matters (should not be the case, to fix).
+ * Integration tests.
  */
 class TestPublicApiVerticle {
 
@@ -1218,41 +1218,6 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @DisplayName("Getting the categories succeeds")
-  fun getCategoriesSucceeds(testContext: VertxTestContext) {
-    val expected = JsonArray(
-      listOf(
-        jsonObjectOf("id" to ecgCategory.first, "name" to ecgCategory.second),
-        jsonObjectOf("id" to litCategory.first, "name" to litCategory.second)
-      )
-    )
-
-    val requestSpy = spyk(webClient.get(CRUD_PORT, CRUD_HOST, "/items/categories"))
-    every { webClient.get(any(), any(), "/items/categories") } returns requestSpy
-
-    val response = Buffer.buffer(
-      Given {
-        spec(requestSpecification)
-        accept(ContentType.JSON)
-        header("Authorization", "Bearer $token")
-      } When {
-        get("/api/items/categories")
-      } Then {
-        statusCode(200)
-      } Extract {
-        asString()
-      }
-    ).toJsonArray()
-
-    testContext.verify {
-      expectThat(response).isEqualTo(expected)
-      verify { requestSpy.addQueryParam("company", ofType(String::class)) }
-      verify { requestSpy.addQueryParam("accessControlString", ofType(String::class)) }
-      testContext.completeNow()
-    }
-  }
-
-  @Test
   @DisplayName("Updating an item succeeds")
   fun updateItemSucceeds(testContext: VertxTestContext) {
     val updateJson = jsonObjectOf(
@@ -1656,6 +1621,167 @@ class TestPublicApiVerticle {
   }
 
   @Test
+  @DisplayName("Getting the categories succeeds")
+  fun getCategoriesSucceeds(testContext: VertxTestContext) {
+    val expected = JsonArray(
+      listOf(
+        jsonObjectOf("id" to ecgCategory.first, "name" to ecgCategory.second),
+        jsonObjectOf("id" to litCategory.first, "name" to litCategory.second)
+      )
+    )
+
+    val requestSpy = spyk(webClient.get(CRUD_PORT, CRUD_HOST, "/items/categories"))
+    every { webClient.get(any(), any(), "/items/categories") } returns requestSpy
+
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        accept(ContentType.JSON)
+        header("Authorization", "Bearer $token")
+      } When {
+        get("/api/items/categories")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonArray()
+
+    testContext.verify {
+      expectThat(response.toHashSet()).isEqualTo(expected.toHashSet())
+      verify { requestSpy.addQueryParam("company", ofType(String::class)) }
+      verify { requestSpy.addQueryParam("accessControlString", ofType(String::class)) }
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("Creating a category succeeds")
+  fun createCategorySucceeds(testContext: VertxTestContext) {
+    val requestSpy = spyk(webClient.post(CRUD_PORT, CRUD_HOST, "/items/categories"))
+    every { webClient.post(any(), any(), any()) } returns requestSpy
+
+    val newCategory = jsonObjectOf("name" to "newName")
+
+    val response = Given {
+      spec(requestSpecification)
+      header("Authorization", "Bearer $token")
+      contentType(ContentType.JSON)
+      body(newCategory.encode())
+    } When {
+      post("/api/items/categories")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isNotEmpty()
+      verify { requestSpy.addQueryParam("company", ofType(String::class)) }
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("Getting a category succeeds")
+  fun getCategorySucceeds(testContext: VertxTestContext) {
+    val categoryID = litCategory.first
+    val requestSpy = spyk(webClient.get(CRUD_PORT, CRUD_HOST, "/items/categories/$categoryID"))
+    every { webClient.get(any(), any(), "/items/categories/$categoryID") } returns requestSpy
+
+    val category = Buffer.buffer(Given {
+      spec(requestSpecification)
+      header("Authorization", "Bearer $token")
+      contentType(ContentType.JSON)
+    } When {
+      get("/api/items/categories/$categoryID")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }).toJsonObject()
+
+    testContext.verify {
+      expectThat(category.getInteger("id")).isEqualTo(categoryID)
+      expectThat(category.getString("name")).isEqualTo(litCategory.second)
+      verify { requestSpy.addQueryParam("company", ofType(String::class)) }
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("Updating a category succeeds")
+  fun updateCategorySucceeds(testContext: VertxTestContext) {
+    val updateJson = jsonObjectOf("name" to "newName")
+    val categoryID = litCategory.first
+
+    val requestSpy = spyk(webClient.put(CRUD_PORT, CRUD_HOST, "/items/categories/$categoryID"))
+    every { webClient.put(any(), any(), "/items/categories/$categoryID") } returns requestSpy
+
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      header("Authorization", "Bearer $token")
+      body(updateJson.encode())
+    } When {
+      put("/api/items/categories/$categoryID")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEmpty()
+      verify { requestSpy.addQueryParam("company", ofType(String::class)) }
+      verify { requestSpy.addQueryParam("accessControlString", ofType(String::class)) }
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("Deleting a category succeeds")
+  fun deleteCategorySucceeds(testContext: VertxTestContext) {
+    val newCategory = jsonObjectOf("name" to "newName")
+
+    val categoryID = Given {
+      spec(requestSpecification)
+      header("Authorization", "Bearer $token")
+      contentType(ContentType.JSON)
+      body(newCategory.encode())
+    } When {
+      post("/api/items/categories")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    val requestSpy = spyk(webClient.delete(CRUD_PORT, CRUD_HOST, "/items/categories/$categoryID"))
+    every { webClient.delete(any(), any(), "/items/categories/$categoryID") } returns requestSpy
+
+    val response = Given {
+      spec(requestSpecification)
+      header("Authorization", "Bearer $token")
+      contentType(ContentType.JSON)
+    } When {
+      delete("/api/items/categories/$categoryID")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEmpty()
+      verify { requestSpy.addQueryParam("company", ofType(String::class)) }
+      testContext.completeNow()
+    }
+  }
+
+  @Test
   @DisplayName("Creating a snapshot succeeds")
   fun createSnapshotSucceeds(testContext: VertxTestContext) {
     val requestSpy = spyk(webClient.post(CRUD_PORT, CRUD_HOST, "/items/snapshots"))
@@ -1700,7 +1826,7 @@ class TestPublicApiVerticle {
     }).toJsonArray()
 
     testContext.verify {
-      expectThat(snapshots.size()).isGreaterThan(0)
+      expectThat(snapshots.size()).isEqualTo(1)
       verify { requestSpy.addQueryParam("company", ofType(String::class)) }
       verify { requestSpy.addQueryParam("accessControlString", ofType(String::class)) }
       testContext.completeNow()

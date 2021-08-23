@@ -456,7 +456,7 @@ paths:
               $ref: '#/components/schemas/ItemRegisterInfo'
       responses:
         "200":
-          description: the registered item
+          description: the registered item id
           content:
             text/plain:
               schema:
@@ -489,6 +489,33 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Category'
+    post:
+      tags:
+        - Item
+      operationId: createCategory
+      parameters:
+        - name: company
+          in: query
+          description: the company of the user executing the request
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryCreateInfo'
+      responses:
+        "200":
+          description: the created category id
+          content:
+            text/plain:
+              schema:
+                type: integer
+                format: int32
+                example: 1
   /items/categories/{id}:
     get:
       tags:
@@ -496,6 +523,13 @@ paths:
       description: returns an item category
       operationId: getCategory
       parameters:
+        - name: id
+          in: path
+          required: true
+          style: simple
+          explode: false
+          schema:
+            type: string
         - name: company
           in: query
           description: the company of the user executing the request
@@ -519,6 +553,13 @@ paths:
       description: updates an item category
       operationId: updateCategory
       parameters:
+        - name: id
+          in: path
+          required: true
+          style: simple
+          explode: false
+          schema:
+            type: string
         - name: company
           in: query
           description: the company of the user executing the request
@@ -527,6 +568,11 @@ paths:
           explode: true
           schema:
             type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryUpdateInfo'
       responses:
         "200":
           description: OK
@@ -538,6 +584,13 @@ paths:
       description: deletes an item category
       operationId: deleteCategory
       parameters:
+        - name: id
+          in: path
+          required: true
+          style: simple
+          explode: false
+          schema:
+            type: string
         - name: company
           in: query
           description: the company of the user executing the request
@@ -1342,6 +1395,18 @@ components:
         id:
           type: integer
           format: int32
+        name:
+          type: string
+    CategoryUpdateInfo:
+      type: object
+      description: Update information for an item category
+      properties:
+        name:
+          type: string
+    CategoryCreateInfo:
+      type: object
+      description: Create information for an item category
+      properties:
         name:
           type: string
     Snapshot:
