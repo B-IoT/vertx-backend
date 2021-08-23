@@ -1335,6 +1335,15 @@ components:
         lastModifiedBy:
           type: string
       description: Update information for an item
+    Category:
+      type: object
+      description: an item category
+      properties:
+        id:
+          type: integer
+          format: int32
+        name:
+          type: string
     Snapshot:
       type: object
       properties:

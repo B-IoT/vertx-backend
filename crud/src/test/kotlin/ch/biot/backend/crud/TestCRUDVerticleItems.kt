@@ -39,7 +39,6 @@ import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 import kotlinx.coroutines.runBlocking
-import mu.KotlinLogging
 import org.junit.jupiter.api.*
 import org.junit.jupiter.api.extension.ExtendWith
 import org.testcontainers.containers.DockerComposeContainer
@@ -2072,7 +2071,7 @@ class TestCRUDVerticleItems {
         spec(requestSpecification)
         accept(ContentType.JSON)
       } When {
-        queryParam("category", existingItem.getInteger("categoryID"))
+        queryParam("categoryID", existingItem.getInteger("categoryID"))
         queryParam("company", "biot")
         queryParam("accessControlString", "biot")
         get("/items")
@@ -2239,27 +2238,6 @@ class TestCRUDVerticleItems {
 
     testContext.verify {
       expectThat(response.toHashSet()).isEqualTo(expected.toHashSet())
-      testContext.completeNow()
-    }
-  }
-
-  @Test
-  @DisplayName("getCategories fails without an access control string")
-  fun getCategoriesFailsWithoutACString(testContext: VertxTestContext) {
-    val response = Given {
-      spec(requestSpecification)
-      contentType(ContentType.JSON)
-    } When {
-      queryParam("company", "biot")
-      get("/items/categories")
-    } Then {
-      statusCode(400)
-    } Extract {
-      asString()
-    }
-
-    testContext.verify {
-      expectThat(response).isEqualTo("Something went wrong while parsing/validating a parameter.")
       testContext.completeNow()
     }
   }
@@ -3753,7 +3731,7 @@ class TestCRUDVerticleItems {
             queryParam("latitude", 42)
             queryParam("longitude", -8)
             queryParam("company", "biot")
-            queryParam("category", closestItemGrp1Cat2.getInteger("categoryID"))
+            queryParam("categoryID", closestItemGrp1Cat2.getInteger("categoryID"))
             queryParam("accessControlString", closestItemGrp1Cat2.getString("accessControlString"))
             get("/items/closest")
           } Then {

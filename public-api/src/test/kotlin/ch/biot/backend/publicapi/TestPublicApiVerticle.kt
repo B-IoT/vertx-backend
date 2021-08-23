@@ -6,10 +6,9 @@ package ch.biot.backend.publicapi
 
 import ch.biot.backend.crud.CRUDVerticle
 import ch.biot.backend.crud.CRUDVerticle.Companion.INITIAL_USER
-import ch.biot.backend.crud.queries.addCategoryToCompany
-import ch.biot.backend.crud.queries.getItems
-import ch.biot.backend.crud.queries.insertCategory
-import ch.biot.backend.crud.toItemJson
+import ch.biot.backend.crud.queries.*
+import ch.biot.backend.crud.saltAndHash
+import ch.biot.backend.crud.tableExists
 import ch.biot.backend.publicapi.PublicApiVerticle.Companion.CRUD_HOST
 import ch.biot.backend.publicapi.PublicApiVerticle.Companion.CRUD_PORT
 import io.mockk.clearAllMocks
@@ -31,8 +30,12 @@ import io.vertx.core.Vertx
 import io.vertx.core.buffer.Buffer
 import io.vertx.core.http.HttpVersion
 import io.vertx.core.json.JsonArray
+import io.vertx.core.json.JsonObject
 import io.vertx.eventbusclient.EventBusClient
 import io.vertx.eventbusclient.EventBusClientOptions
+import io.vertx.ext.auth.mongo.MongoAuthentication
+import io.vertx.ext.auth.mongo.MongoUserUtil
+import io.vertx.ext.mongo.MongoClient
 import io.vertx.ext.web.client.WebClient
 import io.vertx.junit5.VertxExtension
 import io.vertx.junit5.VertxTestContext
@@ -41,6 +44,9 @@ import io.vertx.kotlin.core.json.jsonArrayOf
 import io.vertx.kotlin.core.json.jsonObjectOf
 import io.vertx.kotlin.coroutines.await
 import io.vertx.kotlin.coroutines.dispatcher
+import io.vertx.kotlin.ext.auth.mongo.mongoAuthenticationOptionsOf
+import io.vertx.kotlin.ext.auth.mongo.mongoAuthorizationOptionsOf
+import io.vertx.kotlin.ext.mongo.indexOptionsOf
 import io.vertx.kotlin.ext.web.client.webClientOptionsOf
 import io.vertx.kotlin.pgclient.pgConnectOptionsOf
 import io.vertx.kotlin.sqlclient.poolOptionsOf
@@ -61,8 +67,6 @@ import java.io.File
 import java.time.LocalDate
 
 @ExtendWith(VertxExtension::class)
-@TestMethodOrder(MethodOrderer.OrderAnnotation::class)
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @Testcontainers
 /**
  * Integration tests; the order matters (should not be the case, to fix).
@@ -186,14 +190,24 @@ class TestPublicApiVerticle {
   )
 
   private var item2IDGrp1 = -1
-  private var itemID = -1
-  private var item1CategoryID = -1
+  private var item1ID = -1
+
+  private var snapshotID = -1
 
   private lateinit var token: String
   private lateinit var tokenGrp1: String
 
-  private lateinit var webClient: WebClient
+  private lateinit var mongoClientUsers: MongoClient
+  private lateinit var mongoUserUtilUsers: MongoUserUtil
+  private lateinit var mongoAuthUsers: MongoAuthentication
+
+  private lateinit var mongoClientRelays: MongoClient
+  private lateinit var mongoUserUtilRelays: MongoUserUtil
+  private lateinit var mongoAuthRelays: MongoAuthentication
+
   private lateinit var pgClient: SqlClient
+
+  private lateinit var webClient: WebClient
 
   @BeforeEach
   fun setup(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
@@ -209,8 +223,36 @@ class TestPublicApiVerticle {
         )
       pgClient = PgPool.client(vertx, pgConnectOptions, poolOptionsOf())
 
+      initializeMongoForUsers(vertx)
+      initializeMongoForRelays(vertx)
+
+      dropAllUsers().await()
+      mongoClientUsers.createIndexWithOptions("users", jsonObjectOf("userID" to 1), indexOptionsOf().unique(true))
+        .await()
+      mongoClientUsers.createIndexWithOptions("users", jsonObjectOf("username" to 1), indexOptionsOf().unique(true))
+        .await()
+
+      dropAllRelays().await()
+      mongoClientRelays.createIndexWithOptions("relays", jsonObjectOf("relayID" to 1), indexOptionsOf().unique(true))
+        .await()
+      mongoClientRelays.createIndexWithOptions("relays", jsonObjectOf("mqttID" to 1), indexOptionsOf().unique(true))
+        .await()
+      mongoClientRelays.createIndexWithOptions(
+        "relays",
+        jsonObjectOf("mqttUsername" to 1),
+        indexOptionsOf().unique(true)
+      )
+        .await()
+
+      insertUsers().await()
+      insertRelay().await()
+
+      dropAllSnapshots().await()
+      dropAllItems().await()
       dropAllCategories().await()
       insertCategories().await()
+      insertItems()
+      insertSnapshots()
 
       webClient = spyk(
         WebClient.create(
@@ -225,17 +267,95 @@ class TestPublicApiVerticle {
 
       vertx.deployVerticle(PublicApiVerticle(webClient)).await()
       vertx.deployVerticle(CRUDVerticle()).await()
+
+      token = getAuthToken(user)
+      tokenGrp1 = getAuthToken(user2)
+
       testContext.completeNow()
     } catch (error: Throwable) {
       testContext.failNow(error)
     }
   }
 
+  private fun getAuthToken(user: JsonObject): String {
+    val loginInfo = jsonObjectOf(
+      "username" to user["username"],
+      "password" to user["password"]
+    )
+
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      body(loginInfo.encode())
+    } When {
+      post("/oauth/token")
+    } Then {
+      statusCode(200)
+      contentType("application/jwt")
+    } Extract {
+      asString()
+    }
+
+    return response
+  }
+
+  private fun initializeMongoForUsers(vertx: Vertx) {
+    mongoClientUsers =
+      MongoClient.createShared(
+        vertx,
+        jsonObjectOf("host" to "localhost", "port" to CRUDVerticle.MONGO_PORT, "db_name" to "clients")
+      )
+
+    val usernameField = "username"
+    val passwordField = "password"
+    val mongoAuthOptionsUsers = mongoAuthenticationOptionsOf(
+      collectionName = "users",
+      passwordCredentialField = passwordField,
+      passwordField = passwordField,
+      usernameCredentialField = usernameField,
+      usernameField = usernameField
+    )
+
+    mongoUserUtilUsers = MongoUserUtil.create(
+      mongoClientUsers, mongoAuthOptionsUsers, mongoAuthorizationOptionsOf()
+    )
+    mongoAuthUsers = MongoAuthentication.create(mongoClientUsers, mongoAuthOptionsUsers)
+  }
+
+  private fun initializeMongoForRelays(vertx: Vertx) {
+    mongoClientRelays =
+      MongoClient.createShared(
+        vertx,
+        jsonObjectOf("host" to "localhost", "port" to CRUDVerticle.MONGO_PORT, "db_name" to "clients")
+      )
+
+    val usernameField = "mqttUsername"
+    val passwordField = "mqttPassword"
+    val mongoAuthOptionsRelays = mongoAuthenticationOptionsOf(
+      collectionName = "relays",
+      passwordCredentialField = passwordField,
+      passwordField = passwordField,
+      usernameCredentialField = usernameField,
+      usernameField = usernameField
+    )
+
+    mongoUserUtilRelays = MongoUserUtil.create(
+      mongoClientRelays, mongoAuthOptionsRelays, mongoAuthorizationOptionsOf()
+    )
+    mongoAuthRelays = MongoAuthentication.create(mongoClientRelays, mongoAuthOptionsRelays)
+  }
+
   @AfterEach
   fun cleanup(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
     try {
       clearAllMocks()
+      dropAllSnapshots().await()
+      dropAllItems().await()
       dropAllCategories().await()
+      dropAllUsers().await()
+      dropAllRelays().await()
+      mongoClientUsers.close().await()
+      mongoClientRelays.close().await()
       pgClient.close()
       webClient.close()
       testContext.completeNow()
@@ -244,11 +364,105 @@ class TestPublicApiVerticle {
     }
   }
 
+  private fun dropAllUsers() = mongoClientUsers.removeDocuments("users", jsonObjectOf())
+
+  private fun dropAllRelays() = mongoClientRelays.removeDocuments("relays", jsonObjectOf())
+
+  private fun dropAllItems(): CompositeFuture {
+    return CompositeFuture.all(
+      pgClient.query("DELETE FROM items").execute(),
+      pgClient.query("DELETE FROM beacon_data").execute()
+    )
+  }
+
   private fun dropAllCategories(): CompositeFuture {
     return CompositeFuture.all(
       pgClient.query("DELETE FROM categories").execute(),
       pgClient.query("DELETE FROM company_categories").execute()
     )
+  }
+
+  private suspend fun dropAllSnapshots(): CompositeFuture {
+    val firstTableExists = pgClient.tableExists("items_snapshot_1")
+    val secondTableExists = pgClient.tableExists("items_snapshot_2")
+
+    return CompositeFuture.all(
+      pgClient.query("DELETE FROM items_snapshots").execute(),
+      if (firstTableExists) pgClient.query("DROP TABLE items_snapshot_1").execute() else Future.succeededFuture(),
+      if (secondTableExists) pgClient.query("DROP TABLE items_snapshot_2").execute() else Future.succeededFuture()
+    )
+  }
+
+  private suspend fun insertSnapshots() {
+    snapshotID = pgClient.preparedQuery(createSnapshot("items")).execute(Tuple.of("biot")).await().iterator().next()
+      .getInteger("id")
+    pgClient.query(snapshotTable("items", snapshotID)).execute().await()
+  }
+
+  private suspend fun insertItems() {
+    val item1Result = pgClient.preparedQuery(insertItem("items"))
+      .execute(
+        Tuple.of(
+          item1["beacon"],
+          item1["categoryID"],
+          item1["service"],
+          item1["itemID"],
+          item1["accessControlString"],
+          item1["brand"],
+          item1["model"],
+          item1["supplier"],
+          LocalDate.parse(item1["purchaseDate"]),
+          item1["purchasePrice"],
+          item1["originLocation"],
+          item1["currentLocation"],
+          item1["room"],
+          item1["contact"],
+          item1["currentOwner"],
+          item1["previousOwner"],
+          item1["orderNumber"],
+          item1["color"],
+          item1["serialNumber"],
+          LocalDate.parse(item1["maintenanceDate"]),
+          item1["status"],
+          item1["comments"],
+          LocalDate.parse(item1["lastModifiedDate"]),
+          item1["lastModifiedBy"]
+        )
+      ).await()
+
+    item1ID = item1Result.iterator().next().getInteger("id")
+
+    val item2Result = pgClient.preparedQuery(insertItem("items"))
+      .execute(
+        Tuple.of(
+          item2Grp1["beacon"],
+          item2Grp1["categoryID"],
+          item2Grp1["service"],
+          item2Grp1["itemID"],
+          item2Grp1["accessControlString"],
+          item2Grp1["brand"],
+          item2Grp1["model"],
+          item2Grp1["supplier"],
+          LocalDate.parse(item2Grp1["purchaseDate"]),
+          item2Grp1["purchasePrice"],
+          item2Grp1["originLocation"],
+          item2Grp1["currentLocation"],
+          item2Grp1["room"],
+          item2Grp1["contact"],
+          item2Grp1["currentOwner"],
+          item2Grp1["previousOwner"],
+          item2Grp1["orderNumber"],
+          item2Grp1["color"],
+          item2Grp1["serialNumber"],
+          LocalDate.parse(item2Grp1["maintenanceDate"]),
+          item2Grp1["status"],
+          item2Grp1["comments"],
+          LocalDate.parse(item2Grp1["lastModifiedDate"]),
+          item2Grp1["lastModifiedBy"]
+        )
+      ).await()
+
+    item2IDGrp1 = item2Result.iterator().next().getInteger("id")
   }
 
   private suspend fun insertCategories(): Future<RowSet<Row>> {
@@ -264,13 +478,40 @@ class TestPublicApiVerticle {
     return pgClient.preparedQuery(addCategoryToCompany()).execute(Tuple.of(litCategory.first, "biot"))
   }
 
+  private suspend fun insertUsers(): CompositeFuture {
+    suspend fun insertUser(user: JsonObject): Future<JsonObject> {
+      val hashedPassword = user.getString("password").saltAndHash(mongoAuthUsers)
+      val docID = mongoUserUtilUsers.createHashedUser(user.getString("username"), hashedPassword).await()
+      val query = jsonObjectOf("_id" to docID)
+      val extraInfo = jsonObjectOf(
+        "\$set" to user.copy().apply {
+          remove("password")
+        }
+      )
+      return mongoClientUsers.findOneAndUpdate("users", query, extraInfo)
+    }
+
+    return CompositeFuture.all(insertUser(user), insertUser(user2))
+  }
+
+  private suspend fun insertRelay(): Future<JsonObject> {
+    val hashedPassword = relay.getString("mqttPassword").saltAndHash(mongoAuthRelays)
+    val docID = mongoUserUtilRelays.createHashedUser("test", hashedPassword).await()
+    val query = jsonObjectOf("_id" to docID)
+    val extraInfo = jsonObjectOf(
+      "\$set" to relay.copy().apply {
+        remove("password")
+      }
+    )
+    return mongoClientRelays.findOneAndUpdate("relays", query, extraInfo)
+  }
+
   @Test
-  @Order(1)
   @DisplayName("Getting the token for the initial user succeeds")
   fun getTokenSucceeds(testContext: VertxTestContext) {
     val loginInfo = jsonObjectOf(
-      "username" to INITIAL_USER["username"],
-      "password" to INITIAL_USER["password"]
+      "username" to user["username"],
+      "password" to user["password"]
     )
 
     val response = Given {
@@ -296,7 +537,6 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(2)
   @DisplayName("Getting the token with wrong credentials fails")
   fun getTokenWithWrongCredentialsFails(testContext: VertxTestContext) {
     val loginInfo = jsonObjectOf(
@@ -320,17 +560,21 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(3)
   @DisplayName("Registering a user succeeds")
   fun registerUserSucceeds(testContext: VertxTestContext) {
     val requestSpy = spyk(webClient.post(CRUD_PORT, CRUD_HOST, "/users"))
     every { webClient.post(any(), any(), "/users") } returns requestSpy
 
+    val newUser = user.copy().apply {
+      put("userID", "newUser")
+      put("username", "newUser")
+    }
+
     val response = Given {
       spec(requestSpecification)
       header("Authorization", "Bearer $token")
       contentType(ContentType.JSON)
-      body(user.encode())
+      body(newUser.encode())
     } When {
       post("/oauth/register")
     } Then {
@@ -348,11 +592,14 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(4)
   @DisplayName("Getting the users succeeds")
   fun getUsersSucceeds(testContext: VertxTestContext) {
     val expected =
-      jsonArrayOf(INITIAL_USER.copy().apply { remove("password") }, user.copy().apply { remove("password") })
+      jsonArrayOf(
+        INITIAL_USER.copy().apply { remove("password") },
+        user.copy().apply { remove("password") },
+        user2.copy().apply { remove("password") }
+      )
 
     val requestSpy = spyk(webClient.get(CRUD_PORT, CRUD_HOST, "/users"))
     every { webClient.get(any(), any(), "/users") } returns requestSpy
@@ -375,12 +622,8 @@ class TestPublicApiVerticle {
       expectThat(response).isNotNull()
       expectThat(response.isEmpty).isFalse()
 
-      val password1 = response.getJsonObject(0).remove("password")
-      val password2 = response.getJsonObject(1).remove("password")
-      expectThat(response).isEqualTo(expected)
-
-      expectThat(password1).isNotNull()
-      expectThat(password2).isNotNull()
+      expectThat(response.map { (it as JsonObject).apply { remove("password") } }
+        .toHashSet()).isEqualTo(expected.map { it as JsonObject }.toHashSet())
 
       verify { requestSpy.addQueryParam("company", ofType(String::class)) }
       verify { requestSpy.addQueryParam("accessControlString", ofType(String::class)) }
@@ -390,7 +633,6 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(5)
   @DisplayName("Getting a user succeeds")
   fun getUserSucceeds(testContext: VertxTestContext) {
     val userID = user.getString("userID")
@@ -425,7 +667,6 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(6)
   @DisplayName("Updating a user succeeds")
   fun updateUserSucceeds(testContext: VertxTestContext) {
     val userID = user.getString("userID")
@@ -459,7 +700,6 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(7)
   @DisplayName("Deleting a user succeeds")
   fun deleteUserSucceeds(testContext: VertxTestContext) {
     val userID = "test42"
@@ -509,17 +749,22 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(8)
   @DisplayName("Registering a relay succeeds")
   fun registerRelaySucceeds(testContext: VertxTestContext) {
     val requestSpy = spyk(webClient.post(CRUD_PORT, CRUD_HOST, "/relays"))
     every { webClient.post(any(), any(), "/relays") } returns requestSpy
 
+    val newRelay = relay.copy().apply {
+      put("mqttID", "newRelay")
+      put("relayID", "newRelay")
+      put("mqttUsername", "newRelay")
+    }
+
     val response = Given {
       spec(requestSpecification)
       contentType(ContentType.JSON)
       header("Authorization", "Bearer $token")
-      body(relay.encode())
+      body(newRelay.encode())
     } When {
       post("/api/relays")
     } Then {
@@ -536,7 +781,6 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(9)
   @DisplayName("Getting the relays succeeds")
   fun getRelaysSucceeds(testContext: VertxTestContext) {
     val expected = jsonArrayOf(relay.copy().apply { remove("mqttPassword") })
@@ -573,7 +817,6 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(10)
   @DisplayName("Getting a relay succeeds")
   fun getRelaySucceeds(testContext: VertxTestContext) {
     val relayID = relay.getString("relayID")
@@ -607,7 +850,6 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(11)
   @DisplayName("Updating a relay succeeds")
   fun updateRelaySucceeds(testContext: VertxTestContext) {
     val relayID = relay.getString("relayID")
@@ -651,7 +893,6 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(12)
   @DisplayName("Deleting a relay succeeds")
   fun deleteRelaySucceeds(testContext: VertxTestContext) {
     val relayID = "testRelay42"
@@ -707,17 +948,20 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(13)
   @DisplayName("Registering an item succeeds")
   fun registerItemSucceeds(testContext: VertxTestContext) {
     val requestSpy = spyk(webClient.post(CRUD_PORT, CRUD_HOST, "/items"))
     every { webClient.post(any(), any(), "/items") } returns requestSpy
 
+    val newItem = item1.copy().apply {
+      put("beacon", "ab:cd:ab:cd:ab:cd")
+    }
+
     val response = Given {
       spec(requestSpecification)
       contentType(ContentType.JSON)
       header("Authorization", "Bearer $token")
-      body(item1.encode())
+      body(newItem.encode())
     } When {
       post("/api/items")
     } Then {
@@ -728,8 +972,6 @@ class TestPublicApiVerticle {
 
     testContext.verify {
       expectThat(response).isNotEmpty() // it returns the id of the registered item
-      itemID = response.toInt()
-      item1CategoryID = item1.getInteger("categoryID")
       verify { requestSpy.addQueryParam("company", ofType(String::class)) }
       verify { requestSpy.addQueryParam("accessControlString", ofType(String::class)) }
       testContext.completeNow()
@@ -737,7 +979,6 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(14)
   @DisplayName("Getting the items succeeds")
   fun getItemsSucceeds(testContext: VertxTestContext) {
     val expected = item1.copy()
@@ -765,10 +1006,11 @@ class TestPublicApiVerticle {
 
       val obj = response.getJsonObject(0)
       val id = obj.remove("id")
-      expectThat(id).isEqualTo(itemID)
+      expectThat(id).isEqualTo(item1ID)
       expect {
         that(obj.getString("beacon")).isEqualTo(expected.getString("beacon"))
-        that(obj.getString("category")).isEqualTo(expected.getString("category"))
+        that(ecgCategory.first).isEqualTo(expected.getInteger("categoryID"))
+        that(obj.getString("category")).isEqualTo(ecgCategory.second)
         that(obj.getString("service")).isEqualTo(expected.getString("service"))
         that(obj.getString("itemID")).isEqualTo(expected.getString("itemID"))
         that(obj.getString("accessControlString")).isEqualTo(expected.getString("accessControlString"))
@@ -807,18 +1049,11 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(15)
   @DisplayName("Getting the items (with query parameters) succeeds")
   fun getItemsWithQueryParametersSucceeds(testContext: VertxTestContext) {
-    val categoryID = item1CategoryID
+    val categoryID = item1.getInteger("categoryID")
     val requestSpy = spyk(webClient.get(CRUD_PORT, CRUD_HOST, "/items/?categoryID=$categoryID"))
     every { webClient.get(any(), any(), "/items/?categoryID=$categoryID") } returns requestSpy
-
-    pgClient.preparedQuery("SELECT * FROM items").execute().onSuccess {
-      it.forEach{ LOGGER.info { it.toJson() }}
-    }
-
-    LOGGER.info { "Category ID = $categoryID"}
 
     val response = Buffer.buffer(
       Given {
@@ -841,7 +1076,7 @@ class TestPublicApiVerticle {
 
       val obj = response.getJsonObject(0)
       val id = obj.remove("id")
-      expectThat(id).isEqualTo(itemID)
+      expectThat(id).isEqualTo(item1ID)
       expect {
         that(obj.getString("beacon")).isEqualTo(item1.getString("beacon"))
         that(obj.getString("category")).isEqualTo(ecgCategory.second)
@@ -883,7 +1118,6 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(16)
   @DisplayName("Getting the closest items succeeds")
   fun getClosestItemsSucceeds(testContext: VertxTestContext) {
     val latitude = 42
@@ -917,13 +1151,12 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(17)
   @DisplayName("Getting an item succeeds")
   fun getItemSucceeds(testContext: VertxTestContext) {
     val expected = item1.copy()
 
-    val requestSpy = spyk(webClient.get(CRUD_PORT, CRUD_HOST, "/items/$itemID"))
-    every { webClient.get(any(), any(), "/items/$itemID") } returns requestSpy
+    val requestSpy = spyk(webClient.get(CRUD_PORT, CRUD_HOST, "/items/$item1ID"))
+    every { webClient.get(any(), any(), "/items/$item1ID") } returns requestSpy
 
     val response = Buffer.buffer(
       Given {
@@ -931,7 +1164,7 @@ class TestPublicApiVerticle {
         accept(ContentType.JSON)
         header("Authorization", "Bearer $token")
       } When {
-        get("/api/items/$itemID")
+        get("/api/items/$item1ID")
       } Then {
         statusCode(200)
       } Extract {
@@ -942,10 +1175,11 @@ class TestPublicApiVerticle {
     testContext.verify {
       expectThat(response).isNotNull()
       val id = response.remove("id")
-      expectThat(id).isEqualTo(itemID)
+      expectThat(id).isEqualTo(item1ID)
       expect {
         that(response.getString("beacon")).isEqualTo(expected.getString("beacon"))
-        that(response.getString("category")).isEqualTo(expected.getString("category"))
+        that(ecgCategory.first).isEqualTo(expected.getInteger("categoryID"))
+        that(response.getString("category")).isEqualTo(ecgCategory.second)
         that(response.getString("service")).isEqualTo(expected.getString("service"))
         that(response.getString("itemID")).isEqualTo(expected.getString("itemID"))
         that(response.getString("accessControlString")).isEqualTo(expected.getString("accessControlString"))
@@ -984,7 +1218,6 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(18)
   @DisplayName("Getting the categories succeeds")
   fun getCategoriesSucceeds(testContext: VertxTestContext) {
     val expected = JsonArray(
@@ -1020,7 +1253,6 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(19)
   @DisplayName("Updating an item succeeds")
   fun updateItemSucceeds(testContext: VertxTestContext) {
     val updateJson = jsonObjectOf(
@@ -1049,8 +1281,8 @@ class TestPublicApiVerticle {
       "lastModifiedBy" to "Monsieur Duport"
     )
 
-    val requestSpy = spyk(webClient.put(CRUD_PORT, CRUD_HOST, "/items/$itemID"))
-    every { webClient.put(any(), any(), "/items/$itemID") } returns requestSpy
+    val requestSpy = spyk(webClient.put(CRUD_PORT, CRUD_HOST, "/items/$item1ID"))
+    every { webClient.put(any(), any(), "/items/$item1ID") } returns requestSpy
 
     val response = Given {
       spec(requestSpecification)
@@ -1059,7 +1291,7 @@ class TestPublicApiVerticle {
       header("Authorization", "Bearer $token")
       body(updateJson.encode())
     } When {
-      put("/api/items/$itemID")
+      put("/api/items/$item1ID")
     } Then {
       statusCode(200)
     } Extract {
@@ -1075,7 +1307,6 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(20)
   @DisplayName("Updating an item (with query parameters) succeeds")
   fun updateItemWithQueryParametersSucceeds(testContext: VertxTestContext) {
     val updateJson = jsonObjectOf(
@@ -1105,8 +1336,8 @@ class TestPublicApiVerticle {
     )
 
     val scan = true
-    val requestSpy = spyk(webClient.put(CRUD_PORT, CRUD_HOST, "/items/$itemID?scan=$scan"))
-    every { webClient.put(any(), any(), "/items/$itemID?scan=$scan") } returns requestSpy
+    val requestSpy = spyk(webClient.put(CRUD_PORT, CRUD_HOST, "/items/$item1ID?scan=$scan"))
+    every { webClient.put(any(), any(), "/items/$item1ID?scan=$scan") } returns requestSpy
 
     val response = Given {
       spec(requestSpecification)
@@ -1116,7 +1347,7 @@ class TestPublicApiVerticle {
       body(updateJson.encode())
     } When {
       queryParam("scan", scan)
-      put("/api/items/$itemID")
+      put("/api/items/$item1ID")
     } Then {
       statusCode(200)
     } Extract {
@@ -1132,7 +1363,6 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(21)
   @DisplayName("Deleting an item succeeds")
   fun deleteItemSucceeds(testContext: VertxTestContext) {
     val newItem = jsonObjectOf(
@@ -1199,7 +1429,6 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(22)
   @DisplayName("Liveness check succeeds")
   fun livenessCheckSucceeds(testContext: VertxTestContext) {
     val expected = jsonObjectOf("status" to "UP")
@@ -1223,7 +1452,6 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(23)
   @DisplayName("Readiness check succeeds")
   fun readinessCheckSucceeds(testContext: VertxTestContext) {
     val expected = jsonObjectOf("status" to "UP")
@@ -1247,7 +1475,6 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(24)
   @DisplayName("Getting the item's status succeeds (analytics)")
   fun getStatusSucceeds(testContext: VertxTestContext) {
     val requestSpy = spyk(webClient.get(CRUD_PORT, CRUD_HOST, "/analytics/status"))
@@ -1274,7 +1501,6 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(25)
   @DisplayName("Error 404 is handled in getOneHandler")
   fun errorNotFoundIsHandledGetOneRequest(testContext: VertxTestContext) {
     val response = Given {
@@ -1295,7 +1521,6 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(26)
   @DisplayName("Error 404 is handled in updateHandler")
   fun errorNotFoundIsHandledUpdateRequest(testContext: VertxTestContext) {
     val updateJson = jsonObjectOf(
@@ -1366,7 +1591,6 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(27)
   @DisplayName("Errors are handled in registerHandler")
   fun errorIsHandledRegisterRequest(testContext: VertxTestContext) {
     val response = Given {
@@ -1390,7 +1614,6 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(28)
   @DisplayName("Getting the user information succeeds")
   fun getUserInfoIsCorrect(testContext: VertxTestContext) {
     val expected = jsonObjectOf(
@@ -1417,7 +1640,6 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(29)
   @DisplayName("The event bus bridge endpoint is available")
   fun eventBusBridgeIsAvailable(testContext: VertxTestContext) {
     val options = EventBusClientOptions()
@@ -1434,7 +1656,6 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(30)
   @DisplayName("Creating a snapshot succeeds")
   fun createSnapshotSucceeds(testContext: VertxTestContext) {
     val requestSpy = spyk(webClient.post(CRUD_PORT, CRUD_HOST, "/items/snapshots"))
@@ -1461,7 +1682,6 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(31)
   @DisplayName("Getting the list of snapshots succeeds")
   fun getSnapshotsSucceeds(testContext: VertxTestContext) {
     val requestSpy = spyk(webClient.get(CRUD_PORT, CRUD_HOST, "/items/snapshots"))
@@ -1488,21 +1708,8 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(32)
   @DisplayName("Getting a snapshot succeeds")
   fun getSnapshotSucceeds(testContext: VertxTestContext) {
-    val snapshotID = Given {
-      spec(requestSpecification)
-      header("Authorization", "Bearer $token")
-      contentType(ContentType.JSON)
-    } When {
-      post("/api/items/snapshots")
-    } Then {
-      statusCode(200)
-    } Extract {
-      asString()
-    }
-
     val requestSpy = spyk(webClient.get(CRUD_PORT, CRUD_HOST, "/items/snapshots/$snapshotID"))
     every { webClient.get(any(), any(), "/items/snapshots/$snapshotID") } returns requestSpy
 
@@ -1527,7 +1734,6 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(33)
   @DisplayName("Deleting a snapshot succeeds")
   fun deleteSnapshotSucceeds(testContext: VertxTestContext) {
     val snapshotID = Given {
@@ -1566,7 +1772,6 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(34)
   @DisplayName("Comparing two snapshots succeeds")
   fun compareSnapshotsSucceeds(testContext: VertxTestContext) {
     val firstSnapshotId = Given {
@@ -1631,68 +1836,16 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(35)
-  @DisplayName("Registering a new user succeeds (used later)")
-  fun registerUserSucceeds2(testContext: VertxTestContext) {
-    val response = Given {
-      spec(requestSpecification)
-      header("Authorization", "Bearer $token")
-      contentType(ContentType.JSON)
-      body(user2.encode())
-    } When {
-      post("/oauth/register")
-    } Then {
-      statusCode(200)
-    } Extract {
-      asString()
-    }
-
-    testContext.verify {
-      expectThat(response).isEmpty()
-      testContext.completeNow()
-    }
-  }
-
-  @Test
-  @Order(36)
-  @DisplayName("Getting the token for the newly added user succeeds 2")
-  fun getTokenSucceeds2(testContext: VertxTestContext) {
-    val loginInfo = jsonObjectOf(
-      "username" to user2.getString("username"),
-      "password" to user2.getString("password")
-    )
-
-    val response = Given {
-      spec(requestSpecification)
-      contentType(ContentType.JSON)
-      body(loginInfo.encode())
-    } When {
-      post("/oauth/token")
-    } Then {
-      statusCode(200)
-      contentType("application/jwt")
-    } Extract {
-      asString()
-    }
-
-    tokenGrp1 = response
-
-    testContext.verify {
-      expectThat(response).isNotNull()
-      expectThat(response).isNotBlank()
-      testContext.completeNow()
-    }
-  }
-
-  @Test
-  @Order(37)
   @DisplayName("Registering a second item succeeds with a user with ac string = biot:grp1")
-  fun registerItemSucceeds2(testContext: VertxTestContext) {
+  fun registerItemSucceedsWithACString(testContext: VertxTestContext) {
+    val newItem = item2Grp1.copy().apply {
+      put("beacon", "ee:ee:ee:ee:ee:ee")
+    }
     val response = Given {
       spec(requestSpecification)
       contentType(ContentType.JSON)
       header("Authorization", "Bearer $tokenGrp1")
-      body(item2Grp1.encode())
+      body(newItem.encode())
     } When {
       post("/api/items")
     } Then {
@@ -1703,13 +1856,11 @@ class TestPublicApiVerticle {
 
     testContext.verify {
       expectThat(response).isNotEmpty() // it returns the id of the registered item
-      item2IDGrp1 = response.toInt()
       testContext.completeNow()
     }
   }
 
   @Test
-  @Order(38)
   @DisplayName("Getting an item succeeds with the right ac string")
   fun getItemSucceedsWithACString(testContext: VertxTestContext) {
     val expected = item2Grp1.copy()
@@ -1734,7 +1885,8 @@ class TestPublicApiVerticle {
       expectThat(id).isEqualTo(item2IDGrp1)
       expect {
         that(response.getString("beacon")).isEqualTo(expected.getString("beacon"))
-        that(response.getString("category")).isEqualTo(expected.getString("category"))
+        that(litCategory.first).isEqualTo(expected.getInteger("categoryID"))
+        that(response.getString("category")).isEqualTo(litCategory.second)
         that(response.getString("service")).isEqualTo(expected.getString("service"))
         that(response.getString("itemID")).isEqualTo(expected.getString("itemID"))
         that(response.getString("accessControlString")).isEqualTo(user2.getString("accessControlString"))
@@ -1769,7 +1921,6 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(39)
   @DisplayName("Getting an item fails (404 as if the item does not exist) with an insufficient ac string")
   fun getItemFailsWithWrongACString(testContext: VertxTestContext) {
     val response =
@@ -1778,7 +1929,7 @@ class TestPublicApiVerticle {
         accept(ContentType.JSON)
         header("Authorization", "Bearer $tokenGrp1")
       } When {
-        get("/api/items/$itemID")
+        get("/api/items/$item1ID")
       } Then {
         statusCode(404)
       } Extract {
@@ -1792,7 +1943,6 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(40)
   @DisplayName("Updating an item fails with insufficient ac string and does not modify the item")
   fun updateItemFailsWithWrongACString(testContext: VertxTestContext) {
     val expected = Buffer.buffer(
@@ -1801,7 +1951,7 @@ class TestPublicApiVerticle {
         accept(ContentType.JSON)
         header("Authorization", "Bearer $token")
       } When {
-        get("/api/items/$itemID")
+        get("/api/items/$item1ID")
       } Then {
         statusCode(200)
       } Extract {
@@ -1843,7 +1993,7 @@ class TestPublicApiVerticle {
       header("Authorization", "Bearer $tokenGrp1")
       body(updateJson.encode())
     } When {
-      put("/api/items/$itemID")
+      put("/api/items/$item1ID")
     } Then {
       statusCode(403)
     } Extract {
@@ -1860,7 +2010,7 @@ class TestPublicApiVerticle {
         accept(ContentType.JSON)
         header("Authorization", "Bearer $token")
       } When {
-        get("/api/items/$itemID")
+        get("/api/items/$item1ID")
       } Then {
         statusCode(200)
       } Extract {
@@ -1871,7 +2021,7 @@ class TestPublicApiVerticle {
     testContext.verify {
       expectThat(response2).isNotNull()
       val id = response2.remove("id")
-      expectThat(id).isEqualTo(itemID)
+      expectThat(id).isEqualTo(item1ID)
       expect {
         that(response2.getString("beacon")).isEqualTo(expected.getString("beacon"))
         that(response2.getString("category")).isEqualTo(expected.getString("category"))
@@ -1909,7 +2059,6 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(41)
   @DisplayName("Deleting an item fails with insufficient ac string (it completes but does not delete the item)")
   fun deleteItemFailsWithWrongACString(testContext: VertxTestContext) {
     val expected = Buffer.buffer(
@@ -1918,7 +2067,7 @@ class TestPublicApiVerticle {
         accept(ContentType.JSON)
         header("Authorization", "Bearer $token")
       } When {
-        get("/api/items/$itemID")
+        get("/api/items/$item1ID")
       } Then {
         statusCode(200)
       } Extract {
@@ -1932,7 +2081,7 @@ class TestPublicApiVerticle {
       accept(ContentType.JSON)
       header("Authorization", "Bearer $tokenGrp1")
     } When {
-      delete("/api/items/$itemID")
+      delete("/api/items/$item1ID")
     } Then {
       statusCode(404)
     } Extract {
@@ -1949,7 +2098,7 @@ class TestPublicApiVerticle {
         accept(ContentType.JSON)
         header("Authorization", "Bearer $token")
       } When {
-        get("/api/items/$itemID")
+        get("/api/items/$item1ID")
       } Then {
         statusCode(200)
       } Extract {
@@ -1960,7 +2109,7 @@ class TestPublicApiVerticle {
     testContext.verify {
       expectThat(response2).isNotNull()
       val id = response2.remove("id")
-      expectThat(id).isEqualTo(itemID)
+      expectThat(id).isEqualTo(item1ID)
       expect {
         that(response2.getString("beacon")).isEqualTo(expected.getString("beacon"))
         that(response2.getString("category")).isEqualTo(expected.getString("category"))
@@ -1998,7 +2147,6 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(42)
   @DisplayName("Getting the closest items succeeds with AC")
   fun getClosestItemsSucceedsWithAC(testContext: VertxTestContext) {
     val response1 = Buffer.buffer(
@@ -2026,7 +2174,8 @@ class TestPublicApiVerticle {
       expectThat(id).isEqualTo(item2IDGrp1)
       expect {
         that(response.getString("beacon")).isEqualTo(expected.getString("beacon"))
-        that(response.getString("category")).isEqualTo(expected.getString("category"))
+        that(litCategory.first).isEqualTo(expected.getInteger("categoryID"))
+        that(response.getString("category")).isEqualTo(litCategory.second)
         that(response.getString("service")).isEqualTo(expected.getString("service"))
         that(response.getString("accesscontrolstring")).isEqualTo(expected.getString("accessControlString"))
         that(response.containsKey("timestamp")).isTrue()
@@ -2040,9 +2189,8 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(43)
   @DisplayName("Registering an item succeeds with a user with ac string = biot:grp1 without specifying it in the json creates the item correctly with the AC string of the user")
-  fun registerItemSucceeds3(testContext: VertxTestContext) {
+  fun registerItemSucceedsWithoutACStringUsingUserOneAsDefault(testContext: VertxTestContext) {
     val insertJson = item3.copy().apply { remove("accessControlString") }
 
     var item3ID = -1
@@ -2139,9 +2287,8 @@ class TestPublicApiVerticle {
 
 
   @Test
-  @Order(44)
   @DisplayName("Registering an item succeeds with a user with ac string = biot:grp1 specifying it in the json creates the item correctly with the AC string specified in the JSON")
-  fun registerItemSucceeds4(testContext: VertxTestContext) {
+  fun registerItemSucceedsUsingACStringSpecified(testContext: VertxTestContext) {
     val insertJson = item3.copy()
 
     var item3ID = -1

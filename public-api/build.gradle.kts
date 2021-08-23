@@ -47,6 +47,8 @@ dependencies {
   implementation("io.github.microutils:kotlin-logging-jvm:$kotlinLoggingVersion")
   testImplementation(project(":crud"))
   testImplementation("io.vertx:vertx-pg-client:$vertxVersion")
+  testImplementation("io.vertx:vertx-mongo-client:$vertxVersion")
+  testImplementation("io.vertx:vertx-auth-mongo:$vertxVersion")
   testImplementation("org.testcontainers:junit-jupiter:$testContainersVersion")
   testImplementation("io.rest-assured:kotlin-extensions:$restAssuredVersion")
   testImplementation("io.vertx:vertx-junit5:$vertxVersion")

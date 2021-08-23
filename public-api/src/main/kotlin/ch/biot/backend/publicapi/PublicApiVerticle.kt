@@ -698,14 +698,13 @@ class PublicApiVerticle(
       .addQueryParam("company", company)
       .addQueryParam("accessControlString", company)
       .timeout(TIMEOUT)
-      .`as`(BodyCodec.jsonObject())
       .coroutineSend()
       .bimap(
         { error -> sendBadGateway(ctx, error) },
         { resp ->
           val acString: String
           try {
-            val json = resp.body()
+            val json = resp.bodyAsJsonObject()
             acString = json.getString("accessControlString")
           } catch (e: Exception) {
             sendBadGateway(ctx, e)

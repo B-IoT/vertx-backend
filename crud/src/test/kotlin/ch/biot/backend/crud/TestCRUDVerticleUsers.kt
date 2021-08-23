@@ -103,11 +103,13 @@ class TestCRUDVerticleUsers {
   private fun dropAllUsers() = mongoClient.removeDocuments("users", jsonObjectOf())
 
   private suspend fun insertUser(): Future<JsonObject> {
-    val hashedPassword = password.saltAndHash(mongoAuth)
-    val docID = mongoUserUtil.createHashedUser("test", hashedPassword).await()
+    val hashedPassword = existingUser.getString("password").saltAndHash(mongoAuth)
+    val docID = mongoUserUtil.createHashedUser(existingUser["username"], hashedPassword).await()
     val query = jsonObjectOf("_id" to docID)
     val extraInfo = jsonObjectOf(
-      "\$set" to existingUser
+      "\$set" to existingUser.apply {
+        remove("password")
+      }
     )
     return mongoClient.findOneAndUpdate("users", query, extraInfo)
   }
@@ -705,7 +707,7 @@ class TestCRUDVerticleUsers {
       contentType(ContentType.JSON)
     } When {
       queryParam("accessControlString", "biot")
-      get("/users/test")
+      get("/users/${existingUser.getString("userID")}")
     } Then {
       statusCode(400)
     } Extract {

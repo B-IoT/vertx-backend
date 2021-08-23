@@ -80,7 +80,7 @@ class CRUDVerticle : CoroutineVerticle() {
 
     private const val SERVER_COMPRESSION_LEVEL = 4
 
-    // User initially inserted in the DB
+    // User initially inserted in the DB. Public visibility for testing only
     val INITIAL_USER = jsonObjectOf(
       "userID" to "biot_biot",
       "username" to "biot",
@@ -211,10 +211,10 @@ class CRUDVerticle : CoroutineVerticle() {
       routerBuilder.operation("deleteItem").coroutineHandler(::deleteItemHandler)
       routerBuilder.operation("updateItem").coroutineHandler(::updateItemHandler)
       routerBuilder.operation("getCategories").coroutineHandler(::getCategoriesHandler)
-      routerBuilder.operation("getCategory").coroutineHandler(::getCategoryHandler)
-      routerBuilder.operation("createCategory").coroutineHandler(::createCategoryHandler)
-      routerBuilder.operation("deleteCategory").coroutineHandler(::deleteCategoryHandler)
-      routerBuilder.operation("updateCategory").coroutineHandler(::updateCategoryHandler)
+//      routerBuilder.operation("getCategory").coroutineHandler(::getCategoryHandler)
+//      routerBuilder.operation("createCategory").coroutineHandler(::createCategoryHandler)
+//      routerBuilder.operation("deleteCategory").coroutineHandler(::deleteCategoryHandler)
+//      routerBuilder.operation("updateCategory").coroutineHandler(::updateCategoryHandler)
       routerBuilder.operation("getSnapshots").coroutineHandler(::getSnapshotsHandler)
       routerBuilder.operation("getSnapshot").coroutineHandler(::getSnapshotHandler)
       routerBuilder.operation("deleteSnapshot").coroutineHandler(::deleteSnapshotHandler)
