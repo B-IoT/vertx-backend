@@ -2,9 +2,9 @@ openapi: 3.0.0
 info:
   title: Vert.x API
   description: BIoT Vert.x API
-  version: 2.3.3
+  version: 2.4.0
 servers:
-  - url: https://virtserver.swaggerhub.com/b-iot/Vert.x/2.3.3
+  - url: https://virtserver.swaggerhub.com/b-iot/Vert.x/2.4.0
     description: SwaggerHub API Auto Mocking
 paths:
   /relays:
