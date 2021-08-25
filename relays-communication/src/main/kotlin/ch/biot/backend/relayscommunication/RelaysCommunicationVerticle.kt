@@ -11,6 +11,7 @@ import io.vertx.core.http.ClientAuth
 import io.vertx.core.json.DecodeException
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.auth.mongo.MongoAuthentication
+import io.vertx.ext.mongo.BulkOperation
 import io.vertx.ext.mongo.MongoClient
 import io.vertx.kafka.client.producer.KafkaProducer
 import io.vertx.kafka.client.producer.KafkaProducerRecord
@@ -96,9 +97,9 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
   }
 
   /**
-   * Map of subscribed clientIdentifier to client.
+   * Map of subscribed clientIdentifier to Pair<String, client>.
    */
-  private val clients = mutableMapOf<String, MqttEndpoint>()
+  private val clients = mutableMapOf<String, Pair<String, MqttEndpoint>>()
 
   /**
    * We use this to check whether the whiteList changed or not since last sent, so that we do not overwhelm the relays.
@@ -148,7 +149,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
       val cleanJson = json.clean()
 
       // Send the message to the right relay on the MQTT topic "update.parameters"
-      clients[mqttID]?.let { client -> launch(vertx.dispatcher()) { sendMessageTo(client, cleanJson) } }
+      clients[mqttID]?.let { client -> launch(vertx.dispatcher()) { sendMessageTo(client.second, cleanJson) } }
     }
 
     // Initialize TimescaleDB
@@ -199,6 +200,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     // We use Timer to not have any stacking of operation
     periodicUpdateConfig = Handler {
       launch(vertx.dispatcher()) { sendConfigToAllRelays() }
+      checkConnectionAndUpdateDb()
       vertx.setTimer(TimeUnit.SECONDS.toMillis(UPDATE_CONFIG_INTERVAL_SECONDS), periodicUpdateConfig)
     }
     // Schedule the first execution
@@ -273,7 +275,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
 
           // Ack the subscriptions request
           client.subscribeAcknowledge(subscribe.messageId(), grantedQosLevels)
-          clients[clientIdentifier] = client
+          clients[clientIdentifier] = Pair(company, client)
 
           // Send last configuration to client
           launch(vertx.dispatcher()) { sendLastConfiguration(client, collection, company) }
@@ -285,6 +287,8 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
         }.publishHandler { m ->
           launch(vertx.dispatcher()) { handleMessage(m, client, company) }
         }
+
+      mongoClient.findOneAndUpdate(collection, jsonObjectOf("mqttID" to clientIdentifier), jsonObjectOf("\$set" to jsonObjectOf("connected" to true)))
     } catch (error: Throwable) {
       // Wrong username or password, reject
       LOGGER.error(error) { "Client $clientIdentifier rejected" }
@@ -422,8 +426,9 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
   }
 
   private suspend fun sendConfigToAllRelays() {
-    clients.forEach { (_, relayClient) ->
-      val company = relayClient.will().willMessage.toJsonObject().getString("company")
+    clients.forEach { (_, relayClientPair) ->
+      val company = relayClientPair.first
+      val relayClient = relayClientPair.second
       val collection = if (company != "biot") "${RELAYS_COLLECTION}_$company" else RELAYS_COLLECTION
       val currentWhiteList = getItemsMacAddressesString(company)
 
@@ -464,5 +469,44 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
       LOGGER.warn { "Could not get beacons' whitelist: exception: $e" }
       ""
     }
+  }
+
+  /**
+   * Go through the map of mqtt Endpoints and remove those that are not connected
+   * It also updates the mongoDB accordingly
+   */
+  private fun checkConnectionAndUpdateDb() {
+
+    val bulkOperations = HashMap<String, ArrayList<BulkOperation>>()
+
+    for(entry in clients.entries) {
+      val clientId = entry.key
+      val company = entry.value.first
+      val client = entry.value.second
+      if(!client.isConnected){
+        clients.remove(clientId)
+      } else {
+        val filter = jsonObjectOf(Pair("mqttID", clientId))
+        val update = jsonObjectOf(
+          Pair("\$set", jsonObjectOf(Pair("connected", true))))
+        if(!bulkOperations.containsKey(company)){
+          bulkOperations[company] = ArrayList()
+        }
+        bulkOperations[company]?.add(BulkOperation.createUpdate(filter, update))
+      }
+    }
+
+    val allFalseUpdate = jsonObjectOf(
+      Pair("\$set", jsonObjectOf(Pair("connected", false))))
+    for (company in bulkOperations.keys) {
+      val relaysCollection = if (company != "biot") "${RELAYS_COLLECTION}_$company" else RELAYS_COLLECTION
+      mongoClient.updateCollection(relaysCollection, JsonObject(), allFalseUpdate)
+      mongoClient.bulkWrite(relaysCollection, bulkOperations[company])
+    }
+
+
+
+
+
   }
 }

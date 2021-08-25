@@ -52,6 +52,7 @@ import strikt.api.expectThat
 import strikt.assertions.isEqualTo
 import strikt.assertions.isLessThanOrEqualTo
 import strikt.assertions.isNotNull
+import strikt.assertions.isTrue
 import java.io.File
 import java.security.SecureRandom
 import java.time.LocalDate
@@ -717,7 +718,7 @@ class TestRelaysCommunicationVerticle {
   fun clientSubscribesAndReceivesLastConfig(vertx: Vertx, testContext: VertxTestContext): Unit =
     runBlocking(vertx.dispatcher()) {
       try {
-        mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, MQTT_HOST).await()
+        mqttClient.connect(MQTT_PORT, MQTT_HOST).await()
         mqttClient.publishHandler { msg ->
           if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
             testContext.verify {
@@ -739,6 +740,63 @@ class TestRelaysCommunicationVerticle {
         testContext.failNow(error)
       }
     }
+
+  @Test
+  @DisplayName("After the connection of the client, the relay is connected = true in the DB immediately")
+  fun clientSubscribesAndIsConnectedInMongo(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      try {
+        mqttClient.connect(MQTT_PORT, MQTT_HOST).await()
+        mqttClient.publishHandler { msg ->
+          if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
+            testContext.verify {
+              mongoClient.findOne(RELAYS_COLLECTION, jsonObjectOf("mqttID" to configuration["mqttID"]), jsonObjectOf())
+                .onSuccess { relayJson ->
+                  expectThat(relayJson).isNotNull()
+                  expectThat(relayJson.getBoolean("connected")).isTrue()
+                  testContext.completeNow()
+                }.onFailure{
+                  testContext.failNow("Error while accessing MongoDB")
+                }
+            }
+          }
+        }.subscribe(UPDATE_PARAMETERS_TOPIC, MqttQoS.AT_LEAST_ONCE.value()).await()
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+
+  @Test
+  @DisplayName("When the client disconnects, the relay is connected = false in the DB after max 20 sec")
+  fun clientSubscribesAndDisconnectsIsCorrectInMongo(vertx: Vertx, testContext: VertxTestContext) {
+    runBlocking(vertx.dispatcher()) {
+      try {
+        mqttClient.connect(MQTT_PORT, MQTT_HOST).await()
+        mqttClient.publishHandler { msg ->
+          if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
+            mqttClient.disconnect()
+          }
+        }.subscribe(UPDATE_PARAMETERS_TOPIC, MqttQoS.AT_LEAST_ONCE.value()).await()
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+
+    vertx.setTimer(25_000) {
+      testContext.verify {
+        mongoClient.findOne(RELAYS_COLLECTION, jsonObjectOf("mqttID" to configuration["mqttID"]), jsonObjectOf())
+          .onSuccess { relayJson ->
+            expectThat(relayJson.getBoolean("connected")).isTrue()
+            testContext.completeNow()
+          }.onFailure{
+            testContext.failNow("Error while accessing MongoDB")
+          }
+      }
+      testContext.completeNow()
+    }
+
+
+  }
 
   @Test
   @DisplayName("A MQTT client without authentication is refused connection")
@@ -1363,7 +1421,7 @@ class TestRelaysCommunicationVerticle {
       var msgCounter = 0
       add1026Items()
       try {
-        mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+        mqttClient.connect(MQTT_PORT, "localhost").await()
         mqttClient.publishHandler { msg ->
           if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
             // First msg at subscription
