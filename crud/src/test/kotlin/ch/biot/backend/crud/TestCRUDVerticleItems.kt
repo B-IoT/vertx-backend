@@ -55,7 +55,10 @@ class TestCRUDVerticleItems {
 
   private lateinit var pgClient: SqlClient
 
+  private val anotherCompanyName = "anotherCompany"
+
   // Will be overwritten when creating the actual categories in the DB
+  private var anotherCompanyEcgCategory: Pair<Int, String> = 12 to "ECG"
   private var ecgCategory: Pair<Int, String> = 1 to "ECG"
   private var litCategory: Pair<Int, String> = 2 to "Lit"
   private var lit2Category: Pair<Int, String> = 3 to "Lit2"
@@ -302,6 +305,40 @@ class TestCRUDVerticleItems {
       )
     pgClient = PgPool.client(vertx, pgConnectOptions, poolOptionsOf())
 
+    pgClient.query(
+      """
+      CREATE TABLE IF NOT EXISTS items_$anotherCompanyName
+(
+    id SERIAL PRIMARY KEY,
+    beacon VARCHAR(17) UNIQUE,
+    categoryID INTEGER,
+    service VARCHAR(100),
+    itemID VARCHAR(50),
+    accessControlString VARCHAR(2048),
+    brand VARCHAR(100),
+    model VARCHAR(100),
+    supplier VARCHAR(100),
+    purchaseDate DATE,
+    purchasePrice DECIMAL(15, 6),
+    originLocation VARCHAR(100),
+    currentLocation VARCHAR(100),
+    room VARCHAR(100),
+    contact VARCHAR(100),
+    currentOwner VARCHAR(100),
+    previousOwner VARCHAR(100),
+    orderNumber VARCHAR(100),
+    color VARCHAR(100),
+    serialNumber VARCHAR(100),
+    maintenanceDate DATE,
+    status VARCHAR(100),
+    comments VARCHAR(200),
+    lastModifiedDate DATE,
+    lastModifiedBy VARCHAR(100),
+    FOREIGN KEY(categoryID) REFERENCES categories(id) ON UPDATE CASCADE ON DELETE SET NULL
+);
+    """.trimIndent()
+    ).execute().await()
+
     try {
       dropAllSnapshots().await()
       dropAllItems().await()
@@ -340,6 +377,11 @@ class TestCRUDVerticleItems {
   }
 
   private suspend fun insertCategories(): Future<RowSet<Row>> {
+    anotherCompanyEcgCategory = pgClient.preparedQuery(insertCategory())
+      .execute(Tuple.of(anotherCompanyEcgCategory.second)).await().iterator().next().getInteger("id") to anotherCompanyEcgCategory.second
+    pgClient.preparedQuery(addCategoryToCompany())
+      .execute(Tuple.of(anotherCompanyEcgCategory.first, anotherCompanyName)).await()
+
     ecgCategory = pgClient.preparedQuery(insertCategory())
       .execute(Tuple.of(ecgCategory.second)).await().iterator().next().getInteger("id") to ecgCategory.second
     existingItem.put("categoryID", ecgCategory.first)
@@ -2306,7 +2348,29 @@ class TestCRUDVerticleItems {
     }
 
     testContext.verify {
-      expectThat(response).isEmpty()
+      expectThat(response).isNotNull()
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("getCategory returns not found on existing category not mapped to the company")
+  fun getCategoryReturnsNotFoundOnExistingCategoryNotMappedToTheCompany(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      accept(ContentType.JSON)
+    } When {
+      queryParam("company", anotherCompanyName)
+      queryParam("accessControlString", anotherCompanyName)
+      get("/items/categories/${litCategory.first}")
+    } Then {
+      statusCode(404)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isNotNull()
       testContext.completeNow()
     }
   }
@@ -2412,7 +2476,33 @@ class TestCRUDVerticleItems {
     }
 
     testContext.verify {
-      expectThat(response).isEmpty()
+      expectThat(response).isNotNull()
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("updateCategory returns not found on existing category not mapped to the company")
+  fun updateCategoryReturnsNotFoundOnExistingCategoryNotMappedToTheCompany(testContext: VertxTestContext) {
+    val updateJson = jsonObjectOf("name" to "newName")
+
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+      body(updateJson.encode())
+    } When {
+      queryParam("company", anotherCompanyName)
+      queryParam("accessControlString", anotherCompanyName)
+      put("/items/categories/${litCategory.first}")
+    } Then {
+      statusCode(404)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isNotNull()
       testContext.completeNow()
     }
   }
@@ -2455,7 +2545,29 @@ class TestCRUDVerticleItems {
     }
 
     testContext.verify {
-      expectThat(response).isEmpty()
+      expectThat(response).isNotNull()
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("deleteCategory returns not found on existing category not mapped to the company")
+  fun deleteCategoryReturnsNotFoundOnExistingCategoryNotMappedToTheCompany(testContext: VertxTestContext) {
+    val response = Given {
+      spec(requestSpecification)
+      accept(ContentType.JSON)
+    } When {
+      queryParam("company", anotherCompanyName)
+      queryParam("accessControlString", anotherCompanyName)
+      delete("/items/categories/${litCategory.first}")
+    } Then {
+      statusCode(404)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isNotNull()
       testContext.completeNow()
     }
   }
@@ -2562,6 +2674,81 @@ class TestCRUDVerticleItems {
   }
 
   @Test
+  @DisplayName("createCategory correctly creates the category when the category exists but not mapped to the company")
+  fun createCategoryIsCorrectWhenCategoryAlreadyExistsButNotMappedToTheCompany(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
+    val newName = litCategory.second
+    val createJson = jsonObjectOf("name" to newName)
+
+    val newCategoryIDString = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      body(createJson.encode())
+    } When {
+      queryParam("accessControlString", anotherCompanyName)
+      queryParam("company", anotherCompanyName)
+      post("/items/categories")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(newCategoryIDString).isNotEmpty() // it returns the id
+    }
+
+    try {
+      val newCategoryID = newCategoryIDString.toInt()
+      val category =
+        pgClient.preparedQuery(getCategory()).execute(Tuple.of(newCategoryID)).await().iterator().next()
+      expectThat(category.getInteger("id")).isEqualTo(newCategoryID)
+      expectThat(category.getString("name")).isEqualTo(newName)
+      testContext.completeNow()
+    } catch (error: Throwable) {
+      testContext.failNow(error)
+    }
+  }
+
+  @Test
+  @DisplayName("createCategory fails creating the category if the name already exists")
+  fun createCategoryIsCorrectWhenDuplicate(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
+    val newName = "newName"
+    val createJson = jsonObjectOf("name" to newName)
+
+    val newCategoryIDString = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      body(createJson.encode())
+    } When {
+      queryParam("accessControlString", "biot")
+      queryParam("company", "biot")
+      post("/items/categories")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(newCategoryIDString).isNotEmpty() // it returns the id
+    }
+
+    Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      body(createJson.encode())
+    } When {
+      queryParam("accessControlString", "biot")
+      queryParam("company", "biot")
+      post("/items/categories")
+    } Then {
+      statusCode(400)
+    }
+
+    testContext.completeNow()
+  }
+
+  @Test
   @DisplayName("getItem correctly retrieves the desired item")
   fun getItemIsCorrect(testContext: VertxTestContext) {
     val expected = existingItem.copy().apply {
@@ -2659,7 +2846,7 @@ class TestCRUDVerticleItems {
     }
 
     testContext.verify {
-      expectThat(response).isEmpty()
+      expectThat(response).isNotNull()
       testContext.completeNow()
     }
   }

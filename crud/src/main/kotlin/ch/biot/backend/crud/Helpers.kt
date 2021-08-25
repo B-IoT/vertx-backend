@@ -8,6 +8,8 @@ import ch.biot.backend.crud.CRUDVerticle.Companion.BAD_REQUEST_CODE
 import ch.biot.backend.crud.CRUDVerticle.Companion.FORBIDDEN_CODE
 import ch.biot.backend.crud.CRUDVerticle.Companion.INTERNAL_SERVER_ERROR_CODE
 import ch.biot.backend.crud.CRUDVerticle.Companion.MAX_ACCESS_CONTROL_STRING_LENGTH
+import ch.biot.backend.crud.CRUDVerticle.Companion.NOT_FOUND_CODE
+import ch.biot.backend.crud.queries.getCategories
 import ch.biot.backend.crud.queries.getSnapshots
 import ch.biot.backend.crud.queries.searchForTable
 import io.vertx.core.json.JsonObject
@@ -326,6 +328,22 @@ internal suspend fun RoutingContext.failIfNoRightsToSnapshots(
     // Access refused
     LOGGER.error { "ACCESS FORBIDDEN $operationName" }
     this.fail(FORBIDDEN_CODE)
+    return true
+  }
+  return false
+}
+
+internal suspend fun RoutingContext.failIfNoCategoriesIdsInCompany(
+  client: SqlClient,
+  categoryIds: List<Int>,
+  company: String
+): Boolean {
+  val categories = client.preparedQuery(getCategories()).execute(Tuple.of(company)).await()
+    .map { it.getInteger("id") }
+  if (!categories.containsAll(categoryIds)) {
+    // Access refused
+    LOGGER.error { "NO SUCH CATEGORIES FOR COMPANY $company" }
+    this.fail(NOT_FOUND_CODE)
     return true
   }
   return false

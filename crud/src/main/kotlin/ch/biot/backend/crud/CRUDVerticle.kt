@@ -76,7 +76,7 @@ class CRUDVerticle : CoroutineVerticle() {
     private const val UNAUTHORIZED_CODE = 401
     internal const val FORBIDDEN_CODE = 403
     const val BAD_REQUEST_CODE = 400
-    private const val NOT_FOUND_CODE = 404
+    internal const val NOT_FOUND_CODE = 404
 
     private const val SERVER_COMPRESSION_LEVEL = 4
 
@@ -210,11 +210,13 @@ class CRUDVerticle : CoroutineVerticle() {
       routerBuilder.operation("getClosestItems").coroutineHandler(::getClosestItemsHandler)
       routerBuilder.operation("deleteItem").coroutineHandler(::deleteItemHandler)
       routerBuilder.operation("updateItem").coroutineHandler(::updateItemHandler)
+
       routerBuilder.operation("getCategories").coroutineHandler(::getCategoriesHandler)
       routerBuilder.operation("getCategory").coroutineHandler(::getCategoryHandler)
       routerBuilder.operation("createCategory").coroutineHandler(::createCategoryHandler)
       routerBuilder.operation("deleteCategory").coroutineHandler(::deleteCategoryHandler)
       routerBuilder.operation("updateCategory").coroutineHandler(::updateCategoryHandler)
+
       routerBuilder.operation("getSnapshots").coroutineHandler(::getSnapshotsHandler)
       routerBuilder.operation("getSnapshot").coroutineHandler(::getSnapshotHandler)
       routerBuilder.operation("deleteSnapshot").coroutineHandler(::deleteSnapshotHandler)
@@ -961,11 +963,12 @@ class CRUDVerticle : CoroutineVerticle() {
    */
   private suspend fun getCategoryHandler(ctx: RoutingContext) {
     val categoryID = ctx.pathParam("id").toInt()
+    val company = ctx.queryParams().get("company")
     LOGGER.info { "New getCategory request for category $categoryID" }
 
     executeWithErrorHandling("Could not get category", ctx) {
-      val queryResult = pgClient.preparedQuery(getCategory()).execute(Tuple.of(categoryID)).await()
-      if (queryResult.size() == 0) {
+      val queryResult = pgClient.preparedQuery(getCategories()).execute(Tuple.of(company)).await().map { it.toJson() }.filter { it.getInteger("id") == categoryID }
+      if (queryResult.isEmpty()) {
         // No category found
         LOGGER.warn { "Category $categoryID not found" }
         ctx.response().statusCode = NOT_FOUND_CODE
@@ -973,7 +976,7 @@ class CRUDVerticle : CoroutineVerticle() {
         return@executeWithErrorHandling
       }
 
-      val category: JsonObject = queryResult.iterator().next().toJson()
+      val category: JsonObject = queryResult[0] // There will be only one item
       ctx.response()
         .putHeader(CONTENT_TYPE, APPLICATION_JSON)
         .end(category.encode())
@@ -985,6 +988,7 @@ class CRUDVerticle : CoroutineVerticle() {
    */
   private suspend fun updateCategoryHandler(ctx: RoutingContext) {
     val categoryID = ctx.pathParam("id").toInt()
+    val company = ctx.queryParams().get("company")
     LOGGER.info { "New updateCategory request for category $categoryID" }
 
     val json = ctx.bodyAsJson
@@ -992,14 +996,9 @@ class CRUDVerticle : CoroutineVerticle() {
       val name = json.getString("name")
 
       executeWithErrorHandling("Could not update category", ctx) {
-        val getQueryResultIterator = pgClient.preparedQuery(getCategory()).execute(Tuple.of(categoryID.toInt())).await().iterator()
-        if (!getQueryResultIterator.hasNext()) {
-          LOGGER.warn { "Category $categoryID not found" }
-          ctx.response().statusCode = NOT_FOUND_CODE
-          ctx.end()
+        if(ctx.failIfNoCategoriesIdsInCompany(pgClient, listOf(categoryID), company)){
           return@executeWithErrorHandling
         }
-
         pgClient.preparedQuery(updateCategory()).execute(Tuple.of(name, categoryID)).await()
 
         LOGGER.info { "Successfully updated category $categoryID" }
@@ -1013,17 +1012,14 @@ class CRUDVerticle : CoroutineVerticle() {
    */
   private suspend fun deleteCategoryHandler(ctx: RoutingContext) {
     val categoryID = ctx.pathParam("id").toInt()
+    val company = ctx.queryParams().get("company")
     LOGGER.info { "New deleteCategory request for category $categoryID" }
 
     executeWithErrorHandling("Could not delete category", ctx) {
-      val result = pgClient.preparedQuery(deleteCategory()).execute(Tuple.of(categoryID)).await()
-
-      if (result.rowCount() == 0) {
-        LOGGER.warn { "Category $categoryID not found" }
-        ctx.response().statusCode = NOT_FOUND_CODE
-        ctx.end()
+      if (ctx.failIfNoCategoriesIdsInCompany(pgClient, listOf(categoryID), company)) {
         return@executeWithErrorHandling
       }
+      pgClient.preparedQuery(deleteCategory()).execute(Tuple.of(categoryID)).await()
 
       ctx.end()
     }
@@ -1040,6 +1036,12 @@ class CRUDVerticle : CoroutineVerticle() {
       val name = json.getString("name")
       val company = ctx.queryParams()["company"]
 
+        val existingCategories = pgClient.preparedQuery(getCategories()).execute(Tuple.of(company)).await().map { it.toJson() }
+      if(existingCategories.any { it.getString("name") == name }){
+        ctx.response().statusMessage = "Category with name = $name already exists for company = $company"
+        ctx.fail(BAD_REQUEST_CODE)
+        return@validateAndThen
+      }
       executeWithErrorHandling("Could not create category", ctx) {
         val categoryID = pgPool.withTransaction { conn ->
           // Insert a new category in the categories table
