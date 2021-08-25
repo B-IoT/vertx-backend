@@ -730,6 +730,7 @@ class TestRelaysCommunicationVerticle {
                   "whiteList",
                   "e051304816e5f015b5dd2438f5a8ef56d7c0"
                 ) //itemBiot1, itemBiot2, itemBiot4 mac addresses without :
+                put("connected", true)
               }
               expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
               testContext.completeNow()
@@ -755,7 +756,7 @@ class TestRelaysCommunicationVerticle {
                   expectThat(relayJson).isNotNull()
                   expectThat(relayJson.getBoolean("connected")).isTrue()
                   testContext.completeNow()
-                }.onFailure{
+                }.onFailure {
                   testContext.failNow("Error while accessing MongoDB")
                 }
             }
@@ -788,7 +789,7 @@ class TestRelaysCommunicationVerticle {
           .onSuccess { relayJson ->
             expectThat(relayJson.getBoolean("connected")).isTrue()
             testContext.completeNow()
-          }.onFailure{
+          }.onFailure {
             testContext.failNow("Error while accessing MongoDB")
           }
       }
@@ -1299,6 +1300,7 @@ class TestRelaysCommunicationVerticle {
                 remove("mqttUsername")
                 remove("ledStatus")
                 put("whiteList", "122334aeb5d201a2d4fe5621") // itemAnother1 and itemAnother2 mac addresses without :
+                put("connected", true)
               }
               expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
               testContext.completeNow()
@@ -1332,6 +1334,7 @@ class TestRelaysCommunicationVerticle {
                       "whiteList",
                       "e051304816e5f015b5dd2438f5a8ef56d7c0"
                     ) //itemBiot1, itemBiot2, itemBiot4 mac addresses without :
+                    put("connected", true)
                   }
                   expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
                 }
@@ -1350,6 +1353,7 @@ class TestRelaysCommunicationVerticle {
                       "whiteList",
                       "aabbccddeefff015b5dd2438f5a8ef56d7c0"
                     ) //itemBiot1, itemBiot2, itemBiot4 mac addresses without :
+                    put("connected", true)
                   }
                   expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
                 }
@@ -1394,6 +1398,7 @@ class TestRelaysCommunicationVerticle {
                       "whiteList",
                       "e051304816e5f015b5dd2438f5a8ef56d7c0"
                     ) //itemBiot1, itemBiot2, itemBiot4 mac addresses without :
+                    put("connected", true)
                   }
                   expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
                 }
