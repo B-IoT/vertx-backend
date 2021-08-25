@@ -288,7 +288,11 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
           launch(vertx.dispatcher()) { handleMessage(m, client, company) }
         }
 
-      mongoClient.findOneAndUpdate(collection, jsonObjectOf("mqttID" to clientIdentifier), jsonObjectOf("\$set" to jsonObjectOf("connected" to true)))
+      mongoClient.findOneAndUpdate(
+        collection,
+        jsonObjectOf("mqttID" to clientIdentifier),
+        jsonObjectOf("\$set" to jsonObjectOf("connected" to true))
+      )
     } catch (error: Throwable) {
       // Wrong username or password, reject
       LOGGER.error(error) { "Client $clientIdentifier rejected" }
@@ -479,17 +483,18 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
 
     val bulkOperations = HashMap<String, ArrayList<BulkOperation>>()
 
-    for(entry in clients.entries) {
+    for (entry in clients.entries) {
       val clientId = entry.key
       val company = entry.value.first
       val client = entry.value.second
-      if(!client.isConnected){
+      if (!client.isConnected) {
         clients.remove(clientId)
       } else {
         val filter = jsonObjectOf(Pair("mqttID", clientId))
         val update = jsonObjectOf(
-          Pair("\$set", jsonObjectOf(Pair("connected", true))))
-        if(!bulkOperations.containsKey(company)){
+          Pair("\$set", jsonObjectOf(Pair("connected", true)))
+        )
+        if (!bulkOperations.containsKey(company)) {
           bulkOperations[company] = ArrayList()
         }
         bulkOperations[company]?.add(BulkOperation.createUpdate(filter, update))
@@ -497,15 +502,13 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     }
 
     val allFalseUpdate = jsonObjectOf(
-      Pair("\$set", jsonObjectOf(Pair("connected", false))))
+      Pair("\$set", jsonObjectOf(Pair("connected", false)))
+    )
     for (company in bulkOperations.keys) {
       val relaysCollection = if (company != "biot") "${RELAYS_COLLECTION}_$company" else RELAYS_COLLECTION
       mongoClient.updateCollection(relaysCollection, JsonObject(), allFalseUpdate)
       mongoClient.bulkWrite(relaysCollection, bulkOperations[company])
     }
-
-
-
 
 
   }
