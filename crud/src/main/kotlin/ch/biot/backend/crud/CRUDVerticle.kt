@@ -967,7 +967,8 @@ class CRUDVerticle : CoroutineVerticle() {
     LOGGER.info { "New getCategory request for category $categoryID" }
 
     executeWithErrorHandling("Could not get category", ctx) {
-      val queryResult = pgClient.preparedQuery(getCategories()).execute(Tuple.of(company)).await().map { it.toJson() }.filter { it.getInteger("id") == categoryID }
+      val queryResult = pgClient.preparedQuery(getCategories()).execute(Tuple.of(company)).await().map { it.toJson() }
+        .filter { it.getInteger("id") == categoryID }
       if (queryResult.isEmpty()) {
         // No category found
         LOGGER.warn { "Category $categoryID not found" }
@@ -996,7 +997,7 @@ class CRUDVerticle : CoroutineVerticle() {
       val name = json.getString("name")
 
       executeWithErrorHandling("Could not update category", ctx) {
-        if(ctx.failIfNoCategoriesIdsInCompany(pgClient, listOf(categoryID), company)){
+        if (ctx.failIfNoCategoriesIdsInCompany(pgClient, listOf(categoryID), company)) {
           return@executeWithErrorHandling
         }
         pgClient.preparedQuery(updateCategory()).execute(Tuple.of(name, categoryID)).await()
@@ -1036,8 +1037,9 @@ class CRUDVerticle : CoroutineVerticle() {
       val name = json.getString("name")
       val company = ctx.queryParams()["company"]
 
-        val existingCategories = pgClient.preparedQuery(getCategories()).execute(Tuple.of(company)).await().map { it.toJson() }
-      if(existingCategories.any { it.getString("name") == name }){
+      val existingCategories =
+        pgClient.preparedQuery(getCategories()).execute(Tuple.of(company)).await().map { it.toJson() }
+      if (existingCategories.any { it.getString("name") == name }) {
         ctx.response().statusMessage = "Category with name = $name already exists for company = $company"
         ctx.fail(BAD_REQUEST_CODE)
         return@validateAndThen

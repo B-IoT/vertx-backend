@@ -378,7 +378,8 @@ class TestCRUDVerticleItems {
 
   private suspend fun insertCategories(): Future<RowSet<Row>> {
     anotherCompanyEcgCategory = pgClient.preparedQuery(insertCategory())
-      .execute(Tuple.of(anotherCompanyEcgCategory.second)).await().iterator().next().getInteger("id") to anotherCompanyEcgCategory.second
+      .execute(Tuple.of(anotherCompanyEcgCategory.second)).await().iterator().next()
+      .getInteger("id") to anotherCompanyEcgCategory.second
     pgClient.preparedQuery(addCategoryToCompany())
       .execute(Tuple.of(anotherCompanyEcgCategory.first, anotherCompanyName)).await()
 
@@ -2675,7 +2676,10 @@ class TestCRUDVerticleItems {
 
   @Test
   @DisplayName("createCategory correctly creates the category when the category exists but not mapped to the company")
-  fun createCategoryIsCorrectWhenCategoryAlreadyExistsButNotMappedToTheCompany(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
+  fun createCategoryIsCorrectWhenCategoryAlreadyExistsButNotMappedToTheCompany(
+    vertx: Vertx,
+    testContext: VertxTestContext
+  ): Unit = runBlocking(vertx.dispatcher()) {
     val newName = litCategory.second
     val createJson = jsonObjectOf("name" to newName)
 
@@ -2711,42 +2715,43 @@ class TestCRUDVerticleItems {
 
   @Test
   @DisplayName("createCategory fails creating the category if the name already exists")
-  fun createCategoryIsCorrectWhenDuplicate(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
-    val newName = "newName"
-    val createJson = jsonObjectOf("name" to newName)
+  fun createCategoryIsCorrectWhenDuplicate(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      val newName = "newName"
+      val createJson = jsonObjectOf("name" to newName)
 
-    val newCategoryIDString = Given {
-      spec(requestSpecification)
-      contentType(ContentType.JSON)
-      body(createJson.encode())
-    } When {
-      queryParam("accessControlString", "biot")
-      queryParam("company", "biot")
-      post("/items/categories")
-    } Then {
-      statusCode(200)
-    } Extract {
-      asString()
+      val newCategoryIDString = Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        body(createJson.encode())
+      } When {
+        queryParam("accessControlString", "biot")
+        queryParam("company", "biot")
+        post("/items/categories")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+
+      testContext.verify {
+        expectThat(newCategoryIDString).isNotEmpty() // it returns the id
+      }
+
+      Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        body(createJson.encode())
+      } When {
+        queryParam("accessControlString", "biot")
+        queryParam("company", "biot")
+        post("/items/categories")
+      } Then {
+        statusCode(400)
+      }
+
+      testContext.completeNow()
     }
-
-    testContext.verify {
-      expectThat(newCategoryIDString).isNotEmpty() // it returns the id
-    }
-
-    Given {
-      spec(requestSpecification)
-      contentType(ContentType.JSON)
-      body(createJson.encode())
-    } When {
-      queryParam("accessControlString", "biot")
-      queryParam("company", "biot")
-      post("/items/categories")
-    } Then {
-      statusCode(400)
-    }
-
-    testContext.completeNow()
-  }
 
   @Test
   @DisplayName("getItem correctly retrieves the desired item")
