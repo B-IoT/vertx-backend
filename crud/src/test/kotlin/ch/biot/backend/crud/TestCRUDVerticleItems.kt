@@ -2433,6 +2433,41 @@ class TestCRUDVerticleItems {
   }
 
   @Test
+  @DisplayName("updateCategory correctly updates the category and does not modify other's company with same name")
+  fun updateCategoryIsCorrect2(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
+    val newName = "newName"
+    val updateJson = jsonObjectOf("name" to newName)
+
+    val response = Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      body(updateJson.encode())
+    } When {
+      queryParam("accessControlString", "biot")
+      queryParam("company", "biot")
+      put("/items/categories/${ecgCategory.first}")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }
+
+    testContext.verify {
+      expectThat(response).isEmpty()
+    }
+
+    try {
+      val category =
+        pgClient.preparedQuery(getCategory()).execute(Tuple.of(anotherCompanyEcgCategory.first)).await().iterator().next()
+      expectThat(category.getInteger("id")).isEqualTo(anotherCompanyEcgCategory.first)
+      expectThat(category.getString("name")).isEqualTo(anotherCompanyEcgCategory.second)
+      testContext.completeNow()
+    } catch (error: Throwable) {
+      testContext.failNow(error)
+    }
+  }
+
+  @Test
   @DisplayName("updateCategory fails without a company")
   fun updateCategoryFailsWithoutCompany(testContext: VertxTestContext) {
     val updateJson = jsonObjectOf("name" to "newName")
