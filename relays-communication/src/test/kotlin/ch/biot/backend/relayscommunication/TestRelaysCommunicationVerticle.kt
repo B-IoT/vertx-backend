@@ -12,6 +12,7 @@ import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.READINESS_PORT
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.RELAYS_COLLECTION
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.RELAYS_UPDATE_ADDRESS
+import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.UPDATE_CONFIG_INTERVAL_SECONDS
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.UPDATE_PARAMETERS_TOPIC
 import io.netty.handler.codec.mqtt.MqttQoS
 import io.vertx.core.CompositeFuture
@@ -52,6 +53,7 @@ import strikt.api.expectThat
 import strikt.assertions.isEqualTo
 import strikt.assertions.isLessThanOrEqualTo
 import strikt.assertions.isNotNull
+import strikt.assertions.isTrue
 import java.io.File
 import java.security.SecureRandom
 import java.time.LocalDate
@@ -717,7 +719,7 @@ class TestRelaysCommunicationVerticle {
   fun clientSubscribesAndReceivesLastConfig(vertx: Vertx, testContext: VertxTestContext): Unit =
     runBlocking(vertx.dispatcher()) {
       try {
-        mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, MQTT_HOST).await()
+        mqttClient.connect(MQTT_PORT, MQTT_HOST).await()
         mqttClient.publishHandler { msg ->
           if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
             testContext.verify {
@@ -729,6 +731,7 @@ class TestRelaysCommunicationVerticle {
                   "whiteList",
                   "e051304816e5f015b5dd2438f5a8ef56d7c0"
                 ) //itemBiot1, itemBiot2, itemBiot4 mac addresses without :
+                put("connected", true)
               }
               expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
               testContext.completeNow()
@@ -739,6 +742,63 @@ class TestRelaysCommunicationVerticle {
         testContext.failNow(error)
       }
     }
+
+  @Test
+  @DisplayName("After the connection of the client, the relay is connected = true in the DB immediately")
+  fun clientSubscribesAndIsConnectedInMongo(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      try {
+        mqttClient.connect(MQTT_PORT, MQTT_HOST).await()
+        mqttClient.publishHandler { msg ->
+          if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
+            testContext.verify {
+              mongoClient.findOne(RELAYS_COLLECTION, jsonObjectOf("mqttID" to configuration["mqttID"]), jsonObjectOf())
+                .onSuccess { relayJson ->
+                  expectThat(relayJson).isNotNull()
+                  expectThat(relayJson.getBoolean("connected")).isTrue()
+                  testContext.completeNow()
+                }.onFailure {
+                  testContext.failNow("Error while accessing MongoDB")
+                }
+            }
+          }
+        }.subscribe(UPDATE_PARAMETERS_TOPIC, MqttQoS.AT_LEAST_ONCE.value()).await()
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+
+  @Test
+  @DisplayName("When the client disconnects, the relay is connected = false in the DB after max 20 sec")
+  fun clientSubscribesAndDisconnectsIsCorrectInMongo(vertx: Vertx, testContext: VertxTestContext) {
+    runBlocking(vertx.dispatcher()) {
+      try {
+        mqttClient.connect(MQTT_PORT, MQTT_HOST).await()
+        mqttClient.publishHandler { msg ->
+          if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
+            mqttClient.disconnect()
+          }
+        }.subscribe(UPDATE_PARAMETERS_TOPIC, MqttQoS.AT_LEAST_ONCE.value()).await()
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+
+    vertx.setTimer(UPDATE_CONFIG_INTERVAL_SECONDS + 5_000) {
+      testContext.verify {
+        mongoClient.findOne(RELAYS_COLLECTION, jsonObjectOf("mqttID" to configuration["mqttID"]), jsonObjectOf())
+          .onSuccess { relayJson ->
+            expectThat(relayJson.getBoolean("connected")).isTrue()
+            testContext.completeNow()
+          }.onFailure {
+            testContext.failNow("Error while accessing MongoDB")
+          }
+      }
+      testContext.completeNow()
+    }
+
+
+  }
 
   @Test
   @DisplayName("A MQTT client without authentication is refused connection")
@@ -1241,6 +1301,7 @@ class TestRelaysCommunicationVerticle {
                 remove("mqttUsername")
                 remove("ledStatus")
                 put("whiteList", "122334aeb5d201a2d4fe5621") // itemAnother1 and itemAnother2 mac addresses without :
+                put("connected", true)
               }
               expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
               testContext.completeNow()
@@ -1274,6 +1335,7 @@ class TestRelaysCommunicationVerticle {
                       "whiteList",
                       "e051304816e5f015b5dd2438f5a8ef56d7c0"
                     ) //itemBiot1, itemBiot2, itemBiot4 mac addresses without :
+                    put("connected", true)
                   }
                   expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
                 }
@@ -1292,6 +1354,7 @@ class TestRelaysCommunicationVerticle {
                       "whiteList",
                       "aabbccddeefff015b5dd2438f5a8ef56d7c0"
                     ) //itemBiot1, itemBiot2, itemBiot4 mac addresses without :
+                    put("connected", true)
                   }
                   expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
                 }
@@ -1306,7 +1369,7 @@ class TestRelaysCommunicationVerticle {
         testContext.failNow(error)
       }
 
-      vertx.setTimer(25_000) {
+      vertx.setTimer(UPDATE_CONFIG_INTERVAL_SECONDS + 5_000) {
         testContext.completeNow()
       }
     }
@@ -1336,6 +1399,7 @@ class TestRelaysCommunicationVerticle {
                       "whiteList",
                       "e051304816e5f015b5dd2438f5a8ef56d7c0"
                     ) //itemBiot1, itemBiot2, itemBiot4 mac addresses without :
+                    put("connected", true)
                   }
                   expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
                 }
@@ -1350,7 +1414,7 @@ class TestRelaysCommunicationVerticle {
       } catch (error: Throwable) {
         testContext.failNow(error)
       }
-      vertx.setTimer(25_000) {
+      vertx.setTimer(UPDATE_CONFIG_INTERVAL_SECONDS + 5_000) {
         testContext.completeNow()
       }
     }
@@ -1363,7 +1427,7 @@ class TestRelaysCommunicationVerticle {
       var msgCounter = 0
       add1026Items()
       try {
-        mqttClient.connect(RelaysCommunicationVerticle.MQTT_PORT, "localhost").await()
+        mqttClient.connect(MQTT_PORT, "localhost").await()
         mqttClient.publishHandler { msg ->
           if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
             // First msg at subscription
