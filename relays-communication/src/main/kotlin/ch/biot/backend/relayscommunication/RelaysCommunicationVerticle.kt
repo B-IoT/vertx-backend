@@ -69,7 +69,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     internal const val LIVENESS_PORT = 1884
     internal const val READINESS_PORT = 1885
 
-    private const val UPDATE_CONFIG_INTERVAL_SECONDS: Long = 20
+    const val UPDATE_CONFIG_INTERVAL_SECONDS: Long = 20
 
     private lateinit var pgClient: SqlClient
 
@@ -97,7 +97,8 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
   }
 
   /**
-   * Map of subscribed clientIdentifier to Pair<String, client>.
+   * Map of subscribed clientIdentifier to Pair<String, client>. The first element of the pair is the company of the client,
+   * the second is the MqttEndpoint instance corresponding to the client
    */
   private val clients = mutableMapOf<String, Pair<String, MqttEndpoint>>()
 
@@ -199,9 +200,11 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     // Periodically send all the config to all relays to keep whiteList consistent with the DB
     // We use Timer to not have any stacking of operation
     periodicUpdateConfig = Handler {
-      launch(vertx.dispatcher()) { sendConfigToAllRelays() }
-      checkConnectionAndUpdateDb()
-      vertx.setTimer(TimeUnit.SECONDS.toMillis(UPDATE_CONFIG_INTERVAL_SECONDS), periodicUpdateConfig)
+      launch(vertx.dispatcher()) {
+        sendConfigToAllRelays()
+        checkConnectionAndUpdateDb()
+        vertx.setTimer(TimeUnit.SECONDS.toMillis(UPDATE_CONFIG_INTERVAL_SECONDS), periodicUpdateConfig)
+      }
     }
     // Schedule the first execution
     vertx.setTimer(TimeUnit.SECONDS.toMillis(UPDATE_CONFIG_INTERVAL_SECONDS), periodicUpdateConfig)
@@ -292,7 +295,9 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
         collection,
         jsonObjectOf("mqttID" to clientIdentifier),
         jsonObjectOf("\$set" to jsonObjectOf("connected" to true))
-      )
+      ).onFailure {
+        LOGGER.error { "Relay_Communication: Cannot update mongo DB to set connected = true for relays" }
+      }
     } catch (error: Throwable) {
       // Wrong username or password, reject
       LOGGER.error(error) { "Client $clientIdentifier rejected" }
@@ -479,9 +484,9 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
    * Go through the map of mqtt Endpoints and remove those that are not connected
    * It also updates the mongoDB accordingly
    */
-  private fun checkConnectionAndUpdateDb() {
+  private suspend fun checkConnectionAndUpdateDb() {
 
-    val bulkOperations = HashMap<String, ArrayList<BulkOperation>>()
+    val bulkOperations = hashMapOf<String, java.util.ArrayList<BulkOperation>>()
 
     for (entry in clients.entries) {
       val clientId = entry.key
@@ -490,24 +495,24 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
       if (!client.isConnected) {
         clients.remove(clientId)
       } else {
-        val filter = jsonObjectOf(Pair("mqttID", clientId))
+        val filter = jsonObjectOf("mqttID" to clientId)
         val update = jsonObjectOf(
-          Pair("\$set", jsonObjectOf(Pair("connected", true)))
+          "\$set" to jsonObjectOf("connected" to true)
         )
         if (!bulkOperations.containsKey(company)) {
-          bulkOperations[company] = ArrayList()
+          bulkOperations[company] = arrayListOf()
         }
         bulkOperations[company]?.add(BulkOperation.createUpdate(filter, update))
       }
     }
 
     val allFalseUpdate = jsonObjectOf(
-      Pair("\$set", jsonObjectOf(Pair("connected", false)))
+      "\$set" to jsonObjectOf("connected" to false)
     )
     for (company in bulkOperations.keys) {
       val relaysCollection = if (company != "biot") "${RELAYS_COLLECTION}_$company" else RELAYS_COLLECTION
-      mongoClient.updateCollection(relaysCollection, JsonObject(), allFalseUpdate)
-      mongoClient.bulkWrite(relaysCollection, bulkOperations[company])
+      mongoClient.updateCollection(relaysCollection, JsonObject(), allFalseUpdate).await()
+      mongoClient.bulkWrite(relaysCollection, bulkOperations[company]).await()
     }
 
 

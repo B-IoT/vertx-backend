@@ -12,6 +12,7 @@ import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.READINESS_PORT
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.RELAYS_COLLECTION
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.RELAYS_UPDATE_ADDRESS
+import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.UPDATE_CONFIG_INTERVAL_SECONDS
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.UPDATE_PARAMETERS_TOPIC
 import io.netty.handler.codec.mqtt.MqttQoS
 import io.vertx.core.CompositeFuture
@@ -783,7 +784,7 @@ class TestRelaysCommunicationVerticle {
       }
     }
 
-    vertx.setTimer(25_000) {
+    vertx.setTimer(UPDATE_CONFIG_INTERVAL_SECONDS + 5_000) {
       testContext.verify {
         mongoClient.findOne(RELAYS_COLLECTION, jsonObjectOf("mqttID" to configuration["mqttID"]), jsonObjectOf())
           .onSuccess { relayJson ->
@@ -1368,7 +1369,7 @@ class TestRelaysCommunicationVerticle {
         testContext.failNow(error)
       }
 
-      vertx.setTimer(25_000) {
+      vertx.setTimer(UPDATE_CONFIG_INTERVAL_SECONDS + 5_000) {
         testContext.completeNow()
       }
     }
@@ -1413,7 +1414,7 @@ class TestRelaysCommunicationVerticle {
       } catch (error: Throwable) {
         testContext.failNow(error)
       }
-      vertx.setTimer(25_000) {
+      vertx.setTimer(UPDATE_CONFIG_INTERVAL_SECONDS + 5_000) {
         testContext.completeNow()
       }
     }
