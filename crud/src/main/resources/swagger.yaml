@@ -520,7 +520,7 @@ paths:
     get:
       tags:
         - Item
-      description: returns an item category
+      description: returns a category
       operationId: getCategory
       parameters:
         - name: id
@@ -550,7 +550,7 @@ paths:
     put:
       tags:
         - Item
-      description: updates an item category
+      description: updates a category
       operationId: updateCategory
       parameters:
         - name: id
@@ -581,7 +581,7 @@ paths:
     delete:
       tags:
         - Item
-      description: deletes an item category
+      description: deletes a category
       operationId: deleteCategory
       parameters:
         - name: id
@@ -1390,7 +1390,7 @@ components:
       description: Update information for an item
     Category:
       type: object
-      description: an item category
+      description: a category
       properties:
         id:
           type: integer
@@ -1399,13 +1399,13 @@ components:
           type: string
     CategoryUpdateInfo:
       type: object
-      description: Update information for an item category
+      description: Update information for a category
       properties:
         name:
           type: string
     CategoryCreateInfo:
       type: object
-      description: Create information for an item category
+      description: Create information for a category
       properties:
         name:
           type: string

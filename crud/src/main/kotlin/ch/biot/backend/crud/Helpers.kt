@@ -333,6 +333,14 @@ internal suspend fun RoutingContext.failIfNoRightsToSnapshots(
   return false
 }
 
+/**
+ * Fails the request if the categories do not exist for the given company.
+ *
+ * @param client the sql client needed to query the database
+ * @param categoryIds the ids of the categories to access
+ * @param company the user's company
+ * @return true if the context fails, false otherwise
+ */
 internal suspend fun RoutingContext.failIfNoCategoriesIdsInCompany(
   client: SqlClient,
   categoryIds: List<Int>,
@@ -341,8 +349,8 @@ internal suspend fun RoutingContext.failIfNoCategoriesIdsInCompany(
   val categories = client.preparedQuery(getCategories()).execute(Tuple.of(company)).await()
     .map { it.getInteger("id") }
   if (!categories.containsAll(categoryIds)) {
-    // Access refused
-    LOGGER.error { "NO SUCH CATEGORIES FOR COMPANY $company" }
+    // Categories not found
+    LOGGER.error { "Categories $categoryIds not found for company $company" }
     this.fail(NOT_FOUND_CODE)
     return true
   }

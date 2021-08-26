@@ -305,40 +305,6 @@ class TestCRUDVerticleItems {
       )
     pgClient = PgPool.client(vertx, pgConnectOptions, poolOptionsOf())
 
-    pgClient.query(
-      """
-      CREATE TABLE IF NOT EXISTS items_$anotherCompanyName
-(
-    id SERIAL PRIMARY KEY,
-    beacon VARCHAR(17) UNIQUE,
-    categoryID INTEGER,
-    service VARCHAR(100),
-    itemID VARCHAR(50),
-    accessControlString VARCHAR(2048),
-    brand VARCHAR(100),
-    model VARCHAR(100),
-    supplier VARCHAR(100),
-    purchaseDate DATE,
-    purchasePrice DECIMAL(15, 6),
-    originLocation VARCHAR(100),
-    currentLocation VARCHAR(100),
-    room VARCHAR(100),
-    contact VARCHAR(100),
-    currentOwner VARCHAR(100),
-    previousOwner VARCHAR(100),
-    orderNumber VARCHAR(100),
-    color VARCHAR(100),
-    serialNumber VARCHAR(100),
-    maintenanceDate DATE,
-    status VARCHAR(100),
-    comments VARCHAR(200),
-    lastModifiedDate DATE,
-    lastModifiedBy VARCHAR(100),
-    FOREIGN KEY(categoryID) REFERENCES categories(id) ON UPDATE CASCADE ON DELETE SET NULL
-);
-    """.trimIndent()
-    ).execute().await()
-
     try {
       dropAllSnapshots().await()
       dropAllItems().await()
@@ -351,10 +317,12 @@ class TestCRUDVerticleItems {
     }
   }
 
-  private fun dropAllItems(): CompositeFuture {
+  private suspend fun dropAllItems(): CompositeFuture {
+    val anotherCompanyTable = "items_$anotherCompanyName"
     return CompositeFuture.all(
       pgClient.query("DELETE FROM items").execute(),
-      pgClient.query("DELETE FROM beacon_data").execute()
+      pgClient.query("DELETE FROM beacon_data").execute(),
+      if (pgClient.tableExists(anotherCompanyTable)) pgClient.query("DROP TABLE $anotherCompanyTable").execute() else Future.succeededFuture()
     )
   }
 
@@ -408,6 +376,40 @@ class TestCRUDVerticleItems {
   }
 
   private suspend fun insertItems(): Future<RowSet<Row>> {
+    pgClient.query(
+      """
+      CREATE TABLE IF NOT EXISTS items_$anotherCompanyName
+(
+    id SERIAL PRIMARY KEY,
+    beacon VARCHAR(17) UNIQUE,
+    categoryID INTEGER,
+    service VARCHAR(100),
+    itemID VARCHAR(50),
+    accessControlString VARCHAR(2048),
+    brand VARCHAR(100),
+    model VARCHAR(100),
+    supplier VARCHAR(100),
+    purchaseDate DATE,
+    purchasePrice DECIMAL(15, 6),
+    originLocation VARCHAR(100),
+    currentLocation VARCHAR(100),
+    room VARCHAR(100),
+    contact VARCHAR(100),
+    currentOwner VARCHAR(100),
+    previousOwner VARCHAR(100),
+    orderNumber VARCHAR(100),
+    color VARCHAR(100),
+    serialNumber VARCHAR(100),
+    maintenanceDate DATE,
+    status VARCHAR(100),
+    comments VARCHAR(200),
+    lastModifiedDate DATE,
+    lastModifiedBy VARCHAR(100),
+    FOREIGN KEY(categoryID) REFERENCES categories(id) ON UPDATE CASCADE ON DELETE SET NULL
+);
+    """.trimIndent()
+    ).execute().await()
+
     val result = pgClient.preparedQuery(insertItem("items"))
       .execute(
         Tuple.of(
@@ -2024,7 +2026,7 @@ class TestCRUDVerticleItems {
 (
     id SERIAL PRIMARY KEY,
     beacon VARCHAR(17) UNIQUE,
-    categoryID SERIAL REFERENCES categories(id) ON UPDATE CASCADE ON DELETE SET NULL,
+    categoryID INTEGER,
     service VARCHAR(100),
     itemID VARCHAR(50),
     accessControlString VARCHAR(2048),
@@ -2044,9 +2046,10 @@ class TestCRUDVerticleItems {
     serialNumber VARCHAR(100),
     maintenanceDate DATE,
     status VARCHAR(100),
-    comments VARCHAR(100),
+    comments VARCHAR(200),
     lastModifiedDate DATE,
-    lastModifiedBy VARCHAR(100)
+    lastModifiedBy VARCHAR(100),
+    FOREIGN KEY(categoryID) REFERENCES categories(id) ON UPDATE CASCADE ON DELETE SET NULL
 );"""
     ).execute().compose {
       pgClient.query(
@@ -2433,8 +2436,8 @@ class TestCRUDVerticleItems {
   }
 
   @Test
-  @DisplayName("updateCategory correctly updates the category and does not modify other's company with same name")
-  fun updateCategoryIsCorrect2(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
+  @DisplayName("updateCategory correctly updates the category and does not modify a category with same name of another company")
+  fun updateCategoryIsCorrectAndDoesNotModifyAnotherCompany(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
     val newName = "newName"
     val updateJson = jsonObjectOf("name" to newName)
 
@@ -2458,7 +2461,8 @@ class TestCRUDVerticleItems {
 
     try {
       val category =
-        pgClient.preparedQuery(getCategory()).execute(Tuple.of(anotherCompanyEcgCategory.first)).await().iterator().next()
+        pgClient.preparedQuery(getCategory()).execute(Tuple.of(anotherCompanyEcgCategory.first)).await().iterator()
+          .next()
       expectThat(category.getInteger("id")).isEqualTo(anotherCompanyEcgCategory.first)
       expectThat(category.getString("name")).isEqualTo(anotherCompanyEcgCategory.second)
       testContext.completeNow()
@@ -2749,7 +2753,7 @@ class TestCRUDVerticleItems {
   }
 
   @Test
-  @DisplayName("createCategory fails creating the category if the name already exists")
+  @DisplayName("createCategory fails creating the category if the name already exists (for the same company)")
   fun createCategoryIsCorrectWhenDuplicate(vertx: Vertx, testContext: VertxTestContext): Unit =
     runBlocking(vertx.dispatcher()) {
       val newName = "newName"

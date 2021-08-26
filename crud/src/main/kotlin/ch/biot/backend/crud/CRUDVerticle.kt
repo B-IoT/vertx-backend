@@ -967,7 +967,7 @@ class CRUDVerticle : CoroutineVerticle() {
     LOGGER.info { "New getCategory request for category $categoryID" }
 
     executeWithErrorHandling("Could not get category", ctx) {
-      val queryResult = pgClient.preparedQuery(getCategories()).execute(Tuple.of(company)).await().map { it.toJson() }
+      val queryResult = pgClient.preparedQuery(getCategories()).execute(Tuple.of(company)).await().map(Row::toJson)
         .filter { it.getInteger("id") == categoryID }
       if (queryResult.isEmpty()) {
         // No category found
@@ -977,7 +977,7 @@ class CRUDVerticle : CoroutineVerticle() {
         return@executeWithErrorHandling
       }
 
-      val category: JsonObject = queryResult[0] // There will be only one item
+      val category: JsonObject = queryResult[0] // There will be only one item, since the id is unique
       ctx.response()
         .putHeader(CONTENT_TYPE, APPLICATION_JSON)
         .end(category.encode())
@@ -1037,14 +1037,15 @@ class CRUDVerticle : CoroutineVerticle() {
       val name = json.getString("name")
       val company = ctx.queryParams()["company"]
 
-      val existingCategories =
-        pgClient.preparedQuery(getCategories()).execute(Tuple.of(company)).await().map { it.toJson() }
-      if (existingCategories.any { it.getString("name") == name }) {
-        ctx.response().statusMessage = "Category with name = $name already exists for company = $company"
-        ctx.fail(BAD_REQUEST_CODE)
-        return@validateAndThen
-      }
       executeWithErrorHandling("Could not create category", ctx) {
+        val existingCategories =
+          pgClient.preparedQuery(getCategories()).execute(Tuple.of(company)).await().map(Row::toJson)
+        if (existingCategories.any { it.getString("name") == name }) {
+          ctx.response().statusMessage = "Category with name = $name already exists for company = $company"
+          ctx.fail(BAD_REQUEST_CODE)
+          return@executeWithErrorHandling
+        }
+
         val categoryID = pgPool.withTransaction { conn ->
           // Insert a new category in the categories table
           conn.preparedQuery(insertCategory()).execute(Tuple.of(name)).compose { res ->
