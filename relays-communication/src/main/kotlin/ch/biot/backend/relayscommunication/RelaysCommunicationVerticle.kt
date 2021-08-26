@@ -486,7 +486,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
    */
   private suspend fun checkConnectionAndUpdateDb() {
 
-    val bulkOperations = hashMapOf<String, java.util.ArrayList<BulkOperation>>()
+    val bulkOperations = hashMapOf<String, ArrayList<BulkOperation>>()
 
     for (entry in clients.entries) {
       val clientId = entry.key
