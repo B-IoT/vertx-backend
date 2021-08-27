@@ -485,7 +485,6 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
    * It also updates the mongoDB accordingly
    */
   private suspend fun checkConnectionAndUpdateDb() {
-
     val bulkOperations = hashMapOf<String, ArrayList<BulkOperation>>()
 
     for (entry in clients.entries) {
