@@ -330,8 +330,8 @@ class Triangulator:
            if nb_relays >= 2:               
                
                # Taking only the 5 closest relays for triangulation
-               if nb_relays > 5:
-                   nb_relays = 5
+               if nb_relays > 3:
+                   nb_relays = 3
                    
                for relay_1 in range(nb_relays-1):
                     for relay_2 in range(relay_1+1, nb_relays):
