@@ -146,6 +146,31 @@ class Triangulator:
         Gets the beacon_data table name for the given company.
         """
         return f"beacon_data_{company}" if company != "biot" else "beacon_data"
+    
+    async def _weighted_mean(lat, long):
+        """
+        Calculates a weighted mean for the triangulation to triangulate to the closest relay
+        
+        Input: list of latitudes and longitudes by ascending order with respect to the closest relay
+        Returns: unique latitude and longitude
+        """
+        
+        weight_3 = [0.6, 0.3, 0.1]
+        if len(lat) == 3:
+            lat_weighted = np.sum([a * b for a, b in zip(weight_3, lat)])
+            long_weighted = np.sum([a * b for a, b in zip(weight_3, long)])
+            
+        weight_4 = [0.5, 0.3, 0.1, 0.1]
+        if len(lat) == 4:
+            lat_weighted = np.sum([a * b for a, b in zip(weight_4, lat)])
+            long_weighted = np.sum([a * b for a, b in zip(weight_4, long)])
+            
+        weight_5 = [0.5, 0.3, 0.1, 0.05, 0.05]
+        if len(lat) == 5:
+            lat_weighted = np.sum([a * b for a, b in zip(weight_5, lat)])
+            long_weighted = np.sum([a * b for a, b in zip(weight_5, long)])
+            
+        return lat_weighted, long_weighted
 
     async def _store_beacons_data(self, company: str, data: list):
         """
@@ -273,6 +298,7 @@ class Triangulator:
             # Stack matrix_dist_temp onto matrix_dist
             np.dstack((matrix_dist_temp, self.matrix_dist))
             self.matrix_dist = self.matrix_dist[:,:,0:max_history]
+            logger.info("Distance matrix: {}", self.matrix_dist[:,:,0])
 
 
         indexes = tuple(np.argwhere(~np.isnan(self.matrix_dist[:,:,0]))) # Indexes of beacon/relay pairs
@@ -376,7 +402,7 @@ class Triangulator:
              
                #SMA            
                self.coordinates_history.update_coordinates_history(
-                    mac, (np.mean(lat), np.mean(long))
+                    mac, self._weighted_mean(lat, long)
                )
                
                # Use the weighted moving average for smoothing coordinates computation
