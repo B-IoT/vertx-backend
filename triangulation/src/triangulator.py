@@ -155,7 +155,7 @@ class Triangulator:
         Returns: unique latitude and longitude
         """
         
-        weight_3 = [0.6, 0.3, 0.1]
+        weight_3 = [0.5, 0.3, 0.2]
         if len(lat) == 3:
             lat_weighted = np.sum([a * b for a, b in zip(weight_3, lat)])
             long_weighted = np.sum([a * b for a, b in zip(weight_3, long)])
@@ -353,11 +353,11 @@ class Triangulator:
            
            lat = []
            long = []
-           if nb_relays >= 2:               
+           if nb_relays >= 3:               
                
                # Taking only the 5 closest relays for triangulation
-               if nb_relays > 3:
-                   nb_relays = 3
+               if nb_relays > 5:
+                   nb_relays = 5
                    
                for relay_1 in range(nb_relays-1):
                     for relay_2 in range(relay_1+1, nb_relays):
