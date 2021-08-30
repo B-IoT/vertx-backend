@@ -147,7 +147,7 @@ class Triangulator:
         """
         return f"beacon_data_{company}" if company != "biot" else "beacon_data"
     
-    async def _weighted_mean(lat, long):
+    async def _weighted_mean(values):
         """
         Calculates a weighted mean for the triangulation to triangulate to the closest relay
         
@@ -156,21 +156,18 @@ class Triangulator:
         """
         
         weight_3 = [0.5, 0.3, 0.2]
-        if len(lat) == 3:
-            lat_weighted = np.sum([a * b for a, b in zip(weight_3, lat)])
-            long_weighted = np.sum([a * b for a, b in zip(weight_3, long)])
+        if len(values) == 3:
+            mean_weighted = np.sum([a * b for a, b in zip(weight_3, values)])
             
         weight_4 = [0.5, 0.3, 0.1, 0.1]
-        if len(lat) == 4:
-            lat_weighted = np.sum([a * b for a, b in zip(weight_4, lat)])
-            long_weighted = np.sum([a * b for a, b in zip(weight_4, long)])
+        if len(values) == 4:
+            mean_weighted = np.sum([a * b for a, b in zip(weight_4, values)])
             
         weight_5 = [0.5, 0.3, 0.1, 0.05, 0.05]
-        if len(lat) == 5:
-            lat_weighted = np.sum([a * b for a, b in zip(weight_5, lat)])
-            long_weighted = np.sum([a * b for a, b in zip(weight_5, long)])
+        if len(values) == 5:
+            mean_weighted = np.sum([a * b for a, b in zip(weight_5, values)])
             
-        return lat_weighted, long_weighted
+        return mean_weighted
 
     async def _store_beacons_data(self, company: str, data: list):
         """
@@ -402,7 +399,7 @@ class Triangulator:
              
                #SMA            
                self.coordinates_history.update_coordinates_history(
-                    mac, self._weighted_mean(lat, long)
+                    mac, self._weighted_mean(lat), self._weighted_mean(long)
                )
                
                # Use the weighted moving average for smoothing coordinates computation
