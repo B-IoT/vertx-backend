@@ -71,15 +71,15 @@ spec:
                   name: relays-communication-config
                   key: mqtt_port
             - name: RELAY_REPO_URL
-                valueFrom:
-                  configMapKeyRef:
-                    name: relays-communication-config
-                    key: relay_repo_url
+              valueFrom:
+                configMapKeyRef:
+                  name: relays-communication-config
+                  key: relay_repo_url
             - name: DEFAULT_RELAY_ID
-                valueFrom:
-                  configMapKeyRef:
-                    name: relays-communication-config
-                    key: default_relay_id
+              valueFrom:
+                configMapKeyRef:
+                  name: relays-communication-config
+                  key: default_relay_id
           livenessProbe:
             tcpSocket:
               port: 1884
