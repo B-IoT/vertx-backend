@@ -147,7 +147,7 @@ class Triangulator:
         """
         return f"beacon_data_{company}" if company != "biot" else "beacon_data"
     
-    async def _weighted_mean(values):
+    async def _weighted_mean(self, values):
         """
         Calculates a weighted mean for the triangulation to triangulate to the closest relay
         
