@@ -155,7 +155,7 @@ class Triangulator:
         Returns: unique latitude and longitude
         """
         
-        weight_2 = [0.2, 0.8] #pushing towards the closest relay; values = [position of the relay, position of the beacon]
+        weight_2 = [0.1, 0.9] #pushing towards the closest relay; values = [position of the relay, position of the beacon]
         if len(values) == 2: # nb relays = 3
             mean_weighted = np.sum([a * b for a, b in zip(weight_2, values)])
             
