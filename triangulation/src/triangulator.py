@@ -399,7 +399,7 @@ class Triangulator:
              
                #SMA            
                self.coordinates_history.update_coordinates_history(
-                    mac, self._weighted_mean(lat), self._weighted_mean(long)
+                    mac, (self._weighted_mean(lat), self._weighted_mean(long))
                )
                
                # Use the weighted moving average for smoothing coordinates computation
