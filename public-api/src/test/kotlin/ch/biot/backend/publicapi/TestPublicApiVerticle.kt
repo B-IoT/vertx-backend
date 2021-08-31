@@ -11,6 +11,7 @@ import ch.biot.backend.crud.saltAndHash
 import ch.biot.backend.crud.tableExists
 import ch.biot.backend.publicapi.PublicApiVerticle.Companion.CRUD_HOST
 import ch.biot.backend.publicapi.PublicApiVerticle.Companion.CRUD_PORT
+import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle
 import io.mockk.clearAllMocks
 import io.mockk.every
 import io.mockk.spyk
@@ -268,6 +269,7 @@ class TestPublicApiVerticle {
 
       vertx.deployVerticle(PublicApiVerticle(webClient)).await()
       vertx.deployVerticle(CRUDVerticle()).await()
+      vertx.deployVerticle(RelaysCommunicationVerticle()).await()
 
       token = getAuthToken(user)
       tokenGrp1 = getAuthToken(user2)
@@ -2509,7 +2511,6 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(45)
   @DisplayName("Emergency reset request for relays return repo url and true as forceReset flag when unknown relayID is passed")
   fun emergencyResetResetWorksWithUnknownRelayID(testContext: VertxTestContext) {
     val response = Buffer.buffer(
@@ -2539,7 +2540,6 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @Order(46)
   @DisplayName("Emergency reset request for relays return repo url and true as forceReset flag when no relayID is passed")
   fun emergencyResetResetWorksWithNoRelayID(testContext: VertxTestContext) {
     val response = Buffer.buffer(
@@ -2556,6 +2556,35 @@ class TestPublicApiVerticle {
     ).toJsonObject()
 
     val expected = jsonObjectOf("repoURL" to "git@github.com:B-IoT/relays_biot.git", "forceReset" to true)
+
+    testContext.verify {
+      expectThat(response.isEmpty).isFalse()
+      expect {
+        that(response.getString("repoURL")).isEqualTo(expected.getString("repoURL"))
+        that(response.getString("forceReset")).isEqualTo(expected.getString("forceReset"))
+      }
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("Emergency reset request for relays return repo url and true as forceReset flag when relayID in DB")
+  fun emergencyResetResetWorksWithKnownRelayID(testContext: VertxTestContext) {
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        accept(ContentType.JSON)
+      } When {
+        queryParam("relayID", relay.getString("relayID"))
+        get("/api/relays/emergency")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonObject()
+
+    val expected = jsonObjectOf("repoURL" to "git@github.com:B-IoT/relays_biot.git", "forceReset" to relay.getString("forceReset"))
 
     testContext.verify {
       expectThat(response.isEmpty).isFalse()

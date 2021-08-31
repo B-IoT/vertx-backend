@@ -186,6 +186,7 @@ class PublicApiVerticle(
       .coroutineHandler(::deleteUserHandler)
 
     // Relays
+    router.get("$API_PREFIX/$RELAYS_ENDPOINT/emergency").coroutineHandler(::relaysEmergencyHandler)
     router.post("$API_PREFIX/$RELAYS_ENDPOINT").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler)
       .coroutineHandler(::registerRelayHandler)
     router.put("$API_PREFIX/$RELAYS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler)
@@ -197,7 +198,6 @@ class PublicApiVerticle(
     router.delete("$API_PREFIX/$RELAYS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler)
       .coroutineHandler(::deleteRelayHandler)
 
-    router.get("$API_PREFIX/$RELAYS_ENDPOINT/emergency").coroutineHandler(::relaysEmergencyHandler)
 
     // Items
     router.get("$API_PREFIX/$ITEMS_ENDPOINT/categories").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler)
@@ -397,7 +397,8 @@ class PublicApiVerticle(
   private suspend fun getRelayHandler(ctx: RoutingContext) = getOneHandler(ctx, RELAYS_ENDPOINT)
   private suspend fun deleteRelayHandler(ctx: RoutingContext) = deleteHandler(ctx, RELAYS_ENDPOINT)
   private suspend fun relaysEmergencyHandler(ctx: RoutingContext) {
-    val relayID = ctx.queryParams().get("relayID")
+    val relayID = ctx.queryParams().get("relayID") ?: "NOT_PASSED"
+    LOGGER.info { "New emergency request for relayID = $relayID" }
     webClient.get(RELAYS_COMMUNICATION_PORT, RELAYS_COMMUNICATION_HOST, "/relays-emergency")
       .addQueryParam("relayID", relayID)
       .timeout(TIMEOUT)
