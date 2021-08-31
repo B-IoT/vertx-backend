@@ -592,6 +592,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
               val flagFromDb = relay.getBoolean("forceReset")
               if(flagFromDb != null){
                 flag = flagFromDb
+                mongoClient.findOneAndUpdate(collection, query, jsonObjectOf("forceReset" to false)).await()
               }
               break
             }
@@ -609,10 +610,6 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     ctx.response()
       .putHeader(CONTENT_TYPE, APPLICATION_JSON)
       .end(result.encode())
-
-
-
-
   }
 
   /**
