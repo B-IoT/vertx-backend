@@ -408,8 +408,10 @@ class Triangulator:
                    )
                
                #Doing a weighted mean and then pushing towards the closest relay
-               new_lat = self._weighted_mean([self.relay_matrix[0, 0] ,self._weighted_mean(lat)])
-               new_long = self._weighted_mean([self.relay_matrix[0, 1] ,self._weighted_mean(long)])
+              # new_lat = self._weighted_mean([self.relay_matrix[0, 0] ,self._weighted_mean(lat)])
+               #new_long = self._weighted_mean([self.relay_matrix[0, 1] ,self._weighted_mean(long)])
+               new_lat = self._weighted_mean(lat)
+               new_long = self._weighted_mean(long)
                self.coordinates_history.update_coordinates_history(
                     mac, (new_lat, new_long)
                )
