@@ -155,16 +155,16 @@ class Triangulator:
         Returns: unique latitude and longitude
         """
         
-        weight_3 = [0.5, 0.3, 0.2]
-        if len(values) == 3:
+        weight_3 = [0.4, 0.4, 0.2]
+        if len(values) == 3: # nb relays = 3
             mean_weighted = np.sum([a * b for a, b in zip(weight_3, values)])
             
-        weight_4 = [0.5, 0.3, 0.1, 0.1]
-        if len(values) == 4:
+        weight_4 = [0.25, 0.25, 0.25, 0.1 , 0.1, 0.05]
+        if len(values) == 6: # nb relays = 4
             mean_weighted = np.sum([a * b for a, b in zip(weight_4, values)])
             
-        weight_5 = [0.5, 0.3, 0.1, 0.05, 0.05]
-        if len(values) == 5:
+        weight_5 = [0.175, 0.175, 0.175, 0.175, 0.06, 0.06, 0.06, 0.05, 0.05, 0.02]
+        if len(values) == 10: # nb relays = 5
             mean_weighted = np.sum([a * b for a, b in zip(weight_5, values)])
             
         return mean_weighted
@@ -397,7 +397,11 @@ class Triangulator:
 
                floor = np.mean(self.relay_matrix[0:3, 2]) 
              
-               #SMA            
+               #weighted average            
+               logger.info(
+                   "Latitude and longitude values: {}, {} with {} relays:",
+                   lat, long, nb_relays
+                   )
                self.coordinates_history.update_coordinates_history(
                     mac, (self._weighted_mean(lat), self._weighted_mean(long))
                )
