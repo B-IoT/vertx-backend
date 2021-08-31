@@ -84,7 +84,8 @@ class TestPublicApiVerticle {
     "wifi" to jsonObjectOf(
       "ssid" to "ssid",
       "password" to "pass"
-    )
+    ),
+    "forceReset" to false
   )
 
   private val item1 = jsonObjectOf(
@@ -2151,6 +2152,65 @@ class TestPublicApiVerticle {
 
     testContext.verify {
       expectThat(response3).isEmpty()
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @Order(45)
+  @DisplayName("Emergency reset request for relays return repo url and true as forceReset flag when unknown relayID is passed")
+  fun emergencyResetResetWorksWithUnknownRelayID(testContext: VertxTestContext) {
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        accept(ContentType.JSON)
+      } When {
+        queryParam("relayID", "unknownRelayID")
+        get("/api/relays/emergency")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonObject()
+
+    val expected = jsonObjectOf("repoURL" to "git@github.com:B-IoT/relays_biot.git", "forceReset" to true)
+
+    testContext.verify {
+      expectThat(response.isEmpty).isFalse()
+      expect {
+        that(response.getString("repoURL")).isEqualTo(expected.getString("repoURL"))
+        that(response.getString("forceReset")).isEqualTo(expected.getString("forceReset"))
+      }
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @Order(46)
+  @DisplayName("Emergency reset request for relays return repo url and true as forceReset flag when no relayID is passed")
+  fun emergencyResetResetWorksWithNoRelayID(testContext: VertxTestContext) {
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        accept(ContentType.JSON)
+      } When {
+        get("/api/relays/emergency")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonObject()
+
+    val expected = jsonObjectOf("repoURL" to "git@github.com:B-IoT/relays_biot.git", "forceReset" to true)
+
+    testContext.verify {
+      expectThat(response.isEmpty).isFalse()
+      expect {
+        that(response.getString("repoURL")).isEqualTo(expected.getString("repoURL"))
+        that(response.getString("forceReset")).isEqualTo(expected.getString("forceReset"))
+      }
       testContext.completeNow()
     }
   }

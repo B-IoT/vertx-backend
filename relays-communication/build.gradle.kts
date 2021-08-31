@@ -25,9 +25,11 @@ dependencies {
   val testContainersVersion = project.extra["testContainersVersion"]
   val hazelcastVersion = project.extra["hazelcastVersion"]
   val arrowVersion = project.extra["arrowVersion"]
+  val restAssuredVersion = project.extra["restAssuredVersion"]
 
   implementation("io.vertx:vertx-pg-client:$vertxVersion")
   implementation("io.vertx:vertx-web:$vertxVersion")
+  implementation("io.vertx:vertx-web-client:$vertxVersion")
   implementation("io.vertx:vertx-web-openapi:$vertxVersion")
   implementation("io.vertx:vertx-hazelcast:$vertxVersion")
   implementation("com.hazelcast:hazelcast-kubernetes:$hazelcastVersion")
@@ -45,6 +47,7 @@ dependencies {
   testImplementation("org.junit.jupiter:junit-jupiter:$junitJupiterVersion")
   testImplementation("io.strikt:strikt-gradle:$striktVersion")
   testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:$junitJupiterVersion")
+  testImplementation("io.rest-assured:kotlin-extensions:$restAssuredVersion")
 }
 
 tasks.withType<ShadowJar> {
@@ -86,7 +89,7 @@ jib {
   container {
     mainClass = mainVerticleName
     jvmFlags = listOf("-noverify", "-Djava.security.egd=file:/dev/./urandom")
-    ports = listOf("1883", "1884", "1885", "5701")
+    ports = listOf("1883", "1884", "1885", "5701", "8082")
     user = "nobody:nobody"
   }
 }

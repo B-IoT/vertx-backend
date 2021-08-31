@@ -46,6 +46,7 @@ dependencies {
   implementation("ch.qos.logback:logback-classic:$logbackClassicVersion")
   implementation("io.github.microutils:kotlin-logging-jvm:$kotlinLoggingVersion")
   testImplementation(project(":crud"))
+  testImplementation(project(":relays-communication"))
   testImplementation("org.testcontainers:junit-jupiter:$testContainersVersion")
   testImplementation("io.rest-assured:kotlin-extensions:$restAssuredVersion")
   testImplementation("io.vertx:vertx-junit5:$vertxVersion")

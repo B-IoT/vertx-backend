@@ -12,11 +12,22 @@ import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.READINESS_PORT
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.RELAYS_COLLECTION
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.RELAYS_UPDATE_ADDRESS
+import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.RELAY_REPO_URL
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.UPDATE_CONFIG_INTERVAL_SECONDS
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.UPDATE_PARAMETERS_TOPIC
 import io.netty.handler.codec.mqtt.MqttQoS
+import io.restassured.builder.RequestSpecBuilder
+import io.restassured.filter.log.RequestLoggingFilter
+import io.restassured.filter.log.ResponseLoggingFilter
+import io.restassured.http.ContentType
+import io.restassured.module.kotlin.extensions.Extract
+import io.restassured.module.kotlin.extensions.Given
+import io.restassured.module.kotlin.extensions.Then
+import io.restassured.module.kotlin.extensions.When
+import io.restassured.specification.RequestSpecification
 import io.vertx.core.CompositeFuture
 import io.vertx.core.Vertx
+import io.vertx.core.buffer.Buffer
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.auth.mongo.MongoAuthentication
 import io.vertx.ext.auth.mongo.MongoUserUtil
@@ -50,10 +61,7 @@ import org.testcontainers.containers.DockerComposeContainer
 import org.testcontainers.junit.jupiter.Testcontainers
 import strikt.api.expect
 import strikt.api.expectThat
-import strikt.assertions.isEqualTo
-import strikt.assertions.isLessThanOrEqualTo
-import strikt.assertions.isNotNull
-import strikt.assertions.isTrue
+import strikt.assertions.*
 import java.io.File
 import java.security.SecureRandom
 import java.time.LocalDate
@@ -87,7 +95,8 @@ class TestRelaysCommunicationVerticle {
     "wifi" to jsonObjectOf(
       "ssid" to "ssid",
       "password" to "pass"
-    )
+    ),
+    "forceReset" to true
   )
 
   private val configurationAnotherCompany = jsonObjectOf(
@@ -100,7 +109,8 @@ class TestRelaysCommunicationVerticle {
     "wifi" to jsonObjectOf(
       "ssid" to "ssid2",
       "password" to "pass2"
-    )
+    ),
+    "forceReset" to false
   )
 
   private val anotherCompanyName = "anotherCompany"
@@ -1471,9 +1481,141 @@ class TestRelaysCommunicationVerticle {
       }
     }
 
+  @Test
+  @DisplayName("Emergency request returns repo url + True as flag if relayID = relay_0")
+  fun emergencyRequestFlagTrueWhenDefault(testContext: VertxTestContext) {
+    val response = Buffer.buffer(
+      Given {
+      spec(requestSpecification)
+      contentType(ContentType.JSON)
+      accept(ContentType.JSON)
+    } When {
+      queryParam("relayID", "relay_0")
+      get("/relays-emergency")
+    } Then {
+      statusCode(200)
+    } Extract {
+      asString()
+    }).toJsonObject()
+
+    testContext.verify {
+      expectThat(response).isNotNull()
+      expectThat(response.getBoolean("forceReset")).isTrue()
+      expectThat(response.getString("repoURL")).isEqualTo(RELAY_REPO_URL)
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("Emergency request returns repo url + True as flag if no relayID is passed")
+  fun emergencyRequestFlagTrueWhenNoRelayID(testContext: VertxTestContext) {
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        accept(ContentType.JSON)
+      } When {
+        get("/relays-emergency")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }).toJsonObject()
+
+    testContext.verify {
+      expectThat(response).isNotNull()
+      expectThat(response.getBoolean("forceReset")).isTrue()
+      expectThat(response.getString("repoURL")).isEqualTo(RELAY_REPO_URL)
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("Emergency request returns repo url + True as flag if relayID is not in DB")
+  fun emergencyRequestFlagTrueWhenUnknown(testContext: VertxTestContext) {
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        accept(ContentType.JSON)
+      } When {
+        queryParam("relayID", "unknownRelay")
+        get("/relays-emergency")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }).toJsonObject()
+
+    testContext.verify {
+      expectThat(response).isNotNull()
+      expectThat(response.getBoolean("forceReset")).isTrue()
+      expectThat(response.getString("repoURL")).isEqualTo(RELAY_REPO_URL)
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("Emergency request returns repo url + the flag from the db if relayID is in DB")
+  fun emergencyRequestFlagCorrectWhenKnown(testContext: VertxTestContext) {
+    val relayId = configuration.getString("relayID")
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        accept(ContentType.JSON)
+      } When {
+        queryParam("relayID", relayId)
+        get("/relays-emergency")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }).toJsonObject()
+
+    testContext.verify {
+      expectThat(response).isNotNull()
+      expectThat(response.getBoolean("forceReset")).isEqualTo(configuration.getBoolean("forceReset"))
+      expectThat(response.getString("repoURL")).isEqualTo(RELAY_REPO_URL)
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("Emergency request returns repo url + the flag from the db if relayID is in DB 2")
+  fun emergencyRequestFlagCorrectWhenKnown2(testContext: VertxTestContext) {
+    val relayId = configurationAnotherCompany.getString("relayID")
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        accept(ContentType.JSON)
+      } When {
+        queryParam("relayID", relayId)
+        get("/relays-emergency")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }).toJsonObject()
+
+    testContext.verify {
+      expectThat(response).isNotNull()
+      expectThat(response.getBoolean("forceReset")).isEqualTo(configurationAnotherCompany.getBoolean("forceReset"))
+      expectThat(response.getString("repoURL")).isEqualTo(RELAY_REPO_URL)
+      testContext.completeNow()
+    }
+  }
+
   companion object {
 
     private const val MQTT_HOST = "localhost"
+
+    private val requestSpecification: RequestSpecification = RequestSpecBuilder()
+      .addFilters(listOf(ResponseLoggingFilter(), RequestLoggingFilter()))
+      .setBaseUri("http://localhost")
+      .setPort(RelaysCommunicationVerticle.HTTP_PORT)
+      .build()
 
     private val instance: KDockerComposeContainer by lazy { defineDockerCompose() }
 
