@@ -2568,7 +2568,50 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @DisplayName("Emergency reset request for relays return repo url and true as forceReset flag when relayID in DB")
+  @DisplayName("Emergency reset request for relays return repo url and forceReset flag and set it to false when flag was true in DB")
+  fun emergencyResetResetWorksWithKnownRelayIDWithFlagTrue(vertx: Vertx, testContext: VertxTestContext) {
+    runBlocking(vertx.dispatcher()) {
+
+      mongoClientRelays.findOneAndUpdate(
+        "relays",
+        jsonObjectOf("relayID" to relay.getString("relayID")),
+        jsonObjectOf( "\$set" to jsonObjectOf("forceReset" to true))
+      ).await()
+      val response = Buffer.buffer(
+        Given {
+          spec(requestSpecification)
+          accept(ContentType.JSON)
+        } When {
+          queryParam("relayID", relay.getString("relayID"))
+          get("/api/relays/emergency")
+        } Then {
+          statusCode(200)
+        } Extract {
+          asString()
+        }
+      ).toJsonObject()
+
+      val expected = jsonObjectOf("repoURL" to "git@github.com:B-IoT/relays_biot.git", "forceReset" to true)
+      val relayNow =  mongoClientRelays.findOne(
+        "relays",
+        jsonObjectOf("relayID" to relay.getString("relayID")),
+        jsonObjectOf()
+      ).await()
+      testContext.verify {
+        expectThat(response.isEmpty).isFalse()
+        expect {
+          that(response.getString("repoURL")).isEqualTo(expected.getString("repoURL"))
+          that(response.getString("forceReset")).isEqualTo(expected.getString("forceReset"))
+          that(relayNow.getBoolean("forceReset")).isFalse()
+          testContext.completeNow()
+        }
+      }
+    }
+
+  }
+
+  @Test
+  @DisplayName("Emergency reset request for relays return repo url and true as forceReset flag when relayID in DB ")
   fun emergencyResetResetWorksWithKnownRelayID(testContext: VertxTestContext) {
     val response = Buffer.buffer(
       Given {
