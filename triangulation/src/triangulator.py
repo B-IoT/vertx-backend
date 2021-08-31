@@ -155,6 +155,10 @@ class Triangulator:
         Returns: unique latitude and longitude
         """
         
+        weight_2 = [0.2, 0.8] #pushing towards the closest relay; values = [position of the relay, position of the beacon]
+        if len(values) == 2: # nb relays = 3
+            mean_weighted = np.sum([a * b for a, b in zip(weight_2, values)])
+            
         weight_3 = [0.45, 0.45, 0.1]
         if len(values) == 3: # nb relays = 3
             mean_weighted = np.sum([a * b for a, b in zip(weight_3, values)])
@@ -402,8 +406,12 @@ class Triangulator:
                    "Latitude and longitude values: {}, {} with {} relays:",
                    lat, long, nb_relays
                    )
+               
+               #Doing a weighted mean and then pushing towards the closest relay
+               new_lat = self._weighted_mean([self.relay_matrix[0, 0] ,self._weighted_mean(lat)])
+               new_long = self._weighted_mean([self.relay_matrix[0, 1] ,self._weighted_mean(long)])
                self.coordinates_history.update_coordinates_history(
-                    mac, (self._weighted_mean(lat), self._weighted_mean(long))
+                    mac, (new_lat, new_long)
                )
                
                # Use the weighted moving average for smoothing coordinates computation
