@@ -49,6 +49,7 @@ dependencies {
   testImplementation("io.vertx:vertx-pg-client:$vertxVersion")
   testImplementation("io.vertx:vertx-mongo-client:$vertxVersion")
   testImplementation("io.vertx:vertx-auth-mongo:$vertxVersion")
+  testImplementation(project(":relays-communication"))
   testImplementation("org.testcontainers:junit-jupiter:$testContainersVersion")
   testImplementation("io.rest-assured:kotlin-extensions:$restAssuredVersion")
   testImplementation("io.vertx:vertx-junit5:$vertxVersion")

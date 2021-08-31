@@ -10,5 +10,7 @@ spec:
   selector:
     app: relays-communication
   ports:
+    - name: http
+      port: 8082
     - name: hazelcast
       port: 5701

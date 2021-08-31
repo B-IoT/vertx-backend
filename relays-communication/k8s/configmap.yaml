@@ -6,3 +6,7 @@ data:
   kafka_hostname: my-cluster-kafka-bootstrap.kafka.svc.cluster.local
   kafka_port: "9092"
   mqtt_port: "1883"
+  relay_repo_url: "git@github.com:B-IoT/relays_biot.git"
+  default_relay_id: "relay_0"
+  relays-communication-hostname: relays-communication-internal.default.svc.cluster.local
+  relays-communication-port: "8082"

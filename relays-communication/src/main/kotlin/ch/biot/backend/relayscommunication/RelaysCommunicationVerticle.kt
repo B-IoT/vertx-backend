@@ -8,14 +8,23 @@ import io.netty.handler.codec.mqtt.MqttConnectReturnCode
 import io.netty.handler.codec.mqtt.MqttQoS
 import io.vertx.core.*
 import io.vertx.core.http.ClientAuth
+import io.vertx.core.http.HttpMethod
+import io.vertx.core.http.HttpVersion
 import io.vertx.core.json.DecodeException
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.auth.mongo.MongoAuthentication
 import io.vertx.ext.mongo.BulkOperation
 import io.vertx.ext.mongo.MongoClient
+import io.vertx.ext.web.Route
+import io.vertx.ext.web.Router
+import io.vertx.ext.web.RoutingContext
+import io.vertx.ext.web.client.WebClient
+import io.vertx.ext.web.handler.CorsHandler
+import io.vertx.ext.web.openapi.Operation
 import io.vertx.kafka.client.producer.KafkaProducer
 import io.vertx.kafka.client.producer.KafkaProducerRecord
 import io.vertx.kotlin.core.eventbus.eventBusOptionsOf
+import io.vertx.kotlin.core.http.httpServerOptionsOf
 import io.vertx.kotlin.core.json.get
 import io.vertx.kotlin.core.json.jsonObjectOf
 import io.vertx.kotlin.core.net.netServerOptionsOf
@@ -25,6 +34,7 @@ import io.vertx.kotlin.coroutines.CoroutineVerticle
 import io.vertx.kotlin.coroutines.await
 import io.vertx.kotlin.coroutines.dispatcher
 import io.vertx.kotlin.ext.auth.mongo.mongoAuthenticationOptionsOf
+import io.vertx.kotlin.ext.web.client.webClientOptionsOf
 import io.vertx.kotlin.mqtt.mqttServerOptionsOf
 import io.vertx.kotlin.pgclient.pgConnectOptionsOf
 import io.vertx.kotlin.sqlclient.poolOptionsOf
@@ -51,7 +61,17 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     internal const val INGESTION_TOPIC = "incoming.update"
     internal const val RELAYS_UPDATE_ADDRESS = "relays.update"
 
+    internal const val EMERGENCY_ENDPOINT = "/relays-emergency"
+    internal const val CONTENT_TYPE = "Content-Type"
+    private const val SERVER_COMPRESSION_LEVEL = 4
+    private const val APPLICATION_JSON = "application/json"
+    internal const val INTERNAL_SERVER_ERROR_CODE = 500
+
     private val environment = System.getenv()
+    internal val RELAY_REPO_URL = environment.getOrDefault("RELAY_REPO_URL", "git@github.com:B-IoT/relays_biot.git").toString()
+    internal val DEFAULT_RELAY_ID = environment.getOrDefault("DEFAULT_RELAY_ID", "relay_0").toString()
+    internal val HTTP_PORT = environment.getOrDefault("HTTP_PORT", "8082").toInt()
+
     internal val MQTT_PORT =
       environment.getOrDefault("MQTT_PORT", "1883").toInt() // Externally (outside the cluster) the port is 443
 
@@ -208,6 +228,44 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     }
     // Schedule the first execution
     vertx.setTimer(TimeUnit.SECONDS.toMillis(UPDATE_CONFIG_INTERVAL_SECONDS), periodicUpdateConfig)
+
+
+    val router = Router.router(vertx)
+
+    val allowedHeaders =
+      setOf(
+        "x-requested-with",
+        "Access-Control-Allow-Origin",
+        "Access-Control-Allow-Credentials",
+        "origin",
+        CONTENT_TYPE,
+        "accept",
+        "Authorization"
+      )
+    val allowedMethods = setOf(HttpMethod.GET)
+
+    router.route().handler(
+      CorsHandler.create(".*.").allowCredentials(false).allowedHeaders(allowedHeaders).allowedMethods(allowedMethods)
+    )
+    router.get(EMERGENCY_ENDPOINT).coroutineHandler(::emergencyHandler)
+
+
+
+    try {
+      vertx.createHttpServer(
+        httpServerOptionsOf(
+          compressionSupported = true,
+          compressionLevel = SERVER_COMPRESSION_LEVEL,
+          decompressionSupported = true
+        )
+      )
+        .requestHandler(router)
+        .listen(HTTP_PORT)
+        .await()
+      LOGGER.info { "HTTP server listening on port $HTTP_PORT" }
+    } catch (error: Throwable) {
+      LOGGER.error(error) { "Could not start HTTP server" }
+    }
   }
 
   private suspend fun handleClient(client: MqttEndpoint) {
@@ -485,7 +543,6 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
    * It also updates the mongoDB accordingly
    */
   private suspend fun checkConnectionAndUpdateDb() {
-
     val bulkOperations = hashMapOf<String, ArrayList<BulkOperation>>()
 
     for (entry in clients.entries) {
@@ -514,7 +571,61 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
       mongoClient.updateCollection(relaysCollection, JsonObject(), allFalseUpdate).await()
       mongoClient.bulkWrite(relaysCollection, bulkOperations[company]).await()
     }
+  }
+
+  private suspend fun emergencyHandler(ctx: RoutingContext) {
+    val relayID = ctx.queryParams().get("relayID")
+    LOGGER.info { "New emergency reset request for $relayID" }
+
+    val forceFlag: Boolean = if(relayID == DEFAULT_RELAY_ID) {
+      // Send the url and force flag to true
+      true
+    } else {
+      var flag = true // True by default
+      try {
+        val allCollections = mongoClient.collections.await()
+        val query = jsonObjectOf("relayID" to relayID)
+        for (collection in allCollections){
+          if(collection.contains("relay")){
+            val relay = mongoClient.findOne(collection, query, jsonObjectOf()).await()
+            if(relay != null){
+              val flagFromDb = relay.getBoolean("forceReset")
+              if(flagFromDb != null){
+                flag = flagFromDb
+              }
+              break
+            }
+          }
+        }
+      } catch (e: Exception) {
+        LOGGER.error { "An error occurred getting the relays from DB" }
+      }
+
+      flag
+    }
+
+    val result = jsonObjectOf("repoURL" to RELAY_REPO_URL, "forceReset" to forceFlag)
+
+    ctx.response()
+      .putHeader(CONTENT_TYPE, APPLICATION_JSON)
+      .end(result.encode())
+
+
 
 
   }
+
+  /**
+   * An extension method for simplifying coroutines usage with Vert.x Web routers.
+   */
+  private fun Route.coroutineHandler(fn: suspend (RoutingContext) -> Unit): Route =
+    handler { ctx ->
+      launch(ctx.vertx().dispatcher()) {
+        try {
+          fn(ctx)
+        } catch (e: Exception) {
+          ctx.fail(e)
+        }
+      }
+    }
 }
