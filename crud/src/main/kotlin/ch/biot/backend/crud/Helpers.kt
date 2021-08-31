@@ -8,6 +8,8 @@ import ch.biot.backend.crud.CRUDVerticle.Companion.BAD_REQUEST_CODE
 import ch.biot.backend.crud.CRUDVerticle.Companion.FORBIDDEN_CODE
 import ch.biot.backend.crud.CRUDVerticle.Companion.INTERNAL_SERVER_ERROR_CODE
 import ch.biot.backend.crud.CRUDVerticle.Companion.MAX_ACCESS_CONTROL_STRING_LENGTH
+import ch.biot.backend.crud.CRUDVerticle.Companion.NOT_FOUND_CODE
+import ch.biot.backend.crud.queries.getCategories
 import ch.biot.backend.crud.queries.getSnapshots
 import ch.biot.backend.crud.queries.searchForTable
 import io.vertx.core.json.JsonObject
@@ -215,7 +217,7 @@ fun Row.toItemJson(includeBeaconData: Boolean = true): JsonObject {
  */
 internal fun extractItemInformation(json: JsonObject, keepNulls: Boolean = true): List<Pair<String, Any?>> {
   val beacon: String? = json["beacon"]
-  val category: String? = json["category"]
+  val categoryID: Int? = json.getInteger("categoryID")
   val service: String? = json["service"]
   val itemID: String? = json["itemID"]
   val accessControlString: String? = json["accessControlString"]
@@ -241,10 +243,10 @@ internal fun extractItemInformation(json: JsonObject, keepNulls: Boolean = true)
 
   val infoList = listOf(
     "beacon" to beacon,
-    "category" to category,
+    "categoryid" to categoryID,
     "service" to service,
     "itemid" to itemID,
-    "accessControlString" to accessControlString,
+    "accesscontrolstring" to accessControlString,
     "brand" to brand,
     "model" to model,
     "supplier" to supplier,
@@ -326,6 +328,30 @@ internal suspend fun RoutingContext.failIfNoRightsToSnapshots(
     // Access refused
     LOGGER.error { "ACCESS FORBIDDEN $operationName" }
     this.fail(FORBIDDEN_CODE)
+    return true
+  }
+  return false
+}
+
+/**
+ * Fails the request if the categories do not exist for the given company.
+ *
+ * @param client the sql client needed to query the database
+ * @param categoryIds the ids of the categories to access
+ * @param company the user's company
+ * @return true if the context fails, false otherwise
+ */
+internal suspend fun RoutingContext.failIfNoCategoriesIdsInCompany(
+  client: SqlClient,
+  categoryIds: List<Int>,
+  company: String
+): Boolean {
+  val categories = client.preparedQuery(getCategories()).execute(Tuple.of(company)).await()
+    .map { it.getInteger("id") }
+  if (!categories.containsAll(categoryIds)) {
+    // Categories not found
+    LOGGER.error { "Categories $categoryIds not found for company $company" }
+    this.fail(NOT_FOUND_CODE)
     return true
   }
   return false

@@ -83,7 +83,6 @@ class TestRelaysCommunicationVerticle {
 
   private lateinit var pgClient: SqlClient
 
-
   private val mqttPassword = "password"
   private val configuration = jsonObjectOf(
     "mqttID" to "mqtt",
@@ -119,7 +118,7 @@ class TestRelaysCommunicationVerticle {
   private var itemBiot1Id: Int = -1
   private val itemBiot1 = jsonObjectOf(
     "beacon" to "e0:51:30:48:16:e5",
-    "category" to "ECG",
+    "category" to null,
     "service" to "Bloc 1",
     "itemID" to "abc",
     "accessControlString" to "biot",
@@ -146,7 +145,7 @@ class TestRelaysCommunicationVerticle {
 
   private val itemBiot2 = jsonObjectOf(
     "beacon" to "f0:15:b5:dd:24:38",
-    "category" to "ECG",
+    "category" to null,
     "service" to "Bloc 2",
     "itemID" to "abc",
     "accessControlString" to "biot",
@@ -173,7 +172,7 @@ class TestRelaysCommunicationVerticle {
 
   private val itemBiotInvalidMac = jsonObjectOf(
     "beacon" to "invalidMac",
-    "category" to "ECG",
+    "category" to null,
     "service" to "Bloc 2",
     "itemID" to "abc",
     "accessControlString" to "biot",
@@ -200,7 +199,7 @@ class TestRelaysCommunicationVerticle {
 
   private val itemBiot4 = jsonObjectOf(
     "beacon" to "f5:a8:ef:56:d7:c0",
-    "category" to "ECG",
+    "category" to null,
     "service" to "Bloc 2",
     "itemID" to "abc",
     "accessControlString" to "biot",
@@ -227,7 +226,7 @@ class TestRelaysCommunicationVerticle {
 
   private val itemAnother1 = jsonObjectOf(
     "beacon" to "12:23:34:ae:b5:d2",
-    "category" to "ECG",
+    "category" to null,
     "service" to "Bloc 2",
     "itemID" to "abc",
     "accessControlString" to anotherCompanyName,
@@ -253,7 +252,7 @@ class TestRelaysCommunicationVerticle {
   )
   private val itemAnother2 = jsonObjectOf(
     "beacon" to "01:a2:d4:fe:56:21",
-    "category" to "ECG",
+    "categoryID" to null,
     "service" to "Bloc 2",
     "itemID" to "abc",
     "accessControlString" to anotherCompanyName,
@@ -393,33 +392,34 @@ class TestRelaysCommunicationVerticle {
     pgClient.query(
       """
       CREATE TABLE IF NOT EXISTS items_$anotherCompanyName
-      (
-          id SERIAL PRIMARY KEY,
-          beacon VARCHAR(17) UNIQUE,
-          category VARCHAR(100),
-          service VARCHAR(100),
-          itemID VARCHAR(50),
-          accessControlString VARCHAR(2048),
-          brand VARCHAR(100),
-          model VARCHAR(100),
-          supplier VARCHAR(100),
-          purchaseDate DATE,
-          purchasePrice DECIMAL(15, 6),
-          originLocation VARCHAR(100),
-          currentLocation VARCHAR(100),
-          room VARCHAR(100),
-          contact VARCHAR(100),
-          currentOwner VARCHAR(100),
-          previousOwner VARCHAR(100),
-          orderNumber VARCHAR(100),
-          color VARCHAR(100),
-          serialNumber VARCHAR(100),
-          maintenanceDate DATE,
-          status VARCHAR(100),
-          comments VARCHAR(200),
-          lastModifiedDate DATE,
-          lastModifiedBy VARCHAR(100)
-      );
+(
+    id SERIAL PRIMARY KEY,
+    beacon VARCHAR(17) UNIQUE,
+    categoryID INTEGER,
+    service VARCHAR(100),
+    itemID VARCHAR(50),
+    accessControlString VARCHAR(2048),
+    brand VARCHAR(100),
+    model VARCHAR(100),
+    supplier VARCHAR(100),
+    purchaseDate DATE,
+    purchasePrice DECIMAL(15, 6),
+    originLocation VARCHAR(100),
+    currentLocation VARCHAR(100),
+    room VARCHAR(100),
+    contact VARCHAR(100),
+    currentOwner VARCHAR(100),
+    previousOwner VARCHAR(100),
+    orderNumber VARCHAR(100),
+    color VARCHAR(100),
+    serialNumber VARCHAR(100),
+    maintenanceDate DATE,
+    status VARCHAR(100),
+    comments VARCHAR(200),
+    lastModifiedDate DATE,
+    lastModifiedBy VARCHAR(100),
+    FOREIGN KEY(categoryID) REFERENCES categories(id) ON UPDATE CASCADE ON DELETE SET NULL
+);
     """.trimIndent()
     ).execute().await()
 
@@ -431,7 +431,7 @@ class TestRelaysCommunicationVerticle {
       .execute(
         Tuple.of(
           itemBiot1["beacon"],
-          itemBiot1["category"],
+          itemBiot1["categoryID"],
           itemBiot1["service"],
           itemBiot1["itemID"],
           itemBiot1["accessControlString"],
@@ -463,7 +463,7 @@ class TestRelaysCommunicationVerticle {
       .execute(
         Tuple.of(
           itemBiot2["beacon"],
-          itemBiot2["category"],
+          itemBiot2["categoryID"],
           itemBiot2["service"],
           itemBiot2["itemID"],
           itemBiot2["accessControlString"],
@@ -493,7 +493,7 @@ class TestRelaysCommunicationVerticle {
       .execute(
         Tuple.of(
           itemBiotInvalidMac["beacon"],
-          itemBiotInvalidMac["category"],
+          itemBiotInvalidMac["categoryID"],
           itemBiotInvalidMac["service"],
           itemBiotInvalidMac["itemID"],
           itemBiotInvalidMac["accessControlString"],
@@ -523,7 +523,7 @@ class TestRelaysCommunicationVerticle {
       .execute(
         Tuple.of(
           itemBiot4["beacon"],
-          itemBiot4["category"],
+          itemBiot4["categoryID"],
           itemBiot4["service"],
           itemBiot4["itemID"],
           itemBiot4["accessControlString"],
@@ -553,7 +553,7 @@ class TestRelaysCommunicationVerticle {
       .execute(
         Tuple.of(
           itemAnother1["beacon"],
-          itemAnother1["category"],
+          itemAnother1["categoryID"],
           itemAnother1["service"],
           itemAnother1["itemID"],
           itemAnother1["accessControlString"],
@@ -583,7 +583,7 @@ class TestRelaysCommunicationVerticle {
       .execute(
         Tuple.of(
           itemAnother2["beacon"],
-          itemAnother2["category"],
+          itemAnother2["categoryID"],
           itemAnother2["service"],
           itemAnother2["itemID"],
           itemAnother2["accessControlString"],
@@ -637,7 +637,7 @@ class TestRelaysCommunicationVerticle {
         .execute(
           Tuple.of(
             macs1026[i],
-            itemBiot1["category"],
+            itemBiot1["categoryID"],
             itemBiot1["service"],
             "${itemBiot1.getString("itemID")}_$i",
             itemBiot1["accessControlString"],
@@ -703,8 +703,8 @@ class TestRelaysCommunicationVerticle {
 
   // TimescaleDB PostgreSQL queries for items
   private fun insertItem(itemsTable: String, customId: Boolean = false) =
-    if (customId) "INSERT INTO $itemsTable (id, beacon, category, service, itemid, accessControlString, brand, model, supplier, purchasedate, purchaseprice, originlocation, currentlocation, room, contact, currentowner, previousowner, ordernumber, color, serialnumber, maintenancedate, status, comments, lastmodifieddate, lastmodifiedby) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25) RETURNING id"
-    else "INSERT INTO $itemsTable (beacon, category, service, itemid, accessControlString, brand, model, supplier, purchasedate, purchaseprice, originlocation, currentlocation, room, contact, currentowner, previousowner, ordernumber, color, serialnumber, maintenancedate, status, comments, lastmodifieddate, lastmodifiedby) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24) RETURNING id"
+    if (customId) "INSERT INTO $itemsTable (id, beacon, categoryid, service, itemid, accessControlString, brand, model, supplier, purchasedate, purchaseprice, originlocation, currentlocation, room, contact, currentowner, previousowner, ordernumber, color, serialnumber, maintenancedate, status, comments, lastmodifieddate, lastmodifiedby) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25) RETURNING id"
+    else "INSERT INTO $itemsTable (beacon, categoryid, service, itemid, accessControlString, brand, model, supplier, purchasedate, purchaseprice, originlocation, currentlocation, room, contact, currentowner, previousowner, ordernumber, color, serialnumber, maintenancedate, status, comments, lastmodifieddate, lastmodifiedby) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24) RETURNING id"
 
   private fun updateItem(itemsTable: String, updatedColumns: List<String>, accessControlString: String): String {
     val columnsWithValues = updatedColumns.mapIndexed { index, colName -> "$colName = \$${index + 2}" }.joinToString()

@@ -202,6 +202,17 @@ class PublicApiVerticle(
     // Items
     router.get("$API_PREFIX/$ITEMS_ENDPOINT/categories").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler)
       .coroutineHandler(::getCategoriesHandler)
+    router.post("$API_PREFIX/$ITEMS_ENDPOINT/categories").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler)
+      .coroutineHandler(::createCategoryHandler)
+    router.get("$API_PREFIX/$ITEMS_ENDPOINT/categories/:id").handler(jwtAuthHandler)
+      .coroutineHandler(::getACStringHandler)
+      .coroutineHandler(::getCategoryHandler)
+    router.put("$API_PREFIX/$ITEMS_ENDPOINT/categories/:id").handler(jwtAuthHandler)
+      .coroutineHandler(::getACStringHandler)
+      .coroutineHandler(::updateCategoryHandler)
+    router.delete("$API_PREFIX/$ITEMS_ENDPOINT/categories/:id").handler(jwtAuthHandler)
+      .coroutineHandler(::getACStringHandler)
+      .coroutineHandler(::deleteCategoryHandler)
     router.get("$API_PREFIX/$ITEMS_ENDPOINT/closest").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler)
       .coroutineHandler(::getClosestItemsHandler)
     router.get("$API_PREFIX/$ITEMS_ENDPOINT/snapshots").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler)
@@ -442,6 +453,12 @@ class PublicApiVerticle(
   private suspend fun deleteItemHandler(ctx: RoutingContext) = deleteHandler(ctx, ITEMS_ENDPOINT)
 
   private suspend fun getCategoriesHandler(ctx: RoutingContext) = getManyHandler(ctx, "$ITEMS_ENDPOINT/categories")
+  private suspend fun createCategoryHandler(ctx: RoutingContext) =
+    registerHandler(ctx, "$ITEMS_ENDPOINT/categories", forwardResponse = true)
+
+  private suspend fun getCategoryHandler(ctx: RoutingContext) = getOneHandler(ctx, "$ITEMS_ENDPOINT/categories")
+  private suspend fun updateCategoryHandler(ctx: RoutingContext) = updateHandler(ctx, "$ITEMS_ENDPOINT/categories")
+  private suspend fun deleteCategoryHandler(ctx: RoutingContext) = deleteHandler(ctx, "$ITEMS_ENDPOINT/categories")
 
   private suspend fun getSnapshotsHandler(ctx: RoutingContext) = getManyHandler(ctx, "$ITEMS_ENDPOINT/snapshots")
   private suspend fun deleteSnapshotHandler(ctx: RoutingContext) = deleteHandler(ctx, "$ITEMS_ENDPOINT/snapshots")
@@ -701,14 +718,13 @@ class PublicApiVerticle(
       .addQueryParam("company", company)
       .addQueryParam("accessControlString", company)
       .timeout(TIMEOUT)
-      .`as`(BodyCodec.jsonObject())
       .coroutineSend()
       .bimap(
         { error -> sendBadGateway(ctx, error) },
         { resp ->
           val acString: String
           try {
-            val json = resp.body()
+            val json = resp.bodyAsJsonObject()
             acString = json.getString("accessControlString")
           } catch (e: Exception) {
             sendBadGateway(ctx, e)
