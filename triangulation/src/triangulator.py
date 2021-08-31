@@ -155,15 +155,15 @@ class Triangulator:
         Returns: unique latitude and longitude
         """
         
-        weight_3 = [0.4, 0.4, 0.2]
+        weight_3 = [0.45, 0.45, 0.1]
         if len(values) == 3: # nb relays = 3
             mean_weighted = np.sum([a * b for a, b in zip(weight_3, values)])
             
-        weight_4 = [0.25, 0.25, 0.25, 0.1 , 0.1, 0.05]
+        weight_4 = [0.3, 0.3, 0.3, 0.0375 , 0.0375, 0.0275]
         if len(values) == 6: # nb relays = 4
             mean_weighted = np.sum([a * b for a, b in zip(weight_4, values)])
             
-        weight_5 = [0.175, 0.175, 0.175, 0.175, 0.06, 0.06, 0.06, 0.05, 0.05, 0.02]
+        weight_5 = [0.225, 0.225, 0.225, 0.225, 0.025, 0.025, 0.025, 0.02, 0.02, 0.01]
         if len(values) == 10: # nb relays = 5
             mean_weighted = np.sum([a * b for a, b in zip(weight_5, values)])
             
