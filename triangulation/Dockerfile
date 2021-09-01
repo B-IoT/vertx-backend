@@ -21,5 +21,7 @@ RUN pip install -r requirements.txt
 # copy the content of the local directory to the working directory
 COPY . .
 
+ENV GOOGLE_APPLICATION_CREDENTIALS="./authentication-triangulation-iam-account.json"
+
 # command to run on container start
 CMD [ "python", "-m", "src.main" ]

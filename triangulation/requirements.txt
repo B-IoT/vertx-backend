@@ -1,5 +1,6 @@
 asyncpg==0.22.0
 confluent-kafka==1.6.0
+joblib==1.0.1
 loguru==0.5.3
 numexpr==2.7.3
 numpy==1.21.1

@@ -10,7 +10,8 @@ from typing import DefaultDict, Tuple, List
 import math
 import numpy as np
 from pykalman import KalmanFilter # https://pykalman.github.io/
-import pickle
+from google.cloud import storage
+import joblib
 
 
 class _CoordinatesHistory:
@@ -130,14 +131,21 @@ class Triangulator:
 
         self.matrix_dist = np.empty([self.nb_beacons, self.nb_relays, self.max_history])
         self.matrix_dist[:] = np.nan
-        
-        # Importing the scaler model
-        filename = 'src/scaler.sav'
-        self.scaler = pickle.load(open(filename, 'rb'))
-        
-        # Importing the ML model
-        filename = 'src/Model_SVC.sav'
-        self.reg_kalman = pickle.load(open(filename, 'rb'))
+
+        client = storage.Client(project='dark-mark-304414')
+        bucket = client.get_bucket('biot-models')
+
+        scaler_blob = storage.Blob('scaler.sav', bucket)
+        rfr_blob = storage.Blob('rfr_compressed.gz', bucket)
+        # Download the scaler model and ML model
+        with open('scaler.sav', 'wb+') as scaler_file, open('rfr_compressed.gz', 'wb+') as rfr_file:
+            client.download_blob_to_file(scaler_blob, scaler_file)
+            client.download_blob_to_file(rfr_blob, rfr_file)
+            
+        # Load the scaler model and ML model
+        with open('scaler.sav', 'rb') as scaler_file, open('rfr_compressed.gz', 'rb') as rfr_file:
+            self.scaler = joblib.load(scaler_file)
+            self.reg_kalman = joblib.load(rfr_file)  
 
         return self
 
