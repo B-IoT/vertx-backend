@@ -303,7 +303,7 @@ class CRUDVerticle : CoroutineVerticle() {
   private suspend fun checkInitialRelayAndAdd() {
     try {
       val collection = RELAYS_COLLECTION
-      val query = jsonObjectOf("relayID" to INITIAL_USER["relayID"])
+      val query = jsonObjectOf("relayID" to INITIAL_RELAY["relayID"])
       val initialRelay = mongoClient.findOne(collection, query, jsonObjectOf()).await()
       if (initialRelay == null) {
         val password: String = INITIAL_RELAY["mqttPassword"]
