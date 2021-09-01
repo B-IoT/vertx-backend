@@ -592,14 +592,14 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
               val flagFromDb = relay.getBoolean("forceReset")
               if(flagFromDb != null){
                 flag = flagFromDb
-                mongoClient.findOneAndUpdate(collection, query, jsonObjectOf("forceReset" to false)).await()
+                mongoClient.findOneAndUpdate(collection, query, jsonObjectOf("\$set" to jsonObjectOf("forceReset" to false))).await()
               }
               break
             }
           }
         }
       } catch (e: Exception) {
-        LOGGER.error { "An error occurred getting the relays from DB" }
+        LOGGER.error { "An error occurred getting the relays from DB." }
       }
 
       flag
