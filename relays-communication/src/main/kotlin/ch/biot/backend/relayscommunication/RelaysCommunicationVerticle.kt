@@ -469,7 +469,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
   }
 
   /**
-   * Sends the given message to the given client on the "update.parameters" MQTT topic.
+   * Sends the given message to the given client on the given MQTT topic.
    */
   private suspend fun sendMessageTo(client: MqttEndpoint, message: JsonObject, topic: String) {
     try {
@@ -490,7 +490,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
 
       if (!configHashes.containsKey(company) || currentConfig.hashCode() != configHashes[company]) {
         // The whiteList changed since the last time it was sent to the relays, so we send it again
-        LOGGER.info { "WhiteList changed: sending last configuration to relay ${relayClient.clientIdentifier()}" }
+        LOGGER.info { "Config changed: sending last configuration to relay ${relayClient.clientIdentifier()}" }
         sendLastConfiguration(relayClient, company)
       } else {
         LOGGER.debug { "Skipping sending configuration for the relay ${relayClient.clientIdentifier()}" }
