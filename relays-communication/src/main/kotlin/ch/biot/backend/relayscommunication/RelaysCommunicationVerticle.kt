@@ -486,12 +486,17 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     clients.forEach { (_, relayClientPair) ->
       val company = relayClientPair.first
       val relayClient = relayClientPair.second
-      val currentConfig = getCurrentCleanConfig(company, relayClient.clientIdentifier())
+      val mqttID = relayClient.clientIdentifier()
+      val currentConfig = getCurrentCleanConfig(company, mqttID)
 
       if (!configHashes.containsKey(company) || currentConfig.hashCode() != configHashes[company]) {
         // The whiteList changed since the last time it was sent to the relays, so we send it again
-        LOGGER.info { "Config changed: sending last configuration to relay ${relayClient.clientIdentifier()}" }
+        LOGGER.info { "Config changed: sending last configuration to relay $mqttID" }
         sendLastConfiguration(relayClient, company)
+        val collection = if (company != "biot") "${RELAYS_COLLECTION}_$company" else RELAYS_COLLECTION
+        val query = jsonObjectOf("mqttID" to mqttID)
+        val updateQuery = jsonObjectOf("\$set" to jsonObjectOf("reboot" to false))
+        mongoClient.findOneAndUpdate(collection, query, updateQuery)
       } else {
         LOGGER.debug { "Skipping sending configuration for the relay ${relayClient.clientIdentifier()}" }
       }
