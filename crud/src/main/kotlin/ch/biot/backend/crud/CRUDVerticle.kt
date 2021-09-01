@@ -303,20 +303,24 @@ class CRUDVerticle : CoroutineVerticle() {
   private suspend fun checkInitialRelayAndAdd() {
     try {
       val collection = RELAYS_COLLECTION
-      val password: String = INITIAL_RELAY["mqttPassword"]
-      val helpers = createMongoAuthUtils(collection)
-      mongoAuthRelaysCache[collection] = helpers
-      val (mongoUserUtilRelays, mongoAuthRelays) = helpers
-      val hashedPassword = password.saltAndHash(mongoAuthRelays)
-      val docID = mongoUserUtilRelays.createHashedUser(INITIAL_RELAY["mqttUsername"], hashedPassword).await()
-      // Update the relay with the data specified in the HTTP request
-      val query = jsonObjectOf("_id" to docID)
-      val extraInfo = jsonObjectOf(
-        "\$set" to INITIAL_RELAY.copy().apply {
-          remove("mqttPassword")
-        }
-      )
-      mongoClient.findOneAndUpdate(collection, query, extraInfo).await()
+      val query = jsonObjectOf("relayID" to INITIAL_USER["relayID"])
+      val initialRelay = mongoClient.findOne(collection, query, jsonObjectOf()).await()
+      if (initialRelay == null) {
+        val password: String = INITIAL_RELAY["mqttPassword"]
+        val helpers = createMongoAuthUtils(collection)
+        mongoAuthRelaysCache[collection] = helpers
+        val (mongoUserUtilRelays, mongoAuthRelays) = helpers
+        val hashedPassword = password.saltAndHash(mongoAuthRelays)
+        val docID = mongoUserUtilRelays.createHashedUser(INITIAL_RELAY["mqttUsername"], hashedPassword).await()
+        // Update the relay with the data specified in the HTTP request
+        val query = jsonObjectOf("_id" to docID)
+        val extraInfo = jsonObjectOf(
+          "\$set" to INITIAL_RELAY.copy().apply {
+            remove("mqttPassword")
+          }
+        )
+        mongoClient.findOneAndUpdate(collection, query, extraInfo).await()
+      }
     } catch (error: Throwable) {
       LOGGER.error(error) { "Could not create the initial user in the DB." }
     }
