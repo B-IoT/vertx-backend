@@ -303,8 +303,8 @@ class CRUDVerticle : CoroutineVerticle() {
   private suspend fun checkInitialRelayAndAdd() {
     try {
       val collection = RELAYS_COLLECTION
-      val query = jsonObjectOf("relayID" to INITIAL_RELAY["relayID"])
-      val initialRelay = mongoClient.findOne(collection, query, jsonObjectOf()).await()
+      val queryFind = jsonObjectOf("relayID" to INITIAL_RELAY["relayID"])
+      val initialRelay = mongoClient.findOne(collection, queryFind, jsonObjectOf()).await()
       if (initialRelay == null) {
         val password: String = INITIAL_RELAY["mqttPassword"]
         val helpers = createMongoAuthUtils(collection)
@@ -312,7 +312,7 @@ class CRUDVerticle : CoroutineVerticle() {
         val (mongoUserUtilRelays, mongoAuthRelays) = helpers
         val hashedPassword = password.saltAndHash(mongoAuthRelays)
         val docID = mongoUserUtilRelays.createHashedUser(INITIAL_RELAY["mqttUsername"], hashedPassword).await()
-        // Update the relay with the data specified in the HTTP request
+
         val query = jsonObjectOf("_id" to docID)
         val extraInfo = jsonObjectOf(
           "\$set" to INITIAL_RELAY.copy().apply {
