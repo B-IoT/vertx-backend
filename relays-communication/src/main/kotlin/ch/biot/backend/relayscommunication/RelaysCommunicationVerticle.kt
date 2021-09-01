@@ -9,7 +9,6 @@ import io.netty.handler.codec.mqtt.MqttQoS
 import io.vertx.core.*
 import io.vertx.core.http.ClientAuth
 import io.vertx.core.http.HttpMethod
-import io.vertx.core.http.HttpVersion
 import io.vertx.core.json.DecodeException
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.auth.mongo.MongoAuthentication
@@ -18,9 +17,7 @@ import io.vertx.ext.mongo.MongoClient
 import io.vertx.ext.web.Route
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.RoutingContext
-import io.vertx.ext.web.client.WebClient
 import io.vertx.ext.web.handler.CorsHandler
-import io.vertx.ext.web.openapi.Operation
 import io.vertx.kafka.client.producer.KafkaProducer
 import io.vertx.kafka.client.producer.KafkaProducerRecord
 import io.vertx.kotlin.core.eventbus.eventBusOptionsOf
@@ -34,7 +31,6 @@ import io.vertx.kotlin.coroutines.CoroutineVerticle
 import io.vertx.kotlin.coroutines.await
 import io.vertx.kotlin.coroutines.dispatcher
 import io.vertx.kotlin.ext.auth.mongo.mongoAuthenticationOptionsOf
-import io.vertx.kotlin.ext.web.client.webClientOptionsOf
 import io.vertx.kotlin.mqtt.mqttServerOptionsOf
 import io.vertx.kotlin.pgclient.pgConnectOptionsOf
 import io.vertx.kotlin.sqlclient.poolOptionsOf
@@ -58,6 +54,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
   companion object {
     internal const val RELAYS_COLLECTION = "relays"
     internal const val UPDATE_PARAMETERS_TOPIC = "update.parameters"
+    internal const val RELAYS_MANAGEMENT_TOPIC = "relay.management"
     internal const val INGESTION_TOPIC = "incoming.update"
     internal const val RELAYS_UPDATE_ADDRESS = "relays.update"
 
@@ -123,9 +120,9 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
   private val clients = mutableMapOf<String, Pair<String, MqttEndpoint>>()
 
   /**
-   * We use this to check whether the whiteList changed or not since last sent, so that we do not overwhelm the relays.
+   * We use this to check whether the config with the whitelist changed or not since last sent, so that we do not overwhelm the relays.
    */
-  private val whiteListHashes = mutableMapOf<String, Int>() // map of company to the hash of the whiteListString
+  private val configHashes = mutableMapOf<String, Int>() // map of company to the hash of the config with whitelist
 
   /**
    * Map from collection name to MongoAuthentication. It is used since there is a collection per company.
@@ -170,7 +167,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
       val cleanJson = json.clean()
 
       // Send the message to the right relay on the MQTT topic "update.parameters"
-      clients[mqttID]?.let { client -> launch(vertx.dispatcher()) { sendMessageTo(client.second, cleanJson) } }
+      clients[mqttID]?.let { client -> launch(vertx.dispatcher()) { sendMessageTo(client.second, cleanJson, UPDATE_PARAMETERS_TOPIC) } }
     }
 
     // Initialize TimescaleDB
@@ -339,7 +336,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
           clients[clientIdentifier] = Pair(company, client)
 
           // Send last configuration to client
-          launch(vertx.dispatcher()) { sendLastConfiguration(client, collection, company) }
+          launch(vertx.dispatcher()) { sendLastConfiguration(client, company) }
         }.unsubscribeHandler { unsubscribe ->
           unsubscribe.topics().forEach { topic ->
             LOGGER.info { "Unsubscription for $topic by client $clientIdentifier" }
@@ -458,37 +455,30 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
   /**
    * Sends the last relay configuration to the given client.
    */
-  private suspend fun sendLastConfiguration(client: MqttEndpoint, relaysCollection: String, company: String) {
-    val query = jsonObjectOf("mqttID" to client.clientIdentifier())
+  private suspend fun sendLastConfiguration(client: MqttEndpoint, company: String, paramConfig: JsonObject? = null) {
     try {
-      // Get items mac addresses
-      // Find the last configuration in MongoDB
-      val config = mongoClient.findOne(relaysCollection, query, jsonObjectOf()).await()
-      if (config != null && !config.isEmpty) {
-        // The configuration exists
-        // Remove useless fields and clean lastModified, then send
-        val cleanConfig = config.clean()
-        val whiteListString = getItemsMacAddressesString(company)
-        whiteListHashes[company] = whiteListString.hashCode()
-        cleanConfig.put("whiteList", whiteListString)
-        sendMessageTo(client, cleanConfig)
-      }
+      val cleanConfig = paramConfig ?: (getCurrentCleanConfig(company, client.clientIdentifier()) ?: return)
+      configHashes[company] = cleanConfig.hashCode()
+      // LEGACY BEGIN ----------------------------------------------------------------------
+      sendMessageTo(client, cleanConfig, UPDATE_PARAMETERS_TOPIC)
+      // LEGACY END ------------------------------------------------------------------------
+      sendMessageTo(client, cleanConfig, RELAYS_MANAGEMENT_TOPIC)
     } catch (error: Throwable) {
       LOGGER.error(error) { "Could not send last configuration to client ${client.clientIdentifier()}" }
     }
   }
 
   /**
-   * Sends the given message to the given client on the "update.parameters" MQTT topic.
+   * Sends the given message to the given client on the given MQTT topic.
    */
-  private suspend fun sendMessageTo(client: MqttEndpoint, message: JsonObject) {
+  private suspend fun sendMessageTo(client: MqttEndpoint, message: JsonObject, topic: String) {
     try {
       val messageId = client
         .publishAcknowledgeHandler { messageId -> LOGGER.info("Received ack for message $messageId") }
-        .publish(UPDATE_PARAMETERS_TOPIC, message.toBuffer(), MqttQoS.AT_LEAST_ONCE, false, false).await()
-      LOGGER.info { "Published message $message with id $messageId to client ${client.clientIdentifier()} on topic $UPDATE_PARAMETERS_TOPIC" }
+        .publish(topic, message.toBuffer(), MqttQoS.AT_LEAST_ONCE, false, false).await()
+      LOGGER.info { "Published message $message with id $messageId to client ${client.clientIdentifier()} on topic $topic" }
     } catch (error: Throwable) {
-      LOGGER.error(error) { "Could not send message $message on topic $UPDATE_PARAMETERS_TOPIC" }
+      LOGGER.error(error) { "Could not send message $message on topic $topic" }
     }
   }
 
@@ -496,18 +486,46 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     clients.forEach { (_, relayClientPair) ->
       val company = relayClientPair.first
       val relayClient = relayClientPair.second
-      val collection = if (company != "biot") "${RELAYS_COLLECTION}_$company" else RELAYS_COLLECTION
-      val currentWhiteList = getItemsMacAddressesString(company)
+      val currentConfig = getCurrentCleanConfig(company, relayClient.clientIdentifier())
 
-      if (!whiteListHashes.containsKey(company) || currentWhiteList.hashCode() != whiteListHashes[company]) {
+      if (!configHashes.containsKey(company) || currentConfig.hashCode() != configHashes[company]) {
         // The whiteList changed since the last time it was sent to the relays, so we send it again
-        LOGGER.info { "WhiteList changed: sending last configuration to relay ${relayClient.clientIdentifier()}" }
-        sendLastConfiguration(relayClient, collection, company)
+        LOGGER.info { "Config changed: sending last configuration to relay ${relayClient.clientIdentifier()}" }
+        sendLastConfiguration(relayClient, company)
       } else {
         LOGGER.debug { "Skipping sending configuration for the relay ${relayClient.clientIdentifier()}" }
       }
 
     }
+  }
+
+  /**
+   * Get the current config for the relay with the given mqttID with the whitelist in it
+   * It cleans the config before returning
+   * returns null if an error occurred
+   */
+  private suspend fun getCurrentCleanConfig(company: String, mqttID: String): JsonObject? {
+    try {
+      val collection = if (company != "biot") "${RELAYS_COLLECTION}_$company" else RELAYS_COLLECTION
+      val query = jsonObjectOf("mqttID" to mqttID)
+      // Get items mac addresses
+      // Find the last configuration in MongoDB
+      val config = mongoClient.findOne(collection, query, jsonObjectOf()).await()
+      if (config != null && !config.isEmpty) {
+        // The configuration exists
+        // Remove useless fields and clean lastModified, then send
+
+        val whiteListString = getItemsMacAddressesString(company)
+        val cleanConfig = config.clean()
+        cleanConfig.put("whiteList", whiteListString)
+
+        return cleanConfig
+      }
+    } catch (e: Exception){
+      LOGGER.error { "An error occurred while retrieving current clean config!" }
+    }
+
+    return null
   }
 
   /**
@@ -526,14 +544,14 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
 
       // Filter result to remove invalid mac addresses
       val res =
-        result.filter { s -> s.matches(macAddressRegex) }.map { s -> s.replace(":", "") }.distinct().joinToString("")
+        result.filterNotNull().filter { s -> s.matches(macAddressRegex) }.map { s -> s.replace(":", "") }.distinct().joinToString("")
       if (res.length > MAX_NUMBER_MAC_MQTT * CHAR_NUMBER_IN_MAC_ADDRESS) {
         res.substring(0 until (MAX_NUMBER_MAC_MQTT * CHAR_NUMBER_IN_MAC_ADDRESS))
       } else {
         res
       }
     } catch (e: Exception) {
-      LOGGER.warn { "Could not get beacons' whitelist: exception: $e" }
+      LOGGER.warn { "Could not get beacons' whitelist: exception: ${e.stackTraceToString()}" }
       ""
     }
   }
@@ -592,14 +610,14 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
               val flagFromDb = relay.getBoolean("forceReset")
               if(flagFromDb != null){
                 flag = flagFromDb
-                mongoClient.findOneAndUpdate(collection, query, jsonObjectOf("forceReset" to false)).await()
+                mongoClient.findOneAndUpdate(collection, query, jsonObjectOf("\$set" to jsonObjectOf("forceReset" to false))).await()
               }
               break
             }
           }
         }
       } catch (e: Exception) {
-        LOGGER.error { "An error occurred getting the relays from DB" }
+        LOGGER.error { "An error occurred getting the relays from DB." }
       }
 
       flag
