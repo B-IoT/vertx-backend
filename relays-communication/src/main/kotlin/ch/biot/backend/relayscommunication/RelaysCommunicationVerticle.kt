@@ -58,6 +58,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
   companion object {
     internal const val RELAYS_COLLECTION = "relays"
     internal const val UPDATE_PARAMETERS_TOPIC = "update.parameters"
+    internal const val RELAYS_MANAGEMENT_TOPIC = "relay.management"
     internal const val INGESTION_TOPIC = "incoming.update"
     internal const val RELAYS_UPDATE_ADDRESS = "relays.update"
 
@@ -170,7 +171,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
       val cleanJson = json.clean()
 
       // Send the message to the right relay on the MQTT topic "update.parameters"
-      clients[mqttID]?.let { client -> launch(vertx.dispatcher()) { sendMessageTo(client.second, cleanJson) } }
+      clients[mqttID]?.let { client -> launch(vertx.dispatcher()) { sendMessageTo(client.second, cleanJson, UPDATE_PARAMETERS_TOPIC) } }
     }
 
     // Initialize TimescaleDB
@@ -471,7 +472,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
         val whiteListString = getItemsMacAddressesString(company)
         whiteListHashes[company] = whiteListString.hashCode()
         cleanConfig.put("whiteList", whiteListString)
-        sendMessageTo(client, cleanConfig)
+        sendMessageTo(client, cleanConfig, UPDATE_PARAMETERS_TOPIC)
       }
     } catch (error: Throwable) {
       LOGGER.error(error) { "Could not send last configuration to client ${client.clientIdentifier()}" }
@@ -481,14 +482,14 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
   /**
    * Sends the given message to the given client on the "update.parameters" MQTT topic.
    */
-  private suspend fun sendMessageTo(client: MqttEndpoint, message: JsonObject) {
+  private suspend fun sendMessageTo(client: MqttEndpoint, message: JsonObject, topic: String) {
     try {
       val messageId = client
         .publishAcknowledgeHandler { messageId -> LOGGER.info("Received ack for message $messageId") }
-        .publish(UPDATE_PARAMETERS_TOPIC, message.toBuffer(), MqttQoS.AT_LEAST_ONCE, false, false).await()
-      LOGGER.info { "Published message $message with id $messageId to client ${client.clientIdentifier()} on topic $UPDATE_PARAMETERS_TOPIC" }
+        .publish(topic, message.toBuffer(), MqttQoS.AT_LEAST_ONCE, false, false).await()
+      LOGGER.info { "Published message $message with id $messageId to client ${client.clientIdentifier()} on topic $topic" }
     } catch (error: Throwable) {
-      LOGGER.error(error) { "Could not send message $message on topic $UPDATE_PARAMETERS_TOPIC" }
+      LOGGER.error(error) { "Could not send message $message on topic $topic" }
     }
   }
 
@@ -526,14 +527,14 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
 
       // Filter result to remove invalid mac addresses
       val res =
-        result.filter { s -> s.matches(macAddressRegex) }.map { s -> s.replace(":", "") }.distinct().joinToString("")
+        result.filterNotNull().filter { s -> s.matches(macAddressRegex) }.map { s -> s.replace(":", "") }.distinct().joinToString("")
       if (res.length > MAX_NUMBER_MAC_MQTT * CHAR_NUMBER_IN_MAC_ADDRESS) {
         res.substring(0 until (MAX_NUMBER_MAC_MQTT * CHAR_NUMBER_IN_MAC_ADDRESS))
       } else {
         res
       }
     } catch (e: Exception) {
-      LOGGER.warn { "Could not get beacons' whitelist: exception: $e" }
+      LOGGER.warn { "Could not get beacons' whitelist: exception: ${e.stackTraceToString()}" }
       ""
     }
   }
