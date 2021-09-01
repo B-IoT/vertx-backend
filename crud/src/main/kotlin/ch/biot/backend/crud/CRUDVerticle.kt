@@ -97,7 +97,6 @@ class CRUDVerticle : CoroutineVerticle() {
       "latitude" to 42,
       "longitude" to 42,
       "floor" to 0,
-      "lastModified" to "2021-09-01T21:08:34.203Z",
       "wifi" to jsonObjectOf(
         "ssid" to "Test",
         "password" to "12345678",
