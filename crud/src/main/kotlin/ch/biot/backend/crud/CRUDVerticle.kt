@@ -89,6 +89,24 @@ class CRUDVerticle : CoroutineVerticle() {
       "company" to "biot"
     )
 
+    private val INITIAL_RELAY = jsonObjectOf(
+      "relayID" to "relay_0",
+      "mqttID" to "relay_0",
+      "mqttUsername" to "relayBiot_0",
+      "mqttPassword" to "relayBiot_0",
+      "latitude" to 42,
+      "longitude" to 42,
+      "floor" to 0,
+      "lastModified" to "2021-09-01T21:08:34.203Z",
+      "wifi" to jsonObjectOf(
+        "ssid" to "Test",
+        "password" to "12345678",
+        "reset" to false
+      ),
+      "forceReset" to false,
+      "reboot" to false
+    )
+
     private val environment = System.getenv()
     val HTTP_PORT = environment.getOrDefault("HTTP_PORT", "8081").toInt()
 
@@ -155,6 +173,7 @@ class CRUDVerticle : CoroutineVerticle() {
     mongoAuthUsers = MongoAuthentication.create(mongoClient, mongoAuthUsersOptions)
 
     checkInitialUserAndAdd()
+    checkInitialRelayAndAdd()
 
     // Initialize TimescaleDB
     val pgConnectOptions =
@@ -279,6 +298,31 @@ class CRUDVerticle : CoroutineVerticle() {
   }
 
   /**
+   * Check that the initial default BioT relay is in the DB, add it if not
+   */
+  private suspend fun checkInitialRelayAndAdd() {
+    try {
+      val collection = RELAYS_COLLECTION
+      val password: String = INITIAL_RELAY["mqttPassword"]
+      val helpers = createMongoAuthUtils(collection)
+      mongoAuthRelaysCache[collection] = helpers
+      val (mongoUserUtilRelays, mongoAuthRelays) = helpers
+      val hashedPassword = password.saltAndHash(mongoAuthRelays)
+      val docID = mongoUserUtilRelays.createHashedUser(INITIAL_RELAY["mqttUsername"], hashedPassword).await()
+      // Update the relay with the data specified in the HTTP request
+      val query = jsonObjectOf("_id" to docID)
+      val extraInfo = jsonObjectOf(
+        "\$set" to INITIAL_RELAY.copy().apply {
+          remove("mqttPassword")
+        }
+      )
+      mongoClient.findOneAndUpdate(collection, query, extraInfo).await()
+    } catch (error: Throwable) {
+      LOGGER.error(error) { "Could not create the initial user in the DB." }
+    }
+  }
+
+  /**
    * Handles a bad request error.
    */
   private fun badRequestErrorHandler(ctx: RoutingContext) {
@@ -369,23 +413,7 @@ class CRUDVerticle : CoroutineVerticle() {
    * Handles a registerRelay request.
    */
   private suspend fun registerRelayHandler(ctx: RoutingContext) {
-    fun createMongoAuthUtils(collection: String): Pair<MongoUserUtil, MongoAuthentication> {
-      val usernameFieldRelays = "mqttUsername"
-      val passwordFieldRelays = "mqttPassword"
-      val mongoAuthRelaysOptions = mongoAuthenticationOptionsOf(
-        collectionName = collection,
-        passwordCredentialField = passwordFieldRelays,
-        passwordField = passwordFieldRelays,
-        usernameCredentialField = usernameFieldRelays,
-        usernameField = usernameFieldRelays
-      )
 
-      return MongoUserUtil.create(
-        mongoClient,
-        mongoAuthRelaysOptions,
-        mongoAuthorizationOptionsOf()
-      ) to MongoAuthentication.create(mongoClient, mongoAuthRelaysOptions)
-    }
 
     LOGGER.info { "New registerRelay request" }
     val json = ctx.bodyAsJson
@@ -417,6 +445,24 @@ class CRUDVerticle : CoroutineVerticle() {
         ctx.end()
       }
     }
+  }
+
+  private fun createMongoAuthUtils(collection: String): Pair<MongoUserUtil, MongoAuthentication> {
+    val usernameFieldRelays = "mqttUsername"
+    val passwordFieldRelays = "mqttPassword"
+    val mongoAuthRelaysOptions = mongoAuthenticationOptionsOf(
+      collectionName = collection,
+      passwordCredentialField = passwordFieldRelays,
+      passwordField = passwordFieldRelays,
+      usernameCredentialField = usernameFieldRelays,
+      usernameField = usernameFieldRelays
+    )
+
+    return MongoUserUtil.create(
+      mongoClient,
+      mongoAuthRelaysOptions,
+      mongoAuthorizationOptionsOf()
+    ) to MongoAuthentication.create(mongoClient, mongoAuthRelaysOptions)
   }
 
   /**
