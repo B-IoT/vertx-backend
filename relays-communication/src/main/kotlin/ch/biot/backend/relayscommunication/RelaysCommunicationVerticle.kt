@@ -460,20 +460,15 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
    * Sends the last relay configuration to the given client.
    */
   private suspend fun sendLastConfiguration(client: MqttEndpoint, relaysCollection: String, company: String) {
-    val query = jsonObjectOf("mqttID" to client.clientIdentifier())
     try {
-      // Get items mac addresses
-      // Find the last configuration in MongoDB
-      val config = mongoClient.findOne(relaysCollection, query, jsonObjectOf()).await()
-      if (config != null && !config.isEmpty) {
-        // The configuration exists
-        // Remove useless fields and clean lastModified, then send
-        val cleanConfig = config.clean()
-        val whiteListString = getItemsMacAddressesString(company)
-        whiteListHashes[company] = whiteListString.hashCode()
-        cleanConfig.put("whiteList", whiteListString)
-        sendMessageTo(client, cleanConfig, UPDATE_PARAMETERS_TOPIC)
-      }
+      val cleanConfig = getCurrentCleanConfig(company, client.clientIdentifier()) ?: return
+      val whiteListString = getItemsMacAddressesString(company)
+      whiteListHashes[company] = whiteListString.hashCode()
+      cleanConfig.put("whiteList", whiteListString)
+      // LEGACY BEGIN ----------------------------------------------------------------------
+      sendMessageTo(client, cleanConfig, UPDATE_PARAMETERS_TOPIC)
+      // LEGACY END ------------------------------------------------------------------------
+      sendMessageTo(client, cleanConfig, RELAYS_MANAGEMENT_TOPIC)
     } catch (error: Throwable) {
       LOGGER.error(error) { "Could not send last configuration to client ${client.clientIdentifier()}" }
     }
@@ -499,6 +494,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
       val relayClient = relayClientPair.second
       val collection = if (company != "biot") "${RELAYS_COLLECTION}_$company" else RELAYS_COLLECTION
       val currentWhiteList = getItemsMacAddressesString(company)
+      
 
       if (!whiteListHashes.containsKey(company) || currentWhiteList.hashCode() != whiteListHashes[company]) {
         // The whiteList changed since the last time it was sent to the relays, so we send it again
@@ -509,6 +505,30 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
       }
 
     }
+  }
+
+  /**
+   * Get the current config for the relay with the given mqttID
+   * It cleans the config before returning
+   * returns null if an error occurred
+   */
+  private suspend fun getCurrentCleanConfig(company: String, mqttID: String): JsonObject? {
+    try {
+      val collection = if (company != "biot") "${RELAYS_COLLECTION}_$company" else RELAYS_COLLECTION
+      val query = jsonObjectOf("mqttID" to mqttID)
+      // Get items mac addresses
+      // Find the last configuration in MongoDB
+      val config = mongoClient.findOne(collection, query, jsonObjectOf()).await()
+      if (config != null && !config.isEmpty) {
+        // The configuration exists
+        // Remove useless fields and clean lastModified, then send
+        return config.clean()
+      }
+    } catch (e: Exception){
+      LOGGER.error { "An error occurred while retrieving current clean config!" }
+    }
+
+    return null
   }
 
   /**
