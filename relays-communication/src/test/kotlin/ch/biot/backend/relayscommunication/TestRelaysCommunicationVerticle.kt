@@ -55,7 +55,6 @@ import io.vertx.pgclient.SslMode
 import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.*
 import org.junit.jupiter.api.extension.ExtendWith
@@ -1616,25 +1615,15 @@ class TestRelaysCommunicationVerticle {
 
   @Test
   @DisplayName("A client receives the configuration when signaling that it is ready and the server increments the next relayID when receiving the ack")
-  fun clientReceivesConfigurationWhenReadyAndServerIncrementsNextRelayIDAfterAck(vertx: Vertx, testContext: VertxTestContext): Unit =
+  fun clientReceivesConfigurationWhenReadyAndServerIncrementsNextRelayIDAfterAck(
+    vertx: Vertx,
+    testContext: VertxTestContext
+  ): Unit =
     runBlocking(vertx.dispatcher()) {
       try {
-        val client = MqttClient.create(
-          vertx,
-          mqttClientOptionsOf(
-            clientId = "relay_0",
-            username = "relayBiot_0",
-            password = "relayBiot_0",
-            willFlag = true,
-            willMessage = jsonObjectOf("company" to "biot").encode(),
-            ssl = false,
-            maxMessageSize = 100_000
-          )
-        )
+        mqttClient.connect(MQTT_PORT, MQTT_HOST).await()
 
-        client.connect(MQTT_PORT, MQTT_HOST).await()
-
-        client.publishHandler { msg ->
+        mqttClient.publishHandler { msg ->
           if (msg.topicName() == RELAYS_CONFIGURATION_TOPIC) {
             testContext.verify {
               val expected = jsonObjectOf(
@@ -1646,32 +1635,31 @@ class TestRelaysCommunicationVerticle {
               expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
             }
 
-            runBlocking(vertx.dispatcher()) {
-              val clientWrittenConfigAckMessage = jsonObjectOf(
-                "message" to "Written config",
-                "content" to msg.payload().toString(),
-                "path" to "/home/pi/biot/config/.config"
-              )
-              try {
-                client.publish(
-                  RELAYS_CONFIGURATION_TOPIC,
-                  clientWrittenConfigAckMessage.toBuffer(),
-                  MqttQoS.AT_LEAST_ONCE,
-                  false,
-                  false
-                ).await()
-                val nextRelayID = mongoClient.readNextRelayID()
-                testContext.verify {
-                  expectThat(nextRelayID).isEqualTo(2)
-                }
-              } catch (error: Throwable) {
-                testContext.failNow(error)
+            val clientWrittenConfigAckMessage = jsonObjectOf(
+              "message" to "Written config",
+              "content" to msg.payload().toString(),
+              "path" to "/home/pi/biot/config/.config"
+            )
+            mqttClient.publish(
+              RELAYS_CONFIGURATION_TOPIC,
+              clientWrittenConfigAckMessage.toBuffer(),
+              MqttQoS.AT_LEAST_ONCE,
+              false,
+              false
+            ).onSuccess {
+              vertx.setTimer(5_000) {
+                mongoClient.readNextRelayID().onSuccess { nextRelayID ->
+                  testContext.verify {
+                    expectThat(nextRelayID).isEqualTo(2)
+                    testContext.completeNow()
+                  }
+                }.onFailure(testContext::failNow)
               }
-            }
+            }.onFailure(testContext::failNow)
           }
         }.subscribe(RELAYS_CONFIGURATION_TOPIC, MqttQoS.AT_LEAST_ONCE.value()).await()
 
-        client.publish(
+        mqttClient.publish(
           RELAYS_CONFIGURATION_TOPIC,
           jsonObjectOf("configuration" to "ready").toBuffer(),
           MqttQoS.AT_LEAST_ONCE,

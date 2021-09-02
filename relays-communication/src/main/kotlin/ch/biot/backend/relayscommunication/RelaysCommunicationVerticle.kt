@@ -399,7 +399,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     try {
       if (message.getString("configuration") == "ready") {
         // The relay is ready to receive the configuration, get the next relayID and send it
-        val nextRelayID = mongoClient.readNextRelayID()
+        val nextRelayID = mongoClient.readNextRelayID().await()
         val configuration = jsonObjectOf(
           "relayID" to "relay_$nextRelayID",
           "mqttID" to "relay_$nextRelayID",
@@ -409,8 +409,9 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
         sendMessageTo(client, configuration, RELAYS_CONFIGURATION_TOPIC)
       } else if (message.getString("message") == WRITTEN_CONFIG_ACK_MESSAGE) {
         // The relay has saved and written its configuration, increment the next relayID
-        val incrementedRelayID = mongoClient.incrementNextRelayID()
-        LOGGER.info { "Incremented next relayID to $incrementedRelayID" }
+        mongoClient.incrementNextRelayID()
+      } else {
+        LOGGER.warn { "Received error message ${message.getString("message")}" }
       }
     } catch (error: Throwable) {
       LOGGER.error(error) { "Could not handle message on topic $RELAYS_CONFIGURATION_TOPIC" }
