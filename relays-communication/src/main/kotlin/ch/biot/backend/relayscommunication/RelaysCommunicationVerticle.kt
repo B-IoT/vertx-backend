@@ -41,6 +41,7 @@ import io.vertx.pgclient.PgPool
 import io.vertx.pgclient.SslMode
 import io.vertx.spi.cluster.hazelcast.HazelcastClusterManager
 import io.vertx.sqlclient.SqlClient
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import mu.KotlinLogging
 import java.net.InetAddress
@@ -227,16 +228,25 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     }
 
     // Periodically send all the config to all relays to keep whiteList consistent with the DB
-    // We use Timer to not have any stacking of operation
-    periodicUpdateConfig = Handler {
-      launch(vertx.dispatcher()) {
+    launch(vertx.dispatcher()) {
+      while (true) {
+        delay(TimeUnit.SECONDS.toMillis(UPDATE_CONFIG_INTERVAL_SECONDS))
         sendConfigToAllRelays()
         checkConnectionAndUpdateDb()
-        vertx.setTimer(TimeUnit.SECONDS.toMillis(UPDATE_CONFIG_INTERVAL_SECONDS), periodicUpdateConfig)
       }
     }
-    // Schedule the first execution
-    vertx.setTimer(TimeUnit.SECONDS.toMillis(UPDATE_CONFIG_INTERVAL_SECONDS), periodicUpdateConfig)
+
+//    // Periodically send all the config to all relays to keep whiteList consistent with the DB
+//    // We use Timer to not have any stacking of operation
+//    periodicUpdateConfig = Handler {
+//      launch(vertx.dispatcher()) {
+//        sendConfigToAllRelays()
+//        checkConnectionAndUpdateDb()
+//        vertx.setTimer(TimeUnit.SECONDS.toMillis(UPDATE_CONFIG_INTERVAL_SECONDS), periodicUpdateConfig)
+//      }
+//    }
+//    // Schedule the first execution
+//    vertx.setTimer(TimeUnit.SECONDS.toMillis(UPDATE_CONFIG_INTERVAL_SECONDS), periodicUpdateConfig)
 
     val router = Router.router(vertx)
 
@@ -333,6 +343,18 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
         .disconnectHandler {
           LOGGER.info { "Client $clientIdentifier disconnected" }
           clients.remove(clientIdentifier)
+          launch(vertx.dispatcher()) {
+            val filter = jsonObjectOf("mqttID" to clientIdentifier)
+            val update = jsonObjectOf(
+              "\$set" to jsonObjectOf("connected" to false)
+            )
+            val relaysCollection = if (company != "biot") "${RELAYS_COLLECTION}_$company" else RELAYS_COLLECTION
+            try {
+              mongoClient.findOneAndUpdate(relaysCollection, filter, update).await()
+            } catch (error: Throwable) {
+              LOGGER.error { "Could not set connected to false for client $clientIdentifier" }
+            }
+          }
         }.subscribeHandler { subscribe ->
           // Extract the QoS levels to be used to acknowledge
           val grantedQosLevels = subscribe.topicSubscriptions().map { s ->
@@ -342,25 +364,28 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
 
           // Ack the subscriptions request
           client.subscribeAcknowledge(subscribe.messageId(), grantedQosLevels)
-          clients[clientIdentifier] = Pair(company, client)
-
-          // Send last configuration to client
-          launch(vertx.dispatcher()) { sendLastConfiguration(client, company) }
         }.unsubscribeHandler { unsubscribe ->
           unsubscribe.topics().forEach { topic ->
             LOGGER.info { "Unsubscription for $topic by client $clientIdentifier" }
           }
-          clients.remove(clientIdentifier)
         }.publishHandler { m ->
           launch(vertx.dispatcher()) { handleMessage(m, client, company) }
         }
 
-      mongoClient.findOneAndUpdate(
-        collection,
-        jsonObjectOf("mqttID" to clientIdentifier),
-        jsonObjectOf("\$set" to jsonObjectOf("connected" to true))
-      ).onFailure {
-        LOGGER.error { "Relay_Communication: Cannot update mongo DB to set connected = true for relays" }
+      clients[clientIdentifier] = Pair(company, client)
+
+      // Send last configuration to client
+      launch(vertx.dispatcher()) {
+        try {
+          mongoClient.findOneAndUpdate(
+            collection,
+            jsonObjectOf("mqttID" to clientIdentifier),
+            jsonObjectOf("\$set" to jsonObjectOf("connected" to true))
+          ).await()
+        } catch (error: Throwable) {
+          LOGGER.error { "Relay_Communication: Cannot update mongo DB to set connected = true for relays" }
+        }
+        sendLastConfiguration(client, company)
       }
     } catch (error: Throwable) {
       // Wrong username or password, reject
@@ -596,7 +621,8 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
 
       // Filter result to remove invalid mac addresses
       val res =
-        result.filterNotNull().filter { s -> s.matches(macAddressRegex) }.map { s -> s.replace(":", "") }.distinct()
+        result.asSequence().filterNotNull().filter { s -> s.matches(macAddressRegex) }.map { s -> s.replace(":", "") }
+          .distinct()
           .joinToString("")
       if (res.length > MAX_NUMBER_MAC_MQTT * CHAR_NUMBER_IN_MAC_ADDRESS) {
         res.substring(0 until (MAX_NUMBER_MAC_MQTT * CHAR_NUMBER_IN_MAC_ADDRESS))
@@ -614,32 +640,52 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
    * It also updates the mongoDB accordingly
    */
   private suspend fun checkConnectionAndUpdateDb() {
-    val bulkOperations = hashMapOf<String, ArrayList<BulkOperation>>()
-
-    for (entry in clients.entries) {
-      val clientId = entry.key
-      val company = entry.value.first
-      val client = entry.value.second
-      if (!client.isConnected) {
-        clients.remove(clientId)
-      } else {
-        val filter = jsonObjectOf("mqttID" to clientId)
-        val update = jsonObjectOf(
-          "\$set" to jsonObjectOf("connected" to true)
+    val allRelaysCollections = arrayListOf<JsonObject>()
+    val allCompanies = arrayListOf<String>()
+    val allCollections = mongoClient.collections.await()
+    for (collection in allCollections) {
+      if (collection.startsWith(RELAYS_COLLECTION)) {
+        val split = collection.split("_")
+        val company = if (split.size > 1) split[1] else split[0]
+        allCompanies.add(company)
+        allRelaysCollections.addAll(
+          mongoClient.find(collection, jsonObjectOf()).await()
         )
-        if (!bulkOperations.containsKey(company)) {
-          bulkOperations[company] = arrayListOf()
+      }
+    }
+
+    val bulkOperations = hashMapOf<String, ArrayList<BulkOperation>>()
+    for (relay in allRelaysCollections) {
+      val id = relay.getString("mqttID")
+      clients[id]?.let { (company, client) ->
+        if (!client.isConnected) {
+          clients.remove(id)
+        } else {
+          val filter = jsonObjectOf("mqttID" to id)
+          val update: JsonObject = jsonObjectOf(
+            "\$set" to jsonObjectOf("connected" to true)
+          )
+          if (!bulkOperations.containsKey(company)) {
+            bulkOperations[company] = arrayListOf()
+          }
+          bulkOperations[company]?.add(BulkOperation.createUpdate(filter, update))
         }
-        bulkOperations[company]?.add(BulkOperation.createUpdate(filter, update))
       }
     }
 
     val allFalseUpdate = jsonObjectOf(
       "\$set" to jsonObjectOf("connected" to false)
     )
+
+    // Reset the connection status for every relay
+    for (company in allCompanies) {
+      val relaysCollection = if (company != "biot") "${RELAYS_COLLECTION}_$company" else RELAYS_COLLECTION
+      mongoClient.updateCollection(relaysCollection, jsonObjectOf(), allFalseUpdate).await()
+    }
+
+    // Then update the connection status of the relays that are connected
     for (company in bulkOperations.keys) {
       val relaysCollection = if (company != "biot") "${RELAYS_COLLECTION}_$company" else RELAYS_COLLECTION
-      mongoClient.updateCollection(relaysCollection, JsonObject(), allFalseUpdate).await()
       mongoClient.bulkWrite(relaysCollection, bulkOperations[company]).await()
     }
   }
@@ -657,7 +703,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
         val allCollections = mongoClient.collections.await()
         val query = jsonObjectOf("relayID" to relayID)
         for (collection in allCollections) {
-          if (collection.contains("relay")) {
+          if (collection.startsWith(RELAYS_COLLECTION)) {
             val relay = mongoClient.findOne(collection, query, jsonObjectOf()).await()
             if (relay != null) {
               val flagFromDb = relay.getBoolean("forceReset")

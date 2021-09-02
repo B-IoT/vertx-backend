@@ -16,9 +16,9 @@ db.relays.createIndex({relayID: 1}, {unique: true});
 db.relays.createIndex({mqttID: 1}, {unique: true});
 db.relays.createIndex({mqttUsername: 1}, {unique: true});
 
-db.createCollection("relaysIDs");
-db.relaysIDs.createIndex({id: 1}, {unique: true});
-db.relaysIDs.insert({id: 1})
+db.createCollection("idsRelays");
+db.idsRelays.createIndex({id: 1}, {unique: true});
+db.idsRelays.insert({id: 1})
 
 db.createCollection("users");
 db.users.createIndex({userID: 1}, {unique: true});

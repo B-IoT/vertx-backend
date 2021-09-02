@@ -62,10 +62,7 @@ import org.testcontainers.containers.DockerComposeContainer
 import org.testcontainers.junit.jupiter.Testcontainers
 import strikt.api.expect
 import strikt.api.expectThat
-import strikt.assertions.isEqualTo
-import strikt.assertions.isLessThanOrEqualTo
-import strikt.assertions.isNotNull
-import strikt.assertions.isTrue
+import strikt.assertions.*
 import java.io.File
 import java.security.SecureRandom
 import java.time.LocalDate
@@ -99,7 +96,8 @@ class TestRelaysCommunicationVerticle {
       "ssid" to "ssid",
       "password" to "pass"
     ),
-    "forceReset" to true
+    "forceReset" to true,
+    "company" to "biot"
   )
 
   private val configurationAnotherCompany = jsonObjectOf(
@@ -785,35 +783,35 @@ class TestRelaysCommunicationVerticle {
 
   @Test
   @DisplayName("When the client disconnects, the relay is connected = false in the DB after max 20 sec")
-  fun clientSubscribesAndDisconnectsIsCorrectInMongo(vertx: Vertx, testContext: VertxTestContext) {
+  fun clientSubscribesAndDisconnectsIsCorrectInMongo(vertx: Vertx, testContext: VertxTestContext): Unit =
     runBlocking(vertx.dispatcher()) {
       try {
         mqttClient.connect(MQTT_PORT, MQTT_HOST).await()
         mqttClient.publishHandler { msg ->
           if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
-            mqttClient.disconnect()
+            mqttClient.disconnect().onSuccess {
+              vertx.setTimer(UPDATE_CONFIG_INTERVAL_SECONDS + 5_000) {
+                mongoClient.findOne(
+                  RELAYS_COLLECTION,
+                  jsonObjectOf("mqttID" to configuration["mqttID"]),
+                  jsonObjectOf()
+                )
+                  .onSuccess { relayJson ->
+                    testContext.verify {
+                      expectThat(relayJson.getBoolean("connected")).isFalse()
+                      testContext.completeNow()
+                    }
+                  }.onFailure {
+                    testContext.failNow("Error while accessing MongoDB")
+                  }
+              }
+            }.onFailure(testContext::failNow)
           }
         }.subscribe(UPDATE_PARAMETERS_TOPIC, MqttQoS.AT_LEAST_ONCE.value()).await()
       } catch (error: Throwable) {
         testContext.failNow(error)
       }
     }
-
-    vertx.setTimer(UPDATE_CONFIG_INTERVAL_SECONDS + 5_000) {
-      testContext.verify {
-        mongoClient.findOne(RELAYS_COLLECTION, jsonObjectOf("mqttID" to configuration["mqttID"]), jsonObjectOf())
-          .onSuccess { relayJson ->
-            expectThat(relayJson.getBoolean("connected")).isTrue()
-            testContext.completeNow()
-          }.onFailure {
-            testContext.failNow("Error while accessing MongoDB")
-          }
-      }
-      testContext.completeNow()
-    }
-
-
-  }
 
   @Test
   @DisplayName("A MQTT client without authentication is refused connection")
@@ -1352,6 +1350,7 @@ class TestRelaysCommunicationVerticle {
                       "e051304816e5f015b5dd2438f5a8ef56d7c0"
                     ) //itemBiot1, itemBiot2, itemBiot4 mac addresses without :
                     put("connected", true)
+                    put("reboot", false)
                   }
                   expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
                 }
@@ -1513,8 +1512,8 @@ class TestRelaysCommunicationVerticle {
   }
 
   @Test
-  @DisplayName("Emergency request returns repo url + True as flag if no relayID is passed")
-  fun emergencyRequestFlagTrueWhenNoRelayID(testContext: VertxTestContext) {
+  @DisplayName("Emergency request returns repo url + False as flag if no relayID is passed")
+  fun emergencyRequestFlagFalseWhenNoRelayID(testContext: VertxTestContext) {
     val response = Buffer.buffer(
       Given {
         spec(requestSpecification)
@@ -1530,15 +1529,15 @@ class TestRelaysCommunicationVerticle {
 
     testContext.verify {
       expectThat(response).isNotNull()
-      expectThat(response.getBoolean("forceReset")).isTrue()
+      expectThat(response.getBoolean("forceReset")).isFalse()
       expectThat(response.getString("repoURL")).isEqualTo(RELAY_REPO_URL)
       testContext.completeNow()
     }
   }
 
   @Test
-  @DisplayName("Emergency request returns repo url + True as flag if relayID is not in DB")
-  fun emergencyRequestFlagTrueWhenUnknown(testContext: VertxTestContext) {
+  @DisplayName("Emergency request returns repo url + False as flag if relayID is not in DB")
+  fun emergencyRequestFlagFalseWhenUnknown(testContext: VertxTestContext) {
     val response = Buffer.buffer(
       Given {
         spec(requestSpecification)
@@ -1555,7 +1554,7 @@ class TestRelaysCommunicationVerticle {
 
     testContext.verify {
       expectThat(response).isNotNull()
-      expectThat(response.getBoolean("forceReset")).isTrue()
+      expectThat(response.getBoolean("forceReset")).isFalse()
       expectThat(response.getString("repoURL")).isEqualTo(RELAY_REPO_URL)
       testContext.completeNow()
     }

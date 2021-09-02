@@ -11,7 +11,7 @@ import io.vertx.kotlin.core.json.get
 import io.vertx.kotlin.core.json.jsonObjectOf
 import io.vertx.kotlin.coroutines.await
 
-private const val RELAY_ID_COLLECTION = "relaysIDs"
+private const val RELAY_ID_COLLECTION = "idsRelays"
 
 /**
  * Cleans the JSON object by removing useless fields and formatting the "lastModified" field.
