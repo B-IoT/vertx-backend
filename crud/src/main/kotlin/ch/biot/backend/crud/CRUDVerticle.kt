@@ -106,6 +106,13 @@ class CRUDVerticle : CoroutineVerticle() {
       "reboot" to false
     )
 
+    val ADMIN_RELAY = jsonObjectOf(
+      "relayID" to "relay_biot",
+      "mqttID" to "relay_biot",
+      "mqttUsername" to "relayBiot_biot",
+      "mqttPassword" to "relayBiot_biot"
+    )
+
     private val environment = System.getenv()
     val HTTP_PORT = environment.getOrDefault("HTTP_PORT", "8081").toInt()
 
@@ -172,7 +179,7 @@ class CRUDVerticle : CoroutineVerticle() {
     mongoAuthUsers = MongoAuthentication.create(mongoClient, mongoAuthUsersOptions)
 
     checkInitialUserAndAdd()
-    checkInitialRelayAndAdd()
+    checkInitialRelayAndAdminRelayAndAdd()
 
     // Initialize TimescaleDB
     val pgConnectOptions =
@@ -299,7 +306,7 @@ class CRUDVerticle : CoroutineVerticle() {
   /**
    * Check that the initial default BioT relay is in the DB, add it if not
    */
-  private suspend fun checkInitialRelayAndAdd() {
+  private suspend fun checkInitialRelayAndAdminRelayAndAdd() {
     try {
       val collection = RELAYS_COLLECTION
       val queryFind = jsonObjectOf("relayID" to INITIAL_RELAY["relayID"])
@@ -315,6 +322,23 @@ class CRUDVerticle : CoroutineVerticle() {
         val query = jsonObjectOf("_id" to docID)
         val extraInfo = jsonObjectOf(
           "\$set" to INITIAL_RELAY.copy().apply {
+            remove("mqttPassword")
+          }
+        )
+        mongoClient.findOneAndUpdate(collection, query, extraInfo).await()
+      }
+
+      val queryFindAdmin = jsonObjectOf("relayID" to ADMIN_RELAY["relayID"])
+      val adminRelay = mongoClient.findOne(collection, queryFindAdmin, jsonObjectOf()).await()
+      if (adminRelay == null) {
+        val password: String = ADMIN_RELAY["mqttPassword"]
+        val (mongoUserUtilRelays, mongoAuthRelays) = mongoAuthRelaysCache[collection]!!
+        val hashedPassword = password.saltAndHash(mongoAuthRelays)
+        val docID = mongoUserUtilRelays.createHashedUser(ADMIN_RELAY["mqttUsername"], hashedPassword).await()
+
+        val query = jsonObjectOf("_id" to docID)
+        val extraInfo = jsonObjectOf(
+          "\$set" to ADMIN_RELAY.copy().apply {
             remove("mqttPassword")
           }
         )
