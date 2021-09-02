@@ -98,6 +98,7 @@ class TestRelaysCommunicationVerticle {
       "password" to "pass"
     ),
     "forceReset" to true,
+    "reboot" to false,
     "company" to "biot"
   )
 
@@ -898,54 +899,70 @@ class TestRelaysCommunicationVerticle {
     }
 
   @Test
-  @DisplayName("A MQTT client receives updates on update.parameters")
-  fun clientReceivesUpdateOnUpdateParameters(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
-    try {
-      val message = jsonObjectOf("latitude" to 42.3, "mqttID" to "mqtt")
-      mqttClient.publishHandler { msg ->
-        if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
-          val json = msg.payload().toJsonObject()
-          if (!json.containsKey("relayID")) { // only handle received message, not the one for the last configuration
+  @DisplayName("A MQTT client receives the last configuration on update.parameters once an update is received via the event bus")
+  fun clientReceivesUpdateOnUpdateParameters(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      try {
+        val message = jsonObjectOf("mqttID" to "mqtt")
+        mqttClient.publishHandler { msg ->
+          if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
+            val json = msg.payload().toJsonObject()
             testContext.verify {
-              val messageWithoutMqttID = message.copy().apply { remove("mqttID") }
+              val messageWithoutMqttID = configuration.copy().apply {
+                remove("mqttID")
+                remove("mqttUsername")
+                remove("ledStatus")
+                put(
+                  "whiteList",
+                  "e051304816e5f015b5dd2438f5a8ef56d7c0"
+                ) //itemBiot1, itemBiot2, itemBiot4 mac addresses without :
+                put("connected", true)
+              }
               expectThat(json).isEqualTo(messageWithoutMqttID)
               testContext.completeNow()
             }
           }
-        }
-      }.connect(MQTT_PORT, MQTT_HOST).await()
+        }.connect(MQTT_PORT, MQTT_HOST).await()
 
-      mqttClient.subscribe(UPDATE_PARAMETERS_TOPIC, MqttQoS.AT_LEAST_ONCE.value()).await()
-      vertx.eventBus().send(RELAYS_UPDATE_ADDRESS, message)
-    } catch (error: Throwable) {
-      testContext.failNow(error)
+        mqttClient.subscribe(UPDATE_PARAMETERS_TOPIC, MqttQoS.AT_LEAST_ONCE.value()).await()
+        vertx.eventBus().send(RELAYS_UPDATE_ADDRESS, message)
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
     }
-  }
 
   @Test
-  @DisplayName("A MQTT client receives updates on relay.management")
-  fun clientReceivesUpdateOnRelayManagement(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
-    try {
-      val message = jsonObjectOf("latitude" to 42.3, "mqttID" to "mqtt")
-      mqttClient.publishHandler { msg ->
-        if (msg.topicName() == RELAYS_MANAGEMENT_TOPIC) {
-          val json = msg.payload().toJsonObject()
-          if (!json.containsKey("relayID")) { // only handle received message, not the one for the last configuration
+  @DisplayName("A MQTT client receives the last configuration on relay.management once an update is received via the event bus")
+  fun clientReceivesUpdateOnRelayManagement(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      try {
+        val message = jsonObjectOf("mqttID" to "mqtt")
+        mqttClient.publishHandler { msg ->
+          if (msg.topicName() == RELAYS_MANAGEMENT_TOPIC) {
+            val json = msg.payload().toJsonObject()
             testContext.verify {
-              val messageWithoutMqttID = message.copy().apply { remove("mqttID") }
+              val messageWithoutMqttID = configuration.copy().apply {
+                remove("mqttID")
+                remove("mqttUsername")
+                remove("ledStatus")
+                put(
+                  "whiteList",
+                  "e051304816e5f015b5dd2438f5a8ef56d7c0"
+                ) //itemBiot1, itemBiot2, itemBiot4 mac addresses without :
+                put("connected", true)
+              }
               expectThat(json).isEqualTo(messageWithoutMqttID)
               testContext.completeNow()
             }
           }
-        }
-      }.connect(MQTT_PORT, MQTT_HOST).await()
+        }.connect(MQTT_PORT, MQTT_HOST).await()
 
-      mqttClient.subscribe(RELAYS_MANAGEMENT_TOPIC, MqttQoS.AT_LEAST_ONCE.value()).await()
-      vertx.eventBus().send(RELAYS_UPDATE_ADDRESS, message)
-    } catch (error: Throwable) {
-      testContext.failNow(error)
+        mqttClient.subscribe(RELAYS_MANAGEMENT_TOPIC, MqttQoS.AT_LEAST_ONCE.value()).await()
+        vertx.eventBus().send(RELAYS_UPDATE_ADDRESS, message)
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
     }
-  }
 
   @Test
   @DisplayName("A well-formed MQTT JSON message is ingested and streamed to Kafka")
@@ -1376,7 +1393,6 @@ class TestRelaysCommunicationVerticle {
                       "e051304816e5f015b5dd2438f5a8ef56d7c0"
                     ) //itemBiot1, itemBiot2, itemBiot4 mac addresses without :
                     put("connected", true)
-                    put("reboot", false)
                   }
                   expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
                 }

@@ -160,11 +160,11 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
       )
     )
 
-    // Add an event bus consumer to handle the JSON received from CRUDVerticle, which needs to be forwarded to the right
-    // relay
+    // Add an event bus consumer to handle the notification received from CRUDVerticle, which triggers the sending of
+    // the last configuration to the right relay
     vertx.eventBus().consumer<JsonObject>(RELAYS_UPDATE_ADDRESS) { message ->
       val json = message.body()
-      LOGGER.info { "Received relay update $json on event bus address $RELAYS_UPDATE_ADDRESS, sending it to client..." }
+      LOGGER.info { "Received notification on event bus address $RELAYS_UPDATE_ADDRESS, sending last configuration to client..." }
       val mqttID: String = json["mqttID"]
 
       // Send the message to the right relay on the MQTT topic "update.parameters"

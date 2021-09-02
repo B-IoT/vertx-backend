@@ -573,12 +573,8 @@ class CRUDVerticle : CoroutineVerticle() {
         }
 
         LOGGER.info { "Successfully updated collection $collection with update JSON $update" }
-        // Put the beacon information in the JSON to send to the relay
-        val cleanEntry = updatedRelay.cleanForRelay().apply {
-          put("beacon", json["beacon"])
-        }
         // Send to the RelaysCommunicationVerticle the entry to update the relay
-        vertx.eventBus().send(RELAYS_UPDATE_ADDRESS, cleanEntry)
+        vertx.eventBus().send(RELAYS_UPDATE_ADDRESS, jsonObjectOf("mqttID" to updatedRelay["mqttID"]))
         LOGGER.info { "Update sent to the event bus address $RELAYS_UPDATE_ADDRESS" }
         ctx.end()
       }

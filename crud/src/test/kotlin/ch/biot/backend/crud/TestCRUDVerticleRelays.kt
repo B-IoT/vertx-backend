@@ -353,15 +353,7 @@ class TestCRUDVerticleRelays {
       testContext.verify {
         expectThat(json).isNotNull()
         expect {
-          that(json.getBoolean("ledStatus")).isEqualTo(updateJson.getBoolean("ledStatus"))
-          that(json.getJsonObject("wifi")).isEqualTo(updateJson.getJsonObject("wifi"))
-          that(json.getDouble("latitude")).isEqualTo(updateJson.getDouble("latitude"))
-          that(json.getDouble("longitude")).isEqualTo(updateJson.getDouble("longitude"))
-          that(json.getInteger("floor")).isEqualTo(updateJson.getInteger("floor"))
-          that(json.getJsonObject("beacon")).isEqualTo(updateJson.getJsonObject("beacon"))
           that(json.getString("mqttID")).isEqualTo(existingRelay.getString("mqttID"))
-          that(json.getString("relayID")).isEqualTo(existingRelay.getString("relayID"))
-          that(json.containsKey("lastModified")).isTrue()
         }
         testContext.completeNow()
       }
