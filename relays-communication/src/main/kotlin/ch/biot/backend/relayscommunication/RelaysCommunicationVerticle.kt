@@ -501,6 +501,12 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
       sendMessageTo(client, cleanConfig, UPDATE_PARAMETERS_TOPIC)
       // LEGACY END ------------------------------------------------------------------------
       sendMessageTo(client, cleanConfig, RELAYS_MANAGEMENT_TOPIC)
+
+      val collection = if (company != "biot") "${RELAYS_COLLECTION}_$company" else RELAYS_COLLECTION
+      val query = jsonObjectOf("mqttID" to client.clientIdentifier())
+      val updateQuery = jsonObjectOf("\$set" to jsonObjectOf("reboot" to false))
+      
+      mongoClient.findOneAndUpdate(collection, query, updateQuery)
     } catch (error: Throwable) {
       LOGGER.error(error) { "Could not send last configuration to client ${client.clientIdentifier()}" }
     }
@@ -531,10 +537,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
         // The whiteList changed since the last time it was sent to the relays, so we send it again
         LOGGER.info { "Config changed: sending last configuration to relay $mqttID" }
         sendLastConfiguration(relayClient, company)
-        val collection = if (company != "biot") "${RELAYS_COLLECTION}_$company" else RELAYS_COLLECTION
-        val query = jsonObjectOf("mqttID" to mqttID)
-        val updateQuery = jsonObjectOf("\$set" to jsonObjectOf("reboot" to false))
-        mongoClient.findOneAndUpdate(collection, query, updateQuery)
+
       } else {
         LOGGER.debug { "Skipping sending configuration for the relay ${relayClient.clientIdentifier()}" }
       }
