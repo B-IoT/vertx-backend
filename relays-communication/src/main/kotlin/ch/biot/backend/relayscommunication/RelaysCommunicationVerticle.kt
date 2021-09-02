@@ -47,7 +47,7 @@ import java.net.InetAddress
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 
-private val LOGGER = KotlinLogging.logger {}
+val LOGGER = KotlinLogging.logger {}
 
 class RelaysCommunicationVerticle : CoroutineVerticle() {
 
@@ -55,17 +55,21 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     internal const val RELAYS_COLLECTION = "relays"
     internal const val UPDATE_PARAMETERS_TOPIC = "update.parameters"
     internal const val RELAYS_MANAGEMENT_TOPIC = "relay.management"
+    internal const val RELAYS_CONFIGURATION_TOPIC = "relay.configuration"
     internal const val INGESTION_TOPIC = "incoming.update"
+
     internal const val RELAYS_UPDATE_ADDRESS = "relays.update"
 
     internal const val EMERGENCY_ENDPOINT = "/relays-emergency"
     internal const val CONTENT_TYPE = "Content-Type"
     private const val SERVER_COMPRESSION_LEVEL = 4
     private const val APPLICATION_JSON = "application/json"
-    internal const val INTERNAL_SERVER_ERROR_CODE = 500
+
+    private const val WRITTEN_CONFIG_ACK_MESSAGE = "Written config"
 
     private val environment = System.getenv()
-    internal val RELAY_REPO_URL = environment.getOrDefault("RELAY_REPO_URL", "git@github.com:B-IoT/relays_biot.git").toString()
+    internal val RELAY_REPO_URL =
+      environment.getOrDefault("RELAY_REPO_URL", "git@github.com:B-IoT/relays_biot.git").toString()
     internal val DEFAULT_RELAY_ID = environment.getOrDefault("DEFAULT_RELAY_ID", "relay_0").toString()
     internal val HTTP_PORT = environment.getOrDefault("HTTP_PORT", "8082").toInt()
 
@@ -167,7 +171,15 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
       val cleanJson = json.clean()
 
       // Send the message to the right relay on the MQTT topic "update.parameters"
-      clients[mqttID]?.let { client -> launch(vertx.dispatcher()) { sendMessageTo(client.second, cleanJson, UPDATE_PARAMETERS_TOPIC) } }
+      clients[mqttID]?.let { client ->
+        launch(vertx.dispatcher()) {
+          sendMessageTo(
+            client.second,
+            cleanJson,
+            UPDATE_PARAMETERS_TOPIC
+          )
+        }
+      }
     }
 
     // Initialize TimescaleDB
@@ -226,7 +238,6 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     // Schedule the first execution
     vertx.setTimer(TimeUnit.SECONDS.toMillis(UPDATE_CONFIG_INTERVAL_SECONDS), periodicUpdateConfig)
 
-
     val router = Router.router(vertx)
 
     val allowedHeaders =
@@ -245,8 +256,6 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
       CorsHandler.create(".*.").allowCredentials(false).allowedHeaders(allowedHeaders).allowedMethods(allowedMethods)
     )
     router.get(EMERGENCY_ENDPOINT).coroutineHandler(::emergencyHandler)
-
-
 
     try {
       vertx.createHttpServer(
@@ -364,6 +373,54 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
    * Handles a MQTT message received by the given client.
    */
   private suspend fun handleMessage(m: MqttPublishMessage, client: MqttEndpoint, company: String) {
+    try {
+      val message = m.payload().toJsonObject()
+      LOGGER.info { "Received message $message from client ${client.clientIdentifier()}" }
+
+      if (m.qosLevel() == MqttQoS.AT_LEAST_ONCE) {
+        // Acknowledge the message
+        client.publishAcknowledge(m.messageId())
+      }
+
+      // Handle the message based on the topic
+      when (m.topicName()) {
+        INGESTION_TOPIC -> handleIncomingRelayBeaconMessage(message, company)
+        RELAYS_CONFIGURATION_TOPIC -> handleConfigurationMessage(message, client)
+      }
+    } catch (exception: DecodeException) {
+      LOGGER.error(exception) { "Could not decode MQTT message $m" }
+    }
+  }
+
+  /**
+   * Handles all configuration messages.
+   */
+  private suspend fun handleConfigurationMessage(message: JsonObject, client: MqttEndpoint) {
+    try {
+      if (message.getString("configuration") == "ready") {
+        // The relay is ready to receive the configuration, get the next relayID and send it
+        val nextRelayID = mongoClient.readNextRelayID()
+        val configuration = jsonObjectOf(
+          "relayID" to "relay_$nextRelayID",
+          "mqttID" to "relay_$nextRelayID",
+          "mqttUsername" to "relayBiot_$nextRelayID",
+          "mqttPassword" to "relayBiot_$nextRelayID"
+        )
+        sendMessageTo(client, configuration, RELAYS_CONFIGURATION_TOPIC)
+      } else if (message.getString("message") == WRITTEN_CONFIG_ACK_MESSAGE) {
+        // The relay has saved and written its configuration, increment the next relayID
+        val incrementedRelayID = mongoClient.incrementNextRelayID()
+        LOGGER.info { "Incremented next relayID to $incrementedRelayID" }
+      }
+    } catch (error: Throwable) {
+      LOGGER.error(error) { "Could not handle message on topic $RELAYS_CONFIGURATION_TOPIC" }
+    }
+  }
+
+  /**
+   * Handles a message with beacon data.
+   */
+  private suspend fun handleIncomingRelayBeaconMessage(message: JsonObject, company: String) {
     /**
      * Validates the JSON, returning true iff it contains all required fields.
      */
@@ -413,42 +470,28 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     }
 
     try {
-      val message = m.payload().toJsonObject()
-      LOGGER.info { "Received message $message from client ${client.clientIdentifier()}" }
+      validateJson(message).await()
+      // The message contains data to ingest and is valid
 
-      if (m.qosLevel() == MqttQoS.AT_LEAST_ONCE) {
-        // Acknowledge the message
-        client.publishAcknowledge(m.messageId())
+      val kafkaMessage = message.copy().apply {
+        // Add a timestamp to the message to send to Kafka
+        put("timestamp", Instant.now())
+        put("company", company)
       }
 
-      if (m.topicName() == INGESTION_TOPIC) {
-        try {
-          validateJson(message).await()
-          // The message contains data to ingest and is valid
-
-          val kafkaMessage = message.copy().apply {
-            // Add a timestamp to the message to send to Kafka
-            put("timestamp", Instant.now())
-            put("company", company)
-          }
-
-          val relayID: String = message["relayID"]
-          try {
-            // Send the message to Kafka on the "incoming.update" topic
-            val record = KafkaProducerRecord.create(INGESTION_TOPIC, relayID, kafkaMessage)
-            kafkaProducer.send(record).await()
-            LOGGER.info { "Sent message $kafkaMessage with key $relayID on topic $INGESTION_TOPIC" }
-          } catch (sendError: Throwable) {
-            LOGGER.error(sendError) {
-              "Could not send message $kafkaMessage with key $relayID' on topic $INGESTION_TOPIC"
-            }
-          }
-        } catch (invalidJsonError: Throwable) {
-          LOGGER.error(invalidJsonError) { "Invalid JSON received" }
+      val relayID: String = message["relayID"]
+      try {
+        // Send the message to Kafka on the "incoming.update" topic
+        val record = KafkaProducerRecord.create(INGESTION_TOPIC, relayID, kafkaMessage)
+        kafkaProducer.send(record).await()
+        LOGGER.info { "Sent message $kafkaMessage with key $relayID on topic $INGESTION_TOPIC" }
+      } catch (sendError: Throwable) {
+        LOGGER.error(sendError) {
+          "Could not send message $kafkaMessage with key $relayID' on topic $INGESTION_TOPIC"
         }
       }
-    } catch (exception: DecodeException) {
-      LOGGER.error(exception) { "Could not decode MQTT message $m" }
+    } catch (invalidJsonError: Throwable) {
+      LOGGER.error(invalidJsonError) { "Invalid JSON received" }
     }
   }
 
@@ -460,6 +503,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
       val cleanConfig = paramConfig ?: (getCurrentCleanConfig(company, client.clientIdentifier()) ?: return)
       configHashes[company] = cleanConfig.hashCode()
       // LEGACY BEGIN ----------------------------------------------------------------------
+      // To be removed once new relays are shipped to HJU
       sendMessageTo(client, cleanConfig, UPDATE_PARAMETERS_TOPIC)
       // LEGACY END ------------------------------------------------------------------------
       sendMessageTo(client, cleanConfig, RELAYS_MANAGEMENT_TOPIC)
@@ -526,7 +570,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
 
         return cleanConfig
       }
-    } catch (e: Exception){
+    } catch (e: Exception) {
       LOGGER.error { "An error occurred while retrieving current clean config!" }
     }
 
@@ -549,7 +593,8 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
 
       // Filter result to remove invalid mac addresses
       val res =
-        result.filterNotNull().filter { s -> s.matches(macAddressRegex) }.map { s -> s.replace(":", "") }.distinct().joinToString("")
+        result.filterNotNull().filter { s -> s.matches(macAddressRegex) }.map { s -> s.replace(":", "") }.distinct()
+          .joinToString("")
       if (res.length > MAX_NUMBER_MAC_MQTT * CHAR_NUMBER_IN_MAC_ADDRESS) {
         res.substring(0 until (MAX_NUMBER_MAC_MQTT * CHAR_NUMBER_IN_MAC_ADDRESS))
       } else {
@@ -600,7 +645,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     val relayID = ctx.queryParams().get("relayID")
     LOGGER.info { "New emergency reset request for $relayID" }
 
-    val forceFlag: Boolean = if(relayID == DEFAULT_RELAY_ID) {
+    val forceFlag: Boolean = if (relayID == DEFAULT_RELAY_ID) {
       // Send the url and force flag to true
       true
     } else {
@@ -608,14 +653,18 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
       try {
         val allCollections = mongoClient.collections.await()
         val query = jsonObjectOf("relayID" to relayID)
-        for (collection in allCollections){
-          if(collection.contains("relay")){
+        for (collection in allCollections) {
+          if (collection.contains("relay")) {
             val relay = mongoClient.findOne(collection, query, jsonObjectOf()).await()
-            if(relay != null){
+            if (relay != null) {
               val flagFromDb = relay.getBoolean("forceReset")
-              if(flagFromDb != null){
+              if (flagFromDb != null) {
                 flag = flagFromDb
-                mongoClient.findOneAndUpdate(collection, query, jsonObjectOf("\$set" to jsonObjectOf("forceReset" to false))).await()
+                mongoClient.findOneAndUpdate(
+                  collection,
+                  query,
+                  jsonObjectOf("\$set" to jsonObjectOf("forceReset" to false))
+                ).await()
               }
               break
             }

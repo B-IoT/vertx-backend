@@ -11,6 +11,7 @@ import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.MQTT_PORT
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.READINESS_PORT
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.RELAYS_COLLECTION
+import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.RELAYS_CONFIGURATION_TOPIC
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.RELAYS_UPDATE_ADDRESS
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.RELAY_REPO_URL
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.UPDATE_CONFIG_INTERVAL_SECONDS
@@ -54,6 +55,7 @@ import io.vertx.pgclient.SslMode
 import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.*
 import org.junit.jupiter.api.extension.ExtendWith
@@ -61,7 +63,10 @@ import org.testcontainers.containers.DockerComposeContainer
 import org.testcontainers.junit.jupiter.Testcontainers
 import strikt.api.expect
 import strikt.api.expectThat
-import strikt.assertions.*
+import strikt.assertions.isEqualTo
+import strikt.assertions.isLessThanOrEqualTo
+import strikt.assertions.isNotNull
+import strikt.assertions.isTrue
 import java.io.File
 import java.security.SecureRandom
 import java.time.LocalDate
@@ -1486,17 +1491,17 @@ class TestRelaysCommunicationVerticle {
   fun emergencyRequestFlagTrueWhenDefault(testContext: VertxTestContext) {
     val response = Buffer.buffer(
       Given {
-      spec(requestSpecification)
-      contentType(ContentType.JSON)
-      accept(ContentType.JSON)
-    } When {
-      queryParam("relayID", "relay_0")
-      get("/relays-emergency")
-    } Then {
-      statusCode(200)
-    } Extract {
-      asString()
-    }).toJsonObject()
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        accept(ContentType.JSON)
+      } When {
+        queryParam("relayID", "relay_0")
+        get("/relays-emergency")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }).toJsonObject()
 
     testContext.verify {
       expectThat(response).isNotNull()
@@ -1606,6 +1611,75 @@ class TestRelaysCommunicationVerticle {
       testContext.completeNow()
     }
   }
+
+  @Test
+  @DisplayName("A client receives the configuration when signaling that it is ready and the server increments the next relayID when receiving the ack")
+  fun clientReceivesConfigurationWhenReadyAndServerIncrementsNextRelayIDAfterAck(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      try {
+        val client = MqttClient.create(
+          vertx,
+          mqttClientOptionsOf(
+            clientId = "relay_0",
+            username = "relayBiot_0",
+            password = "relayBiot_0",
+            willFlag = true,
+            willMessage = jsonObjectOf("company" to "biot").encode(),
+            ssl = false,
+            maxMessageSize = 100_000
+          )
+        )
+
+        client.connect(MQTT_PORT, MQTT_HOST).await()
+
+        client.publishHandler { msg ->
+          if (msg.topicName() == RELAYS_CONFIGURATION_TOPIC) {
+            testContext.verify {
+              val expected = jsonObjectOf(
+                "relayID" to "relay_1",
+                "mqttID" to "relay_1",
+                "mqttUsername" to "relayBiot_1",
+                "mqttPassword" to "relayBiot_1"
+              )
+              expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
+            }
+
+            runBlocking(vertx.dispatcher()) {
+              val clientWrittenConfigAckMessage = jsonObjectOf(
+                "message" to "Written config",
+                "content" to msg.payload().toString(),
+                "path" to "/home/pi/biot/config/.config"
+              )
+              try {
+                client.publish(
+                  RELAYS_CONFIGURATION_TOPIC,
+                  clientWrittenConfigAckMessage.toBuffer(),
+                  MqttQoS.AT_LEAST_ONCE,
+                  false,
+                  false
+                ).await()
+                val nextRelayID = mongoClient.readNextRelayID()
+                testContext.verify {
+                  expectThat(nextRelayID).isEqualTo(2)
+                }
+              } catch (error: Throwable) {
+                testContext.failNow(error)
+              }
+            }
+          }
+        }.subscribe(RELAYS_CONFIGURATION_TOPIC, MqttQoS.AT_LEAST_ONCE.value()).await()
+
+        client.publish(
+          RELAYS_CONFIGURATION_TOPIC,
+          jsonObjectOf("configuration" to "ready").toBuffer(),
+          MqttQoS.AT_LEAST_ONCE,
+          false,
+          false
+        ).await()
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
 
   companion object {
 

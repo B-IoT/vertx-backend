@@ -5,7 +5,12 @@
 package ch.biot.backend.relayscommunication
 
 import io.vertx.core.json.JsonObject
+import io.vertx.ext.mongo.MongoClient
 import io.vertx.kotlin.core.json.get
+import io.vertx.kotlin.core.json.jsonObjectOf
+import io.vertx.kotlin.coroutines.await
+
+private const val RELAY_ID_COLLECTION = "relaysIDs"
 
 /**
  * Cleans the JSON object by removing useless fields and formatting the "lastModified" field.
@@ -25,4 +30,30 @@ internal fun JsonObject.clean(): JsonObject = this.copy().apply {
     val lastModifiedObject: JsonObject = this["lastModified"]
     put("lastModified", lastModifiedObject["\$date"])
   }
+}
+
+/**
+ * Reads the next relayID to use for a new relay.
+ *
+ * @return the next relayID
+ */
+internal suspend fun MongoClient.readNextRelayID(): Int {
+  val relayIDObject = this.findOne(RELAY_ID_COLLECTION, jsonObjectOf(), jsonObjectOf()).await()
+  LOGGER.info { "Read relayIDJson $relayIDObject" }
+  return relayIDObject.getInteger("id")
+}
+
+/**
+ * Increments the next relayID and returns it.
+ *
+ * @return the next relayID that has just been incremented
+ */
+internal suspend fun MongoClient.incrementNextRelayID(): Int {
+  val updateJson = jsonObjectOf(
+    "\$set" to jsonObjectOf("id" to readNextRelayID() + 1),
+    "\$currentDate" to jsonObjectOf("lastModified" to true)
+  )
+  val relayIDObject = this.findOneAndUpdate(RELAY_ID_COLLECTION, jsonObjectOf(), updateJson).await()
+  LOGGER.info { "Read relayIDJson $relayIDObject" }
+  return relayIDObject.getInteger("id")
 }
