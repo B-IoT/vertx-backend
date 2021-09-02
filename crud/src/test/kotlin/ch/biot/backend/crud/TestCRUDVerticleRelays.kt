@@ -4,6 +4,8 @@
 
 package ch.biot.backend.crud
 
+import ch.biot.backend.crud.CRUDVerticle.Companion.ADMIN_RELAY
+import ch.biot.backend.crud.CRUDVerticle.Companion.INITIAL_RELAY
 import io.restassured.builder.RequestSpecBuilder
 import io.restassured.filter.log.RequestLoggingFilter
 import io.restassured.filter.log.ResponseLoggingFilter
@@ -182,9 +184,14 @@ class TestCRUDVerticleRelays {
   }
 
   @Test
-  @DisplayName("getRelays correctly retrieves all relays")
+  @DisplayName("getRelays correctly retrieves all relays (with the INITIAL_RELAY + ADMIN_RELAY)")
   fun getRelaysIsCorrect(testContext: VertxTestContext) {
-    val expected = jsonArrayOf(existingRelay.copy().apply { remove("mqttPassword") })
+    val expected = jsonArrayOf(
+      existingRelay.copy().apply { remove("mqttPassword")},
+      INITIAL_RELAY.copy().apply { remove("mqttPassword")},
+      ADMIN_RELAY.copy().apply { remove("mqttPassword")}
+
+    )
 
     val response = Buffer.buffer(
       Given {
@@ -201,9 +208,13 @@ class TestCRUDVerticleRelays {
     ).toJsonArray()
 
     testContext.verify {
-      val password = response.getJsonObject(0).remove("mqttPassword")
+      val password1 = response.getJsonObject(0).remove("mqttPassword")
+      val password2 = response.getJsonObject(1).remove("mqttPassword")
+      val password3 = response.getJsonObject(2).remove("mqttPassword")
       expectThat(response).isEqualTo(expected)
-      expectThat(password).isNotNull()
+      expectThat(password1).isNotNull()
+      expectThat(password2).isNotNull()
+      expectThat(password3).isNotNull()
       testContext.completeNow()
     }
   }

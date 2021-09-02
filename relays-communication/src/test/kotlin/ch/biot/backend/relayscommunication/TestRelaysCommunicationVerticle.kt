@@ -747,6 +747,7 @@ class TestRelaysCommunicationVerticle {
                   "e051304816e5f015b5dd2438f5a8ef56d7c0"
                 ) //itemBiot1, itemBiot2, itemBiot4 mac addresses without :
                 put("connected", true)
+                put("company", "biot")
               }
               expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
               testContext.completeNow()
@@ -1317,6 +1318,7 @@ class TestRelaysCommunicationVerticle {
                 remove("ledStatus")
                 put("whiteList", "122334aeb5d201a2d4fe5621") // itemAnother1 and itemAnother2 mac addresses without :
                 put("connected", true)
+                put("company", anotherCompanyName)
               }
               expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
               testContext.completeNow()
