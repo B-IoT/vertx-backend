@@ -12,6 +12,7 @@ import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.READINESS_PORT
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.RELAYS_COLLECTION
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.RELAYS_CONFIGURATION_TOPIC
+import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.RELAYS_MANAGEMENT_TOPIC
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.RELAYS_UPDATE_ADDRESS
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.RELAY_REPO_URL
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.UPDATE_CONFIG_INTERVAL_SECONDS
@@ -897,8 +898,8 @@ class TestRelaysCommunicationVerticle {
     }
 
   @Test
-  @DisplayName("A MQTT client receives updates")
-  fun clientReceivesUpdate(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
+  @DisplayName("A MQTT client receives updates on update.parameters")
+  fun clientReceivesUpdateOnUpdateParameters(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
     try {
       val message = jsonObjectOf("latitude" to 42.3, "mqttID" to "mqtt")
       mqttClient.publishHandler { msg ->
@@ -915,6 +916,31 @@ class TestRelaysCommunicationVerticle {
       }.connect(MQTT_PORT, MQTT_HOST).await()
 
       mqttClient.subscribe(UPDATE_PARAMETERS_TOPIC, MqttQoS.AT_LEAST_ONCE.value()).await()
+      vertx.eventBus().send(RELAYS_UPDATE_ADDRESS, message)
+    } catch (error: Throwable) {
+      testContext.failNow(error)
+    }
+  }
+
+  @Test
+  @DisplayName("A MQTT client receives updates on relay.management")
+  fun clientReceivesUpdateOnRelayManagement(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
+    try {
+      val message = jsonObjectOf("latitude" to 42.3, "mqttID" to "mqtt")
+      mqttClient.publishHandler { msg ->
+        if (msg.topicName() == RELAYS_MANAGEMENT_TOPIC) {
+          val json = msg.payload().toJsonObject()
+          if (!json.containsKey("relayID")) { // only handle received message, not the one for the last configuration
+            testContext.verify {
+              val messageWithoutMqttID = message.copy().apply { remove("mqttID") }
+              expectThat(json).isEqualTo(messageWithoutMqttID)
+              testContext.completeNow()
+            }
+          }
+        }
+      }.connect(MQTT_PORT, MQTT_HOST).await()
+
+      mqttClient.subscribe(RELAYS_MANAGEMENT_TOPIC, MqttQoS.AT_LEAST_ONCE.value()).await()
       vertx.eventBus().send(RELAYS_UPDATE_ADDRESS, message)
     } catch (error: Throwable) {
       testContext.failNow(error)
