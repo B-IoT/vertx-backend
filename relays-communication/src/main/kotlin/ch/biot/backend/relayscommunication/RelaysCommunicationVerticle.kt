@@ -164,27 +164,12 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     vertx.eventBus().consumer<JsonObject>(RELAYS_UPDATE_ADDRESS) { message ->
       val json = message.body()
       LOGGER.info { "Received relay update $json on event bus address $RELAYS_UPDATE_ADDRESS, sending it to client..." }
-
       val mqttID: String = json["mqttID"]
 
-      // Clean the json from useless fields
-      val cleanJson = json.clean()
-
-      // Send the message to the right relay on the MQTT topic "update.parameters" LEGACY
-      clients[mqttID]?.let { client ->
-        launch(vertx.dispatcher()) {
-          sendMessageTo(
-            client.second,
-            cleanJson,
-            UPDATE_PARAMETERS_TOPIC
-          )
-        }
-      }
-
+      // Send the message to the right relay on the MQTT topic "update.parameters"
       clients[mqttID]?.let { (company, client) ->
         launch(vertx.dispatcher()) {
           sendLastConfiguration(client, company)
-        }
         }
       }
     }
