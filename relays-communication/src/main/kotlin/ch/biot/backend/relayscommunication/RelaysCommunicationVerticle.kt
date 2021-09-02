@@ -505,8 +505,9 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
   }
 
   /**
-   * Get the current config for the relay with the given mqttID with the whitelist in it
-   * It cleans the config before returning
+   * Get the current config for the relay with the given mqttID with the whitelist in it.
+   * It cleans the config before returning.
+   * It also adds the company in the config.
    * returns null if an error occurred
    */
   private suspend fun getCurrentCleanConfig(company: String, mqttID: String): JsonObject? {
@@ -523,6 +524,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
         val whiteListString = getItemsMacAddressesString(company)
         val cleanConfig = config.clean()
         cleanConfig.put("whiteList", whiteListString)
+        cleanConfig.put("company", company)
 
         return cleanConfig
       }

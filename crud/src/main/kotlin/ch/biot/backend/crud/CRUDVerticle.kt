@@ -89,7 +89,7 @@ class CRUDVerticle : CoroutineVerticle() {
       "company" to "biot"
     )
 
-    private val INITIAL_RELAY = jsonObjectOf(
+    val INITIAL_RELAY = jsonObjectOf(
       "relayID" to "relay_0",
       "mqttID" to "relay_0",
       "mqttUsername" to "relayBiot_0",
