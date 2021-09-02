@@ -170,7 +170,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
       // Clean the json from useless fields
       val cleanJson = json.clean()
 
-      // Send the message to the right relay on the MQTT topic "update.parameters"
+      // Send the message to the right relay on the MQTT topic "update.parameters" LEGACY
       clients[mqttID]?.let { client ->
         launch(vertx.dispatcher()) {
           sendMessageTo(
@@ -178,6 +178,13 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
             cleanJson,
             UPDATE_PARAMETERS_TOPIC
           )
+        }
+      }
+
+      clients[mqttID]?.let { (company, client) ->
+        launch(vertx.dispatcher()) {
+          sendLastConfiguration(client, company)
+        }
         }
       }
     }
@@ -230,6 +237,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     // We use Timer to not have any stacking of operation
     periodicUpdateConfig = Handler {
       launch(vertx.dispatcher()) {
+        LOGGER.info { "Enter in periodicUpdateConfig handler." }
         sendConfigToAllRelays()
         checkConnectionAndUpdateDb()
         vertx.setTimer(TimeUnit.SECONDS.toMillis(UPDATE_CONFIG_INTERVAL_SECONDS), periodicUpdateConfig)
