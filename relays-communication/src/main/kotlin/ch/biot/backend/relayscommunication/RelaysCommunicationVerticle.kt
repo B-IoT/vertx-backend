@@ -652,7 +652,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
       // Send the url and force flag to true
       true
     } else {
-      var flag = true // True by default
+      var flag = false // False by default
       try {
         val allCollections = mongoClient.collections.await()
         val query = jsonObjectOf("relayID" to relayID)

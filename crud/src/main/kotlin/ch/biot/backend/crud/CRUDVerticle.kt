@@ -332,6 +332,9 @@ class CRUDVerticle : CoroutineVerticle() {
       val adminRelay = mongoClient.findOne(collection, queryFindAdmin, jsonObjectOf()).await()
       if (adminRelay == null) {
         val password: String = ADMIN_RELAY["mqttPassword"]
+        if(mongoAuthRelaysCache[collection] == null){
+          mongoAuthRelaysCache[collection] = createMongoAuthUtils(collection)
+        }
         val (mongoUserUtilRelays, mongoAuthRelays) = mongoAuthRelaysCache[collection]!!
         val hashedPassword = password.saltAndHash(mongoAuthRelays)
         val docID = mongoUserUtilRelays.createHashedUser(ADMIN_RELAY["mqttUsername"], hashedPassword).await()
@@ -345,7 +348,7 @@ class CRUDVerticle : CoroutineVerticle() {
         mongoClient.findOneAndUpdate(collection, query, extraInfo).await()
       }
     } catch (error: Throwable) {
-      LOGGER.error(error) { "Could not create the initial user in the DB." }
+      LOGGER.error(error) { "Could not create the initial relays in the DB." }
     }
   }
 
