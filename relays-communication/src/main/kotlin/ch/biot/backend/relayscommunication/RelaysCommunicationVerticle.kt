@@ -404,10 +404,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
   private suspend fun handleConfigurationMessage(message: JsonObject, client: MqttEndpoint) {
     try {
       // Broadcast the message to all connected clients
-      clients.forEach { c ->
-        LOGGER.info { "Client $c" }  
-        sendMessageTo(c.value.second, message, RELAYS_CONFIGURATION_TOPIC)
-      }
+      clients.forEach { c -> sendMessageTo(c.value.second, message, RELAYS_CONFIGURATION_TOPIC) }
       if (message.getString("configuration") == "ready") {
         // The relay is ready to receive the configuration, get the next relayID and send it
         val nextRelayID = mongoClient.readNextRelayID().await()
