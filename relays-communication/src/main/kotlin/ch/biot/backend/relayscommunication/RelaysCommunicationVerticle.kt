@@ -284,15 +284,14 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
       "password" to mqttAuth.password
     )
 
-    val will = client.will()
-    if (will == null || will.willMessage == null || will.willMessage.length() == 0) {
-      // No will, reject
-      LOGGER.error { "Client $clientIdentifier rejected because no will specified" }
+    val company = mongoClient.findRelayCompany(clientIdentifier)
+    if (company == null) {
+      // The relay does not exist in the DB and thus it is not associated to a company, reject
+      LOGGER.error { "Client $clientIdentifier rejected because it is not associated to a company" }
       client.reject(MqttConnectReturnCode.CONNECTION_REFUSED_UNSPECIFIED_ERROR)
       return
     }
 
-    val company = client.will().willMessage.toJsonObject().getString("company")
     val collection = if (company != "biot") "${RELAYS_COLLECTION}_$company" else RELAYS_COLLECTION
     val mongoAuthRelays = if (mongoAuthRelaysCache.containsKey(collection)) {
       mongoAuthRelaysCache[collection]!!
@@ -411,8 +410,8 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
         val configuration = jsonObjectOf(
           "relayID" to "relay_$nextRelayID",
           "mqttID" to "relay_$nextRelayID",
-          "mqttUsername" to "relayBiot_$nextRelayID",
-          "mqttPassword" to "relayBiot_$nextRelayID"
+          "mqttUsername" to "relayBiot_relay_$nextRelayID",
+          "mqttPassword" to "relayBiot_relay_$nextRelayID".sha3256Hash()
         )
         sendMessageTo(client, configuration, RELAYS_CONFIGURATION_TOPIC)
       } else if (message.getString("relayMessage") == WRITTEN_CONFIG_ACK_MESSAGE) {
@@ -517,10 +516,10 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
       // LEGACY END ------------------------------------------------------------------------
       sendMessageTo(client, cleanConfig, RELAYS_MANAGEMENT_TOPIC)
 
+      // Reset the reboot flag to avoid infinite loops for relays
       val collection = if (company != "biot") "${RELAYS_COLLECTION}_$company" else RELAYS_COLLECTION
       val query = jsonObjectOf("mqttID" to client.clientIdentifier())
       val updateQuery = jsonObjectOf("\$set" to jsonObjectOf("reboot" to false))
-
       mongoClient.findOneAndUpdate(collection, query, updateQuery)
     } catch (error: Throwable) {
       LOGGER.error(error) { "Could not send last configuration to client ${client.clientIdentifier()}" }

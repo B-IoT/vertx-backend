@@ -85,10 +85,8 @@ class TestRelaysCommunicationVerticle {
 
   private lateinit var pgClient: SqlClient
 
-  private val mqttPassword = "password"
   private val configuration = jsonObjectOf(
     "mqttID" to "mqtt",
-    "mqttUsername" to "test",
     "relayID" to "relay",
     "ledStatus" to false,
     "latitude" to 0.1,
@@ -104,7 +102,6 @@ class TestRelaysCommunicationVerticle {
 
   private val configurationAnotherCompany = jsonObjectOf(
     "mqttID" to "mqtt2",
-    "mqttUsername" to "test2",
     "relayID" to "relay2",
     "ledStatus" to false,
     "latitude" to 2,
@@ -299,11 +296,9 @@ class TestRelaysCommunicationVerticle {
       vertx,
       mqttClientOptionsOf(
         clientId = configuration["mqttID"],
-        username = configuration["mqttUsername"],
-        password = mqttPassword,
-        willFlag = true,
-        willMessage = jsonObjectOf("company" to "biot").encode(),
-        ssl = false,
+        username = "relayBiot_${configuration.getString("mqttID")}",
+        password = "relayBiot_${configuration.getString("mqttID")}".sha3256Hash(),
+        ssl = true,
         maxMessageSize = 100_000
       )
     )
@@ -683,21 +678,26 @@ class TestRelaysCommunicationVerticle {
   }
 
   private suspend fun insertRelays(): JsonObject {
-    val salt = ByteArray(16)
-    SecureRandom().nextBytes(salt)
-    val hashedPassword = mongoAuth.hash("pbkdf2", String(Base64.getEncoder().encode(salt)), mqttPassword)
-    val docID = mongoUserUtil.createHashedUser("test", hashedPassword).await()
+    fun computeUsernameAndPassword(mqttID: String, mongoAuthentication: MongoAuthentication): Pair<String, String> {
+      val username = "relayBiot_$mqttID"
+      val password = "relayBiot_$mqttID".sha3256Hash()
+      val salt = ByteArray(16)
+      SecureRandom().nextBytes(salt)
+      return username to mongoAuthentication.hash("pbkdf2", String(Base64.getEncoder().encode(salt)), password)
+    }
+
+    val mqttID = configuration.getString("mqttID")
+    val (username1, password1) = computeUsernameAndPassword(mqttID, mongoAuth)
+    val docID = mongoUserUtil.createHashedUser(username1, password1).await()
     val query = jsonObjectOf("_id" to docID)
     val extraInfo = jsonObjectOf(
       "\$set" to configuration
     )
     mongoClient.findOneAndUpdate(RELAYS_COLLECTION, query, extraInfo).await()
 
-    val salt2 = ByteArray(16)
-    SecureRandom().nextBytes(salt2)
-    val hashedPassword2 =
-      mongoAuthAnotherCompany.hash("pbkdf2", String(Base64.getEncoder().encode(salt2)), mqttPassword)
-    val docID2 = mongoUserUtilAnotherCompany.createHashedUser("test2", hashedPassword2).await()
+    val mqttID2 = configurationAnotherCompany.getString("mqttID")
+    val (username2, password2) = computeUsernameAndPassword(mqttID2, mongoAuthAnotherCompany)
+    val docID2 = mongoUserUtilAnotherCompany.createHashedUser(username2, password2).await()
     val query2 = jsonObjectOf("_id" to docID2)
     val extraInfo2 = jsonObjectOf(
       "\$set" to configurationAnotherCompany
@@ -819,7 +819,7 @@ class TestRelaysCommunicationVerticle {
   @DisplayName("A MQTT client without authentication is refused connection")
   fun clientWithoutAuthIsRefusedConnection(vertx: Vertx, testContext: VertxTestContext) =
     runBlocking(vertx.dispatcher()) {
-      val client = MqttClient.create(vertx, mqttClientOptionsOf(ssl = false))
+      val client = MqttClient.create(vertx, mqttClientOptionsOf(ssl = true))
 
       try {
         client.connect(MQTT_PORT, MQTT_HOST).await()
@@ -837,11 +837,9 @@ class TestRelaysCommunicationVerticle {
         vertx,
         mqttClientOptionsOf(
           clientId = configuration["mqttID"],
-          username = configuration["mqttUsername"],
+          username = "relayBiot_${configuration.getString("mqttID")}",
           password = "wrongPassword",
-          willFlag = true,
-          willMessage = jsonObjectOf("company" to "biot").encode(),
-          ssl = false
+          ssl = true
         )
       )
 
@@ -854,51 +852,28 @@ class TestRelaysCommunicationVerticle {
     }
 
   @Test
-  @DisplayName("A MQTT client without a will is refused connection")
-  fun clientWithNoWillIsRefusedConnection(vertx: Vertx, testContext: VertxTestContext) =
+  @DisplayName("A MQTT client not associated to a company is refused connection")
+  fun clientWithNoCompanyIsRefusedConnection(vertx: Vertx, testContext: VertxTestContext) =
     runBlocking(vertx.dispatcher()) {
       val client = MqttClient.create(
         vertx,
         mqttClientOptionsOf(
-          clientId = configuration["mqttID"],
-          username = configuration["mqttUsername"],
-          password = "wrongPassword",
-          ssl = false
+          clientId = "unknownID",
+          username = "relayBiot_${configuration.getString("mqttID")}",
+          password = "password",
+          ssl = true
         )
       )
 
       try {
         client.connect(MQTT_PORT, MQTT_HOST).await()
-        testContext.failNow("The client was able to connect without a will")
+        testContext.failNow("The client was able to connect without a company associated")
       } catch (error: Throwable) {
         testContext.completeNow()
       }
     }
 
-  @Test
-  @DisplayName("A MQTT client without a will message is refused connection")
-  fun clientWithNoWillMessageIsRefusedConnection(vertx: Vertx, testContext: VertxTestContext) =
-    runBlocking(vertx.dispatcher()) {
-      val client = MqttClient.create(
-        vertx,
-        mqttClientOptionsOf(
-          clientId = configuration["mqttID"],
-          username = configuration["mqttUsername"],
-          password = "wrongPassword",
-          willFlag = true,
-          ssl = false
-        )
-      )
-
-      try {
-        client.connect(MQTT_PORT, MQTT_HOST).await()
-        testContext.failNow("The client was able to connect without a will message")
-      } catch (error: Throwable) {
-        testContext.completeNow()
-      }
-    }
-
-  @Test
+  @Test // TODO remove once the relays are delivered to HJU
   @DisplayName("A MQTT client receives the last configuration on update.parameters once an update is received via the event bus")
   fun clientReceivesUpdateOnUpdateParameters(vertx: Vertx, testContext: VertxTestContext): Unit =
     runBlocking(vertx.dispatcher()) {
@@ -1339,11 +1314,9 @@ class TestRelaysCommunicationVerticle {
         vertx,
         mqttClientOptionsOf(
           clientId = configurationAnotherCompany["mqttID"],
-          username = configurationAnotherCompany["mqttUsername"],
-          password = mqttPassword,
-          willFlag = true,
-          willMessage = jsonObjectOf("company" to anotherCompanyName).encode(),
-          ssl = false,
+          username = "relayBiot_${configurationAnotherCompany.getString("mqttID")}",
+          password = "relayBiot_${configurationAnotherCompany.getString("mqttID")}".sha3256Hash(),
+          ssl = true,
         )
       )
 
@@ -1673,8 +1646,8 @@ class TestRelaysCommunicationVerticle {
                 val expected = jsonObjectOf(
                   "relayID" to "relay_1",
                   "mqttID" to "relay_1",
-                  "mqttUsername" to "relayBiot_1",
-                  "mqttPassword" to "relayBiot_1"
+                  "mqttUsername" to "relayBiot_relay_1",
+                  "mqttPassword" to "relayBiot_relay_1".sha3256Hash()
                 )
                 expectThat(message).isEqualTo(expected)
               }

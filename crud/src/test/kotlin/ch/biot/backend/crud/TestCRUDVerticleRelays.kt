@@ -52,10 +52,8 @@ class TestCRUDVerticleRelays {
   private lateinit var mongoUserUtil: MongoUserUtil
   private lateinit var mongoAuth: MongoAuthentication
 
-  private val mqttPassword = "password"
   private val existingRelay = jsonObjectOf(
     "mqttID" to "testRelay",
-    "mqttUsername" to "testRelay",
     "relayID" to "testRelay",
     "ledStatus" to false,
     "latitude" to 0.1,
@@ -68,9 +66,7 @@ class TestCRUDVerticleRelays {
   )
   private val newRelay = jsonObjectOf(
     "mqttID" to "testRelay2",
-    "mqttUsername" to "testRelay2",
     "relayID" to "testRelay2",
-    "mqttPassword" to mqttPassword,
     "ledStatus" to false,
     "latitude" to 0.1,
     "longitude" to 0.3,
@@ -120,8 +116,11 @@ class TestCRUDVerticleRelays {
   private fun dropAllRelays() = mongoClient.removeDocuments("relays", jsonObjectOf())
 
   private suspend fun insertRelay(): Future<JsonObject> {
-    val hashedPassword = mqttPassword.saltAndHash(mongoAuth)
-    val docID = mongoUserUtil.createHashedUser("test", hashedPassword).await()
+    val mqttID = existingRelay.getString("mqttID")
+    val username = "relayBiot_$mqttID"
+    val password = "relayBiot_$mqttID".sha3256Hash()
+    val hashedPassword = password.saltAndHash(mongoAuth)
+    val docID = mongoUserUtil.createHashedUser(username, hashedPassword).await()
     val query = jsonObjectOf("_id" to docID)
     val extraInfo = jsonObjectOf(
       "\$set" to existingRelay
@@ -187,10 +186,9 @@ class TestCRUDVerticleRelays {
   @DisplayName("getRelays correctly retrieves all relays (with the INITIAL_RELAY + ADMIN_RELAY)")
   fun getRelaysIsCorrect(testContext: VertxTestContext) {
     val expected = jsonArrayOf(
-      existingRelay.copy().apply { remove("mqttPassword")},
-      INITIAL_RELAY.copy().apply { remove("mqttPassword")},
-      ADMIN_RELAY.copy().apply { remove("mqttPassword")}
-
+      existingRelay.copy().apply { put("mqttUsername", "relayBiot_${existingRelay.getString("mqttID")}") },
+      INITIAL_RELAY.copy().apply { remove("mqttPassword") },
+      ADMIN_RELAY.copy().apply { remove("mqttPassword") }
     )
 
     val response = Buffer.buffer(
@@ -265,7 +263,10 @@ class TestCRUDVerticleRelays {
   @Test
   @DisplayName("getRelay correctly retrieves the desired relay")
   fun getRelayIsCorrect(testContext: VertxTestContext) {
-    val expected = existingRelay.copy().apply { remove("mqttPassword") }
+    val expected = existingRelay.copy().apply {
+      remove("mqttPassword")
+      put("mqttUsername", "relayBiot_${existingRelay.getString("mqttID")}")
+    }
 
     val response = Buffer.buffer(
       Given {
@@ -461,9 +462,7 @@ class TestCRUDVerticleRelays {
   fun deleteIsCorrect(testContext: VertxTestContext) {
     val relayToRemove = jsonObjectOf(
       "mqttID" to "testRelay42",
-      "mqttUsername" to "testRelay42",
       "relayID" to "testRelay42",
-      "mqttPassword" to mqttPassword,
       "ledStatus" to false,
       "latitude" to 0.1,
       "longitude" to 0.3,

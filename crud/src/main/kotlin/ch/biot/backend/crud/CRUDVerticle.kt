@@ -92,8 +92,8 @@ class CRUDVerticle : CoroutineVerticle() {
     val INITIAL_RELAY = jsonObjectOf(
       "relayID" to "relay_0",
       "mqttID" to "relay_0",
-      "mqttUsername" to "relayBiot_0",
-      "mqttPassword" to "relayBiot_0",
+      "mqttUsername" to "relayBiot_relay_0",
+      "mqttPassword" to "relayBiot_relay_0",
       "latitude" to 42,
       "longitude" to 42,
       "floor" to 0,
@@ -109,8 +109,8 @@ class CRUDVerticle : CoroutineVerticle() {
     val ADMIN_RELAY = jsonObjectOf(
       "relayID" to "relay_biot",
       "mqttID" to "relay_biot",
-      "mqttUsername" to "relayBiot_biot",
-      "mqttPassword" to "relayBiot_biot"
+      "mqttUsername" to "relayBiot_relay_biot",
+      "mqttPassword" to "relayBiot_relay_biot"
     )
 
     private val environment = System.getenv()
@@ -312,7 +312,7 @@ class CRUDVerticle : CoroutineVerticle() {
       val queryFind = jsonObjectOf("relayID" to INITIAL_RELAY["relayID"])
       val initialRelay = mongoClient.findOne(collection, queryFind, jsonObjectOf()).await()
       if (initialRelay == null) {
-        val password: String = INITIAL_RELAY["mqttPassword"]
+        val password: String = INITIAL_RELAY.getString("mqttPassword").sha3256Hash()
         val helpers = createMongoAuthUtils(collection)
         mongoAuthRelaysCache[collection] = helpers
         val (mongoUserUtilRelays, mongoAuthRelays) = helpers
@@ -331,7 +331,7 @@ class CRUDVerticle : CoroutineVerticle() {
       val queryFindAdmin = jsonObjectOf("relayID" to ADMIN_RELAY["relayID"])
       val adminRelay = mongoClient.findOne(collection, queryFindAdmin, jsonObjectOf()).await()
       if (adminRelay == null) {
-        val password: String = ADMIN_RELAY["mqttPassword"]
+        val password: String = ADMIN_RELAY.getString("mqttPassword").sha3256Hash()
         if(mongoAuthRelaysCache[collection] == null){
           mongoAuthRelaysCache[collection] = createMongoAuthUtils(collection)
         }
@@ -443,8 +443,6 @@ class CRUDVerticle : CoroutineVerticle() {
    * Handles a registerRelay request.
    */
   private suspend fun registerRelayHandler(ctx: RoutingContext) {
-
-
     LOGGER.info { "New registerRelay request" }
     val json = ctx.bodyAsJson
     json.validateAndThen(ctx) {
@@ -460,9 +458,11 @@ class CRUDVerticle : CoroutineVerticle() {
 
       executeWithErrorHandling("Could not register relay", ctx) {
         // Create the relay
-        val password: String = json["mqttPassword"]
+        val mqttID = json.getString("mqttID")
+        val username = "relayBiot_$mqttID"
+        val password = "relayBiot_$mqttID".sha3256Hash()
         val hashedPassword = password.saltAndHash(mongoAuthRelays)
-        val docID = mongoUserUtilRelays.createHashedUser(json["mqttUsername"], hashedPassword).await()
+        val docID = mongoUserUtilRelays.createHashedUser(username, hashedPassword).await()
         // Update the relay with the data specified in the HTTP request
         val query = jsonObjectOf("_id" to docID)
         val extraInfo = jsonObjectOf(
