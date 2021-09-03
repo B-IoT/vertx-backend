@@ -31,6 +31,7 @@ import io.vertx.kotlin.coroutines.CoroutineVerticle
 import io.vertx.kotlin.coroutines.await
 import io.vertx.kotlin.coroutines.dispatcher
 import io.vertx.kotlin.ext.auth.mongo.mongoAuthenticationOptionsOf
+import io.vertx.kotlin.ext.mongo.updateOptionsOf
 import io.vertx.kotlin.mqtt.mqttServerOptionsOf
 import io.vertx.kotlin.pgclient.pgConnectOptionsOf
 import io.vertx.kotlin.sqlclient.poolOptionsOf
@@ -194,7 +195,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     val netServerOptions = netServerOptionsOf(ssl = true, pemKeyCertOptions = pemKeyCertOptions)
     val mqttServerOptions = mqttServerOptionsOf(
       useWebSocket = TIMESCALE_HOST != "localhost", // SSL is disabled when testing
-      ssl = false,
+      ssl = true,
       pemKeyCertOptions = pemKeyCertOptions,
       clientAuth = ClientAuth.REQUEST
     )
@@ -227,18 +228,6 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
         checkConnectionAndUpdateDb()
       }
     }
-
-//    // Periodically send all the config to all relays to keep whiteList consistent with the DB
-//    // We use Timer to not have any stacking of operation
-//    periodicUpdateConfig = Handler {
-//      launch(vertx.dispatcher()) {
-//        sendConfigToAllRelays()
-//        checkConnectionAndUpdateDb()
-//        vertx.setTimer(TimeUnit.SECONDS.toMillis(UPDATE_CONFIG_INTERVAL_SECONDS), periodicUpdateConfig)
-//      }
-//    }
-//    // Schedule the first execution
-//    vertx.setTimer(TimeUnit.SECONDS.toMillis(UPDATE_CONFIG_INTERVAL_SECONDS), periodicUpdateConfig)
 
     val router = Router.router(vertx)
 
@@ -414,6 +403,11 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
    */
   private suspend fun handleConfigurationMessage(message: JsonObject, client: MqttEndpoint) {
     try {
+      // Broadcast the message to all connected clients
+      clients.forEach { c ->
+        LOGGER.info { "Client $c" }  
+        sendMessageTo(c.value.second, message, RELAYS_CONFIGURATION_TOPIC)
+      }
       if (message.getString("configuration") == "ready") {
         // The relay is ready to receive the configuration, get the next relayID and send it
         val nextRelayID = mongoClient.readNextRelayID().await()
@@ -424,11 +418,11 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
           "mqttPassword" to "relayBiot_$nextRelayID"
         )
         sendMessageTo(client, configuration, RELAYS_CONFIGURATION_TOPIC)
-      } else if (message.getString("message") == WRITTEN_CONFIG_ACK_MESSAGE) {
+      } else if (message.getString("relayMessage") == WRITTEN_CONFIG_ACK_MESSAGE) {
         // The relay has saved and written its configuration, increment the next relayID
         mongoClient.incrementNextRelayID()
       } else {
-        LOGGER.warn { "Received error message ${message.getString("message")}" }
+        LOGGER.warn { "Received error message ${message.getString("relayMessage")}" }
       }
     } catch (error: Throwable) {
       LOGGER.error(error) { "Could not handle message on topic $RELAYS_CONFIGURATION_TOPIC" }
@@ -542,7 +536,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
   private suspend fun sendMessageTo(client: MqttEndpoint, message: JsonObject, topic: String) {
     try {
       val messageId = client
-        .publishAcknowledgeHandler { messageId -> LOGGER.info("Received ack for message $messageId") }
+        .publishAcknowledgeHandler { messageId -> LOGGER.debug("Received ack for message $messageId") }
         .publish(topic, message.toBuffer(), MqttQoS.AT_LEAST_ONCE, false, false).await()
       LOGGER.info { "Published message $message with id $messageId to client ${client.clientIdentifier()} on topic $topic" }
     } catch (error: Throwable) {
@@ -636,13 +630,13 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
    */
   private suspend fun checkConnectionAndUpdateDb() {
     val allRelaysCollections = arrayListOf<JsonObject>()
-    val allCompanies = arrayListOf<String>()
+    val allCompaniesCollections = arrayListOf<String>()
     val allCollections = mongoClient.collections.await()
     for (collection in allCollections) {
       if (collection.startsWith(RELAYS_COLLECTION)) {
         val split = collection.split("_")
-        val company = if (split.size > 1) split[1] else split[0]
-        allCompanies.add(company)
+        val company = if (split.size > 1) collection else split[0]
+        allCompaniesCollections.add(company)
         allRelaysCollections.addAll(
           mongoClient.find(collection, jsonObjectOf()).await()
         )
@@ -673,9 +667,13 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     )
 
     // Reset the connection status for every relay
-    for (company in allCompanies) {
-      val relaysCollection = if (company != "biot") "${RELAYS_COLLECTION}_$company" else RELAYS_COLLECTION
-      mongoClient.updateCollection(relaysCollection, jsonObjectOf(), allFalseUpdate).await()
+    for (companyCollection in allCompaniesCollections) {
+      mongoClient.updateCollectionWithOptions(
+        companyCollection,
+        jsonObjectOf(),
+        allFalseUpdate,
+        updateOptionsOf(multi = true)
+      ).await()
     }
 
     // Then update the connection status of the relays that are connected

@@ -185,8 +185,10 @@ class PublicApiVerticle(
     router.delete("$API_PREFIX/$USERS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler)
       .coroutineHandler(::deleteUserHandler)
 
+
     // Relays
     router.get("$API_PREFIX/$RELAYS_ENDPOINT/emergency").coroutineHandler(::relaysEmergencyHandler)
+
     router.post("$API_PREFIX/$RELAYS_ENDPOINT").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler)
       .coroutineHandler(::registerRelayHandler)
     router.put("$API_PREFIX/$RELAYS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler)

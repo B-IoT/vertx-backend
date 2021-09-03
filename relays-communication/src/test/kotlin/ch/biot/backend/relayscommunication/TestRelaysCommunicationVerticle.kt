@@ -1666,37 +1666,41 @@ class TestRelaysCommunicationVerticle {
 
         mqttClient.publishHandler { msg ->
           if (msg.topicName() == RELAYS_CONFIGURATION_TOPIC) {
-            testContext.verify {
-              val expected = jsonObjectOf(
-                "relayID" to "relay_1",
-                "mqttID" to "relay_1",
-                "mqttUsername" to "relayBiot_1",
-                "mqttPassword" to "relayBiot_1"
-              )
-              expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
-            }
-
-            val clientWrittenConfigAckMessage = jsonObjectOf(
-              "message" to "Written config",
-              "content" to msg.payload().toString(),
-              "path" to "/home/pi/biot/config/.config"
-            )
-            mqttClient.publish(
-              RELAYS_CONFIGURATION_TOPIC,
-              clientWrittenConfigAckMessage.toBuffer(),
-              MqttQoS.AT_LEAST_ONCE,
-              false,
-              false
-            ).onSuccess {
-              vertx.setTimer(5_000) {
-                mongoClient.readNextRelayID().onSuccess { nextRelayID ->
-                  testContext.verify {
-                    expectThat(nextRelayID).isEqualTo(2)
-                    testContext.completeNow()
-                  }
-                }.onFailure(testContext::failNow)
+            val message = msg.payload().toJsonObject()
+            if (!message.containsKey("relayMessage") && !message.containsKey("configuration")) {
+              // Skip the messages broadcast back by the server
+              testContext.verify {
+                val expected = jsonObjectOf(
+                  "relayID" to "relay_1",
+                  "mqttID" to "relay_1",
+                  "mqttUsername" to "relayBiot_1",
+                  "mqttPassword" to "relayBiot_1"
+                )
+                expectThat(message).isEqualTo(expected)
               }
-            }.onFailure(testContext::failNow)
+
+              val clientWrittenConfigAckMessage = jsonObjectOf(
+                "relayMessage" to "Written config",
+                "content" to msg.payload().toString(),
+                "path" to "/home/pi/biot/config/.config"
+              )
+              mqttClient.publish(
+                RELAYS_CONFIGURATION_TOPIC,
+                clientWrittenConfigAckMessage.toBuffer(),
+                MqttQoS.AT_LEAST_ONCE,
+                false,
+                false
+              ).onSuccess {
+                vertx.setTimer(5_000) {
+                  mongoClient.readNextRelayID().onSuccess { nextRelayID ->
+                    testContext.verify {
+                      expectThat(nextRelayID).isEqualTo(2)
+                      testContext.completeNow()
+                    }
+                  }.onFailure(testContext::failNow)
+                }
+              }.onFailure(testContext::failNow)
+            }
           }
         }.subscribe(RELAYS_CONFIGURATION_TOPIC, MqttQoS.AT_LEAST_ONCE.value()).await()
 
