@@ -69,6 +69,9 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
 
     private const val WRITTEN_CONFIG_ACK_MESSAGE = "Written config"
 
+    private const val BATTERY_SENTINEL_VALUE = -1
+    private const val STATUS_SENTINEL_VALUE = -1
+
     private val environment = System.getenv()
     internal val RELAY_REPO_URL =
       environment.getOrDefault("RELAY_REPO_URL", "git@github.com:B-IoT/relays_biot.git").toString()
@@ -467,8 +470,12 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
           beacons.all {
             val beacon = it as JsonObject
             val nonEmptyMac = beacon.getString("mac").isNotEmpty()
-            val validBattery = beacon.getInteger("battery") in 0..100
-            val validStatus = beacon.getInteger("status") in setOf(0, 1, 2, 3)
+
+            val battery = beacon.getInteger("battery")
+            val validBattery = battery == BATTERY_SENTINEL_VALUE || battery in 0..100
+
+            val status = beacon.getInteger("status")
+            val validStatus = status == STATUS_SENTINEL_VALUE || status in setOf(0, 1, 2, 3)
             nonEmptyMac && validBattery && validStatus
           }
         }

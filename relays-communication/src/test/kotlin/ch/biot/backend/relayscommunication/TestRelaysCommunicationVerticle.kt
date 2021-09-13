@@ -87,7 +87,7 @@ class TestRelaysCommunicationVerticle {
 
   private val configuration = jsonObjectOf(
     "mqttID" to "mqtt",
-    "relayID" to "relay",
+    "relayID" to "mqtt",
     "ledStatus" to false,
     "latitude" to 0.1,
     "longitude" to 0.3,
@@ -102,7 +102,7 @@ class TestRelaysCommunicationVerticle {
 
   private val configurationAnotherCompany = jsonObjectOf(
     "mqttID" to "mqtt2",
-    "relayID" to "relay2",
+    "relayID" to "mqtt2",
     "ledStatus" to false,
     "latitude" to 2,
     "longitude" to 3,
@@ -969,8 +969,7 @@ class TestRelaysCommunicationVerticle {
       mqttClient.connect(MQTT_PORT, MQTT_HOST).await()
       mqttClient.publish(INGESTION_TOPIC, message.toBuffer(), MqttQoS.AT_LEAST_ONCE, false, false).await()
       kafkaConsumer.subscribe(INGESTION_TOPIC).await()
-      val stream = kafkaConsumer.asStream().toReceiveChannel(vertx)
-      for (record in stream) {
+      kafkaConsumer.handler { record ->
         testContext.verify {
           val relayID = message.getString("relayID")
           expectThat(record.key()).isEqualTo(relayID)
@@ -985,7 +984,6 @@ class TestRelaysCommunicationVerticle {
             that(json.getDouble("temperature")).isEqualTo(message.getDouble("temperature"))
           }
           testContext.completeNow()
-          stream.cancel()
         }
       }
     } catch (error: Throwable) {
@@ -1298,6 +1296,129 @@ class TestRelaysCommunicationVerticle {
             testContext.completeNow()
           } else {
             testContext.failNow("The message was ingested")
+          }
+        }
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+
+  @Test
+  @DisplayName("A valid MQTT JSON message is ingested when a sentinel temperature value is specified")
+  fun validMqttMessageIsIngestedSentinelTemperature(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      val message = jsonObjectOf(
+        "relayID" to "abc",
+        "beacons" to jsonArrayOf(
+          jsonObjectOf(
+            "mac" to "aa:aa:aa:aa:aa:aa",
+            "rssi" to -60.0,
+            "battery" to 10,
+            "temperature" to -256,
+            "status" to 1
+          ),
+          jsonObjectOf(
+            "mac" to "bb:aa:aa:aa:aa:aa",
+            "rssi" to -59.0,
+            "battery" to 100,
+            "temperature" to 20,
+            "status" to 2
+          )
+        ),
+        "latitude" to 2.3,
+        "longitude" to 2.3,
+        "floor" to 1
+      )
+
+      try {
+        mqttClient.connect(MQTT_PORT, MQTT_HOST).await()
+        mqttClient.publish(INGESTION_TOPIC, message.toBuffer(), MqttQoS.AT_LEAST_ONCE, false, false).await()
+        kafkaConsumer.subscribe(INGESTION_TOPIC).await()
+        testContext.verify {
+          kafkaConsumer.handler {
+            testContext.completeNow()
+          }
+        }
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+
+  @Test
+  @DisplayName("A valid MQTT JSON message is ingested when a sentinel battery value is specified")
+  fun validMqttMessageIsIngestedSentinelBattery(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      val message = jsonObjectOf(
+        "relayID" to "abc",
+        "beacons" to jsonArrayOf(
+          jsonObjectOf(
+            "mac" to "aa:aa:aa:aa:aa:aa",
+            "rssi" to -60.0,
+            "battery" to 10,
+            "temperature" to 24,
+            "status" to 1
+          ),
+          jsonObjectOf(
+            "mac" to "bb:aa:aa:aa:aa:aa",
+            "rssi" to -59.0,
+            "battery" to -1,
+            "temperature" to 20,
+            "status" to 2
+          )
+        ),
+        "latitude" to 2.3,
+        "longitude" to 2.3,
+        "floor" to 1
+      )
+
+      try {
+        mqttClient.connect(MQTT_PORT, MQTT_HOST).await()
+        mqttClient.publish(INGESTION_TOPIC, message.toBuffer(), MqttQoS.AT_LEAST_ONCE, false, false).await()
+        kafkaConsumer.subscribe(INGESTION_TOPIC).await()
+        testContext.verify {
+          kafkaConsumer.handler {
+            testContext.completeNow()
+          }
+        }
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+
+  @Test
+  @DisplayName("A valid MQTT JSON message is ingested when a sentinel status value is specified")
+  fun validMqttMessageIsIngestedSentinelStatus(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      val message = jsonObjectOf(
+        "relayID" to "abc",
+        "beacons" to jsonArrayOf(
+          jsonObjectOf(
+            "mac" to "aa:aa:aa:aa:aa:aa",
+            "rssi" to -60.0,
+            "battery" to 10,
+            "temperature" to 24,
+            "status" to -1
+          ),
+          jsonObjectOf(
+            "mac" to "bb:aa:aa:aa:aa:aa",
+            "rssi" to -59.0,
+            "battery" to 99,
+            "temperature" to 20,
+            "status" to 2
+          )
+        ),
+        "latitude" to 2.3,
+        "longitude" to 2.3,
+        "floor" to 1
+      )
+
+      try {
+        mqttClient.connect(MQTT_PORT, MQTT_HOST).await()
+        mqttClient.publish(INGESTION_TOPIC, message.toBuffer(), MqttQoS.AT_LEAST_ONCE, false, false).await()
+        kafkaConsumer.subscribe(INGESTION_TOPIC).await()
+        testContext.verify {
+          kafkaConsumer.handler {
+            testContext.completeNow()
           }
         }
       } catch (error: Throwable) {
