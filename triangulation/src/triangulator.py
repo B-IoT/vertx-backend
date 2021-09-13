@@ -114,7 +114,6 @@ class Triangulator:
 
     @classmethod
     async def create(cls):
-
         # We need to use this because it is impossible to call await inside __init__()
         self = Triangulator()
         # Data structures
@@ -237,7 +236,6 @@ class Triangulator:
                 battery,
             )
 
-            print(f"Data {data}")
             stmt = await connection.prepare(query)
             return await stmt.executemany([tuple(data)])
 

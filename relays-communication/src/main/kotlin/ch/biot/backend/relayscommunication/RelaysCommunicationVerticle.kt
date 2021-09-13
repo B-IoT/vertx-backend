@@ -52,7 +52,7 @@ import java.net.InetAddress
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 
-val LOGGER = KotlinLogging.logger {}
+internal val LOGGER = KotlinLogging.logger {}
 
 class RelaysCommunicationVerticle : CoroutineVerticle() {
 
@@ -197,7 +197,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     val pemKeyCertOptions = pemKeyCertOptionsOf(certPath = "certificate.pem", keyPath = "certificate_key.pem")
     val netServerOptions = netServerOptionsOf(ssl = true, pemKeyCertOptions = pemKeyCertOptions)
     val mqttServerOptions = mqttServerOptionsOf(
-      useWebSocket = TIMESCALE_HOST != "localhost", // SSL is disabled when testing
+      useWebSocket = TIMESCALE_HOST != "localhost", // WS is disabled when testing, since the client cannot handle it at the moment
       ssl = true,
       pemKeyCertOptions = pemKeyCertOptions,
       clientAuth = ClientAuth.REQUEST
@@ -295,7 +295,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
       return
     }
 
-    val collection = if (company != "biot") "${RELAYS_COLLECTION}_$company" else RELAYS_COLLECTION
+    val collection = getCollectionName(company)
     val mongoAuthRelays = if (mongoAuthRelaysCache.containsKey(collection)) {
       mongoAuthRelaysCache[collection]!!
     } else {
@@ -331,7 +331,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
             val update = jsonObjectOf(
               "\$set" to jsonObjectOf("connected" to false)
             )
-            val relaysCollection = if (company != "biot") "${RELAYS_COLLECTION}_$company" else RELAYS_COLLECTION
+            val relaysCollection = getCollectionName(company)
             try {
               mongoClient.findOneAndUpdate(relaysCollection, filter, update).await()
             } catch (error: Throwable) {
@@ -357,7 +357,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
 
       clients[clientIdentifier] = Pair(company, client)
 
-      // Send last configuration to client
+      // Set the relay as connected
       launch(vertx.dispatcher()) {
         try {
           mongoClient.findOneAndUpdate(
@@ -368,6 +368,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
         } catch (error: Throwable) {
           LOGGER.error { "Relay_Communication: Cannot update mongo DB to set connected = true for relays" }
         }
+        // Send last configuration to client
         sendLastConfiguration(client, company)
       }
     } catch (error: Throwable) {
@@ -524,7 +525,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
       sendMessageTo(client, cleanConfig, RELAYS_MANAGEMENT_TOPIC)
 
       // Reset the reboot flag to avoid infinite loops for relays
-      val collection = if (company != "biot") "${RELAYS_COLLECTION}_$company" else RELAYS_COLLECTION
+      val collection = getCollectionName(company)
       val query = jsonObjectOf("mqttID" to client.clientIdentifier())
       val updateQuery = jsonObjectOf("\$set" to jsonObjectOf("reboot" to false))
       mongoClient.findOneAndUpdate(collection, query, updateQuery)
@@ -567,27 +568,23 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
   }
 
   /**
-   * Get the current config for the relay with the given mqttID with the whitelist in it.
+   * Gets the current config (with the whitelist in it) for the relay with the given mqttID.
    * It cleans the config before returning.
    * It also adds the company in the config.
-   * returns null if an error occurred
+   * It returns null if an error occurred
    */
   private suspend fun getCurrentCleanConfig(company: String, mqttID: String): JsonObject? {
     try {
-      val collection = if (company != "biot") "${RELAYS_COLLECTION}_$company" else RELAYS_COLLECTION
+      val collection = getCollectionName(company)
       val query = jsonObjectOf("mqttID" to mqttID)
-      // Get items mac addresses
       // Find the last configuration in MongoDB
       val config = mongoClient.findOne(collection, query, jsonObjectOf()).await()
       if (config != null && !config.isEmpty) {
         // The configuration exists
-        // Remove useless fields and clean lastModified, then send
-
         val whiteListString = getItemsMacAddressesString(company)
         val cleanConfig = config.clean()
         cleanConfig.put("whiteList", whiteListString)
         cleanConfig.put("company", company)
-
         return cleanConfig
       }
     } catch (e: Exception) {
@@ -601,19 +598,18 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
    * Gets the MAC addresses of beacons associated to items in the DB for the given company and returns them as
    * a semi-colon separated string.
    * The MAC addresses are filtered to have only "valid" MAC addresses.
-   * If it cannot get MAC Addresses from the DB, it returns an empty string and logs a message.
+   * If it cannot get MAC addresses from the DB, it returns an empty string and logs a message.
    */
   private suspend fun getItemsMacAddressesString(company: String): String {
-    val accessControlString = company
     val itemsTable = if (company != "biot") "${ITEMS_TABLE}_$company" else ITEMS_TABLE
-    val executedQuery = pgClient.preparedQuery(getItemsMacs(itemsTable, accessControlString)).execute()
+    val executedQuery = pgClient.preparedQuery(getItemsMacs(itemsTable, company)).execute()
     return try {
       val queryResult = executedQuery.await()
       val result = if (queryResult.size() == 0) listOf() else queryResult.map { it.getString("beacon") }
 
       // Filter result to remove invalid mac addresses
       val res =
-        result.asSequence().filterNotNull().filter { s -> s.matches(macAddressRegex) }.map { s -> s.replace(":", "") }
+        result.asSequence().filterNotNull().filter { it.matches(macAddressRegex) }.map { it.replace(":", "") }
           .distinct()
           .joinToString("")
       if (res.length > MAX_NUMBER_MAC_MQTT * CHAR_NUMBER_IN_MAC_ADDRESS) {
@@ -628,14 +624,16 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
   }
 
   /**
-   * Go through the map of mqtt Endpoints and remove those that are not connected
-   * It also updates the mongoDB accordingly
+   * Goes through the map of mqtt endpoints and remove those that are not connected.
+   * It also updates the DB accordingly.
    */
   private suspend fun checkConnectionAndUpdateDb() {
     val allRelaysCollections = arrayListOf<JsonObject>()
     val allCompaniesCollections = arrayListOf<String>()
+
     val allCollections = mongoClient.collections.await()
     for (collection in allCollections) {
+      // We consider only relays collections
       if (collection.startsWith(RELAYS_COLLECTION)) {
         val split = collection.split("_")
         val company = if (split.size > 1) collection else split[0]
@@ -679,12 +677,15 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
       ).await()
     }
 
-    // Then update the connection status of the relays that are connected
+    // Then update the connection status of only the relays that are connected
     for (company in bulkOperations.keys) {
-      val relaysCollection = if (company != "biot") "${RELAYS_COLLECTION}_$company" else RELAYS_COLLECTION
+      val relaysCollection = getCollectionName(company)
       mongoClient.bulkWrite(relaysCollection, bulkOperations[company]).await()
     }
   }
+
+  private fun getCollectionName(company: String): String =
+    if (company != "biot") "${RELAYS_COLLECTION}_$company" else RELAYS_COLLECTION
 
   private suspend fun emergencyHandler(ctx: RoutingContext) {
     val relayID = ctx.queryParams().get("relayID")
@@ -716,7 +717,7 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
           }
         }
       } catch (e: Exception) {
-        LOGGER.error { "An error occurred getting the relays from DB." }
+        LOGGER.error { "An error occurred while getting the relays from DB." }
       }
 
       flag
