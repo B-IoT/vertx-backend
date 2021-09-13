@@ -77,6 +77,10 @@ class PublicApiVerticle(
     private val environment = System.getenv()
     val CRUD_HOST: String = environment.getOrDefault("CRUD_HOST", "localhost")
     val CRUD_PORT: Int = environment.getOrDefault("CRUD_PORT", "8081").toInt()
+
+    val RELAYS_COMMUNICATION_HOST: String = environment.getOrDefault("RELAYS_COMMUNICATION_HOST", "localhost")
+    val RELAYS_COMMUNICATION_PORT: Int = environment.getOrDefault("RELAYS_COMMUNICATION_PORT", "8082").toInt()
+
     internal val PUBLIC_PORT = environment.getOrDefault("PUBLIC_PORT", "8080").toInt() // externally on 8080 and 443
 
     @JvmStatic
@@ -181,7 +185,10 @@ class PublicApiVerticle(
     router.delete("$API_PREFIX/$USERS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler)
       .coroutineHandler(::deleteUserHandler)
 
+
     // Relays
+    router.get("$API_PREFIX/$RELAYS_ENDPOINT/emergency").coroutineHandler(::relaysEmergencyHandler)
+
     router.post("$API_PREFIX/$RELAYS_ENDPOINT").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler)
       .coroutineHandler(::registerRelayHandler)
     router.put("$API_PREFIX/$RELAYS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler)
@@ -192,6 +199,7 @@ class PublicApiVerticle(
       .coroutineHandler(::getRelayHandler)
     router.delete("$API_PREFIX/$RELAYS_ENDPOINT/:id").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler)
       .coroutineHandler(::deleteRelayHandler)
+
 
     // Items
     router.get("$API_PREFIX/$ITEMS_ENDPOINT/categories").handler(jwtAuthHandler).coroutineHandler(::getACStringHandler)
@@ -390,6 +398,21 @@ class PublicApiVerticle(
   private suspend fun getRelaysHandler(ctx: RoutingContext) = getManyHandler(ctx, RELAYS_ENDPOINT)
   private suspend fun getRelayHandler(ctx: RoutingContext) = getOneHandler(ctx, RELAYS_ENDPOINT)
   private suspend fun deleteRelayHandler(ctx: RoutingContext) = deleteHandler(ctx, RELAYS_ENDPOINT)
+  private suspend fun relaysEmergencyHandler(ctx: RoutingContext) {
+    val relayID = ctx.queryParams().get("relayID") ?: "NOT_PASSED"
+    LOGGER.info { "New emergency request for relayID = $relayID" }
+    webClient.get(RELAYS_COMMUNICATION_PORT, RELAYS_COMMUNICATION_HOST, "/relays-emergency")
+      .addQueryParam("relayID", relayID)
+      .timeout(TIMEOUT)
+      .`as`(BodyCodec.jsonObject())
+      .coroutineSend()
+      .bimap(
+        { error -> sendBadGateway(ctx, error) },
+        { resp ->
+          forwardJsonObjectOrStatusCode(ctx, resp)
+        }
+      )
+  }
 
   // Items
 

@@ -22,6 +22,8 @@ spec:
         - image: vertx-backend/relays-communication:latest
           name: relays-communication
           ports:
+            - name: http
+              containerPort: 8082
             - name: mqtt
               containerPort: 1883
             - name: liveness
@@ -68,6 +70,16 @@ spec:
                 configMapKeyRef:
                   name: relays-communication-config
                   key: mqtt_port
+            - name: RELAY_REPO_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: relays-communication-config
+                  key: relay_repo_url
+            - name: DEFAULT_RELAY_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: relays-communication-config
+                  key: default_relay_id
           livenessProbe:
             tcpSocket:
               port: 1884

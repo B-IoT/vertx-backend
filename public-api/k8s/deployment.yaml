@@ -41,6 +41,16 @@ spec:
                 configMapKeyRef:
                   name: crud-config
                   key: crud_port
+            - name: RELAYS_COMMUNICATION_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: relays-communication-config
+                  key: relays-communication-hostname
+            - name: RELAYS_COMMUNICATION_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: relays-communication-config
+                  key: relays-communication-port
           livenessProbe:
             httpGet:
               path: /health/live

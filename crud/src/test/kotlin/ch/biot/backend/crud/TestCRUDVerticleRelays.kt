@@ -4,6 +4,8 @@
 
 package ch.biot.backend.crud
 
+import ch.biot.backend.crud.CRUDVerticle.Companion.ADMIN_RELAY
+import ch.biot.backend.crud.CRUDVerticle.Companion.INITIAL_RELAY
 import io.restassured.builder.RequestSpecBuilder
 import io.restassured.filter.log.RequestLoggingFilter
 import io.restassured.filter.log.ResponseLoggingFilter
@@ -50,10 +52,8 @@ class TestCRUDVerticleRelays {
   private lateinit var mongoUserUtil: MongoUserUtil
   private lateinit var mongoAuth: MongoAuthentication
 
-  private val mqttPassword = "password"
   private val existingRelay = jsonObjectOf(
     "mqttID" to "testRelay",
-    "mqttUsername" to "testRelay",
     "relayID" to "testRelay",
     "ledStatus" to false,
     "latitude" to 0.1,
@@ -66,9 +66,7 @@ class TestCRUDVerticleRelays {
   )
   private val newRelay = jsonObjectOf(
     "mqttID" to "testRelay2",
-    "mqttUsername" to "testRelay2",
     "relayID" to "testRelay2",
-    "mqttPassword" to mqttPassword,
     "ledStatus" to false,
     "latitude" to 0.1,
     "longitude" to 0.3,
@@ -118,8 +116,11 @@ class TestCRUDVerticleRelays {
   private fun dropAllRelays() = mongoClient.removeDocuments("relays", jsonObjectOf())
 
   private suspend fun insertRelay(): Future<JsonObject> {
-    val hashedPassword = mqttPassword.saltAndHash(mongoAuth)
-    val docID = mongoUserUtil.createHashedUser("test", hashedPassword).await()
+    val mqttID = existingRelay.getString("mqttID")
+    val username = "relayBiot_$mqttID"
+    val password = "relayBiot_$mqttID".sha3256Hash()
+    val hashedPassword = password.saltAndHash(mongoAuth)
+    val docID = mongoUserUtil.createHashedUser(username, hashedPassword).await()
     val query = jsonObjectOf("_id" to docID)
     val extraInfo = jsonObjectOf(
       "\$set" to existingRelay
@@ -182,9 +183,13 @@ class TestCRUDVerticleRelays {
   }
 
   @Test
-  @DisplayName("getRelays correctly retrieves all relays")
+  @DisplayName("getRelays correctly retrieves all relays (with the INITIAL_RELAY + ADMIN_RELAY)")
   fun getRelaysIsCorrect(testContext: VertxTestContext) {
-    val expected = jsonArrayOf(existingRelay.copy().apply { remove("mqttPassword") })
+    val expected = jsonArrayOf(
+      existingRelay.copy().apply { put("mqttUsername", "relayBiot_${existingRelay.getString("mqttID")}") },
+      INITIAL_RELAY.copy().apply { remove("mqttPassword") },
+      ADMIN_RELAY.copy().apply { remove("mqttPassword") }
+    )
 
     val response = Buffer.buffer(
       Given {
@@ -201,9 +206,13 @@ class TestCRUDVerticleRelays {
     ).toJsonArray()
 
     testContext.verify {
-      val password = response.getJsonObject(0).remove("mqttPassword")
+      val password1 = response.getJsonObject(0).remove("mqttPassword")
+      val password2 = response.getJsonObject(1).remove("mqttPassword")
+      val password3 = response.getJsonObject(2).remove("mqttPassword")
       expectThat(response).isEqualTo(expected)
-      expectThat(password).isNotNull()
+      expectThat(password1).isNotNull()
+      expectThat(password2).isNotNull()
+      expectThat(password3).isNotNull()
       testContext.completeNow()
     }
   }
@@ -254,7 +263,10 @@ class TestCRUDVerticleRelays {
   @Test
   @DisplayName("getRelay correctly retrieves the desired relay")
   fun getRelayIsCorrect(testContext: VertxTestContext) {
-    val expected = existingRelay.copy().apply { remove("mqttPassword") }
+    val expected = existingRelay.copy().apply {
+      remove("mqttPassword")
+      put("mqttUsername", "relayBiot_${existingRelay.getString("mqttID")}")
+    }
 
     val response = Buffer.buffer(
       Given {
@@ -342,15 +354,7 @@ class TestCRUDVerticleRelays {
       testContext.verify {
         expectThat(json).isNotNull()
         expect {
-          that(json.getBoolean("ledStatus")).isEqualTo(updateJson.getBoolean("ledStatus"))
-          that(json.getJsonObject("wifi")).isEqualTo(updateJson.getJsonObject("wifi"))
-          that(json.getDouble("latitude")).isEqualTo(updateJson.getDouble("latitude"))
-          that(json.getDouble("longitude")).isEqualTo(updateJson.getDouble("longitude"))
-          that(json.getInteger("floor")).isEqualTo(updateJson.getInteger("floor"))
-          that(json.getJsonObject("beacon")).isEqualTo(updateJson.getJsonObject("beacon"))
           that(json.getString("mqttID")).isEqualTo(existingRelay.getString("mqttID"))
-          that(json.getString("relayID")).isEqualTo(existingRelay.getString("relayID"))
-          that(json.containsKey("lastModified")).isTrue()
         }
         testContext.completeNow()
       }
@@ -458,9 +462,7 @@ class TestCRUDVerticleRelays {
   fun deleteIsCorrect(testContext: VertxTestContext) {
     val relayToRemove = jsonObjectOf(
       "mqttID" to "testRelay42",
-      "mqttUsername" to "testRelay42",
       "relayID" to "testRelay42",
-      "mqttPassword" to mqttPassword,
       "ledStatus" to false,
       "latitude" to 0.1,
       "longitude" to 0.3,

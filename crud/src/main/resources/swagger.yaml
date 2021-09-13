@@ -1045,11 +1045,6 @@ components:
       properties:
         mqttID:
           type: string
-        mqttUsername:
-          type: string
-        mqttPassword:
-          type: string
-          format: password
         relayID:
           type: string
         ledStatus:
