@@ -93,17 +93,6 @@ internal fun JsonObject.clean(): JsonObject = this.copy().apply {
 }
 
 /**
- * Cleans the JSON object to be shared with a relay, removing multiple fields and formatting the "lastModified" field.
- *
- * @return the cleaned JSON object
- */
-internal fun JsonObject.cleanForRelay(): JsonObject = this.copy().apply {
-  clean()
-  remove("mqttUsername")
-  remove("mqttPassword")
-}
-
-/**
  * Cleans, if present, the "lastModified" field, keeping just the date and time information.
  */
 internal fun JsonObject.cleanLastModified() {
