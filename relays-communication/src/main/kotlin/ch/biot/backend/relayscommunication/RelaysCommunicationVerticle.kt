@@ -6,7 +6,10 @@ package ch.biot.backend.relayscommunication
 
 import io.netty.handler.codec.mqtt.MqttConnectReturnCode
 import io.netty.handler.codec.mqtt.MqttQoS
-import io.vertx.core.*
+import io.vertx.core.CompositeFuture
+import io.vertx.core.Future
+import io.vertx.core.Promise
+import io.vertx.core.Vertx
 import io.vertx.core.http.ClientAuth
 import io.vertx.core.http.HttpMethod
 import io.vertx.core.json.DecodeException
@@ -98,9 +101,6 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
     const val UPDATE_CONFIG_INTERVAL_SECONDS: Long = 20
 
     private lateinit var pgClient: SqlClient
-
-    // It is a field because otherwise, it cannot be used in the lambda of the Handler itself
-    private lateinit var periodicUpdateConfig: Handler<Long>
 
     private val macAddressRegex = "^([a-f0-9]{2}:){5}[a-f0-9]{2}$".toRegex()
     private const val MAX_NUMBER_MAC_MQTT = 1024 // Maximum number of mac addresses in the whitelist in a MQTT message
