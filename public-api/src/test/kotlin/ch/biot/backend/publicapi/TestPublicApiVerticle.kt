@@ -8,6 +8,7 @@ import ch.biot.backend.crud.CRUDVerticle
 import ch.biot.backend.crud.CRUDVerticle.Companion.INITIAL_USER
 import ch.biot.backend.crud.queries.*
 import ch.biot.backend.crud.saltAndHash
+import ch.biot.backend.crud.sha3256Hash
 import ch.biot.backend.crud.tableExists
 import ch.biot.backend.publicapi.PublicApiVerticle.Companion.CRUD_HOST
 import ch.biot.backend.publicapi.PublicApiVerticle.Companion.CRUD_PORT
@@ -92,9 +93,7 @@ class TestPublicApiVerticle {
 
   private val relay = jsonObjectOf(
     "mqttID" to "testRelay2",
-    "mqttUsername" to "testRelay2",
     "relayID" to "testRelay2",
-    "mqttPassword" to "testRelay2",
     "ledStatus" to false,
     "latitude" to 0.1,
     "longitude" to 0.3,
@@ -498,8 +497,11 @@ class TestPublicApiVerticle {
   }
 
   private suspend fun insertRelay(): Future<JsonObject> {
-    val hashedPassword = relay.getString("mqttPassword").saltAndHash(mongoAuthRelays)
-    val docID = mongoUserUtilRelays.createHashedUser("test", hashedPassword).await()
+    val mqttID = relay.getString("mqttID")
+    val username = "relayBiot_$mqttID"
+    val password = "relayBiot_$mqttID".sha3256Hash()
+    val hashedPassword = password.saltAndHash(mongoAuthRelays)
+    val docID = mongoUserUtilRelays.createHashedUser(username, hashedPassword).await()
     val query = jsonObjectOf("_id" to docID)
     val extraInfo = jsonObjectOf(
       "\$set" to relay.copy().apply {
@@ -786,7 +788,11 @@ class TestPublicApiVerticle {
   @Test
   @DisplayName("Getting the relays succeeds")
   fun getRelaysSucceeds(testContext: VertxTestContext) {
-    val expected = jsonArrayOf(relay.copy().apply { remove("mqttPassword") })
+    val expected = jsonArrayOf(
+      relay.copy().apply { put("mqttUsername", "relayBiot_${relay.getString("mqttID")}") },
+      CRUDVerticle.INITIAL_RELAY.copy().apply { remove("mqttPassword") },
+      CRUDVerticle.ADMIN_RELAY.copy().apply { remove("mqttPassword") }
+    )
 
     val requestSpy = spyk(webClient.get(CRUD_PORT, CRUD_HOST, "/relays"))
     every { webClient.get(any(), any(), "/relays") } returns requestSpy
@@ -809,9 +815,13 @@ class TestPublicApiVerticle {
       expectThat(response).isNotNull()
       expectThat(response.isEmpty).isFalse()
 
-      val password = response.getJsonObject(0).remove("mqttPassword")
+      val password1 = response.getJsonObject(0).remove("mqttPassword")
+      val password2 = response.getJsonObject(1).remove("mqttPassword")
+      val password3 = response.getJsonObject(2).remove("mqttPassword")
       expectThat(response).isEqualTo(expected)
-      expectThat(password).isNotNull()
+      expectThat(password1).isNotNull()
+      expectThat(password2).isNotNull()
+      expectThat(password3).isNotNull()
 
       verify { requestSpy.addQueryParam("company", ofType(String::class)) }
 
@@ -823,7 +833,10 @@ class TestPublicApiVerticle {
   @DisplayName("Getting a relay succeeds")
   fun getRelaySucceeds(testContext: VertxTestContext) {
     val relayID = relay.getString("relayID")
-    val expected = relay.copy().apply { remove("mqttPassword") }
+    val expected = relay.copy().apply {
+      remove("mqttPassword")
+      put("mqttUsername", "relayBiot_${relay.getString("mqttID")}")
+    }
 
     val requestSpy = spyk(webClient.get(CRUD_PORT, CRUD_HOST, "/relays/$relayID"))
     every { webClient.get(any(), any(), "/relays/$relayID") } returns requestSpy
@@ -2511,7 +2524,7 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @DisplayName("Emergency reset request for relays return repo url and true as forceReset flag when unknown relayID is passed")
+  @DisplayName("Emergency reset request for relays return repo url and false as forceReset flag when unknown relayID is passed")
   fun emergencyResetResetWorksWithUnknownRelayID(testContext: VertxTestContext) {
     val response = Buffer.buffer(
       Given {
@@ -2527,7 +2540,7 @@ class TestPublicApiVerticle {
       }
     ).toJsonObject()
 
-    val expected = jsonObjectOf("repoURL" to "git@github.com:B-IoT/relays_biot.git", "forceReset" to true)
+    val expected = jsonObjectOf("repoURL" to "git@github.com:B-IoT/relays_biot.git", "forceReset" to false)
 
     testContext.verify {
       expectThat(response.isEmpty).isFalse()
@@ -2540,7 +2553,7 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @DisplayName("Emergency reset request for relays return repo url and true as forceReset flag when no relayID is passed")
+  @DisplayName("Emergency reset request for relays return repo url and false as forceReset flag when no relayID is passed")
   fun emergencyResetResetWorksWithNoRelayID(testContext: VertxTestContext) {
     val response = Buffer.buffer(
       Given {
@@ -2555,7 +2568,7 @@ class TestPublicApiVerticle {
       }
     ).toJsonObject()
 
-    val expected = jsonObjectOf("repoURL" to "git@github.com:B-IoT/relays_biot.git", "forceReset" to true)
+    val expected = jsonObjectOf("repoURL" to "git@github.com:B-IoT/relays_biot.git", "forceReset" to false)
 
     testContext.verify {
       expectThat(response.isEmpty).isFalse()
@@ -2575,7 +2588,7 @@ class TestPublicApiVerticle {
       mongoClientRelays.findOneAndUpdate(
         "relays",
         jsonObjectOf("relayID" to relay.getString("relayID")),
-        jsonObjectOf( "\$set" to jsonObjectOf("forceReset" to true))
+        jsonObjectOf("\$set" to jsonObjectOf("forceReset" to true))
       ).await()
       val response = Buffer.buffer(
         Given {
@@ -2592,7 +2605,7 @@ class TestPublicApiVerticle {
       ).toJsonObject()
 
       val expected = jsonObjectOf("repoURL" to "git@github.com:B-IoT/relays_biot.git", "forceReset" to true)
-      val relayNow =  mongoClientRelays.findOne(
+      val relayNow = mongoClientRelays.findOne(
         "relays",
         jsonObjectOf("relayID" to relay.getString("relayID")),
         jsonObjectOf()
@@ -2611,7 +2624,7 @@ class TestPublicApiVerticle {
   }
 
   @Test
-  @DisplayName("Emergency reset request for relays return repo url and true as forceReset flag when relayID in DB ")
+  @DisplayName("Emergency reset request for relays return repo url and true as forceReset flag when relayID in DB")
   fun emergencyResetResetWorksWithKnownRelayID(testContext: VertxTestContext) {
     val response = Buffer.buffer(
       Given {
@@ -2627,7 +2640,37 @@ class TestPublicApiVerticle {
       }
     ).toJsonObject()
 
-    val expected = jsonObjectOf("repoURL" to "git@github.com:B-IoT/relays_biot.git", "forceReset" to relay.getString("forceReset"))
+    val expected =
+      jsonObjectOf("repoURL" to "git@github.com:B-IoT/relays_biot.git", "forceReset" to relay.getString("forceReset"))
+
+    testContext.verify {
+      expectThat(response.isEmpty).isFalse()
+      expect {
+        that(response.getString("repoURL")).isEqualTo(expected.getString("repoURL"))
+        that(response.getString("forceReset")).isEqualTo(expected.getString("forceReset"))
+      }
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("Emergency reset request for relays return repo url and true as forceReset flag when relayID is the default one")
+  fun emergencyResetResetWorksWithDefaultRelayID(testContext: VertxTestContext) {
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        accept(ContentType.JSON)
+      } When {
+        queryParam("relayID", "relay_0")
+        get("/api/relays/emergency")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }
+    ).toJsonObject()
+
+    val expected = jsonObjectOf("repoURL" to "git@github.com:B-IoT/relays_biot.git", "forceReset" to true)
 
     testContext.verify {
       expectThat(response.isEmpty).isFalse()

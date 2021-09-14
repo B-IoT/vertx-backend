@@ -22,6 +22,7 @@ import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.RowSet
 import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
+import java.security.MessageDigest
 import java.security.SecureRandom
 import java.time.LocalDate
 import java.util.*
@@ -92,17 +93,6 @@ internal fun JsonObject.clean(): JsonObject = this.copy().apply {
 }
 
 /**
- * Cleans the JSON object to be shared with a relay, removing multiple fields and formatting the "lastModified" field.
- *
- * @return the cleaned JSON object
- */
-internal fun JsonObject.cleanForRelay(): JsonObject = this.copy().apply {
-  clean()
-  remove("mqttUsername")
-  remove("mqttPassword")
-}
-
-/**
  * Cleans, if present, the "lastModified" field, keeping just the date and time information.
  */
 internal fun JsonObject.cleanLastModified() {
@@ -122,6 +112,15 @@ fun String.saltAndHash(mongoAuth: MongoAuthentication): String {
   val salt = ByteArray(16)
   SecureRandom().nextBytes(salt)
   return mongoAuth.hash("pbkdf2", String(Base64.getEncoder().encode(salt)), this)
+}
+
+/**
+ * Hashes the string using SHA3-256.
+ */
+fun String.sha3256Hash(): String {
+  val digest = MessageDigest.getInstance("SHA3-256")
+  val hashbytes = digest.digest(this.toByteArray(Charsets.UTF_8))
+  return hashbytes.fold("") { str, it -> str + "%02x".format(it) }
 }
 
 fun RowSet<Row>.toSnapshotsList(): List<JsonObject> = if (this.size() == 0) listOf() else this.map { row ->

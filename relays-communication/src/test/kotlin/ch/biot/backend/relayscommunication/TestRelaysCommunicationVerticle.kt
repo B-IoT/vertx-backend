@@ -11,6 +11,8 @@ import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.MQTT_PORT
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.READINESS_PORT
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.RELAYS_COLLECTION
+import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.RELAYS_CONFIGURATION_TOPIC
+import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.RELAYS_MANAGEMENT_TOPIC
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.RELAYS_UPDATE_ADDRESS
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.RELAY_REPO_URL
 import ch.biot.backend.relayscommunication.RelaysCommunicationVerticle.Companion.UPDATE_CONFIG_INTERVAL_SECONDS
@@ -83,11 +85,9 @@ class TestRelaysCommunicationVerticle {
 
   private lateinit var pgClient: SqlClient
 
-  private val mqttPassword = "password"
   private val configuration = jsonObjectOf(
     "mqttID" to "mqtt",
-    "mqttUsername" to "test",
-    "relayID" to "relay",
+    "relayID" to "mqtt",
     "ledStatus" to false,
     "latitude" to 0.1,
     "longitude" to 0.3,
@@ -95,13 +95,14 @@ class TestRelaysCommunicationVerticle {
       "ssid" to "ssid",
       "password" to "pass"
     ),
-    "forceReset" to true
+    "forceReset" to true,
+    "reboot" to false,
+    "company" to "biot"
   )
 
   private val configurationAnotherCompany = jsonObjectOf(
     "mqttID" to "mqtt2",
-    "mqttUsername" to "test2",
-    "relayID" to "relay2",
+    "relayID" to "mqtt2",
     "ledStatus" to false,
     "latitude" to 2,
     "longitude" to 3,
@@ -295,11 +296,9 @@ class TestRelaysCommunicationVerticle {
       vertx,
       mqttClientOptionsOf(
         clientId = configuration["mqttID"],
-        username = configuration["mqttUsername"],
-        password = mqttPassword,
-        willFlag = true,
-        willMessage = jsonObjectOf("company" to "biot").encode(),
-        ssl = false,
+        username = "relayBiot_${configuration.getString("mqttID")}",
+        password = "relayBiot_${configuration.getString("mqttID")}".sha3256Hash(),
+        ssl = true,
         maxMessageSize = 100_000
       )
     )
@@ -679,21 +678,26 @@ class TestRelaysCommunicationVerticle {
   }
 
   private suspend fun insertRelays(): JsonObject {
-    val salt = ByteArray(16)
-    SecureRandom().nextBytes(salt)
-    val hashedPassword = mongoAuth.hash("pbkdf2", String(Base64.getEncoder().encode(salt)), mqttPassword)
-    val docID = mongoUserUtil.createHashedUser("test", hashedPassword).await()
+    fun computeUsernameAndPassword(mqttID: String, mongoAuthentication: MongoAuthentication): Pair<String, String> {
+      val username = "relayBiot_$mqttID"
+      val password = "relayBiot_$mqttID".sha3256Hash()
+      val salt = ByteArray(16)
+      SecureRandom().nextBytes(salt)
+      return username to mongoAuthentication.hash("pbkdf2", String(Base64.getEncoder().encode(salt)), password)
+    }
+
+    val mqttID = configuration.getString("mqttID")
+    val (username1, password1) = computeUsernameAndPassword(mqttID, mongoAuth)
+    val docID = mongoUserUtil.createHashedUser(username1, password1).await()
     val query = jsonObjectOf("_id" to docID)
     val extraInfo = jsonObjectOf(
       "\$set" to configuration
     )
     mongoClient.findOneAndUpdate(RELAYS_COLLECTION, query, extraInfo).await()
 
-    val salt2 = ByteArray(16)
-    SecureRandom().nextBytes(salt2)
-    val hashedPassword2 =
-      mongoAuthAnotherCompany.hash("pbkdf2", String(Base64.getEncoder().encode(salt2)), mqttPassword)
-    val docID2 = mongoUserUtilAnotherCompany.createHashedUser("test2", hashedPassword2).await()
+    val mqttID2 = configurationAnotherCompany.getString("mqttID")
+    val (username2, password2) = computeUsernameAndPassword(mqttID2, mongoAuthAnotherCompany)
+    val docID2 = mongoUserUtilAnotherCompany.createHashedUser(username2, password2).await()
     val query2 = jsonObjectOf("_id" to docID2)
     val extraInfo2 = jsonObjectOf(
       "\$set" to configurationAnotherCompany
@@ -742,6 +746,7 @@ class TestRelaysCommunicationVerticle {
                   "e051304816e5f015b5dd2438f5a8ef56d7c0"
                 ) //itemBiot1, itemBiot2, itemBiot4 mac addresses without :
                 put("connected", true)
+                put("company", "biot")
               }
               expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
               testContext.completeNow()
@@ -780,13 +785,29 @@ class TestRelaysCommunicationVerticle {
 
   @Test
   @DisplayName("When the client disconnects, the relay is connected = false in the DB after max 20 sec")
-  fun clientSubscribesAndDisconnectsIsCorrectInMongo(vertx: Vertx, testContext: VertxTestContext) {
+  fun clientSubscribesAndDisconnectsIsCorrectInMongo(vertx: Vertx, testContext: VertxTestContext): Unit =
     runBlocking(vertx.dispatcher()) {
       try {
         mqttClient.connect(MQTT_PORT, MQTT_HOST).await()
         mqttClient.publishHandler { msg ->
           if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
-            mqttClient.disconnect()
+            mqttClient.disconnect().onSuccess {
+              vertx.setTimer(UPDATE_CONFIG_INTERVAL_SECONDS + 5_000) {
+                mongoClient.findOne(
+                  RELAYS_COLLECTION,
+                  jsonObjectOf("mqttID" to configuration["mqttID"]),
+                  jsonObjectOf()
+                )
+                  .onSuccess { relayJson ->
+                    testContext.verify {
+                      expectThat(relayJson.getBoolean("connected")).isFalse()
+                      testContext.completeNow()
+                    }
+                  }.onFailure {
+                    testContext.failNow("Error while accessing MongoDB")
+                  }
+              }
+            }.onFailure(testContext::failNow)
           }
         }.subscribe(UPDATE_PARAMETERS_TOPIC, MqttQoS.AT_LEAST_ONCE.value()).await()
       } catch (error: Throwable) {
@@ -794,27 +815,11 @@ class TestRelaysCommunicationVerticle {
       }
     }
 
-    vertx.setTimer(UPDATE_CONFIG_INTERVAL_SECONDS + 5_000) {
-      testContext.verify {
-        mongoClient.findOne(RELAYS_COLLECTION, jsonObjectOf("mqttID" to configuration["mqttID"]), jsonObjectOf())
-          .onSuccess { relayJson ->
-            expectThat(relayJson.getBoolean("connected")).isTrue()
-            testContext.completeNow()
-          }.onFailure {
-            testContext.failNow("Error while accessing MongoDB")
-          }
-      }
-      testContext.completeNow()
-    }
-
-
-  }
-
   @Test
   @DisplayName("A MQTT client without authentication is refused connection")
   fun clientWithoutAuthIsRefusedConnection(vertx: Vertx, testContext: VertxTestContext) =
     runBlocking(vertx.dispatcher()) {
-      val client = MqttClient.create(vertx, mqttClientOptionsOf(ssl = false))
+      val client = MqttClient.create(vertx, mqttClientOptionsOf(ssl = true))
 
       try {
         client.connect(MQTT_PORT, MQTT_HOST).await()
@@ -832,11 +837,9 @@ class TestRelaysCommunicationVerticle {
         vertx,
         mqttClientOptionsOf(
           clientId = configuration["mqttID"],
-          username = configuration["mqttUsername"],
+          username = "relayBiot_${configuration.getString("mqttID")}",
           password = "wrongPassword",
-          willFlag = true,
-          willMessage = jsonObjectOf("company" to "biot").encode(),
-          ssl = false
+          ssl = true
         )
       )
 
@@ -849,74 +852,92 @@ class TestRelaysCommunicationVerticle {
     }
 
   @Test
-  @DisplayName("A MQTT client without a will is refused connection")
-  fun clientWithNoWillIsRefusedConnection(vertx: Vertx, testContext: VertxTestContext) =
+  @DisplayName("A MQTT client not associated to a company is refused connection")
+  fun clientWithNoCompanyIsRefusedConnection(vertx: Vertx, testContext: VertxTestContext) =
     runBlocking(vertx.dispatcher()) {
       val client = MqttClient.create(
         vertx,
         mqttClientOptionsOf(
-          clientId = configuration["mqttID"],
-          username = configuration["mqttUsername"],
-          password = "wrongPassword",
-          ssl = false
+          clientId = "unknownID",
+          username = "relayBiot_${configuration.getString("mqttID")}",
+          password = "password",
+          ssl = true
         )
       )
 
       try {
         client.connect(MQTT_PORT, MQTT_HOST).await()
-        testContext.failNow("The client was able to connect without a will")
+        testContext.failNow("The client was able to connect without a company associated")
       } catch (error: Throwable) {
         testContext.completeNow()
       }
     }
 
-  @Test
-  @DisplayName("A MQTT client without a will message is refused connection")
-  fun clientWithNoWillMessageIsRefusedConnection(vertx: Vertx, testContext: VertxTestContext) =
+  @Test // TODO remove once the relays are delivered to HJU
+  @DisplayName("A MQTT client receives the last configuration on update.parameters once an update is received via the event bus")
+  fun clientReceivesUpdateOnUpdateParameters(vertx: Vertx, testContext: VertxTestContext): Unit =
     runBlocking(vertx.dispatcher()) {
-      val client = MqttClient.create(
-        vertx,
-        mqttClientOptionsOf(
-          clientId = configuration["mqttID"],
-          username = configuration["mqttUsername"],
-          password = "wrongPassword",
-          willFlag = true,
-          ssl = false
-        )
-      )
-
       try {
-        client.connect(MQTT_PORT, MQTT_HOST).await()
-        testContext.failNow("The client was able to connect without a will message")
-      } catch (error: Throwable) {
-        testContext.completeNow()
-      }
-    }
-
-  @Test
-  @DisplayName("A MQTT client receives updates")
-  fun clientReceivesUpdate(vertx: Vertx, testContext: VertxTestContext): Unit = runBlocking(vertx.dispatcher()) {
-    try {
-      val message = jsonObjectOf("latitude" to 42.3, "mqttID" to "mqtt")
-      mqttClient.publishHandler { msg ->
-        if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
-          val json = msg.payload().toJsonObject()
-          if (!json.containsKey("relayID")) { // only handle received message, not the one for the last configuration
+        val message = jsonObjectOf("mqttID" to "mqtt")
+        mqttClient.publishHandler { msg ->
+          if (msg.topicName() == UPDATE_PARAMETERS_TOPIC) {
+            val json = msg.payload().toJsonObject()
             testContext.verify {
-              val messageWithoutMqttID = message.copy().apply { remove("mqttID") }
+              val messageWithoutMqttID = configuration.copy().apply {
+                remove("mqttID")
+                remove("mqttUsername")
+                remove("ledStatus")
+                put(
+                  "whiteList",
+                  "e051304816e5f015b5dd2438f5a8ef56d7c0"
+                ) //itemBiot1, itemBiot2, itemBiot4 mac addresses without :
+                put("connected", true)
+              }
               expectThat(json).isEqualTo(messageWithoutMqttID)
               testContext.completeNow()
             }
           }
-        }
-      }.connect(MQTT_PORT, MQTT_HOST).await()
+        }.connect(MQTT_PORT, MQTT_HOST).await()
 
-      mqttClient.subscribe(UPDATE_PARAMETERS_TOPIC, MqttQoS.AT_LEAST_ONCE.value()).await()
-      vertx.eventBus().send(RELAYS_UPDATE_ADDRESS, message)
-    } catch (error: Throwable) {
-      testContext.failNow(error)
+        mqttClient.subscribe(UPDATE_PARAMETERS_TOPIC, MqttQoS.AT_LEAST_ONCE.value()).await()
+        vertx.eventBus().send(RELAYS_UPDATE_ADDRESS, message)
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
     }
-  }
+
+  @Test
+  @DisplayName("A MQTT client receives the last configuration on relay.management once an update is received via the event bus")
+  fun clientReceivesUpdateOnRelayManagement(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      try {
+        val message = jsonObjectOf("mqttID" to "mqtt")
+        mqttClient.publishHandler { msg ->
+          if (msg.topicName() == RELAYS_MANAGEMENT_TOPIC) {
+            val json = msg.payload().toJsonObject()
+            testContext.verify {
+              val messageWithoutMqttID = configuration.copy().apply {
+                remove("mqttID")
+                remove("mqttUsername")
+                remove("ledStatus")
+                put(
+                  "whiteList",
+                  "e051304816e5f015b5dd2438f5a8ef56d7c0"
+                ) //itemBiot1, itemBiot2, itemBiot4 mac addresses without :
+                put("connected", true)
+              }
+              expectThat(json).isEqualTo(messageWithoutMqttID)
+              testContext.completeNow()
+            }
+          }
+        }.connect(MQTT_PORT, MQTT_HOST).await()
+
+        mqttClient.subscribe(RELAYS_MANAGEMENT_TOPIC, MqttQoS.AT_LEAST_ONCE.value()).await()
+        vertx.eventBus().send(RELAYS_UPDATE_ADDRESS, message)
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
 
   @Test
   @DisplayName("A well-formed MQTT JSON message is ingested and streamed to Kafka")
@@ -948,8 +969,7 @@ class TestRelaysCommunicationVerticle {
       mqttClient.connect(MQTT_PORT, MQTT_HOST).await()
       mqttClient.publish(INGESTION_TOPIC, message.toBuffer(), MqttQoS.AT_LEAST_ONCE, false, false).await()
       kafkaConsumer.subscribe(INGESTION_TOPIC).await()
-      val stream = kafkaConsumer.asStream().toReceiveChannel(vertx)
-      for (record in stream) {
+      kafkaConsumer.handler { record ->
         testContext.verify {
           val relayID = message.getString("relayID")
           expectThat(record.key()).isEqualTo(relayID)
@@ -964,7 +984,6 @@ class TestRelaysCommunicationVerticle {
             that(json.getDouble("temperature")).isEqualTo(message.getDouble("temperature"))
           }
           testContext.completeNow()
-          stream.cancel()
         }
       }
     } catch (error: Throwable) {
@@ -1284,6 +1303,129 @@ class TestRelaysCommunicationVerticle {
       }
     }
 
+  @Test
+  @DisplayName("A valid MQTT JSON message is ingested when a sentinel temperature value is specified")
+  fun validMqttMessageIsIngestedSentinelTemperature(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      val message = jsonObjectOf(
+        "relayID" to "abc",
+        "beacons" to jsonArrayOf(
+          jsonObjectOf(
+            "mac" to "aa:aa:aa:aa:aa:aa",
+            "rssi" to -60.0,
+            "battery" to 10,
+            "temperature" to -256,
+            "status" to 1
+          ),
+          jsonObjectOf(
+            "mac" to "bb:aa:aa:aa:aa:aa",
+            "rssi" to -59.0,
+            "battery" to 100,
+            "temperature" to 20,
+            "status" to 2
+          )
+        ),
+        "latitude" to 2.3,
+        "longitude" to 2.3,
+        "floor" to 1
+      )
+
+      try {
+        mqttClient.connect(MQTT_PORT, MQTT_HOST).await()
+        mqttClient.publish(INGESTION_TOPIC, message.toBuffer(), MqttQoS.AT_LEAST_ONCE, false, false).await()
+        kafkaConsumer.subscribe(INGESTION_TOPIC).await()
+        testContext.verify {
+          kafkaConsumer.handler {
+            testContext.completeNow()
+          }
+        }
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+
+  @Test
+  @DisplayName("A valid MQTT JSON message is ingested when a sentinel battery value is specified")
+  fun validMqttMessageIsIngestedSentinelBattery(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      val message = jsonObjectOf(
+        "relayID" to "abc",
+        "beacons" to jsonArrayOf(
+          jsonObjectOf(
+            "mac" to "aa:aa:aa:aa:aa:aa",
+            "rssi" to -60.0,
+            "battery" to 10,
+            "temperature" to 24,
+            "status" to 1
+          ),
+          jsonObjectOf(
+            "mac" to "bb:aa:aa:aa:aa:aa",
+            "rssi" to -59.0,
+            "battery" to -1,
+            "temperature" to 20,
+            "status" to 2
+          )
+        ),
+        "latitude" to 2.3,
+        "longitude" to 2.3,
+        "floor" to 1
+      )
+
+      try {
+        mqttClient.connect(MQTT_PORT, MQTT_HOST).await()
+        mqttClient.publish(INGESTION_TOPIC, message.toBuffer(), MqttQoS.AT_LEAST_ONCE, false, false).await()
+        kafkaConsumer.subscribe(INGESTION_TOPIC).await()
+        testContext.verify {
+          kafkaConsumer.handler {
+            testContext.completeNow()
+          }
+        }
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+
+  @Test
+  @DisplayName("A valid MQTT JSON message is ingested when a sentinel status value is specified")
+  fun validMqttMessageIsIngestedSentinelStatus(vertx: Vertx, testContext: VertxTestContext): Unit =
+    runBlocking(vertx.dispatcher()) {
+      val message = jsonObjectOf(
+        "relayID" to "abc",
+        "beacons" to jsonArrayOf(
+          jsonObjectOf(
+            "mac" to "aa:aa:aa:aa:aa:aa",
+            "rssi" to -60.0,
+            "battery" to 10,
+            "temperature" to 24,
+            "status" to -1
+          ),
+          jsonObjectOf(
+            "mac" to "bb:aa:aa:aa:aa:aa",
+            "rssi" to -59.0,
+            "battery" to 99,
+            "temperature" to 20,
+            "status" to 2
+          )
+        ),
+        "latitude" to 2.3,
+        "longitude" to 2.3,
+        "floor" to 1
+      )
+
+      try {
+        mqttClient.connect(MQTT_PORT, MQTT_HOST).await()
+        mqttClient.publish(INGESTION_TOPIC, message.toBuffer(), MqttQoS.AT_LEAST_ONCE, false, false).await()
+        kafkaConsumer.subscribe(INGESTION_TOPIC).await()
+        testContext.verify {
+          kafkaConsumer.handler {
+            testContext.completeNow()
+          }
+        }
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
+
 
   @Test
   @DisplayName("A MQTT client for another company than biot gets the right last config at subscription")
@@ -1293,11 +1435,9 @@ class TestRelaysCommunicationVerticle {
         vertx,
         mqttClientOptionsOf(
           clientId = configurationAnotherCompany["mqttID"],
-          username = configurationAnotherCompany["mqttUsername"],
-          password = mqttPassword,
-          willFlag = true,
-          willMessage = jsonObjectOf("company" to anotherCompanyName).encode(),
-          ssl = false,
+          username = "relayBiot_${configurationAnotherCompany.getString("mqttID")}",
+          password = "relayBiot_${configurationAnotherCompany.getString("mqttID")}".sha3256Hash(),
+          ssl = true,
         )
       )
 
@@ -1312,6 +1452,7 @@ class TestRelaysCommunicationVerticle {
                 remove("ledStatus")
                 put("whiteList", "122334aeb5d201a2d4fe5621") // itemAnother1 and itemAnother2 mac addresses without :
                 put("connected", true)
+                put("company", anotherCompanyName)
               }
               expectThat(msg.payload().toJsonObject()).isEqualTo(expected)
               testContext.completeNow()
@@ -1486,35 +1627,11 @@ class TestRelaysCommunicationVerticle {
   fun emergencyRequestFlagTrueWhenDefault(testContext: VertxTestContext) {
     val response = Buffer.buffer(
       Given {
-      spec(requestSpecification)
-      contentType(ContentType.JSON)
-      accept(ContentType.JSON)
-    } When {
-      queryParam("relayID", "relay_0")
-      get("/relays-emergency")
-    } Then {
-      statusCode(200)
-    } Extract {
-      asString()
-    }).toJsonObject()
-
-    testContext.verify {
-      expectThat(response).isNotNull()
-      expectThat(response.getBoolean("forceReset")).isTrue()
-      expectThat(response.getString("repoURL")).isEqualTo(RELAY_REPO_URL)
-      testContext.completeNow()
-    }
-  }
-
-  @Test
-  @DisplayName("Emergency request returns repo url + True as flag if no relayID is passed")
-  fun emergencyRequestFlagTrueWhenNoRelayID(testContext: VertxTestContext) {
-    val response = Buffer.buffer(
-      Given {
         spec(requestSpecification)
         contentType(ContentType.JSON)
         accept(ContentType.JSON)
       } When {
+        queryParam("relayID", "relay_0")
         get("/relays-emergency")
       } Then {
         statusCode(200)
@@ -1531,8 +1648,32 @@ class TestRelaysCommunicationVerticle {
   }
 
   @Test
-  @DisplayName("Emergency request returns repo url + True as flag if relayID is not in DB")
-  fun emergencyRequestFlagTrueWhenUnknown(testContext: VertxTestContext) {
+  @DisplayName("Emergency request returns repo url + False as flag if no relayID is passed")
+  fun emergencyRequestFlagFalseWhenNoRelayID(testContext: VertxTestContext) {
+    val response = Buffer.buffer(
+      Given {
+        spec(requestSpecification)
+        contentType(ContentType.JSON)
+        accept(ContentType.JSON)
+      } When {
+        get("/relays-emergency")
+      } Then {
+        statusCode(200)
+      } Extract {
+        asString()
+      }).toJsonObject()
+
+    testContext.verify {
+      expectThat(response).isNotNull()
+      expectThat(response.getBoolean("forceReset")).isFalse()
+      expectThat(response.getString("repoURL")).isEqualTo(RELAY_REPO_URL)
+      testContext.completeNow()
+    }
+  }
+
+  @Test
+  @DisplayName("Emergency request returns repo url + False as flag if relayID is not in DB")
+  fun emergencyRequestFlagFalseWhenUnknown(testContext: VertxTestContext) {
     val response = Buffer.buffer(
       Given {
         spec(requestSpecification)
@@ -1549,7 +1690,7 @@ class TestRelaysCommunicationVerticle {
 
     testContext.verify {
       expectThat(response).isNotNull()
-      expectThat(response.getBoolean("forceReset")).isTrue()
+      expectThat(response.getBoolean("forceReset")).isFalse()
       expectThat(response.getString("repoURL")).isEqualTo(RELAY_REPO_URL)
       testContext.completeNow()
     }
@@ -1606,6 +1747,68 @@ class TestRelaysCommunicationVerticle {
       testContext.completeNow()
     }
   }
+
+  @Test
+  @DisplayName("A client receives the configuration when signaling that it is ready and the server increments the next relayID when receiving the ack")
+  fun clientReceivesConfigurationWhenReadyAndServerIncrementsNextRelayIDAfterAck(
+    vertx: Vertx,
+    testContext: VertxTestContext
+  ): Unit =
+    runBlocking(vertx.dispatcher()) {
+      try {
+        mqttClient.connect(MQTT_PORT, MQTT_HOST).await()
+
+        mqttClient.publishHandler { msg ->
+          if (msg.topicName() == RELAYS_CONFIGURATION_TOPIC) {
+            val message = msg.payload().toJsonObject()
+            if (!message.containsKey("relayMessage") && !message.containsKey("configuration")) {
+              // Skip the messages broadcast back by the server
+              testContext.verify {
+                val expected = jsonObjectOf(
+                  "relayID" to "relay_1",
+                  "mqttID" to "relay_1",
+                  "mqttUsername" to "relayBiot_relay_1",
+                  "mqttPassword" to "relayBiot_relay_1".sha3256Hash()
+                )
+                expectThat(message).isEqualTo(expected)
+              }
+
+              val clientWrittenConfigAckMessage = jsonObjectOf(
+                "relayMessage" to "Written config",
+                "content" to msg.payload().toString(),
+                "path" to "/home/pi/biot/config/.config"
+              )
+              mqttClient.publish(
+                RELAYS_CONFIGURATION_TOPIC,
+                clientWrittenConfigAckMessage.toBuffer(),
+                MqttQoS.AT_LEAST_ONCE,
+                false,
+                false
+              ).onSuccess {
+                vertx.setTimer(5_000) {
+                  mongoClient.readNextRelayID().onSuccess { nextRelayID ->
+                    testContext.verify {
+                      expectThat(nextRelayID).isEqualTo(2)
+                      testContext.completeNow()
+                    }
+                  }.onFailure(testContext::failNow)
+                }
+              }.onFailure(testContext::failNow)
+            }
+          }
+        }.subscribe(RELAYS_CONFIGURATION_TOPIC, MqttQoS.AT_LEAST_ONCE.value()).await()
+
+        mqttClient.publish(
+          RELAYS_CONFIGURATION_TOPIC,
+          jsonObjectOf("configuration" to "ready").toBuffer(),
+          MqttQoS.AT_LEAST_ONCE,
+          false,
+          false
+        ).await()
+      } catch (error: Throwable) {
+        testContext.failNow(error)
+      }
+    }
 
   companion object {
 
