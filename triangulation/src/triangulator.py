@@ -10,7 +10,7 @@ from typing import DefaultDict, Tuple, List
 
 import math
 import numpy as np
-from pykalman import KalmanFilter # https://pykalman.github.io/
+from pykalman import KalmanFilter  # https://pykalman.github.io/
 from google.cloud import storage
 import joblib
 
@@ -159,28 +159,32 @@ class Triangulator:
         # The last beacon data is used when sentinel values are received for some fields
         self.last_beacon_data_per_beacon = {}
 
-#         # Importing the scaler model
-#         filename = "src/scaler.sav"
-#         self.scaler = pickle.load(open(filename, "rb"))
-#
-#         # Importing the ML model
-#         filename = "src/Model_SVC.sav"
-#         self.reg_kalman = pickle.load(open(filename, "rb"))
-
-        client = storage.Client(project='dark-mark-304414')
-        bucket = client.get_bucket('biot-models')
-
-        scaler_blob = storage.Blob('scaler.sav', bucket)
-        rfr_blob = storage.Blob('rfr_compressed.gz', bucket)
-        # Download the scaler model and ML model
-        with open('scaler.sav', 'wb+') as scaler_file, open('rfr_compressed.gz', 'wb+') as rfr_file:
-            client.download_blob_to_file(scaler_blob, scaler_file)
-            client.download_blob_to_file(rfr_blob, rfr_file)
-
-        # Load the scaler model and ML model
-        with open('scaler.sav', 'rb') as scaler_file, open('rfr_compressed.gz', 'rb') as rfr_file:
+        # Importing the scaler model
+        with open("src/scaler.sav", "rb") as scaler_file:
             self.scaler = joblib.load(scaler_file)
-            self.reg_kalman = joblib.load(rfr_file)
+
+        # Importing the ML model
+        with open("src/Model_SVC.sav", "rb") as reg_kalman_file:
+            self.reg_kalman = joblib.load(reg_kalman_file)
+
+        # client = storage.Client(project="dark-mark-304414")
+        # bucket = client.get_bucket("biot-models")
+
+        # scaler_blob = storage.Blob("scaler.sav", bucket)
+        # rfr_blob = storage.Blob("rfr_compressed.gz", bucket)
+        # # Download the scaler model and ML model
+        # with open("scaler.sav", "wb+") as scaler_file, open(
+        #     "rfr_compressed.gz", "wb+"
+        # ) as rfr_file:
+        #     client.download_blob_to_file(scaler_blob, scaler_file)
+        #     client.download_blob_to_file(rfr_blob, rfr_file)
+
+        # # Load the scaler model and ML model
+        # with open("scaler.sav", "rb") as scaler_file, open(
+        #     "rfr_compressed.gz", "rb"
+        # ) as rfr_file:
+        #     self.scaler = joblib.load(scaler_file)
+        #     self.reg_kalman = joblib.load(rfr_file)
 
         return self
 
@@ -198,20 +202,23 @@ class Triangulator:
         Returns: unique latitude and longitude
         """
 
-        weight_2 = [0.3, 0.7] #pushing towards the closest relay; values = [position of the relay, position of the beacon]
-        if len(values) == 2: # nb relays = 3
+        weight_2 = [
+            0.3,
+            0.7,
+        ]  # pushing towards the closest relay; values = [position of the relay, position of the beacon]
+        if len(values) == 2:  # nb relays = 3
             mean_weighted = np.sum([a * b for a, b in zip(weight_2, values)])
 
         weight_3 = [0.4, 0.4, 0.2]
-        if len(values) == 3: # nb relays = 3
+        if len(values) == 3:  # nb relays = 3
             mean_weighted = np.sum([a * b for a, b in zip(weight_3, values)])
 
-        weight_4 = [0.25, 0.25, 0.25, 0.1 , 0.1, 0.05]
-        if len(values) == 6: # nb relays = 4
+        weight_4 = [0.25, 0.25, 0.25, 0.1, 0.1, 0.05]
+        if len(values) == 6:  # nb relays = 4
             mean_weighted = np.sum([a * b for a, b in zip(weight_4, values)])
 
         weight_5 = [0.175, 0.175, 0.175, 0.175, 0.06, 0.06, 0.06, 0.05, 0.05, 0.02]
-        if len(values) == 10: # nb relays = 5
+        if len(values) == 10:  # nb relays = 5
             mean_weighted = np.sum([a * b for a, b in zip(weight_5, values)])
 
         return mean_weighted
@@ -318,13 +325,18 @@ class Triangulator:
                     table_name,
                 )
             elif beacon_status != status:
-                await self._insert_beacon_data(table_name, _BeaconData(beacon["mac"],
-                    beacon["latitude"],
-                    beacon["longitude"],
-                    beacon["floor"],
-                    status,
-                    beacon["temperature"],
-                    beacon["battery"]))
+                await self._insert_beacon_data(
+                    table_name,
+                    _BeaconData(
+                        beacon["mac"],
+                        beacon["latitude"],
+                        beacon["longitude"],
+                        beacon["floor"],
+                        status,
+                        beacon["temperature"],
+                        beacon["battery"],
+                    ),
+                )
 
                 logger.info(
                     "Updated beacon '{}' status in DB '{}' to '{}'",
@@ -478,16 +490,16 @@ class Triangulator:
             logger.info(
                 "Starting triangulation for beacon: {}, with: {} relays", mac, nb_relays
             )
-           
-           lat = []
-           long = []
-           if nb_relays >= 3:
-               
-               # Taking only the 5 closest relays for triangulation
-               if nb_relays > 5:
-                   nb_relays = 5
-                   
-               for relay_1 in range(nb_relays - 1):
+
+            lat = []
+            long = []
+            if nb_relays >= 3:
+
+                # Taking only the 5 closest relays for triangulation
+                if nb_relays > 5:
+                    nb_relays = 5
+
+                for relay_1 in range(nb_relays - 1):
                     for relay_2 in range(relay_1 + 1, nb_relays):
                         relay_1_index = relay_indexes[relay_1]
                         relay_2_index = relay_indexes[relay_2]
@@ -532,19 +544,19 @@ class Triangulator:
                     # Otherwise taking the mean floor + rounding it
                     floor = np.around(np.mean(self.relay_matrix[0:3, 2]))
 
-               floor = np.mean(self.relay_matrix[0:3, 2])
+                floor = np.mean(self.relay_matrix[0:3, 2])
 
-               #Doing a weighted mean and then pushing towards the closest relay
-            #    new_lat = self._weighted_mean([self.relay_matrix[relay_indexes[0], 0] , np.mean(lat)])
-            #    new_long = self._weighted_mean([self.relay_matrix[relay_indexes[0], 1] , np.mean(long)])
-               new_lat = self._weighted_mean(lat)
-               new_long = self._weighted_mean(long)
-               self.coordinates_history.update_coordinates_history(
+                # Doing a weighted mean and then pushing towards the closest relay
+                #    new_lat = self._weighted_mean([self.relay_matrix[relay_indexes[0], 0] , np.mean(lat)])
+                #    new_long = self._weighted_mean([self.relay_matrix[relay_indexes[0], 1] , np.mean(long)])
+                new_lat = self._weighted_mean(lat)
+                new_long = self._weighted_mean(long)
+                self.coordinates_history.update_coordinates_history(
                     mac, (new_lat, new_long)
-               )
-               
-               # Use the weighted moving average for smoothing coordinates computation
-               (
+                )
+
+                # Use the weighted moving average for smoothing coordinates computation
+                (
                     weighted_latitude,
                     weighted_longitude,
                 ) = self.coordinates_history.weighted_moving_average(mac)
@@ -603,7 +615,7 @@ class Triangulator:
         # Import the data
         relay_data = [data["latitude"], data["longitude"], data["floor"]]
 
-        relay_data = np.array(relay_data).astype(np.float)
+        relay_data = np.array(relay_data).astype(np.float64)
         relay_name = data["relayID"]
 
         company = data["company"]
