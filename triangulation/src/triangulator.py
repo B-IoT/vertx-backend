@@ -8,8 +8,8 @@ from collections import defaultdict
 from typing import DefaultDict, Tuple, List
 
 
-import math
 import numpy as np
+from scipy.spatial.distance import cdist, euclidean
 from pykalman import KalmanFilter  # https://pykalman.github.io/
 from google.cloud import storage
 import joblib
@@ -46,7 +46,7 @@ class _CoordinatesHistory:
     Coordinates history used for weighted moving average.
     """
 
-    MAX_HISTORY_SIZE = 1
+    MAX_HISTORY_SIZE = 10
 
     def __init__(self):
         self.history_per_beacon: DefaultDict[
@@ -82,6 +82,39 @@ class _CoordinatesHistory:
         from 1 to MAX_HISTORY_SIZE.
         """
         return {i: self.compute_weights(i) for i in range(1, self.MAX_HISTORY_SIZE + 1)}
+
+    def geometric_median(self, beacon: str, eps=1e-5):
+        """
+        Computes the geometric median of the saved coordinates of the given beacon
+        """
+        coordinates_history = self.history_per_beacon[beacon]
+        X = np.array(coordinates_history)
+        y = np.mean(X, 0)
+
+        while True:
+            D = cdist(X, [y])
+            nonzeros = (D != 0)[:, 0]
+
+            Dinv = 1 / D[nonzeros]
+            Dinvs = np.sum(Dinv)
+            W = Dinv / Dinvs
+            T = np.sum(W * X[nonzeros], 0)
+
+            num_zeros = len(X) - np.sum(nonzeros)
+            if num_zeros == 0:
+                y1 = T
+            elif num_zeros == len(X):
+                return y
+            else:
+                R = (T - y) * Dinvs
+                r = np.linalg.norm(R)
+                rinv = 0 if r == 0 else num_zeros/r
+                y1 = max(0, 1-rinv)*T + min(1, rinv)*y
+
+            if euclidean(y, y1) < eps:
+                return y1
+
+            y = y1
 
     def weighted_moving_average(self, beacon: str) -> Tuple[float, float]:
         """
@@ -132,19 +165,22 @@ class Triangulator:
         self.nb_beacons = 25
         self.nb_relays = 25
 
-        self.filter_size_raw = 50
-        self.filter_size_dist = 15
+        self.filter_size_preproc = 60#30#60
+        self.filter_size_postproc = 30#15#30
 
-        self.max_history = max(self.filter_size_dist, self.filter_size_raw)
+        self.max_history = max(self.filter_size_postproc, self.filter_size_preproc)
 
-        self.var_coeff_raw = 15
-        self.var_coeff_dist = 10
+        self.var_coeff_preproc = 15
+        self.var_coeff_postproc = 10
 
         self.temp_raw = np.zeros([self.nb_beacons, self.nb_relays])
         self.temp_raw[:] = np.nan
 
         self.matrix_raw = np.zeros([self.nb_beacons, self.nb_relays, self.max_history])
         self.matrix_raw[:] = np.nan
+
+        self.matrix_rssi_kalman = np.zeros([self.nb_beacons, self.nb_relays, self.max_history])
+        self.matrix_rssi_kalman[:] = np.nan
 
         self.initial_value_guess = np.empty([self.nb_beacons, self.nb_relays])
         self.initial_value_guess[:] = 3
@@ -159,12 +195,14 @@ class Triangulator:
         # The last beacon data is used when sentinel values are received for some fields
         self.last_beacon_data_per_beacon = {}
 
+        # self.kalman = KalmanFilter(0.008, 1)
+
         # Importing the scaler model
         with open("src/scaler.sav", "rb") as scaler_file:
             self.scaler = joblib.load(scaler_file)
 
         # Importing the ML model
-        with open("src/Model_SVC.sav", "rb") as reg_kalman_file:
+        with open("src/gbr_compressed.gz", "rb") as reg_kalman_file:
             self.reg_kalman = joblib.load(reg_kalman_file)
 
         # client = storage.Client(project="dark-mark-304414")
@@ -201,13 +239,12 @@ class Triangulator:
         Input: list of latitudes and longitudes by ascending order with respect to the closest relay
         Returns: unique latitude and longitude
         """
-
-        weight_2 = [
-            0.3,
-            0.7,
-        ]  # pushing towards the closest relay; values = [position of the relay, position of the beacon]
-        if len(values) == 2:  # nb relays = 3
-            mean_weighted = np.sum([a * b for a, b in zip(weight_2, values)])
+        # weight_2 = [
+        #     0.7,
+        #     0.3,
+        # ]  # pushing towards the closest relay; values = [position of the relay, position of the beacon]
+        # if len(values) == 2:  # nb relays = 2
+        #     mean_weighted = np.sum([a * b for a, b in zip(weight_2, values)])
 
         weight_3 = [0.4, 0.4, 0.2]
         if len(values) == 3:  # nb relays = 3
@@ -379,25 +416,28 @@ class Triangulator:
         return np.array([X, X ** 2, X ** 3, X ** 4, X ** 5]).transpose()
 
     def _preprocessing(self, beacon_indexes, relay_index, max_history):
-        measured_ref = -64
+        measured_ref = -65
         tx = 6
-        meters_to_db = lambda x: measured_ref - 10 * tx * math.log10(x)
+
+        def meters_to_db(dist):
+            return measured_ref - 10 * tx * np.log10(dist)
 
         matrix_dist_temp = self.matrix_dist[:, :, 0]
         matrix_dist_temp_old = self.matrix_dist[:, :, 0]
+        matrix_rssi_kalman = self.matrix_rssi_kalman[:, :, 0]
 
-        self.initial_value_guess = np.array(
-            list(map(meters_to_db, matrix_dist_temp_old.flatten() / 100))
-        ).reshape(matrix_dist_temp_old.shape)
+        # self.initial_value_guess = np.array(
+        #     list(map(meters_to_db, matrix_dist_temp_old.flatten()))
+        # ).reshape(matrix_dist_temp_old.shape)
 
         matrix_dist_temp[:] = np.nan
 
         # Variance of the signal (per beacon/relay)
-        var = np.nanvar(
-            self.matrix_raw[:, :, 0 : self.filter_size_raw], axis=2
-        )  # Matrix 2D
-        var = self.var_coeff_raw * var
-        observation_covariance = var ** 2  # Matrix 2D with var^2
+        # var = np.nanvar(
+        #     self.matrix_raw[:, :, 0 : self.filter_size_preproc], axis=2
+        # )  # Matrix 2D
+        var = self.var_coeff_preproc * 83.13
+        observation_covariance = np.diag([var]) ** 2  # Matrix 2D with var^2
 
         indexes = tuple(
             np.argwhere(~np.isnan(self.matrix_raw[:, :, 0]))
@@ -406,21 +446,34 @@ class Triangulator:
         for index in indexes:
             index = tuple(index)  # Converting to the right format
 
+            logger.info("initial_state_mean = {}", matrix_rssi_kalman[index])
+
             kf = KalmanFilter(
-                initial_state_mean=self.initial_value_guess[index],
-                initial_state_covariance=observation_covariance[index],
-                observation_covariance=observation_covariance[index],
+                initial_state_mean=matrix_rssi_kalman[index],
+                initial_state_covariance=observation_covariance,
+                observation_covariance=observation_covariance,
             )
 
             temp = self.matrix_raw[
-                index[0], index[1], 0 : self.filter_size_raw
-            ]  # Matrix of 1 x filter_size_raw
+                index[0], index[1], 0 : self.filter_size_preproc
+            ]  # Matrix of 1 x filter_size_preproc
+
+            # logger.info("Mean RSSIs = {}", np.nanmean(temp))
+            # logger.info("Median RSSIs = {}", np.nanmedian(temp))
+
             temp = np.flip(temp)  # Flipping to be in the right format for Kalman
             temp = temp[~np.isnan(temp)]  # Removing all nan
             if temp.shape[0] > 1 and not np.isnan(
-                self.initial_value_guess[index]
+                matrix_rssi_kalman[index]
             ):  # Checking we have more than 1 value
                 temp, _ = kf.smooth(temp)
+
+            matrix_rssi_kalman[index] = temp[-1]
+            self.matrix_rssi_kalman = np.dstack((matrix_rssi_kalman, self.matrix_rssi_kalman))
+            self.matrix_rssi_kalman = self.matrix_rssi_kalman[:, :, 0:max_history]
+
+            # logger.info("Distance after Kalman = {}", self._db_to_meters(temp, measured_ref, tx))
+            # logger.info("Temp before feature augmentation = {}", temp)
 
             temp = self._feature_augmentation(
                 temp[-1]
@@ -428,13 +481,19 @@ class Triangulator:
             temp = self.scaler.transform(np.array(temp).reshape(1, -1))  # Normalizing
             temp = np.concatenate(([1], temp.flatten()))
 
+            # logger.info("Temp scaled = {}", temp)
+
+            dist_estimated = self.reg_kalman.predict(np.array(temp).reshape(1, -1))
             matrix_dist_temp[index] = (
-                self.reg_kalman.predict(np.array(temp).reshape(1, -1)) / 100
+                dist_estimated / 100 if dist_estimated <= 55 else dist_estimated / 250
             )
+            logger.info("Meters after preproc and ML = {}", matrix_dist_temp[index])
+            # matrix_dist_temp[index] = self._db_to_meters(filtered_rssi, measured_ref, tx)
+
 
         if len(indexes) > 0:
             # Stack matrix_dist_temp onto matrix_dist
-            np.dstack((matrix_dist_temp, self.matrix_dist))
+            self.matrix_dist = np.dstack((matrix_dist_temp, self.matrix_dist))
             self.matrix_dist = self.matrix_dist[:, :, 0:max_history]
 
         indexes = tuple(
@@ -443,23 +502,25 @@ class Triangulator:
         initial_value_guess_dist = self.matrix_dist[:, :, 0]
 
         # Variance of the signal (per beacon/relay)
-        var_dist = np.nanvar(
-            self.matrix_dist[:, :, 0 : self.filter_size_dist], axis=2
-        )  # Matrix 2D
-        var_dist = self.var_coeff_dist * var_dist
-        observation_covariance_dist = var_dist ** 2  # Matrix 2D with var^2
+        # var_dist = np.nanvar(
+        #     self.matrix_dist[:, :, 0 : self.filter_size_postproc], axis=2
+        # )  # Matrix 2D
+        var_dist = self.var_coeff_postproc * 1034.92
+        observation_covariance_dist = np.diag([var_dist]) ** 2  # Matrix 2D with var^2
 
         for index in indexes:
             index = tuple(index)  # Converting to the right format
 
+            # logger.info("Initial value guess postproc = {}", initial_value_guess_dist[index])
+
             kf = KalmanFilter(
                 initial_state_mean=initial_value_guess_dist[index],
-                initial_state_covariance=observation_covariance_dist[index],
-                observation_covariance=observation_covariance_dist[index],
+                initial_state_covariance=observation_covariance_dist,
+                observation_covariance=observation_covariance_dist,
             )
 
             temp = self.matrix_dist[
-                index[0], index[1], 0 : self.filter_size_dist
+                index[0], index[1], 0 : self.filter_size_postproc
             ]  # Matrix of 1 x filter_size_dist
             temp = np.flip(temp)  # Flipping to be in the right format for Kalman
             temp = temp[~np.isnan(temp)]  # Removing all nan
@@ -482,6 +543,8 @@ class Triangulator:
 
             temp = self.matrix_dist[beacon_index, :, 0]
 
+            # logger.info("Distances after everything = {}", temp)
+
             relay_indexes = np.argwhere(~np.isnan(temp)).flatten()
             relay_indexes = temp[relay_indexes].argsort()
 
@@ -494,6 +557,11 @@ class Triangulator:
             lat = []
             long = []
             if nb_relays >= 3:
+                # distances = self.matrix_dist[beacon_index, relay_indexes, 0]
+                # not_nan_distances_indexes = np.argwhere(~np.isnan(distances)).flatten()
+                # distances = distances[not_nan_distances_indexes]
+                # relays_coords = np.array([(self.relay_matrix[index, 0], self.relay_matrix[index, 1]) for index in relay_indexes])
+                # relays_coords = relays_coords[not_nan_distances_indexes]
 
                 # Taking only the 5 closest relays for triangulation
                 if nb_relays > 5:
@@ -547,21 +615,14 @@ class Triangulator:
                 floor = np.mean(self.relay_matrix[0:3, 2])
 
                 # Doing a weighted mean and then pushing towards the closest relay
-                #    new_lat = self._weighted_mean([self.relay_matrix[relay_indexes[0], 0] , np.mean(lat)])
-                #    new_long = self._weighted_mean([self.relay_matrix[relay_indexes[0], 1] , np.mean(long)])
-                # new_lat = self._weighted_mean(lat)
-                # new_long = self._weighted_mean(long)
-                new_lat = np.mean(lat)
-                new_long = np.mean(long)
-                self.coordinates_history.update_coordinates_history(
-                    mac, (new_lat, new_long)
-                )
-
-                # Use the weighted moving average for smoothing coordinates computation
-                (
-                    weighted_latitude,
-                    weighted_longitude,
-                ) = self.coordinates_history.weighted_moving_average(mac)
+                # new_lat = self._weighted_mean([self.relay_matrix[relay_indexes[0], 0] , np.mean(lat)])
+                # new_long = self._weighted_mean([self.relay_matrix[relay_indexes[0], 1] , np.mean(long)])
+                new_lat = self._weighted_mean(lat)
+                new_long = self._weighted_mean(long)
+                # new_lat = self.relay_matrix[relay_indexes[0], 0]
+                # new_long = self.relay_matrix[relay_indexes[0], 1]
+                # new_lat = np.mean(lat)
+                # new_long = np.mean(long)
 
                 new_beacon_status = (
                     self.TO_REPAIR
@@ -569,7 +630,23 @@ class Triangulator:
                     else self.AVAILABLE
                 )
 
-                if not np.isnan(weighted_latitude) and not np.isnan(weighted_longitude):
+                if not np.isnan(new_lat) and not np.isnan(new_long):
+                    self.coordinates_history.update_coordinates_history(
+                        mac, (new_lat, new_long)
+                    )
+
+                    # # Use the weighted moving average for smoothing coordinates computation
+                    # (
+                    #     weighted_latitude,
+                    #     weighted_longitude,
+                    # ) = self.coordinates_history.weighted_moving_average(mac)
+
+                    # Use the geometric median for smoothing coordinates computation and removing outliers
+                    (
+                        weighted_latitude,
+                        weighted_longitude,
+                    ) = self.coordinates_history.geometric_median(mac)
+
                     data = _BeaconData(
                         mac,
                         weighted_latitude,  #     ,    np.mean(lat)   weighted_latitude
@@ -684,13 +761,27 @@ class Triangulator:
                 # Starting the filtering job
                 self._preprocessing(beacon_indexes, relay_index, self.max_history)
 
+                logger.info("Relay matrix name {}", self.relay_matrix_name)
+                logger.info("Matrix dist {}", self.matrix_dist[:, :, 0])
+
                 coordinates = await self._triangulation_engine(
                     beacon_indexes, beacons, company
                 )
                 self.temp_raw[:] = np.nan
 
-            self.temp_raw[beacon_number_temp, relay_index] = rssis[i]
+            self.temp_raw[beacon_number_temp, relay_index] = rssis[i]#self._improve_rssi(rssis[i])
 
-        # Initial value guess with the nominal model at 1m
         if coordinates:
             await self._store_beacons_data(company, coordinates)
+
+    def _improve_rssi(self, rssi):
+        if rssi <= 65:
+            return rssi
+        elif 65 < rssi and rssi <= 70:
+            return rssi - 6
+        elif 70 < rssi and rssi <= 75:
+            return rssi - 15
+        elif 75 < rssi and rssi <= 85:
+            return rssi - 15
+        else:
+            return rssi - 15
