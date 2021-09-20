@@ -31,7 +31,7 @@ allprojects {
     extra["striktVersion"] = "0.31.0"
     extra["hazelcastVersion"] = "2.2.3"
     extra["micrometerPrometheusVersion"] = "1.7.2"
-    extra["arrowVersion"] = "0.13.2"
+    extra["arrowVersion"] = "0.13.3"
     extra["mockkVersion"] = "1.12.0"
 }
 
