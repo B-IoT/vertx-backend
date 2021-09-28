@@ -593,8 +593,8 @@ class Triangulator:
                 # relays_coords = relays_coords[not_nan_distances_indexes]
 
                 # Taking only the 5 closest relays for triangulation
-                if nb_relays > 4:
-                    nb_relays = 4
+                if nb_relays > 5:
+                    nb_relays = 5
 
                 for relay_1 in range(nb_relays - 1):
                     logger.info("relay_1_index: {}", relay_indexes[relay_1])
