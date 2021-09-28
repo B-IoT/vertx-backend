@@ -262,7 +262,7 @@ class Triangulator:
         
         weight_6 = [0.15, 0.15, 0.15, 0.15, 0.15, 0.04, 0.04, 0.04, 0.04, 0.02, 0.02, 0.02, 0.01, 0.01, 0.01]
         if len(values) == 15:  # nb relays = 5
-            mean_weighted = np.sum([a * b for a, b in zip(weight_5, values)])
+            mean_weighted = np.sum([a * b for a, b in zip(weight_6, values)])
 
 
         return mean_weighted
