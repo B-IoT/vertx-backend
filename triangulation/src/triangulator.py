@@ -564,7 +564,7 @@ class Triangulator:
                 mac, beacon_data["battery"], beacon_data["temperature"]
             )
 
-            temp = np.array(self.matrix_dist[beacon_index, :, 0])
+            temp = np.array(self.matrix_dist)[beacon_index, :, 0]
             
             logger.info("temp: {}", temp)
             logger.info("matrix_dist: {}", self.matrix_dist)
