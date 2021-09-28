@@ -568,8 +568,8 @@ class Triangulator:
             
             logger.info("temp: {}", temp)
             
-            relay_indexes_nan = np.argwhere(~np.isnan(temp))
-            logger.info("relay_indexes for temp no nan: {}", relay_indexes_nan)
+            relay_indexes_nan = np.argwhere(np.isnan(temp)).flatten()
+            logger.info("relay_indexes for temp nans: {}", relay_indexes_nan)
             
             relay_indexes_sorted = temp.argsort()
             logger.info("relay_indexes for temp sorted: {}", relay_indexes_sorted)
