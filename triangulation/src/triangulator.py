@@ -567,6 +567,7 @@ class Triangulator:
             temp = self.matrix_dist[beacon_index, :, 0]
             
             logger.info("temp: {}", temp)
+            logger.info("matrix_dist: {}", self.matrix_dist)
             
             relay_indexes = np.argwhere(~np.isnan(temp)).flatten()
             logger.info("relay_indexes for temp no nan: {}", relay_indexes)
@@ -594,8 +595,15 @@ class Triangulator:
                     nb_relays = 5
 
                 for relay_1 in range(nb_relays - 1):
+                    logger.info("relay_1_index: {}", relay_indexes[relay_1])
+                    
+                    logger.info("matrix_dist: {}", self.self.matrix_dist[beacon_index, :, 0])
+                    
+                    logger.info("matrix_dist: {}", self.self.matrix_dist[beacon_index, relay_1, 0])
+                    
                     for relay_2 in range(relay_1 + 1, nb_relays):
                         relay_1_index = relay_indexes[relay_1]
+                        
                         relay_2_index = relay_indexes[relay_2]
                         vect_lat = (
                             self.relay_matrix[relay_2_index, 0]
