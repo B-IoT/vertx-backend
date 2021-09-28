@@ -552,7 +552,8 @@ class Triangulator:
 
     async def _triangulation_engine(self, beacon_indexes, beacons, company):
         coordinates = []
-
+        
+        logger.info("beacon_indexes: {}", beacon_indexes)
         for beacon_index in beacon_indexes:
             mac = self.inv_beacon_mapping[beacon_index]
             beacon_data = next(b for b in beacons if b["mac"] == mac)
@@ -564,10 +565,15 @@ class Triangulator:
             )
 
             temp = self.matrix_dist[beacon_index, :, 0]
-
+            
+            logger.info("temp: {}", temp)
+            
             relay_indexes = np.argwhere(~np.isnan(temp)).flatten()
+            logger.info("relay_indexes for temp no nan: {}", relay_indexes)
+            
             relay_indexes = temp[relay_indexes].argsort()
-
+            logger.info("relay_indexes for temp sorted: {}", relay_indexes)
+            
             nb_relays = len(relay_indexes)
 
             logger.info(
@@ -607,6 +613,7 @@ class Triangulator:
                             self.relay_matrix[relay_2_index, 0],
                             self.relay_matrix[relay_2_index, 1],
                         )
+                        
                         logger.info(
                             "dist: {}", dist
                         )
@@ -615,6 +622,7 @@ class Triangulator:
                         # ie: x1 = x0 + (dist_beacon/dist_tot) * vector_length
 
                         dist_1 = self.matrix_dist[beacon_index, relay_1_index, 0]
+                        
                         
                         logger.info(
                             "dist_1: {}", dist_1
