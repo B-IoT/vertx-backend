@@ -568,12 +568,15 @@ class Triangulator:
             
             logger.info("temp: {}", temp)
             
-            relay_indexes = np.argwhere(~np.isnan(temp)).flatten()
-            logger.info("relay_indexes for temp no nan: {}", relay_indexes)
+            relay_indexes_nan = np.argwhere(~np.isnan(temp))
+            logger.info("relay_indexes for temp no nan: {}", relay_indexes_nan)
             
-            relay_indexes = np.array(temp)[relay_indexes].argsort()
+            relay_indexes_sorted = temp.argsort()
+            logger.info("relay_indexes for temp sorted: {}", relay_indexes_sorted)
+            
+            relay_indexes = [x for x in relay_indexes_sorted if x not in relay_indexes_nan]
             logger.info("relay_indexes for temp sorted: {}", relay_indexes)
-            
+                        
             nb_relays = len(relay_indexes)
 
             logger.info(
@@ -595,10 +598,6 @@ class Triangulator:
 
                 for relay_1 in range(nb_relays - 1):
                     logger.info("relay_1_index: {}", relay_indexes[relay_1])
-                    
-                    logger.info("matrix_dist: {}", self.matrix_dist[beacon_index, :, 0])
-                    
-                    logger.info("matrix_dist: {}", self.matrix_dist[beacon_index, relay_1, 0])
                     
                     for relay_2 in range(relay_1 + 1, nb_relays):
                         relay_1_index = relay_indexes[relay_1]
