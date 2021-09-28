@@ -607,14 +607,12 @@ class Triangulator:
                             self.relay_matrix[relay_2_index, 0],
                             self.relay_matrix[relay_2_index, 1],
                         )
-                        logger.info("Calculated dist {}", dist)
 
                         # Applying proportionality rule from the origin on the vector to determine the position of the beacon in lat;long coord
                         # ie: x1 = x0 + (dist_beacon/dist_tot) * vector_length
 
                         dist_1 = self.matrix_dist[beacon_index, relay_1_index, 0]
-                        logger.info("Calculatted dist1 {}", dist_1)
-                            
+
                         lat.append(
                             self.relay_matrix[relay_1_index, 0]
                             + (dist_1 / dist) * vect_lat
