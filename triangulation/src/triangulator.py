@@ -564,15 +564,14 @@ class Triangulator:
                 mac, beacon_data["battery"], beacon_data["temperature"]
             )
 
-            temp = np.array(self.matrix_dist)[beacon_index, :, 0]
+            temp = self.matrix_dist[beacon_index, :, 0]
             
             logger.info("temp: {}", temp)
-            logger.info("matrix_dist: {}", self.matrix_dist)
             
             relay_indexes = np.argwhere(~np.isnan(temp)).flatten()
             logger.info("relay_indexes for temp no nan: {}", relay_indexes)
             
-            relay_indexes = temp[relay_indexes].argsort()
+            relay_indexes = np.array(temp)[relay_indexes].argsort()
             logger.info("relay_indexes for temp sorted: {}", relay_indexes)
             
             nb_relays = len(relay_indexes)
