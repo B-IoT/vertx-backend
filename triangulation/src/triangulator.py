@@ -774,15 +774,17 @@ class Triangulator:
                 # Starting the filtering job
                 self._preprocessing(beacon_indexes, relay_index, self.max_history)
 
-                logger.info("Relay matrix name {}", self.relay_matrix_name)
-                logger.info("Matrix dist {}", self.matrix_dist[:, :, 0])
+                # logger.info("Relay matrix name {}", self.relay_matrix_name)
+                # logger.info("Matrix dist {}", self.matrix_dist[:, :, 0])
 
                 coordinates = await self._triangulation_engine(
                     beacon_indexes, beacons, company
                 )
                 self.temp_raw[:] = np.nan
 
-            self.temp_raw[beacon_number_temp, relay_index] = rssis[i]
+            self.temp_raw[beacon_number_temp, relay_index] = rssis[
+                i
+            ]  # self._improve_rssi(rssis[i])
 
         if coordinates:
             await self._store_beacons_data(company, coordinates)
