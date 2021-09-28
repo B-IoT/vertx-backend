@@ -165,8 +165,8 @@ class Triangulator:
         self.nb_beacons = 25
         self.nb_relays = 25
 
-        self.filter_size_preproc = 30  # 30#60
-        self.filter_size_postproc = 15  # 15#30
+        self.filter_size_preproc = 20  # 30#60
+        self.filter_size_postproc = 10  # 15#30
 
         self.max_history = max(self.filter_size_postproc, self.filter_size_preproc)
 
