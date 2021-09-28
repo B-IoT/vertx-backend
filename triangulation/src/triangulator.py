@@ -259,6 +259,11 @@ class Triangulator:
         weight_5 = [0.175, 0.175, 0.175, 0.175, 0.06, 0.06, 0.06, 0.05, 0.05, 0.02]
         if len(values) == 10:  # nb relays = 5
             mean_weighted = np.sum([a * b for a, b in zip(weight_5, values)])
+        
+        weight_6 = [0.15, 0.15, 0.15, 0.15, 0.15, 0.04, 0.04, 0.04, 0.04, 0.02, 0.02, 0.02, 0.01, 0.01, 0.01]
+        if len(values) == 15:  # nb relays = 5
+            mean_weighted = np.sum([a * b for a, b in zip(weight_5, values)])
+
 
         return mean_weighted
 
@@ -593,8 +598,8 @@ class Triangulator:
                 # relays_coords = relays_coords[not_nan_distances_indexes]
 
                 # Taking only the 5 closest relays for triangulation
-                if nb_relays > 5:
-                    nb_relays = 5
+                if nb_relays > 6:
+                    nb_relays = 6
 
                 for relay_1 in range(nb_relays - 1):
                     logger.info("relay_1_index: {}", relay_indexes[relay_1])
