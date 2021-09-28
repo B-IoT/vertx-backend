@@ -642,12 +642,6 @@ class Triangulator:
                 # new_lat = np.mean(lat)
                 # new_long = np.mean(long)
 
-                logger.info("Latitude before weighting {}", lat)
-                logger.info("Longitude before weighting {}", long)
-
-                logger.info("Latitude {}", new_lat)
-                logger.info("Longitude {}", new_long)
-
                 new_beacon_status = (
                     self.TO_REPAIR
                     if status == self.MOVEMENT_DETECTED_AND_BUTTON_PRESSED
