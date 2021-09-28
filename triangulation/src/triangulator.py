@@ -597,9 +597,9 @@ class Triangulator:
                 for relay_1 in range(nb_relays - 1):
                     logger.info("relay_1_index: {}", relay_indexes[relay_1])
                     
-                    logger.info("matrix_dist: {}", self.self.matrix_dist[beacon_index, :, 0])
+                    logger.info("matrix_dist: {}", self.matrix_dist[beacon_index, :, 0])
                     
-                    logger.info("matrix_dist: {}", self.self.matrix_dist[beacon_index, relay_1, 0])
+                    logger.info("matrix_dist: {}", self.matrix_dist[beacon_index, relay_1, 0])
                     
                     for relay_2 in range(relay_1 + 1, nb_relays):
                         relay_1_index = relay_indexes[relay_1]
