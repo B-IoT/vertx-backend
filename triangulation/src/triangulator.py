@@ -8,10 +8,11 @@ from collections import defaultdict
 from typing import DefaultDict, Tuple, List
 
 
-import math
 import numpy as np
+from scipy.spatial.distance import cdist, euclidean
 from pykalman import KalmanFilter  # https://pykalman.github.io/
-import pickle
+from google.cloud import storage
+import joblib
 
 
 class _BeaconData:
@@ -82,6 +83,39 @@ class _CoordinatesHistory:
         """
         return {i: self.compute_weights(i) for i in range(1, self.MAX_HISTORY_SIZE + 1)}
 
+    def geometric_median(self, beacon: str, eps=1e-5):
+        """
+        Computes the geometric median of the saved coordinates of the given beacon
+        """
+        coordinates_history = self.history_per_beacon[beacon]
+        X = np.array(coordinates_history)
+        y = np.mean(X, 0)
+
+        while True:
+            D = cdist(X, [y])
+            nonzeros = (D != 0)[:, 0]
+
+            Dinv = 1 / D[nonzeros]
+            Dinvs = np.sum(Dinv)
+            W = Dinv / Dinvs
+            T = np.sum(W * X[nonzeros], 0)
+
+            num_zeros = len(X) - np.sum(nonzeros)
+            if num_zeros == 0:
+                y1 = T
+            elif num_zeros == len(X):
+                return y
+            else:
+                R = (T - y) * Dinvs
+                r = np.linalg.norm(R)
+                rinv = 0 if r == 0 else num_zeros / r
+                y1 = max(0, 1 - rinv) * T + min(1, rinv) * y
+
+            if euclidean(y, y1) < eps:
+                return y1
+
+            y = y1
+
     def weighted_moving_average(self, beacon: str) -> Tuple[float, float]:
         """
         Computes the moving average given the beacon, returning the average for both latitude and longitude.
@@ -131,19 +165,24 @@ class Triangulator:
         self.nb_beacons = 25
         self.nb_relays = 25
 
-        self.filter_size_raw = 50
-        self.filter_size_dist = 15
+        self.filter_size_preproc = 60  # 30#60
+        self.filter_size_postproc = 30  # 15#30
 
-        self.max_history = max(self.filter_size_dist, self.filter_size_raw)
+        self.max_history = max(self.filter_size_postproc, self.filter_size_preproc)
 
-        self.var_coeff_raw = 15
-        self.var_coeff_dist = 10
+        self.var_coeff_preproc = 15
+        self.var_coeff_postproc = 10
 
         self.temp_raw = np.zeros([self.nb_beacons, self.nb_relays])
         self.temp_raw[:] = np.nan
 
         self.matrix_raw = np.zeros([self.nb_beacons, self.nb_relays, self.max_history])
         self.matrix_raw[:] = np.nan
+
+        self.matrix_rssi_kalman = np.zeros(
+            [self.nb_beacons, self.nb_relays, self.max_history]
+        )
+        self.matrix_rssi_kalman[:] = np.nan
 
         self.initial_value_guess = np.empty([self.nb_beacons, self.nb_relays])
         self.initial_value_guess[:] = 3
@@ -158,13 +197,34 @@ class Triangulator:
         # The last beacon data is used when sentinel values are received for some fields
         self.last_beacon_data_per_beacon = {}
 
+        # self.kalman = KalmanFilter(0.008, 1)
+
         # Importing the scaler model
-        filename = "src/scaler.sav"
-        self.scaler = pickle.load(open(filename, "rb"))
+        with open("src/scaler.sav", "rb") as scaler_file:
+            self.scaler = joblib.load(scaler_file)
 
         # Importing the ML model
-        filename = "src/Model_SVC.sav"
-        self.reg_kalman = pickle.load(open(filename, "rb"))
+        with open("src/gbr_compressed.gz", "rb") as reg_kalman_file:
+            self.reg_kalman = joblib.load(reg_kalman_file)
+
+        # client = storage.Client(project="dark-mark-304414")
+        # bucket = client.get_bucket("biot-models")
+
+        # scaler_blob = storage.Blob("scaler.sav", bucket)
+        # rfr_blob = storage.Blob("rfr_compressed.gz", bucket)
+        # # Download the scaler model and ML model
+        # with open("scaler.sav", "wb+") as scaler_file, open(
+        #     "rfr_compressed.gz", "wb+"
+        # ) as rfr_file:
+        #     client.download_blob_to_file(scaler_blob, scaler_file)
+        #     client.download_blob_to_file(rfr_blob, rfr_file)
+
+        # # Load the scaler model and ML model
+        # with open("scaler.sav", "rb") as scaler_file, open(
+        #     "rfr_compressed.gz", "rb"
+        # ) as rfr_file:
+        #     self.scaler = joblib.load(scaler_file)
+        #     self.reg_kalman = joblib.load(rfr_file)
 
         return self
 
@@ -173,6 +233,39 @@ class Triangulator:
         Gets the beacon_data table name for the given company.
         """
         return f"beacon_data_{company}" if company != "biot" else "beacon_data"
+
+    def _weighted_mean(self, values):
+        """
+        Calculates a weighted mean for the triangulation to triangulate to the closest relay
+
+        Input: list of latitudes and longitudes by ascending order with respect to the closest relay
+        Returns: unique latitude and longitude
+        """
+        # weight_2 = [
+        #     0.7,
+        #     0.3,
+        # ]  # pushing towards the closest relay; values = [position of the relay, position of the beacon]
+        # if len(values) == 2:  # nb relays = 2
+        #     mean_weighted = np.sum([a * b for a, b in zip(weight_2, values)])
+
+        weight_3 = [0.4, 0.4, 0.2]
+        if len(values) == 3:  # nb relays = 3
+            mean_weighted = np.sum([a * b for a, b in zip(weight_3, values)])
+
+        weight_4 = [0.25, 0.25, 0.25, 0.1, 0.1, 0.05]
+        if len(values) == 6:  # nb relays = 4
+            mean_weighted = np.sum([a * b for a, b in zip(weight_4, values)])
+
+        weight_5 = [0.175, 0.175, 0.175, 0.175, 0.06, 0.06, 0.06, 0.05, 0.05, 0.02]
+        if len(values) == 10:  # nb relays = 5
+            mean_weighted = np.sum([a * b for a, b in zip(weight_5, values)])
+        
+        weight_6 = [0.15, 0.15, 0.15, 0.15, 0.15, 0.04, 0.04, 0.04, 0.04, 0.02, 0.02, 0.02, 0.01, 0.01, 0.01]
+        if len(values) == 15:  # nb relays = 5
+            mean_weighted = np.sum([a * b for a, b in zip(weight_6, values)])
+
+
+        return mean_weighted
 
     async def _insert_beacon_data(self, table_name: str, beacon_data: _BeaconData):
         """
@@ -186,6 +279,7 @@ class Triangulator:
                 if beacon_data.mac in self.last_beacon_data_per_beacon
                 else None
             )
+
             battery = None
             if beacon_data.battery != -1:
                 battery = beacon_data.battery
@@ -268,21 +362,19 @@ class Triangulator:
                 return
 
             beacon_status = beacon["beaconstatus"]
-            if beacon_status == -1:
-                # Sentinel value
-                logger.warning(
-                    "Skipping status update for beacon '{}' in DB '{}' (sentinel value received)",
-                    mac,
-                    table_name,
-                )
-            elif beacon_status != status:
-                await self._insert_beacon_data(table_name, _BeaconData(beacon["mac"],
+            if beacon_status != status:
+                beacon_data = _BeaconData(
+                    beacon["mac"],
                     beacon["latitude"],
                     beacon["longitude"],
                     beacon["floor"],
                     status,
                     beacon["temperature"],
-                    beacon["battery"]))
+                    beacon["battery"],
+                )
+                await self._insert_beacon_data(table_name, beacon_data)
+
+                self.last_beacon_data_per_beacon[mac] = beacon_data
 
                 logger.info(
                     "Updated beacon '{}' status in DB '{}' to '{}'",
@@ -325,25 +417,19 @@ class Triangulator:
         return np.array([X, X ** 2, X ** 3, X ** 4, X ** 5]).transpose()
 
     def _preprocessing(self, beacon_indexes, relay_index, max_history):
-        measured_ref = -64
+        measured_ref = -65
         tx = 6
-        meters_to_db = lambda x: measured_ref - 10 * tx * math.log10(x)
+
+        def meters_to_db(dist):
+            return measured_ref - 10 * tx * np.log10(dist)
 
         matrix_dist_temp = self.matrix_dist[:, :, 0]
-        matrix_dist_temp_old = self.matrix_dist[:, :, 0]
-
-        self.initial_value_guess = np.array(
-            list(map(meters_to_db, matrix_dist_temp_old.flatten() / 100))
-        ).reshape(matrix_dist_temp_old.shape)
+        matrix_rssi_kalman = self.matrix_rssi_kalman[:, :, 0]
 
         matrix_dist_temp[:] = np.nan
 
-        # Variance of the signal (per beacon/relay)
-        var = np.nanvar(
-            self.matrix_raw[:, :, 0 : self.filter_size_raw], axis=2
-        )  # Matrix 2D
-        var = self.var_coeff_raw * var
-        observation_covariance = var ** 2  # Matrix 2D with var^2
+        var = self.var_coeff_preproc * 83.13
+        observation_covariance = np.diag([var]) ** 2
 
         indexes = tuple(
             np.argwhere(~np.isnan(self.matrix_raw[:, :, 0]))
@@ -353,20 +439,27 @@ class Triangulator:
             index = tuple(index)  # Converting to the right format
 
             kf = KalmanFilter(
-                initial_state_mean=self.initial_value_guess[index],
-                initial_state_covariance=observation_covariance[index],
-                observation_covariance=observation_covariance[index],
+                initial_state_mean=matrix_rssi_kalman[index],
+                initial_state_covariance=observation_covariance,
+                observation_covariance=observation_covariance,
             )
 
             temp = self.matrix_raw[
-                index[0], index[1], 0 : self.filter_size_raw
-            ]  # Matrix of 1 x filter_size_raw
+                index[0], index[1], 0 : self.filter_size_preproc
+            ]  # Matrix of 1 x filter_size_preproc
+
             temp = np.flip(temp)  # Flipping to be in the right format for Kalman
             temp = temp[~np.isnan(temp)]  # Removing all nan
             if temp.shape[0] > 1 and not np.isnan(
-                self.initial_value_guess[index]
+                matrix_rssi_kalman[index]
             ):  # Checking we have more than 1 value
                 temp, _ = kf.smooth(temp)
+
+            matrix_rssi_kalman[index] = temp[-1]
+            self.matrix_rssi_kalman = np.dstack(
+                (matrix_rssi_kalman, self.matrix_rssi_kalman)
+            )
+            self.matrix_rssi_kalman = self.matrix_rssi_kalman[:, :, 0:max_history]
 
             temp = self._feature_augmentation(
                 temp[-1]
@@ -374,13 +467,15 @@ class Triangulator:
             temp = self.scaler.transform(np.array(temp).reshape(1, -1))  # Normalizing
             temp = np.concatenate(([1], temp.flatten()))
 
+            dist_estimated = self.reg_kalman.predict(np.array(temp).reshape(1, -1))
             matrix_dist_temp[index] = (
-                self.reg_kalman.predict(np.array(temp).reshape(1, -1)) / 100
+                dist_estimated / 100 if dist_estimated <= 55 else dist_estimated / 250
             )
+            logger.info("Meters after preproc and ML = {}", matrix_dist_temp[index])
 
         if len(indexes) > 0:
             # Stack matrix_dist_temp onto matrix_dist
-            np.dstack((matrix_dist_temp, self.matrix_dist))
+            self.matrix_dist = np.dstack((matrix_dist_temp, self.matrix_dist))
             self.matrix_dist = self.matrix_dist[:, :, 0:max_history]
 
         indexes = tuple(
@@ -388,24 +483,21 @@ class Triangulator:
         )  # Indexes of beacon/relay pairs
         initial_value_guess_dist = self.matrix_dist[:, :, 0]
 
-        # Variance of the signal (per beacon/relay)
-        var_dist = np.nanvar(
-            self.matrix_dist[:, :, 0 : self.filter_size_dist], axis=2
-        )  # Matrix 2D
-        var_dist = self.var_coeff_dist * var_dist
-        observation_covariance_dist = var_dist ** 2  # Matrix 2D with var^2
+        var_dist = self.var_coeff_postproc * 1034.92
+        observation_covariance_dist = np.diag([var_dist]) ** 2
 
         for index in indexes:
-            index = tuple(index)  # Converting to the right format
+            # Converting to the right format
+            index = tuple(index)
 
             kf = KalmanFilter(
                 initial_state_mean=initial_value_guess_dist[index],
-                initial_state_covariance=observation_covariance_dist[index],
-                observation_covariance=observation_covariance_dist[index],
+                initial_state_covariance=observation_covariance_dist,
+                observation_covariance=observation_covariance_dist,
             )
 
             temp = self.matrix_dist[
-                index[0], index[1], 0 : self.filter_size_dist
+                index[0], index[1], 0 : self.filter_size_postproc
             ]  # Matrix of 1 x filter_size_dist
             temp = np.flip(temp)  # Flipping to be in the right format for Kalman
             temp = temp[~np.isnan(temp)]  # Removing all nan
@@ -413,24 +505,83 @@ class Triangulator:
                 initial_value_guess_dist[index]
             ):  # Checking we have more than 1 value
                 temp, _ = kf.smooth(temp)
+
             smooth_dist = temp[-1]
             self.matrix_dist[index[0], index[1], 0] = smooth_dist
 
         return
 
+    def _cache_battery_and_temperature(self, mac: str, battery: int, temperature: int):
+        last_beacon_data = (
+            self.last_beacon_data_per_beacon[mac]
+            if mac in self.last_beacon_data_per_beacon
+            else None
+        )
+
+        if (
+            battery == -1
+            and last_beacon_data
+            and last_beacon_data.battery is not None
+            and last_beacon_data.battery != -1
+        ):
+            battery = last_beacon_data.battery
+
+        if (
+            temperature == -256
+            and last_beacon_data
+            and last_beacon_data.temperature is not None
+            and last_beacon_data.temperature != -256
+        ):
+            temperature = last_beacon_data.temperature
+
+        if last_beacon_data:
+            self.last_beacon_data_per_beacon[mac] = _BeaconData(
+                mac,
+                last_beacon_data.latitude,
+                last_beacon_data.longitude,
+                last_beacon_data.floor,
+                last_beacon_data.beacon_status,
+                temperature,
+                battery,
+            )
+        else:
+            self.last_beacon_data_per_beacon[mac] = _BeaconData(
+                mac,
+                None,
+                None,
+                None,
+                None,
+                temperature,
+                battery,
+            )
+
     async def _triangulation_engine(self, beacon_indexes, beacons, company):
         coordinates = []
-
-        for i, beacon_index in enumerate(beacon_indexes):
+        
+        logger.info("beacon_indexes: {}", beacon_indexes)
+        for beacon_index in beacon_indexes:
             mac = self.inv_beacon_mapping[beacon_index]
             beacon_data = next(b for b in beacons if b["mac"] == mac)
             status = beacon_data["status"]
 
+            # Store the temperature and the battery, they need to be cached even if the triangulation does not start
+            self._cache_battery_and_temperature(
+                mac, beacon_data["battery"], beacon_data["temperature"]
+            )
+
             temp = self.matrix_dist[beacon_index, :, 0]
-
-            relay_indexes = np.argwhere(~np.isnan(temp)).flatten()
-            relay_indexes = temp[relay_indexes].argsort()
-
+            
+            logger.info("temp: {}", temp)
+            
+            relay_indexes_nan = np.argwhere(np.isnan(temp)).flatten()
+            logger.info("relay_indexes for temp nans: {}", relay_indexes_nan)
+            
+            relay_indexes_sorted = temp.argsort()
+            logger.info("relay_indexes for temp sorted: {}", relay_indexes_sorted)
+            
+            relay_indexes = [x for x in relay_indexes_sorted if x not in relay_indexes_nan]
+            logger.info("relay_indexes for temp sorted: {}", relay_indexes)
+                        
             nb_relays = len(relay_indexes)
 
             logger.info(
@@ -439,15 +590,23 @@ class Triangulator:
 
             lat = []
             long = []
-            if nb_relays >= 2:
+            if nb_relays >= 3:
+                # distances = self.matrix_dist[beacon_index, relay_indexes, 0]
+                # not_nan_distances_indexes = np.argwhere(~np.isnan(distances)).flatten()
+                # distances = distances[not_nan_distances_indexes]
+                # relays_coords = np.array([(self.relay_matrix[index, 0], self.relay_matrix[index, 1]) for index in relay_indexes])
+                # relays_coords = relays_coords[not_nan_distances_indexes]
 
                 # Taking only the 5 closest relays for triangulation
                 if nb_relays > 5:
                     nb_relays = 5
 
                 for relay_1 in range(nb_relays - 1):
+                    logger.info("relay_1_index: {}", relay_indexes[relay_1])
+                    
                     for relay_2 in range(relay_1 + 1, nb_relays):
                         relay_1_index = relay_indexes[relay_1]
+                        
                         relay_2_index = relay_indexes[relay_2]
                         vect_lat = (
                             self.relay_matrix[relay_2_index, 0]
@@ -465,11 +624,20 @@ class Triangulator:
                             self.relay_matrix[relay_2_index, 0],
                             self.relay_matrix[relay_2_index, 1],
                         )
+                        
+                        logger.info(
+                            "dist: {}", dist
+                        )
 
                         # Applying proportionality rule from the origin on the vector to determine the position of the beacon in lat;long coord
                         # ie: x1 = x0 + (dist_beacon/dist_tot) * vector_length
 
                         dist_1 = self.matrix_dist[beacon_index, relay_1_index, 0]
+                        
+                        
+                        logger.info(
+                            "dist_1: {}", dist_1
+                        )
 
                         lat.append(
                             self.relay_matrix[relay_1_index, 0]
@@ -492,16 +660,13 @@ class Triangulator:
 
                 floor = np.mean(self.relay_matrix[0:3, 2])
 
-                # SMA
-                self.coordinates_history.update_coordinates_history(
-                    mac, (np.mean(lat), np.mean(long))
-                )
-
-                # Use the weighted moving average for smoothing coordinates computation
-                (
-                    weighted_latitude,
-                    weighted_longitude,
-                ) = self.coordinates_history.weighted_moving_average(mac)
+                # Doing a weighted mean and then pushing towards the closest relay
+                # new_lat = self._weighted_mean([self.relay_matrix[relay_indexes[0], 0] , np.mean(lat)])
+                # new_long = self._weighted_mean([self.relay_matrix[relay_indexes[0], 1] , np.mean(long)])
+                new_lat = self._weighted_mean(lat)
+                new_long = self._weighted_mean(long)
+                # new_lat = np.mean(lat)
+                # new_long = np.mean(long)
 
                 new_beacon_status = (
                     self.TO_REPAIR
@@ -509,7 +674,23 @@ class Triangulator:
                     else self.AVAILABLE
                 )
 
-                if not np.isnan(weighted_latitude) and not np.isnan(weighted_longitude):
+                if not np.isnan(new_lat) and not np.isnan(new_long):
+                    self.coordinates_history.update_coordinates_history(
+                        mac, (new_lat, new_long)
+                    )
+
+                    # # Use the weighted moving average for smoothing coordinates computation
+                    # (
+                    #     weighted_latitude,
+                    #     weighted_longitude,
+                    # ) = self.coordinates_history.weighted_moving_average(mac)
+
+                    # Use the geometric median for smoothing coordinates computation and removing outliers
+                    (
+                        weighted_latitude,
+                        weighted_longitude,
+                    ) = self.coordinates_history.geometric_median(mac)
+
                     data = _BeaconData(
                         mac,
                         weighted_latitude,  #     ,    np.mean(lat)   weighted_latitude
@@ -528,8 +709,11 @@ class Triangulator:
                 )
                 logger.info("Triangulation done{}", status_updated_message)
 
-            elif 1 <= nb_relays and nb_relays < 2:
-                if status == self.MOVEMENT_DETECTED_AND_BUTTON_PRESSED:
+            elif 1 <= nb_relays and nb_relays <= 2:
+                if (
+                    status == self.MOVEMENT_DETECTED_AND_BUTTON_PRESSED
+                    or status == self.BUTTON_PRESSED
+                ):
                     # Even if we didn't triangulate, we still need to update the status
                     await self.update_beacon_status(company, mac, self.TO_REPAIR)
 
@@ -546,18 +730,10 @@ class Triangulator:
         """
         Triangulates all beacons detected by the given relay, if enough information is available.
         """
-
-        # max_history = 30 #Number of data hsitory to keep
-
-        # logger.info(
-        #             "Matrix dist {}",
-        #             self.matrix_dist
-        #         )
-
         # Import the data
         relay_data = [data["latitude"], data["longitude"], data["floor"]]
 
-        relay_data = np.array(relay_data).astype(np.float)
+        relay_data = np.array(relay_data).astype(np.float64)
         relay_name = data["relayID"]
 
         company = data["company"]
@@ -624,14 +800,29 @@ class Triangulator:
                 # Starting the filtering job
                 self._preprocessing(beacon_indexes, relay_index, self.max_history)
 
+                # logger.info("Relay matrix name {}", self.relay_matrix_name)
+                # logger.info("Matrix dist {}", self.matrix_dist[:, :, 0])
+
                 coordinates = await self._triangulation_engine(
                     beacon_indexes, beacons, company
                 )
                 self.temp_raw[:] = np.nan
 
-            self.temp_raw[beacon_number_temp, relay_index] = rssis[i]
+            self.temp_raw[beacon_number_temp, relay_index] = rssis[
+                i
+            ]  # self._improve_rssi(rssis[i])
 
-        # Initial value guess with the nominal model at 1m
         if coordinates:
-            logger.info("Coordinates {}", coordinates)
             await self._store_beacons_data(company, coordinates)
+
+    def _improve_rssi(self, rssi):
+        if rssi <= 65:
+            return rssi
+        elif 65 < rssi and rssi <= 70:
+            return rssi - 6
+        elif 70 < rssi and rssi <= 75:
+            return rssi - 15
+        elif 75 < rssi and rssi <= 85:
+            return rssi - 15
+        else:
+            return rssi - 15
