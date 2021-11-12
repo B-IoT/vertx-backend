@@ -24,7 +24,7 @@ jacoco {
 allprojects {
     extra["vertxVersion"] = if (project.hasProperty("vertxVersion")) project.property("vertxVersion") else "4.1.2"
     extra["junitJupiterVersion"] = "5.8.0"
-    extra["logbackClassicVersion"] = "1.2.6"
+    extra["logbackClassicVersion"] = "1.2.7"
     extra["kotlinLoggingVersion"] = "2.0.11"
     extra["testContainersVersion"] = "1.16.0"
     extra["restAssuredVersion"] = "4.4.0"
