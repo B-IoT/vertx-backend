@@ -26,7 +26,7 @@ allprojects {
     extra["junitJupiterVersion"] = "5.8.0"
     extra["logbackClassicVersion"] = "1.2.6"
     extra["kotlinLoggingVersion"] = "2.0.11"
-    extra["testContainersVersion"] = "1.16.0"
+    extra["testContainersVersion"] = "1.17.1"
     extra["restAssuredVersion"] = "4.4.0"
     extra["striktVersion"] = "0.31.0"
     extra["hazelcastVersion"] = "2.2.3"
