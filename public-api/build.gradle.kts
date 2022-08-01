@@ -31,7 +31,7 @@ dependencies {
 
   // For this module only, and test-only
   val eventBusBridgeClientVersion = "1.0.1"
-  val gsonVersion = "2.8.8"
+  val gsonVersion = "2.9.1"
 
   implementation("io.vertx:vertx-web:$vertxVersion")
   implementation("io.vertx:vertx-web-client:$vertxVersion")
