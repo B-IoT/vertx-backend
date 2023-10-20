@@ -1,7 +1,7 @@
 # Copyright (c) 2021 BioT. All rights reserved.
 
 # set base image (host OS)
-FROM python:3.9-slim
+FROM python:3.12.0b1-slim
 
 # set the working directory in the container
 WORKDIR /triangulation
