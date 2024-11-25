@@ -42,3 +42,8 @@ spec:
               configMapKeyRef:
                 name: crud-config
                 key: timescale_hostname
+        # resources:
+        #   requests:
+        #     memory: "1024Mi"
+        #   limits:
+        #     memory: "2048Mi"

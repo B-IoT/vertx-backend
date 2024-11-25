@@ -326,6 +326,8 @@ class RelaysCommunicationVerticle : CoroutineVerticle() {
         .disconnectHandler {
           LOGGER.info { "Client $clientIdentifier disconnected" }
           clients.remove(clientIdentifier)
+
+          // Set the disconnecting client as disconnected in MongoDB
           launch(vertx.dispatcher()) {
             val filter = jsonObjectOf("mqttID" to clientIdentifier)
             val update = jsonObjectOf(
